@@ -88,6 +88,15 @@ def runPackageCommand(platform, project, jobName, boolean debug=false)
     def packageHelper = platform.makePackage(platform.jenkinsLabel,"${project.paths.project_build_prefix}/build/${directory}",false)
     platform.runCommand(this, packageHelper[0])
     platform.archiveArtifacts(this, packageHelper[1])
+    
+    //trim temp files
+    def command = """#!/usr/bin/env bash
+                     set -ex
+                     cd ${project.paths.project_build_prefix}/build/${directory}/
+                     rm -rf _CPack_Packages/
+                     find -name '*.o' -delete
+                  """
+    platform.runCommand(this, command)
 }
 
 def runSubsetBuildCommand(platform, project, jobName, genPattern, genSmall, genLarge, boolean onlyDouble)
