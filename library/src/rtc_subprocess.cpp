@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -356,7 +356,6 @@ std::vector<char> compile_subprocess(const std::string& kernel_src, const std::s
     pid_t pid = 0;
     char* argv[]
         = {const_cast<char*>(rtc_helper_exe.c_str()), const_cast<char*>(gpu_arch.c_str()), 0};
-    char* envp[] = {nullptr};
 
     // set up child's stdin/stdout
     posix_spawn_file_actions_t spawn_file_actions;
@@ -365,7 +364,7 @@ std::vector<char> compile_subprocess(const std::string& kernel_src, const std::s
     posix_spawn_file_actions_adddup2(&spawn_file_actions, child_stdout_write, STDOUT_FILENO);
 
     int spawn_result
-        = posix_spawn(&pid, rtc_helper_exe.c_str(), &spawn_file_actions, nullptr, argv, envp);
+        = posix_spawn(&pid, rtc_helper_exe.c_str(), &spawn_file_actions, nullptr, argv, environ);
     posix_spawn_file_actions_destroy(&spawn_file_actions);
     if(spawn_result != 0)
     {
