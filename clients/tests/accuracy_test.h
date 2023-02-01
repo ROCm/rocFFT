@@ -1,4 +1,4 @@
-// Copyright (C) 2020 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2020 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -1357,6 +1357,7 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         = allocate_host_buffer<fftwAllocator<char>>(params.precision, params.otype, params.osize);
 
     execute_gpu_fft(params, pibuffer, pobuffer, gpu_output);
+    params.free();
 
     if(params.check_output_strides)
     {
@@ -1417,6 +1418,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     last_cpu_fft_data.run_callbacks  = params.run_callbacks;
     last_cpu_fft_data.precision      = params.precision;
 
+    compare_output.get();
+
     BOOST_SCOPE_EXIT_ALL(&)
     {
         last_cpu_fft_data.cpu_output.swap(cpu_output);
@@ -1432,8 +1435,6 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         run_round_trip_inverse<Tparams>(
             params_inverse, ibuffer, pobuffer, pibuffer, gpu_input_data);
     }
-
-    compare_output.get();
 
     ASSERT_TRUE(std::isfinite(cpu_input_norm.get().l_2));
     ASSERT_TRUE(std::isfinite(cpu_input_norm.get().l_inf));
