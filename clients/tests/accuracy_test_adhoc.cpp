@@ -1,5 +1,5 @@
 
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -93,11 +93,6 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_adhoc,
 inline auto param_permissive_iodist()
 {
     std::vector<std::vector<size_t>> lengths = adhoc_sizes;
-    // TODO- for these permissive iodist tests,
-    // some 98^3 sizes take too long for the exhaustive search buffer assignments
-    // about millions of assignments, thus the program is hung there.
-    // So we take this length out from iodist test for now.
-    lengths.erase(std::find(lengths.begin(), lengths.end(), std::vector<size_t>{98, 98, 98}));
     lengths.push_back({4});
 
     std::vector<fft_params> params;
@@ -133,11 +128,61 @@ INSTANTIATE_TEST_SUITE_P(adhoc_dist,
                          ::testing::ValuesIn(param_permissive_iodist()),
                          accuracy_test::TestName);
 
+inline auto param_adhoc_colmajor()
+{
+    // generate basic FFTs of adhoc sizes
+    auto params = param_generator(adhoc_sizes,
+                                  {fft_precision_single},
+                                  {2},
+                                  stride_range,
+                                  stride_range,
+                                  ioffset_range_zero,
+                                  ooffset_range_zero,
+                                  {fft_placement_notinplace},
+                                  false);
+
+    // remove any params that are:
+    // - 1D (not enough dims to swap)
+    // - real-complex 2D (we only get to play with higher dims, so
+    //   again not enough dims to swap)
+    params.erase(std::remove_if(params.begin(),
+                                params.end(),
+                                [](const fft_params& param) {
+                                    if(param.length.size() == 1)
+                                        return true;
+                                    if(param.length.size() == 2)
+                                    {
+                                        if(param.transform_type == fft_transform_type_real_forward
+                                           || param.transform_type
+                                                  == fft_transform_type_real_inverse)
+                                            return true;
+                                    }
+                                    return false;
+                                }),
+                 params.end());
+
+    // reverse length/stride order on remaining params to make them
+    // col-major
+    std::for_each(params.begin(), params.end(), [](fft_params& param) {
+        size_t start_dim = 0;
+        // for real-complex we can't touch the fastest dim
+        if(param.transform_type == fft_transform_type_real_forward
+           || param.transform_type == fft_transform_type_real_inverse)
+            ++start_dim;
+        std::reverse(param.length.begin() + start_dim, param.length.end());
+        std::reverse(param.istride.begin() + start_dim, param.istride.end());
+        std::reverse(param.ostride.begin() + start_dim, param.ostride.end());
+    });
+    return params;
+}
+
+INSTANTIATE_TEST_SUITE_P(adhoc_colmajor,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_adhoc_colmajor()),
+                         accuracy_test::TestName);
+
 inline auto param_adhoc_stride()
 {
-    std::vector<std::vector<size_t>> lengths = adhoc_sizes;
-    lengths.push_back({4});
-
     std::vector<fft_params> params;
 
     for(const auto precision : precision_range)

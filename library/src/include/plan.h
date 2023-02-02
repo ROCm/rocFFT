@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -92,6 +92,14 @@ struct rocfft_plan_t
     rocfft_plan_t() = default;
 
     ExecPlan execPlan;
+
+    // Users can provide lengths+strides in any order, but we'll
+    // construct the most sensible plans if they're in row-major order.
+    // Sort the FFT dimensions.
+    //
+    // This should be done when the plan parameters are known, but
+    // before we start creating any child nodes from the root plan.
+    void sort();
 };
 
 bool PlanPowX(ExecPlan& execPlan);

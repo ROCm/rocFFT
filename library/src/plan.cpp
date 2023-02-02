@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -253,6 +253,66 @@ void rocfft_plan_description_t::init_defaults(rocfft_transform_type        trans
     }
 }
 
+void rocfft_plan_t::sort()
+{
+    // copy the lengths + strides separately, and then sort them
+    // fastest to slowest.
+    struct rocfft_iodim
+    {
+        size_t length;
+        size_t istride;
+        size_t ostride;
+    };
+
+    // complex-complex transforms can be freely reordered starting from
+    // the fastest dimension.  real-complex has to leave the fastest
+    // dimension alone
+    const size_t start_dim = (transformType == rocfft_transform_type_complex_forward
+                              || transformType == rocfft_transform_type_complex_inverse)
+                                 ? 0
+                                 : 1;
+
+    std::vector<rocfft_iodim> iodims;
+    for(size_t dim = start_dim; dim < rank; ++dim)
+        iodims.push_back(rocfft_iodim{lengths[dim], desc.inStrides[dim], desc.outStrides[dim]});
+    if(iodims.empty())
+        return;
+
+    bool sort_on_istride = true;
+    auto sorter          = [sort_on_istride](const rocfft_iodim& a, const rocfft_iodim& b) {
+        // move any lengths of 1 to the end
+        if(a.length == 1 && b.length != 1)
+            return false;
+        if(b.length == 1 && a.length != 1)
+            return true;
+        return sort_on_istride ? (a.istride < b.istride) : (a.ostride < b.ostride);
+    };
+
+    // sort on istride first
+    std::sort(iodims.begin(), iodims.end(), sorter);
+
+    // if that means ostride is no longer sorted, then don't bother
+    // changing anything - the user is asking for some kind of
+    // transposed FFT so let's just assume they know what they're doing
+    sort_on_istride = false;
+    if(!std::is_sorted(iodims.begin(), iodims.end(), sorter))
+        return;
+
+    // chop off any lengths of 1 from the end
+    while(iodims.size() > 1 && iodims.back().length == 1)
+    {
+        --rank;
+        iodims.pop_back();
+    }
+    // copy back the sorted lengths + strides
+    for(size_t dim = start_dim; dim < rank; ++dim)
+    {
+        lengths[dim]         = iodims[dim - start_dim].length;
+        desc.inStrides[dim]  = iodims[dim - start_dim].istride;
+        desc.outStrides[dim] = iodims[dim - start_dim].ostride;
+    }
+}
+
 rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description description,
                                                       const rocfft_array_type in_array_type,
                                                       const rocfft_array_type out_array_type,
@@ -455,6 +515,9 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
             return rocfft_status_invalid_array_type;
         break;
     }
+
+    // sort the parameters to be row major, in case they're not
+    plan->sort();
 
     log_bench(rocfft_rider_command(p));
 

@@ -6,6 +6,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Changed
 - Replaced std::complex with hipComplex data types for data generator.
+- FFT plan dimensions are now sorted to be row-major internally where possible, which produces better plans if the dimensions were accidentally specified in a different order (column-major, for example).
 - Changed definition of rocfft_execution_info_set_stream to take hipStream_t as input instead of void*.
 
 ## rocFFT 1.0.22 for ROCm 5.5.0
