@@ -222,6 +222,7 @@ if( BUILD_CLIENTS_SAMPLES
   if(CLIENTS_OS STREQUAL "sles")
     set(BOOST_RPM RPM "libboost_program_options${Boost_VERSION_MAJOR}_${Boost_VERSION_MINOR}_${Boost_VERSION_PATCH}-devel")
   endif()
+  rocm_package_setup_component(clients)
   if(BUILD_CLIENTS_TESTS)
     rocm_package_setup_client_component(
       tests
