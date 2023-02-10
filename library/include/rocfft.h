@@ -27,8 +27,6 @@
 #ifndef ROCFFT_H
 #define ROCFFT_H
 
-#include <hip/hip_runtime_api.h>
-
 #ifdef rocfft_EXPORTS
 #include "rocfft-export.h"
 #else
@@ -384,11 +382,14 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_mode( rocfft_execution_inf
  *  Once the association is made, execution of the FFT will run the
  *  computation through the specified stream.
  *
+ *  The stream must be of type hipStream_t. It is an error to pass
+ *  the address of a hipStream_t object.
+ *
  *  @param[in] info execution info handle
  *  @param[in] stream underlying compute stream
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info,
-                                                             hipStream_t           stream);
+                                                             void*                 stream);
 
 /*! @brief Set a load callback for a plan execution (experimental)
  *  @details This function specifies a user-defined callback function

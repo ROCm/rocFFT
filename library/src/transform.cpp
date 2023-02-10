@@ -62,7 +62,7 @@ rocfft_status rocfft_execution_info_set_work_buffer(rocfft_execution_info info,
     return rocfft_status_success;
 }
 
-rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info, hipStream_t stream)
+rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info, void* stream)
 {
     log_trace(__func__, "info", info, "stream", stream);
     info->rocfft_stream = (hipStream_t)stream;
