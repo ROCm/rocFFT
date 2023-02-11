@@ -26,6 +26,7 @@
 #include <hip/hip_vector_types.h>
 #include <iostream>
 #include <math.h>
+#include <stdexcept>
 #include <vector>
 
 // example of using load/store callbacks with rocfft
@@ -63,7 +64,7 @@ int main()
     }
 
     // rocfft gpu compute
-    // ========================================
+    // ==================
 
     rocfft_setup();
 
@@ -71,12 +72,22 @@ int main()
 
     // Create HIP device object.
     double2 *x, *filter_dev;
-    hipMalloc(&x, Nbytes);
-    hipMalloc(&filter_dev, Nbytes);
+
+    // create buffers
+    if(hipMalloc(&x, Nbytes) != hipSuccess)
+        throw std::runtime_error("hipMalloc failed.");
+
+    if(hipMalloc(&filter_dev, Nbytes) != hipSuccess)
+        throw std::runtime_error("hipMalloc failed.");
 
     //  Copy data to device
-    hipMemcpy(x, cx.data(), Nbytes, hipMemcpyHostToDevice);
-    hipMemcpy(filter_dev, filter.data(), Nbytes, hipMemcpyHostToDevice);
+    hipError_t hip_status = hipMemcpy(x, cx.data(), Nbytes, hipMemcpyHostToDevice);
+    if(hip_status != hipSuccess)
+        throw std::runtime_error("hipMemcpy failed.");
+
+    hip_status = hipMemcpy(filter_dev, filter.data(), Nbytes, hipMemcpyHostToDevice);
+    if(hip_status != hipSuccess)
+        throw std::runtime_error("hipMemcpy failed.");
 
     // Create plan
     rocfft_plan plan   = NULL;
@@ -98,22 +109,31 @@ int main()
     rocfft_execution_info_create(&info);
     if(work_buf_size)
     {
-        hipMalloc(&work_buf, work_buf_size);
+        if(hipMalloc(&work_buf, work_buf_size) != hipSuccess)
+            throw std::runtime_error("hipMalloc failed.");
+
         rocfft_execution_info_set_work_buffer(info, work_buf, work_buf_size);
     }
 
-    // prepare callback
+    // Prepare callback
     load_cbdata cbdata_host;
     cbdata_host.filter = filter_dev;
     cbdata_host.scale  = 1.0 / static_cast<double>(N);
-    void* cbdata_dev;
-    hipMalloc(&cbdata_dev, sizeof(load_cbdata));
-    hipMemcpy(cbdata_dev, &cbdata_host, sizeof(load_cbdata), hipMemcpyHostToDevice);
 
-    // get a properly-typed host pointer to the device function, as
+    void* cbdata_dev;
+    if(hipMalloc(&cbdata_dev, sizeof(load_cbdata)) != hipSuccess)
+        throw std::runtime_error("hipMalloc failed.");
+
+    hip_status = hipMemcpy(cbdata_dev, &cbdata_host, sizeof(load_cbdata), hipMemcpyHostToDevice);
+    if(hip_status != hipSuccess)
+        throw std::runtime_error("hipMemcpy failed.");
+
+    // Get a properly-typed host pointer to the device function, as
     // rocfft_execution_info_set_load_callback expects void*.
     void* cbptr_host = nullptr;
-    hipMemcpyFromSymbol(&cbptr_host, HIP_SYMBOL(load_callback_dev), sizeof(void*));
+    hip_status = hipMemcpyFromSymbol(&cbptr_host, HIP_SYMBOL(load_callback_dev), sizeof(void*));
+    if(hip_status != hipSuccess)
+        throw std::runtime_error("hipMemcpyFromSymbol failed.");
 
     // set callback
     rocfft_execution_info_set_load_callback(info, &cbptr_host, &cbdata_dev, 0);
@@ -124,7 +144,8 @@ int main()
     // Clean up work buffer
     if(work_buf_size)
     {
-        hipFree(work_buf);
+        if(hipFree(work_buf) != hipSuccess)
+            throw std::runtime_error("hipFree failed.");
         rocfft_execution_info_destroy(info);
     }
 
@@ -133,7 +154,9 @@ int main()
 
     // Copy result back to host
     std::vector<double2> y(N);
-    hipMemcpy(&y[0], x, Nbytes, hipMemcpyDeviceToHost);
+    hip_status = hipMemcpy(&y[0], x, Nbytes, hipMemcpyDeviceToHost);
+    if(hip_status != hipSuccess)
+        throw std::runtime_error("hipMemcpy failed.");
 
     for(size_t i = 0; i < N; i++)
     {
@@ -141,9 +164,12 @@ int main()
                   << " output: (" << y[i].x << "," << y[i].y << ")" << std::endl;
     }
 
-    hipFree(cbdata_dev);
-    hipFree(filter_dev);
-    hipFree(x);
+    if(hipFree(cbdata_dev) != hipSuccess)
+        throw std::runtime_error("hipFree failed.");
+    if(hipFree(filter_dev) != hipSuccess)
+        throw std::runtime_error("hipFree failed.");
+    if(hipFree(x) != hipSuccess)
+        throw std::runtime_error("hipFree failed.");
 
     rocfft_cleanup();
 

@@ -177,7 +177,7 @@ void workmem_test(workmem_sizer sizer,
 
     size_t requested_work_size = 0;
     ASSERT_EQ(rocfft_plan_get_work_buffer_size(plan, &requested_work_size), rocfft_status_success);
-    ASSERT_GT(requested_work_size, 0);
+    ASSERT_GT(requested_work_size, 0U);
 
     rocfft_execution_info info;
     ASSERT_EQ(rocfft_execution_info_create(&info), rocfft_status_success);

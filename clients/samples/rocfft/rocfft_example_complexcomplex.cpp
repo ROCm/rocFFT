@@ -32,6 +32,7 @@ namespace po = boost::program_options;
 
 #include "examplekernels.h"
 #include "exampleutils.h"
+#include <stdexcept>
 
 int main(int argc, char* argv[])
 {
@@ -117,22 +118,30 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
 
     // Set the device:
-    hipSetDevice(deviceId);
+    if(hipSetDevice(deviceId) != hipSuccess)
+        throw std::runtime_error("hipSetDevice failed.");
 
-    // Create HIP device object and copy data to device
+    // Create HIP device object and allocate data
     hipDoubleComplex* gpu_in = NULL;
-    hipMalloc(&gpu_in, isize * sizeof(hipDoubleComplex));
+    if(hipMalloc(&gpu_in, isize * sizeof(hipDoubleComplex)) != hipSuccess)
+        throw std::runtime_error("hipMalloc failed.");
 
     // Inititalize the data on the device
     initcomplex_cm(length, istride, gpu_in);
-    hipDeviceSynchronize();
+    if(hipDeviceSynchronize() != hipSuccess)
+        throw std::runtime_error("hipDeviceSynchronize failed.");
+
     hipError_t hip_status = hipGetLastError();
     if(hip_status != hipSuccess)
         throw std::runtime_error("device error");
 
     std::cout << "input:\n";
     std::vector<hipDoubleComplex> idata(isize);
-    hipMemcpy(idata.data(), gpu_in, isize * sizeof(hipDoubleComplex), hipMemcpyDefault);
+    hip_status
+        = hipMemcpy(idata.data(), gpu_in, isize * sizeof(hipDoubleComplex), hipMemcpyDefault);
+    if(hip_status != hipSuccess)
+        throw std::runtime_error("hipMemcpy failed.");
+
     printbuffer_cm(idata, length, istride, 1, isize);
 
     // Create the a descrition struct to set data layout:
@@ -187,10 +196,10 @@ int main(int argc, char* argv[])
     {
         hip_status = hipMalloc(&wbuffer, workbuffersize);
         if(hip_status != hipSuccess)
-            throw std::runtime_error("hipMalloc failed");
+            throw std::runtime_error("hipMalloc failed.");
         rc = rocfft_execution_info_set_work_buffer(planinfo, wbuffer, workbuffersize);
         if(rc != rocfft_status_success)
-            throw std::runtime_error("failed to set work buffer");
+            throw std::runtime_error("failed to set work buffer.");
     }
 
     // If the transform is out-of-place, allocate the output buffer as well:
@@ -199,7 +208,7 @@ int main(int argc, char* argv[])
     {
         hip_status = hipMalloc(&gpu_out, osize * sizeof(hipDoubleComplex));
         if(hip_status != hipSuccess)
-            throw std::runtime_error("hipMalloc failed");
+            throw std::runtime_error("hipMalloc failed.");
     }
 
     // Execute the GPU transform:
@@ -208,23 +217,31 @@ int main(int argc, char* argv[])
                         (void**)&gpu_out, // out_buffer
                         planinfo); // execution info
     if(rc != rocfft_status_success)
-        throw std::runtime_error("failed to execute");
+        throw std::runtime_error("failed to execute.");
 
     // Get the output from the device and print to cout:
     std::cout << "output:\n";
     std::vector<hipDoubleComplex> odata(osize);
-    hipMemcpy(odata.data(), gpu_out, osize * sizeof(hipDoubleComplex), hipMemcpyDeviceToHost);
+    hip_status
+        = hipMemcpy(odata.data(), gpu_out, osize * sizeof(hipDoubleComplex), hipMemcpyDeviceToHost);
+    if(hip_status != hipSuccess)
+        throw std::runtime_error("hipMemcpy failed.");
+
     printbuffer_cm(odata, length, istride, 1, isize);
 
     // Clean up: free GPU memory:
-    hipFree(gpu_in);
+    if(hipFree(gpu_in) != hipSuccess)
+        throw std::runtime_error("hipFree failed.");
+
     if(!inplace)
     {
-        hipFree(gpu_out);
+        if(hipFree(gpu_out) != hipSuccess)
+            throw std::runtime_error("hipFree failed.");
     }
     if(wbuffer != NULL)
     {
-        hipFree(wbuffer);
+        if(hipFree(wbuffer) != hipSuccess)
+            throw std::runtime_error("hipFree failed.");
     }
 
     // Clean up: destroy plans:

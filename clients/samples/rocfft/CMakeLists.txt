@@ -1,5 +1,5 @@
 # #############################################################################
-# Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -90,7 +90,7 @@ target_link_libraries(
 
   set_target_properties( ${sample} PROPERTIES
     DEBUG_POSTFIX "-d"
-    CXX_STANDARD 11
+    CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
   )
 

@@ -120,7 +120,7 @@ __host__ __device__ Tdata
     load_callback_round_trip_inverse(Tdata* input, size_t offset, void* cbdata, void* sharedMem)
 {
     auto testdata = static_cast<const callback_test_data*>(cbdata);
-    // multiply each element by scalar
+    // subtract each element by scalar
     if(input == testdata->base)
         return subtract_scalar(input[offset], testdata->scalar);
     // wrong base address passed, return something obviously wrong

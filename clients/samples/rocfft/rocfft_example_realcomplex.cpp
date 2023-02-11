@@ -32,6 +32,7 @@ namespace po = boost::program_options;
 
 #include "examplekernels.h"
 #include "exampleutils.h"
+#include <stdexcept>
 
 int main(int argc, char* argv[])
 {
@@ -147,7 +148,8 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
 
     // Set the device:
-    hipSetDevice(deviceId);
+    if(hipSetDevice(deviceId) != hipSuccess)
+        throw std::runtime_error("hipSetDevice failed.");
 
     // Create HIP device object and initialize data
     // Kernels are provided in examplekernels.h
@@ -169,12 +171,16 @@ int main(int argc, char* argv[])
     std::cout << "input:\n";
     if(forward)
     {
-        hipMemcpy(rdata.data(), gpu_in, ibytes, hipMemcpyDeviceToHost);
+        hip_status = hipMemcpy(rdata.data(), gpu_in, ibytes, hipMemcpyDeviceToHost);
+        if(hip_status != hipSuccess)
+            throw std::runtime_error("hipMemcpy failed.");
         printbuffer_cm(rdata, ilength, istride, 1, isize);
     }
     else
     {
-        hipMemcpy(cdata.data(), gpu_in, ibytes, hipMemcpyDeviceToHost);
+        hip_status = hipMemcpy(cdata.data(), gpu_in, ibytes, hipMemcpyDeviceToHost);
+        if(hip_status != hipSuccess)
+            throw std::runtime_error("hipMemcpy failed.");
         printbuffer_cm(cdata, ilength, istride, 1, isize);
 
         // Check that the buffer is Hermitian symmetric:
@@ -269,24 +275,32 @@ int main(int argc, char* argv[])
     std::cout << "output:\n";
     if(forward)
     {
-        hipMemcpy(cdata.data(), gpu_out, obytes, hipMemcpyDeviceToHost);
+        hip_status = hipMemcpy(cdata.data(), gpu_out, obytes, hipMemcpyDeviceToHost);
+        if(hip_status != hipSuccess)
+            throw std::runtime_error("hipMemcpy failed.");
         printbuffer_cm(cdata, olength, ostride, 1, osize);
     }
     else
     {
-        hipMemcpy(rdata.data(), gpu_out, obytes, hipMemcpyDeviceToHost);
+        hip_status = hipMemcpy(rdata.data(), gpu_out, obytes, hipMemcpyDeviceToHost);
+        if(hip_status != hipSuccess)
+            throw std::runtime_error("hipMemcpy failed.");
         printbuffer_cm(rdata, olength, ostride, 1, osize);
     }
 
     // Clean up: free GPU memory:
-    hipFree(gpu_in);
+    if(hipFree(gpu_in) != hipSuccess)
+        throw std::runtime_error("hipFree failed.");
+
     if(!inplace)
     {
-        hipFree(gpu_out);
+        if(hipFree(gpu_out) != hipSuccess)
+            throw std::runtime_error("hipFree failed.");
     }
     if(wbuffer != NULL)
     {
-        hipFree(wbuffer);
+        if(hipFree(wbuffer) != hipSuccess)
+            throw std::runtime_error("hipFree failed.");
     }
 
     // Clean up: destroy plans:

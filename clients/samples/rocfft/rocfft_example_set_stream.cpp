@@ -22,20 +22,7 @@
 #include <cassert>
 #include <hip/hip_runtime_api.h>
 #include <iostream>
-
-#define CHECK_HIP_ERR(err)                                    \
-    if(err != hipSuccess)                                     \
-    {                                                         \
-        std::cerr << "hip error code : " << err << std::endl; \
-        exit(-1);                                             \
-    }
-
-#define CHECK_ROCFFT_ERR(err)                                    \
-    if(err != rocfft_status_success)                             \
-    {                                                            \
-        std::cerr << "rocFFT error code : " << err << std::endl; \
-        exit(-1);                                                \
-    }
+#include <stdexcept>
 
 struct fft_fixture_t
 {
@@ -50,8 +37,10 @@ int main(int argc, char* argv[])
 {
     std::cout << "rocfft example of 2 inplace transforms with 2 streams.\n" << std::endl;
 
-    size_t length      = 8;
-    size_t total_bytes = length * sizeof(double2);
+    size_t        length      = 8;
+    size_t        total_bytes = length * sizeof(double2);
+    hipError_t    hip_status;
+    rocfft_status fft_status;
 
     fft_fixture_t ffts[2];
 
@@ -65,57 +54,82 @@ int main(int argc, char* argv[])
         // init cpu buffer...
 
         // create gpu buffer
-        CHECK_HIP_ERR(hipMalloc(&(it.gpu_buf), total_bytes));
+        if(hipMalloc(&(it.gpu_buf), total_bytes) != hipSuccess)
+            throw std::runtime_error("hipMalloc failed.");
 
         // copy host to device
-        CHECK_HIP_ERR(hipMemcpy(it.gpu_buf, it.cpu_buf, total_bytes, hipMemcpyHostToDevice));
+        if(hipMemcpy(it.gpu_buf, it.cpu_buf, total_bytes, hipMemcpyHostToDevice) != hipSuccess)
+            throw std::runtime_error("hipMemcpy failed.");
 
         // create stream
-        CHECK_HIP_ERR(hipStreamCreate(&(it.stream)));
+        if(hipStreamCreate(&(it.stream)) != hipSuccess)
+            throw std::runtime_error("hipStreamCreate failed.");
 
         // create execution info
-        CHECK_ROCFFT_ERR(rocfft_execution_info_create(&(it.info)));
+        fft_status = rocfft_execution_info_create(&(it.info));
+        if(fft_status != rocfft_status_success)
+            throw std::runtime_error("rocfft_execution_info_create failed.");
 
         // set stream
         // NOTE: The stream must be of type hipStream_t.
         // It is an error to pass the address of a hipStream_t object.
-        CHECK_ROCFFT_ERR(rocfft_execution_info_set_stream(it.info, it.stream));
+        fft_status = rocfft_execution_info_set_stream(it.info, it.stream);
+        if(fft_status != rocfft_status_success)
+            throw std::runtime_error("rocfft_execution_info_set_stream failed.");
 
         // create plan
-        CHECK_ROCFFT_ERR(rocfft_plan_create(&it.plan,
-                                            rocfft_placement_inplace,
-                                            rocfft_transform_type_complex_forward,
-                                            rocfft_precision_double,
-                                            1,
-                                            &length,
-                                            1,
-                                            nullptr));
+        fft_status = rocfft_plan_create(&it.plan,
+                                        rocfft_placement_inplace,
+                                        rocfft_transform_type_complex_forward,
+                                        rocfft_precision_double,
+                                        1,
+                                        &length,
+                                        1,
+                                        nullptr);
+        if(fft_status != rocfft_status_success)
+            throw std::runtime_error("rocfft_plan_create failed.");
+
         size_t work_buf_size = 0;
-        CHECK_ROCFFT_ERR(rocfft_plan_get_work_buffer_size(it.plan, &work_buf_size));
+        fft_status           = rocfft_plan_get_work_buffer_size(it.plan, &work_buf_size);
+        if(fft_status != rocfft_status_success)
+            throw std::runtime_error("rocfft_plan_get_work_buffer_size failed.");
+
         assert(work_buf_size == 0); // simple 1D inplace fft doesn't need extra working buffer
     }
 
     /// execution
     for(auto& it : ffts)
     {
-        CHECK_ROCFFT_ERR(
-            rocfft_execute(it.plan, (void**)&(it.gpu_buf), (void**)&(it.gpu_buf), nullptr));
+        fft_status = rocfft_execute(it.plan, (void**)&(it.gpu_buf), (void**)&(it.gpu_buf), nullptr);
+        if(fft_status != rocfft_status_success)
+            throw std::runtime_error("rocfft_execute failed.");
     }
 
     /// wait and copy back
     for(auto& it : ffts)
     {
-        CHECK_HIP_ERR(hipStreamSynchronize(it.stream));
-        CHECK_HIP_ERR(hipMemcpy(it.cpu_buf, it.gpu_buf, total_bytes, hipMemcpyDeviceToHost));
+        if(hipStreamSynchronize(it.stream) != hipSuccess)
+            throw std::runtime_error("hipStreamSynchronize failed.");
+        hip_status = hipMemcpy(it.cpu_buf, it.gpu_buf, total_bytes, hipMemcpyDeviceToHost);
+        if(hip_status != hipSuccess)
+            throw std::runtime_error("hipMemcpy failed.");
     }
 
     /// clean up
     for(auto& it : ffts)
     {
-        CHECK_ROCFFT_ERR(rocfft_plan_destroy(it.plan));
-        CHECK_ROCFFT_ERR(rocfft_execution_info_destroy(it.info));
-        CHECK_HIP_ERR(hipStreamDestroy(it.stream));
-        CHECK_HIP_ERR(hipFree(it.gpu_buf));
+        fft_status = rocfft_plan_destroy(it.plan);
+        if(fft_status != rocfft_status_success)
+            throw std::runtime_error("rocfft_plan_destroy failed.");
+
+        fft_status = rocfft_execution_info_destroy(it.info);
+        if(fft_status != rocfft_status_success)
+            throw std::runtime_error("rocfft_execution_info_destroy failed.");
+
+        if(hipStreamDestroy(it.stream) != hipSuccess)
+            throw std::runtime_error("hipStreamDestroy failed.");
+        if(hipFree(it.gpu_buf) != hipSuccess)
+            throw std::runtime_error("hipFree failed.");
         delete[] it.cpu_buf;
     }
 
