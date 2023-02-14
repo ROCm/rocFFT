@@ -23,7 +23,6 @@
 
 #ifdef REF_DEBUG
 
-#include <complex>
 #include <cstdio>
 #include <dlfcn.h>
 #include <functional>
@@ -202,10 +201,10 @@ class RefLibOp
 
         size_t in_typesize  = (data->node->inArrayType == rocfft_array_type_real)
                                   ? sizeof(float)
-                                  : sizeof(std::complex<float>);
+                                  : sizeof(rocfft_complex<float>);
         size_t out_typesize = (data->node->outArrayType == rocfft_array_type_real)
                                   ? sizeof(float)
-                                  : sizeof(std::complex<float>);
+                                  : sizeof(rocfft_complex<float>);
 
         size_t     insize  = 0;
         size_t     outsize = 0;
@@ -232,13 +231,13 @@ class RefLibOp
         case CS_KERNEL_R_TO_CMPLX:
             insize      = batch * data->node->length[0];
             outsize     = batch * (data->node->length[0] + 1);
-            in_typesize = sizeof(std::complex<float>);
+            in_typesize = sizeof(rocfft_complex<float>);
             break;
         case CS_KERNEL_CMPLX_TO_R:
             insize       = batch * (data->node->length[0] + 1);
             outsize      = batch * data->node->length[0];
-            in_typesize  = sizeof(std::complex<float>);
-            out_typesize = sizeof(std::complex<float>);
+            in_typesize  = sizeof(rocfft_complex<float>);
+            out_typesize = sizeof(rocfft_complex<float>);
             break;
         default:
             insize  = std::accumulate(data->node->length.begin(),
@@ -262,10 +261,10 @@ class RefLibOp
 #if 0
         // Initialize the code to some known value to help debug the
         // cpu reference implementation.
-        std::complex<float>* input = (std::complex<float>*)fftwin.data;
+        rocfft_complex<float>* input = (rocfft_complex<float>*)fftwin.data;
         for(int r = 0; r < fftwin.size; ++r)
         {
-            input[r] = std::complex<float>(r + 0.5, r * r + 3);
+            input[r] = rocfft_complex<float>(r + 0.5, r * r + 3);
         }
 #endif
     }
@@ -344,7 +343,7 @@ class RefLibOp
         }
 
         void*   buf = ((char*)data->bufIn[0] + offset);
-        fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
+        fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(rocfft_complex<float>));
         hipMemcpy(tmp_mem.data, buf, in_size_bytes, hipMemcpyDeviceToHost);
 
         CopyVector((local_fftwf_complex*)fftwin.data,
@@ -540,8 +539,8 @@ class RefLibOp
         case CS_KERNEL_TRANSPOSE:
         {
             // TODO: what about the real transpose case?
-            std::complex<float>* ot = (std::complex<float>*)fftwout.data;
-            std::complex<float>* in = (std::complex<float>*)fftwin.data;
+            rocfft_complex<float>* ot = (rocfft_complex<float>*)fftwout.data;
+            rocfft_complex<float>* in = (rocfft_complex<float>*)fftwin.data;
 
             CopyInputVector(data_p);
 
@@ -608,14 +607,14 @@ class RefLibOp
         break;
         case CS_KERNEL_COPY_R_TO_CMPLX:
         {
-            std::complex<float>* ot = (std::complex<float>*)fftwout.data;
-            size_t in_size_bytes    = (data->node->iDist * data->node->batch) * sizeof(float);
+            rocfft_complex<float>* ot = (rocfft_complex<float>*)fftwout.data;
+            size_t in_size_bytes      = (data->node->iDist * data->node->batch) * sizeof(float);
 
-            fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
+            fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(rocfft_complex<float>));
 
             hipMemcpy(tmp_mem.data, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
-            std::complex<float>* tmp_data = (std::complex<float>*)tmp_mem.data;
+            rocfft_complex<float>* tmp_data = (rocfft_complex<float>*)tmp_mem.data;
 
             size_t elements = 1;
             for(size_t d = 0; d < data->node->length.size(); d++)
@@ -627,23 +626,23 @@ class RefLibOp
                 for(size_t i = 0; i < elements; i++)
                 {
                     ot[data->node->oDist * b + i]
-                        = std::complex<float>(tmp_data[data->node->iDist * b + i].real(), 0.0);
+                        = rocfft_complex<float>(tmp_data[data->node->iDist * b + i].real(), 0.0);
                 }
             }
         }
         break;
         case CS_KERNEL_COPY_CMPLX_TO_HERM:
         {
-            std::complex<float>* ot = (std::complex<float>*)fftwout.data;
+            rocfft_complex<float>* ot = (rocfft_complex<float>*)fftwout.data;
             // assump the input is complex, the output is hermitian on take the first
             // [N/2 + 1] elements
             size_t in_size_bytes = (data->node->iDist * data->node->batch) * 2 * sizeof(float);
 
-            fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
+            fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(rocfft_complex<float>));
 
             hipMemcpy(tmp_mem.data, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
-            std::complex<float>* tmp_data = (std::complex<float>*)tmp_mem.data;
+            rocfft_complex<float>* tmp_data = (rocfft_complex<float>*)tmp_mem.data;
 
             size_t elements = 1;
             elements *= data->node->length[0] / 2 + 1;
@@ -665,16 +664,16 @@ class RefLibOp
         break;
         case CS_KERNEL_COPY_HERM_TO_CMPLX:
         {
-            std::complex<float>* ot = (std::complex<float>*)fftwout.data;
+            rocfft_complex<float>* ot = (rocfft_complex<float>*)fftwout.data;
             // assump the input is hermitian, the output is complex on take the first
             // [N/2 + 1] elements
             size_t in_size_bytes = (data->node->iDist * data->node->batch) * 2 * sizeof(float);
 
-            fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(std::complex<float>));
+            fftwbuf tmp_mem(data->node->iDist * data->node->batch, sizeof(rocfft_complex<float>));
 
             hipMemcpy(tmp_mem.data, data->bufIn[0], in_size_bytes, hipMemcpyDeviceToHost);
 
-            std::complex<float>* tmp_data = (std::complex<float>*)tmp_mem.data;
+            rocfft_complex<float>* tmp_data = (rocfft_complex<float>*)tmp_mem.data;
 
             size_t output_size = data->node->length[0];
             size_t input_size  = output_size / 2 + 1;
@@ -713,14 +712,14 @@ class RefLibOp
             assert(fftwin.size == batch * halfN);
             assert(fftwout.size == batch * (halfN + 1));
 
-            const auto           input  = (std::complex<float>*)fftwin.data;
-            std::complex<float>* output = (std::complex<float>*)fftwout.data;
+            const auto             input  = (rocfft_complex<float>*)fftwin.data;
+            rocfft_complex<float>* output = (rocfft_complex<float>*)fftwout.data;
 
             size_t output_idx_base = 0;
 
-            const std::complex<float> I(0, 1);
-            const std::complex<float> one(1, 0);
-            const std::complex<float> half(0.5, 0);
+            const rocfft_complex<float> I(0, 1);
+            const rocfft_complex<float> one(1, 0);
+            const rocfft_complex<float> half(0.5, 0);
 
             const float overN = 0.5 / halfN;
 
@@ -728,17 +727,17 @@ class RefLibOp
             {
                 const auto bin  = input + ibatch * halfN;
                 auto       bout = output + ibatch * (halfN + 1);
-                bout[0]         = std::complex<float>(bin[0].real() + bin[0].imag());
+                bout[0]         = rocfft_complex<float>(bin[0].real() + bin[0].imag());
                 for(int r = 1; r < halfN; ++r)
                 {
                     const auto omegaNr
-                        = std::exp(std::complex<float>(0.0f, (float)(-2.0f * M_PI * r * overN)));
+                        = std::exp(rocfft_complex<float>(0.0f, (float)(-2.0f * M_PI * r * overN)));
                     bout[r] = bin[r] * half * (one - I * omegaNr)
                               + conj(bin[halfN - r]) * half * (one + I * omegaNr);
                 }
             }
             output[output_idx_base + halfN]
-                = std::complex<float>(input[0].real() - input[0].imag(), 0);
+                = rocfft_complex<float>(input[0].real() - input[0].imag(), 0);
         }
         break;
         case CS_KERNEL_CMPLX_TO_R:
@@ -749,15 +748,15 @@ class RefLibOp
 
             assert(fftwin.size == batch * (halfN + 1));
             assert(fftwout.size == batch * halfN);
-            assert(fftwin.typesize == sizeof(std::complex<float>));
-            assert(fftwout.typesize == sizeof(std::complex<float>));
+            assert(fftwin.typesize == sizeof(rocfft_complex<float>));
+            assert(fftwout.typesize == sizeof(rocfft_complex<float>));
 
-            const std::complex<float>* input  = (std::complex<float>*)fftwin.data;
-            std::complex<float>*       output = (std::complex<float>*)fftwout.data;
+            const rocfft_complex<float>* input  = (rocfft_complex<float>*)fftwin.data;
+            rocfft_complex<float>*       output = (rocfft_complex<float>*)fftwout.data;
 
-            const float               overN = 0.5 / halfN;
-            const std::complex<float> I(0, 1);
-            const std::complex<float> one(1, 0);
+            const float                 overN = 0.5 / halfN;
+            const rocfft_complex<float> I(0, 1);
+            const rocfft_complex<float> one(1, 0);
 
             for(int ibatch = 0; ibatch < batch; ++ibatch)
             {
@@ -765,7 +764,7 @@ class RefLibOp
                 auto       bout = output + ibatch * halfN;
                 for(int r = 0; r < halfN; ++r)
                 {
-                    const auto omegaNr = std::exp(std::complex<float>(0, 2.0 * M_PI * r * overN));
+                    const auto omegaNr = std::exp(rocfft_complex<float>(0, 2.0 * M_PI * r * overN));
                     bout[r]
                         = bin[r] * (one + I * omegaNr) + conj(bin[halfN - r]) * (one - I * omegaNr);
                 }
@@ -781,8 +780,8 @@ class RefLibOp
         break;
         case CS_KERNEL_PAD_MUL:
         {
-            std::complex<float>* in = (std::complex<float>*)fftwin.data;
-            std::complex<float>* ot = (std::complex<float>*)fftwout.data;
+            rocfft_complex<float>* in = (rocfft_complex<float>*)fftwin.data;
+            rocfft_complex<float>* ot = (rocfft_complex<float>*)fftwout.data;
             CopyInputVector(data_p);
 
             size_t howmany = data->node->batch;
@@ -792,11 +791,11 @@ class RefLibOp
             size_t N = data->node->length[0];
             size_t M = data->node->lengthBlue;
 
-            fftwbuf chirp_mem(M * 2, sizeof(std::complex<float>));
+            fftwbuf chirp_mem(M * 2, sizeof(rocfft_complex<float>));
 
             chirp(N, M, data->node->direction, (local_fftwf_complex*)chirp_mem.data);
 
-            std::complex<float>* chirp_data = (std::complex<float>*)chirp_mem.data;
+            rocfft_complex<float>* chirp_data = (rocfft_complex<float>*)chirp_mem.data;
 
             for(size_t b = 0; b < howmany; b++)
             {
@@ -823,18 +822,18 @@ class RefLibOp
         break;
         case CS_KERNEL_FFT_MUL:
         {
-            std::complex<float>* in = (std::complex<float>*)fftwin.data;
-            std::complex<float>* ot = (std::complex<float>*)fftwout.data;
-            size_t               M  = data->node->lengthBlue;
-            size_t               N  = data->node->parent->length[0];
+            rocfft_complex<float>* in = (rocfft_complex<float>*)fftwin.data;
+            rocfft_complex<float>* ot = (rocfft_complex<float>*)fftwout.data;
+            size_t                 M  = data->node->lengthBlue;
+            size_t                 N  = data->node->parent->length[0];
 
             CopyInputVector(data_p, M * 2 * 2 * sizeof(float));
 
-            fftwbuf chirp_mem(M * 2, sizeof(std::complex<float>));
+            fftwbuf chirp_mem(M * 2, sizeof(rocfft_complex<float>));
 
             chirp_fft(N, M, data->node->direction, (local_fftwf_complex*)chirp_mem.data);
 
-            std::complex<float>* chirp_data = (std::complex<float>*)chirp_mem.data;
+            rocfft_complex<float>* chirp_data = (rocfft_complex<float>*)chirp_mem.data;
 
             size_t howmany = data->node->batch;
             for(size_t i = 1; i < data->node->length.size(); i++)
@@ -857,18 +856,18 @@ class RefLibOp
         break;
         case CS_KERNEL_RES_MUL:
         {
-            std::complex<float>* in = (std::complex<float>*)fftwin.data;
-            std::complex<float>* ot = (std::complex<float>*)fftwout.data;
-            size_t               M  = data->node->lengthBlue;
-            size_t               N  = data->node->length[0];
+            rocfft_complex<float>* in = (rocfft_complex<float>*)fftwin.data;
+            rocfft_complex<float>* ot = (rocfft_complex<float>*)fftwout.data;
+            size_t                 M  = data->node->lengthBlue;
+            size_t                 N  = data->node->length[0];
 
             CopyInputVector(data_p, M * 2 * 2 * sizeof(float));
 
-            fftwbuf chirp_mem(M * 2, sizeof(std::complex<float>));
+            fftwbuf chirp_mem(M * 2, sizeof(rocfft_complex<float>));
 
             chirp(N, M, data->node->direction, (local_fftwf_complex*)chirp_mem.data);
 
-            std::complex<float>* chirp_data = (std::complex<float>*)chirp_mem.data;
+            rocfft_complex<float>* chirp_data = (rocfft_complex<float>*)chirp_mem.data;
 
             size_t howmany = data->node->batch;
             for(size_t i = 1; i < data->node->length.size(); i++)
@@ -941,7 +940,7 @@ public:
             break;
         }
 
-        fftwbuf tmp_mem(out_size, sizeof(std::complex<float>));
+        fftwbuf tmp_mem(out_size, sizeof(rocfft_complex<float>));
 
         // Copy the device information to out local buffer:
         hipMemcpy(tmp_mem.data, bufOut, tmp_mem.bufsize(), hipMemcpyDeviceToHost);
@@ -1014,8 +1013,8 @@ public:
 
         // compare library results vs CPU results
         // TODO: what about real-valued outputs?
-        std::complex<float>* lb = (std::complex<float>*)libout.data;
-        std::complex<float>* ot = (std::complex<float>*)fftwout.data;
+        rocfft_complex<float>* lb = (rocfft_complex<float>*)libout.data;
+        rocfft_complex<float>* ot = (rocfft_complex<float>*)fftwout.data;
         for(size_t i = 0; i < checklength; i++)
         {
             double ac_r = lb[i].real();
@@ -1037,7 +1036,7 @@ public:
         rocfft_cout << "---------------------------------------------" << std::endl;
 
 #if 0
-        std::complex<float>* in      = (std::complex<float>*)fftwin.data;
+        rocfft_complex<float>* in      = (rocfft_complex<float>*)fftwin.data;
 
         rocfft_cout << "input:" << std::endl;
         for(size_t i = 0; i < fftwin.size; ++i)

@@ -23,7 +23,6 @@
 
 #include "rocfft.h"
 #include <cmath>
-#include <complex>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>

@@ -386,7 +386,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
         {
         case fft_precision_single:
         {
-            const size_t elem_size = sizeof(std::complex<float>);
+            const size_t elem_size = sizeof(rocfft_complex<float>);
             const size_t num_elems = output.front().size() / elem_size;
 
             auto output_begin = reinterpret_cast<float2*>(output.front().data());
@@ -402,7 +402,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
         }
         case fft_precision_double:
         {
-            const size_t elem_size = sizeof(std::complex<double>);
+            const size_t elem_size = sizeof(rocfft_complex<double>);
             const size_t num_elems = output.front().size() / elem_size;
 
             auto output_begin = reinterpret_cast<double2*>(output.front().data());
@@ -427,7 +427,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
         {
         case fft_precision_single:
         {
-            const size_t elem_size = sizeof(std::complex<float>);
+            const size_t elem_size = sizeof(rocfft_complex<float>);
             for(auto& buf : output)
             {
                 const size_t num_elems = buf.size() / elem_size;
@@ -444,7 +444,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
         }
         case fft_precision_double:
         {
-            const size_t elem_size = sizeof(std::complex<double>);
+            const size_t elem_size = sizeof(rocfft_complex<double>);
             for(auto& buf : output)
             {
                 const size_t num_elems = buf.size() / elem_size;
@@ -528,7 +528,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
         {
         case fft_precision_single:
         {
-            const size_t elem_size = sizeof(std::complex<float>);
+            const size_t elem_size = sizeof(rocfft_complex<float>);
             const size_t num_elems = input.front().size() / elem_size;
 
             auto input_begin = reinterpret_cast<float2*>(input.front().data());
@@ -540,7 +540,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
         }
         case fft_precision_double:
         {
-            const size_t elem_size = sizeof(std::complex<double>);
+            const size_t elem_size = sizeof(rocfft_complex<double>);
             const size_t num_elems = input.front().size() / elem_size;
 
             auto input_begin = reinterpret_cast<double2*>(input.front().data());

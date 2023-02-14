@@ -23,7 +23,6 @@
 #define FFTWTRANSFORM_H
 
 #include "test_params.h"
-#include <complex>
 #include <fftw3.h>
 #include <vector>
 
@@ -124,14 +123,14 @@ inline fftw_complex* fftw_alloc_type<fftw_complex>(size_t n)
     return fftw_alloc_complex_type<double>(n);
 }
 template <>
-inline std::complex<float>* fftw_alloc_type<std::complex<float>>(size_t n)
+inline rocfft_complex<float>* fftw_alloc_type<rocfft_complex<float>>(size_t n)
 {
-    return (std::complex<float>*)fftw_alloc_complex_type<float>(n);
+    return (rocfft_complex<float>*)fftw_alloc_complex_type<float>(n);
 }
 template <>
-inline std::complex<double>* fftw_alloc_type<std::complex<double>>(size_t n)
+inline rocfft_complex<double>* fftw_alloc_type<rocfft_complex<double>>(size_t n)
 {
-    return (std::complex<double>*)fftw_alloc_complex_type<double>(n);
+    return (rocfft_complex<double>*)fftw_alloc_complex_type<double>(n);
 }
 
 // Template wrappers for FFTW plan executors:

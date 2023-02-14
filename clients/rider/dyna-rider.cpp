@@ -22,7 +22,6 @@
 // This allows one to randomize the execution order for better a better experimental setup
 // which produces fewer type 1 errors where one incorrectly rejects the null hypothesis.
 
-#include <complex>
 #include <hip/hip_runtime_api.h>
 #include <iostream>
 #include <math.h>

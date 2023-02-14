@@ -296,8 +296,8 @@ struct Test_Callback
         std::vector<std::pair<size_t, size_t>> linf_failures;
 
         auto diff = distance_1to1_complex(
-            reinterpret_cast<const std::complex<Tbound>*>(host_mem_out.data()),
-            reinterpret_cast<const std::complex<Tbound>*>(host_mem_out_no_cb.data()),
+            reinterpret_cast<const rocfft_complex<Tbound>*>(host_mem_out.data()),
+            reinterpret_cast<const rocfft_complex<Tbound>*>(host_mem_out_no_cb.data()),
             host_mem_out.size(),
             1,
             1,

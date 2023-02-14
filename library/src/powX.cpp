@@ -44,6 +44,7 @@
 #include "../../shared/environment.h"
 #include "../../shared/printbuffer.h"
 #include "../../shared/ptrdiff.h"
+#include "../../shared/rocfft_complex.h"
 #include "rocfft_hip.h"
 
 // This function is called during creation of plan: enqueue the HIP kernels by function
@@ -234,7 +235,7 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
             case rocfft_array_type_complex_interleaved:
             case rocfft_array_type_hermitian_interleaved:
             {
-                buffer_printer<std::complex<float>> s;
+                buffer_printer<rocfft_complex<float>> s;
                 s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
                 break;
             }
@@ -256,7 +257,7 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
             case rocfft_array_type_complex_interleaved:
             case rocfft_array_type_hermitian_interleaved:
             {
-                buffer_printer<std::complex<double>> s;
+                buffer_printer<rocfft_complex<double>> s;
                 s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
                 break;
             }

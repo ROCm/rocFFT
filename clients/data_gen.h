@@ -23,7 +23,7 @@
 
 #include "../shared/arithmetic.h"
 #include "../shared/gpubuf.h"
-#include <complex>
+#include "../shared/rocfft_complex.h"
 #include <hip/hip_complex.h>
 #include <hip/hip_fp16.h>
 #include <hip/hip_runtime.h>
@@ -185,12 +185,12 @@ __device__ static size_t get_batch(const size_t i, const input_val_3D<T>& length
 
 template <typename T1>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_float_interleaved_data_kernel(const T1         whole_length,
-                                           const T1         zero_length,
-                                           size_t           idist,
-                                           size_t           isize,
-                                           const T1         istride,
-                                           hipFloatComplex* data)
+    generate_float_interleaved_data_kernel(const T1               whole_length,
+                                           const T1               zero_length,
+                                           size_t                 idist,
+                                           size_t                 isize,
+                                           const T1               istride,
+                                           rocfft_complex<float>* data)
 {
     auto const i = threadIdx.x + blockIdx.x * blockDim.x;
     if(i < isize)
@@ -212,12 +212,12 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
 
 template <typename T1>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_double_interleaved_data_kernel(const T1          whole_length,
-                                            const T1          zero_length,
-                                            size_t            idist,
-                                            size_t            isize,
-                                            const T1          istride,
-                                            hipDoubleComplex* data)
+    generate_double_interleaved_data_kernel(const T1                whole_length,
+                                            const T1                zero_length,
+                                            size_t                  idist,
+                                            size_t                  isize,
+                                            const T1                istride,
+                                            rocfft_complex<double>* data)
 {
     auto const i = threadIdx.x + blockIdx.x * blockDim.x;
     if(i < isize)
@@ -841,11 +841,11 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DAT
 }
 
 template <typename Tint>
-inline void generate_interleaved_data(const Tint&          whole_length,
-                                      const size_t         idist,
-                                      const size_t         isize,
-                                      const Tint&          istride,
-                                      std::complex<float>* input_data)
+inline void generate_interleaved_data(const Tint&            whole_length,
+                                      const size_t           idist,
+                                      const size_t           isize,
+                                      const Tint&            istride,
+                                      rocfft_complex<float>* input_data)
 {
     auto blockSize       = DATA_GEN_THREADS;
     auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
@@ -864,15 +864,15 @@ inline void generate_interleaved_data(const Tint&          whole_length,
                        idist,
                        isize,
                        input_stride,
-                       reinterpret_cast<hipFloatComplex*>(input_data));
+                       reinterpret_cast<rocfft_complex<float>*>(input_data));
 }
 
 template <typename Tint>
-inline void generate_interleaved_data(const Tint&           whole_length,
-                                      const size_t          idist,
-                                      const size_t          isize,
-                                      const Tint&           istride,
-                                      std::complex<double>* input_data)
+inline void generate_interleaved_data(const Tint&             whole_length,
+                                      const size_t            idist,
+                                      const size_t            isize,
+                                      const Tint&             istride,
+                                      rocfft_complex<double>* input_data)
 {
     auto blockSize       = DATA_GEN_THREADS;
     auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
@@ -891,7 +891,7 @@ inline void generate_interleaved_data(const Tint&           whole_length,
                        idist,
                        isize,
                        input_stride,
-                       reinterpret_cast<hipDoubleComplex*>(input_data));
+                       reinterpret_cast<rocfft_complex<double>*>(input_data));
 }
 
 template <typename Tint>

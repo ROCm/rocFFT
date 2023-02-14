@@ -23,7 +23,6 @@
 
 #include "data_gen.h"
 #include <algorithm>
-#include <complex>
 #include <hip/hip_runtime.h>
 #include <iostream>
 #include <mutex>
@@ -149,23 +148,14 @@ inline void set_input(std::vector<gpubuf>&       input,
     case fft_array_type_hermitian_interleaved:
     {
 
-        auto ibuffer = (std::complex<Tfloat>*)input[0].data();
+        auto ibuffer = (rocfft_complex<Tfloat>*)input[0].data();
         generate_interleaved_data(whole_length, idist, isize, istride, ibuffer);
 
         if(itype == fft_array_type_hermitian_interleaved)
         {
-            if(typeid(Tfloat) == typeid(float))
-            {
-                auto ibuffer_2 = (hipFloatComplex*)input[0].data();
-                impose_hermitian_symmetry_interleaved(
-                    length, ilength, stride, idist, nbatch, ibuffer_2);
-            }
-            else
-            {
-                auto ibuffer_2 = (hipDoubleComplex*)input[0].data();
-                impose_hermitian_symmetry_interleaved(
-                    length, ilength, stride, idist, nbatch, ibuffer_2);
-            }
+            auto ibuffer_2 = (rocfft_complex<Tfloat>*)input[0].data();
+            impose_hermitian_symmetry_interleaved(
+                length, ilength, stride, idist, nbatch, ibuffer_2);
         }
 
         break;
@@ -1232,13 +1222,13 @@ public:
             {
             case fft_precision_single:
             {
-                buffer_printer<std::complex<float>> s;
+                buffer_printer<rocfft_complex<float>> s;
                 s.print_buffer(buf, ilength(), istride, nbatch, idist, ioffset);
                 break;
             }
             case fft_precision_double:
             {
-                buffer_printer<std::complex<double>> s;
+                buffer_printer<rocfft_complex<double>> s;
                 s.print_buffer(buf, ilength(), istride, nbatch, idist, ioffset);
                 break;
             }
@@ -1284,12 +1274,12 @@ public:
             {
             case fft_precision_single:
             {
-                buffer_printer<std::complex<float>> s;
+                buffer_printer<rocfft_complex<float>> s;
                 s.print_buffer(buf, olength(), ostride, nbatch, odist, ooffset);
                 break;
             }
             case fft_precision_double:
-                buffer_printer<std::complex<double>> s;
+                buffer_printer<rocfft_complex<double>> s;
                 s.print_buffer(buf, olength(), ostride, nbatch, odist, ooffset);
                 break;
             }
@@ -1334,12 +1324,12 @@ public:
             {
             case fft_precision_single:
             {
-                buffer_printer<std::complex<float>> s;
+                buffer_printer<rocfft_complex<float>> s;
                 s.print_buffer_flat(buf, osize, ooffset);
                 break;
             }
             case fft_precision_double:
-                buffer_printer<std::complex<double>> s;
+                buffer_printer<rocfft_complex<double>> s;
                 s.print_buffer_flat(buf, osize, ooffset);
                 break;
             }
@@ -1383,12 +1373,12 @@ public:
             {
             case fft_precision_single:
             {
-                buffer_printer<std::complex<float>> s;
+                buffer_printer<rocfft_complex<float>> s;
                 s.print_buffer_flat(buf, osize, ooffset);
                 break;
             }
             case fft_precision_double:
-                buffer_printer<std::complex<double>> s;
+                buffer_printer<rocfft_complex<double>> s;
                 s.print_buffer_flat(buf, osize, ooffset);
                 break;
             }
@@ -1727,7 +1717,7 @@ inline void copy_buffers_1to1(const Tval*                input,
 template <typename Tval, typename Tint1, typename Tint2, typename Tint3>
 inline void copy_buffers_2to1(const Tval*                input0,
                               const Tval*                input1,
-                              std::complex<Tval>*        output,
+                              rocfft_complex<Tval>*      output,
                               const Tint1&               whole_length,
                               const size_t               nbatch,
                               const Tint2&               istride,
@@ -1755,7 +1745,7 @@ inline void copy_buffers_2to1(const Tval*                input0,
                 const auto idx = compute_index(index, istride, idx_base);
                 const auto odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
                 output[odx + ooffset[0]]
-                    = std::complex<Tval>(input0[idx + ioffset[0]], input1[idx + ioffset[1]]);
+                    = rocfft_complex<Tval>(input0[idx + ioffset[0]], input1[idx + ioffset[1]]);
             } while(increment_rowmajor(index, length));
         }
     }
@@ -1765,17 +1755,17 @@ inline void copy_buffers_2to1(const Tval*                input0,
 // a buffer with strides ostride and length odist between batches.  The input type is
 // complex interleaved and the output type is planar.
 template <typename Tval, typename Tint1, typename Tint2, typename Tint3>
-inline void copy_buffers_1to2(const std::complex<Tval>*  input,
-                              Tval*                      output0,
-                              Tval*                      output1,
-                              const Tint1&               whole_length,
-                              const size_t               nbatch,
-                              const Tint2&               istride,
-                              const size_t               idist,
-                              const Tint3&               ostride,
-                              const size_t               odist,
-                              const std::vector<size_t>& ioffset,
-                              const std::vector<size_t>& ooffset)
+inline void copy_buffers_1to2(const rocfft_complex<Tval>* input,
+                              Tval*                       output0,
+                              Tval*                       output1,
+                              const Tint1&                whole_length,
+                              const size_t                nbatch,
+                              const Tint2&                istride,
+                              const size_t                idist,
+                              const Tint3&                ostride,
+                              const size_t                odist,
+                              const std::vector<size_t>&  ioffset,
+                              const std::vector<size_t>&  ooffset)
 {
     const bool idx_equals_odx = istride == ostride && idist == odist;
     size_t     idx_base       = 0;
@@ -1832,8 +1822,8 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
             switch(precision)
             {
             case fft_precision_single:
-                copy_buffers_1to1(reinterpret_cast<const std::complex<float>*>(input[0].data()),
-                                  reinterpret_cast<std::complex<float>*>(output[0].data()),
+                copy_buffers_1to1(reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
+                                  reinterpret_cast<rocfft_complex<float>*>(output[0].data()),
                                   length,
                                   nbatch,
                                   istride,
@@ -1844,8 +1834,8 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                                   ooffset);
                 break;
             case fft_precision_double:
-                copy_buffers_1to1(reinterpret_cast<const std::complex<double>*>(input[0].data()),
-                                  reinterpret_cast<std::complex<double>*>(output[0].data()),
+                copy_buffers_1to1(reinterpret_cast<const rocfft_complex<double>*>(input[0].data()),
+                                  reinterpret_cast<rocfft_complex<double>*>(output[0].data()),
                                   length,
                                   nbatch,
                                   istride,
@@ -1903,7 +1893,7 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
         switch(precision)
         {
         case fft_precision_single:
-            copy_buffers_1to2(reinterpret_cast<const std::complex<float>*>(input[0].data()),
+            copy_buffers_1to2(reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
                               reinterpret_cast<float*>(output[0].data()),
                               reinterpret_cast<float*>(output[1].data()),
                               length,
@@ -1916,7 +1906,7 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
                               ooffset);
             break;
         case fft_precision_double:
-            copy_buffers_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
+            copy_buffers_1to2(reinterpret_cast<const rocfft_complex<double>*>(input[0].data()),
                               reinterpret_cast<double*>(output[0].data()),
                               reinterpret_cast<double*>(output[1].data()),
                               length,
@@ -1940,7 +1930,7 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
         case fft_precision_single:
             copy_buffers_2to1(reinterpret_cast<const float*>(input[0].data()),
                               reinterpret_cast<const float*>(input[1].data()),
-                              reinterpret_cast<std::complex<float>*>(output[0].data()),
+                              reinterpret_cast<rocfft_complex<float>*>(output[0].data()),
                               length,
                               nbatch,
                               istride,
@@ -1953,7 +1943,7 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
         case fft_precision_double:
             copy_buffers_2to1(reinterpret_cast<const double*>(input[0].data()),
                               reinterpret_cast<const double*>(input[1].data()),
-                              reinterpret_cast<std::complex<double>*>(output[0].data()),
+                              reinterpret_cast<rocfft_complex<double>*>(output[0].data()),
                               length,
                               nbatch,
                               istride,
@@ -2187,7 +2177,7 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
 // length idist between batches to a buffer with strides ostride and length odist between
 // batches.  input is complex-interleaved, output is complex-planar.
 template <typename Tval, typename Tint1, typename T2, typename T3>
-inline VectorNorms distance_1to2(const std::complex<Tval>*               input,
+inline VectorNorms distance_1to2(const rocfft_complex<Tval>*             input,
                                  const Tval*                             output0,
                                  const Tval*                             output1,
                                  const Tint1&                            whole_length,
@@ -2294,8 +2284,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
             {
             case fft_precision_single:
                 dist = distance_1to1_complex(
-                    reinterpret_cast<const std::complex<float>*>(input[0].data()),
-                    reinterpret_cast<const std::complex<float>*>(output[0].data()),
+                    reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
+                    reinterpret_cast<const rocfft_complex<float>*>(output[0].data()),
                     length,
                     nbatch,
                     istride,
@@ -2310,8 +2300,8 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                 break;
             case fft_precision_double:
                 dist = distance_1to1_complex(
-                    reinterpret_cast<const std::complex<double>*>(input[0].data()),
-                    reinterpret_cast<const std::complex<double>*>(output[0].data()),
+                    reinterpret_cast<const rocfft_complex<double>*>(input[0].data()),
+                    reinterpret_cast<const rocfft_complex<double>*>(output[0].data()),
                     length,
                     nbatch,
                     istride,
@@ -2381,7 +2371,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
         switch(precision)
         {
         case fft_precision_single:
-            dist = distance_1to2(reinterpret_cast<const std::complex<float>*>(input[0].data()),
+            dist = distance_1to2(reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
                                  reinterpret_cast<const float*>(output[0].data()),
                                  reinterpret_cast<const float*>(output[1].data()),
                                  length,
@@ -2397,7 +2387,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  output_scalar);
             break;
         case fft_precision_double:
-            dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(input[0].data()),
+            dist = distance_1to2(reinterpret_cast<const rocfft_complex<double>*>(input[0].data()),
                                  reinterpret_cast<const double*>(output[0].data()),
                                  reinterpret_cast<const double*>(output[1].data()),
                                  length,
@@ -2422,7 +2412,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
         switch(precision)
         {
         case fft_precision_single:
-            dist = distance_1to2(reinterpret_cast<const std::complex<float>*>(output[0].data()),
+            dist = distance_1to2(reinterpret_cast<const rocfft_complex<float>*>(output[0].data()),
                                  reinterpret_cast<const float*>(input[0].data()),
                                  reinterpret_cast<const float*>(input[1].data()),
                                  length,
@@ -2438,7 +2428,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                                  output_scalar);
             break;
         case fft_precision_double:
-            dist = distance_1to2(reinterpret_cast<const std::complex<double>*>(output[0].data()),
+            dist = distance_1to2(reinterpret_cast<const rocfft_complex<double>*>(output[0].data()),
                                  reinterpret_cast<const double*>(input[0].data()),
                                  reinterpret_cast<const double*>(input[1].data()),
                                  length,
@@ -2546,7 +2536,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
 }
 
 // Compute the L-infinity and L-2 norm of a buffer with strides istride and
-// length idist.  Data is std::complex.
+// length idist.  Data is rocfft_complex.
 template <typename Tcomplex, typename T1, typename T2>
 inline VectorNorms norm_complex(const Tcomplex*            input,
                                 const T1&                  whole_length,
@@ -2653,7 +2643,7 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
         switch(precision)
         {
         case fft_precision_single:
-            norm = norm_complex(reinterpret_cast<const std::complex<float>*>(input[0].data()),
+            norm = norm_complex(reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
                                 length,
                                 nbatch,
                                 istride,
@@ -2661,7 +2651,7 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
                                 offset);
             break;
         case fft_precision_double:
-            norm = norm_complex(reinterpret_cast<const std::complex<double>*>(input[0].data()),
+            norm = norm_complex(reinterpret_cast<const rocfft_complex<double>*>(input[0].data()),
                                 length,
                                 nbatch,
                                 istride,

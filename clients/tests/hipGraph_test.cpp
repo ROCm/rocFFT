@@ -242,15 +242,15 @@ static void compare_data(const std::vector<float2>& original_host_data,
     const double                           MAX_TRANSFORM_ERROR = 2 * type_epsilon<float>();
 
     auto input_norm
-        = norm_complex(reinterpret_cast<const std::complex<float>*>(original_host_data.data()),
+        = norm_complex(reinterpret_cast<const rocfft_complex<float>*>(original_host_data.data()),
                        original_host_data.size(),
                        1,
                        1,
                        original_host_data.size(),
                        {0});
     auto diff = distance_1to1_complex(
-        reinterpret_cast<const std::complex<float>*>(original_host_data.data()),
-        reinterpret_cast<const std::complex<float>*>(modified_host_data.data()),
+        reinterpret_cast<const rocfft_complex<float>*>(original_host_data.data()),
+        reinterpret_cast<const rocfft_complex<float>*>(modified_host_data.data()),
         // data is all contiguous, we can treat it as 1d
         original_host_data.size(),
         1,

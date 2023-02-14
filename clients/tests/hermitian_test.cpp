@@ -131,7 +131,7 @@ void run_1D_hermitian_test(size_t length)
     for(unsigned int i = 0; i < h_input.size(); ++i)
     {
         auto val = std::abs(
-            std::complex<double>(h_input[i].x - h_input1[i].x, h_input[i].y - h_input1[i].y));
+            rocfft_complex<double>(h_input[i].x - h_input1[i].x, h_input[i].y - h_input1[i].y));
         if(val > maxdiff)
             maxdiff = val;
     }

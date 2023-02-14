@@ -201,15 +201,15 @@ struct Test_Transform
             const double                           MAX_TRANSFORM_ERROR = 2 * type_epsilon<float>();
 
             auto input_norm
-                = norm_complex(reinterpret_cast<const std::complex<float>*>(host_mem_in.data()),
+                = norm_complex(reinterpret_cast<const rocfft_complex<float>*>(host_mem_in.data()),
                                host_mem_in.size(),
                                1,
                                1,
                                host_mem_in.size(),
                                {0});
             auto diff = distance_1to1_complex(
-                reinterpret_cast<const std::complex<float>*>(host_mem_in.data()),
-                reinterpret_cast<const std::complex<float>*>(host_mem_out.data()),
+                reinterpret_cast<const rocfft_complex<float>*>(host_mem_in.data()),
+                reinterpret_cast<const rocfft_complex<float>*>(host_mem_out.data()),
                 // data is all contiguous, we can treat it as 1d
                 host_mem_in.size(),
                 1,

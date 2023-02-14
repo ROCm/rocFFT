@@ -22,6 +22,7 @@
 #define PRINTBUFFER_H
 
 #include "increment.h"
+#include "rocfft_complex.h"
 #include <algorithm>
 #include <vector>
 
@@ -175,7 +176,7 @@ public:
 };
 
 template <>
-class buffer_printer<std::complex<float>>
+class buffer_printer<rocfft_complex<float>>
 {
 public:
     template <typename Tallocator,
@@ -191,7 +192,7 @@ public:
                              const std::vector<size_t>&                        offset,
                              Tstream&                                          stream = std::cout)
     {
-        printbuffer((const std::complex<float>*)(buf[0].data()),
+        printbuffer((const rocfft_complex<float>*)(buf[0].data()),
                     length,
                     stride,
                     nbatch,
@@ -205,7 +206,7 @@ public:
                                   const std::vector<size_t>&                        offset,
                                   Tstream& stream = std::cout)
     {
-        auto data = reinterpret_cast<const std::complex<float>*>(buf[0].data());
+        auto data = reinterpret_cast<const rocfft_complex<float>*>(buf[0].data());
         for(size_t i = 0; i < size[0]; ++i)
             stream << " " << data[i];
         stream << std::endl;
@@ -213,7 +214,7 @@ public:
 };
 
 template <>
-class buffer_printer<std::complex<double>>
+class buffer_printer<rocfft_complex<double>>
 {
 public:
     template <typename Tallocator,
@@ -229,7 +230,7 @@ public:
                              const std::vector<size_t>&                        offset,
                              Tstream&                                          stream = std::cout)
     {
-        printbuffer((const std::complex<double>*)(buf[0].data()),
+        printbuffer((const rocfft_complex<double>*)(buf[0].data()),
                     length,
                     stride,
                     nbatch,
@@ -243,7 +244,7 @@ public:
                                   const std::vector<size_t>&                        offset,
                                   Tstream& stream = std::cout)
     {
-        auto data = reinterpret_cast<const std::complex<double>*>(buf[0].data());
+        auto data = reinterpret_cast<const rocfft_complex<double>*>(buf[0].data());
         for(size_t i = 0; i < size[0]; ++i)
             stream << " " << data[i];
         stream << std::endl;
