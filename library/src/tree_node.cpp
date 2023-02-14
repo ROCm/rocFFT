@@ -1,4 +1,4 @@
-// Copyright (C) 2020 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2020 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -58,8 +58,8 @@ bool LeafNode::CreateLargeTwdTable()
 {
     if(large1D != 0)
     {
-        std::tie(twiddles_large, twiddles_large_size)
-            = Repo::GetTwiddles1D(large1D, 0, precision, largeTwdBase, false, {});
+        std::tie(twiddles_large, twiddles_large_size) = Repo::GetTwiddles1D(
+            large1D, 0, precision, deviceProp.gcnArchName, largeTwdBase, false, {});
     }
 
     return true;
@@ -129,8 +129,13 @@ bool LeafNode::CreateTwiddleTableResource()
         if(!twd_no_radices)
             GetKernelFactors();
         size_t twd_len                    = GetTwiddleTableLength();
-        std::tie(twiddles, twiddles_size) = Repo::GetTwiddles1D(
-            twd_len, GetTwiddleTableLengthLimit(), precision, 0, twd_attach_halfN, kernelFactors);
+        std::tie(twiddles, twiddles_size) = Repo::GetTwiddles1D(twd_len,
+                                                                GetTwiddleTableLengthLimit(),
+                                                                precision,
+                                                                deviceProp.gcnArchName,
+                                                                0,
+                                                                twd_attach_halfN,
+                                                                kernelFactors);
     }
 
     return CreateLargeTwdTable();

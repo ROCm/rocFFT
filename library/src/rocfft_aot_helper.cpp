@@ -31,6 +31,7 @@ using namespace std::placeholders;
 #include "rtc_cache.h"
 #include "rtc_realcomplex_gen.h"
 #include "rtc_stockham_gen.h"
+#include "rtc_twiddle_gen.h"
 
 #include "device/kernel-generator-embed.h"
 
@@ -415,6 +416,28 @@ void build_apply_callback(CompileQueue& queue)
     }
 }
 
+void build_twiddle(CompileQueue& queue)
+{
+    const auto twiddle_kernel_types = {
+        TwiddleTableType::RADICES,
+        TwiddleTableType::LENGTH_N,
+        TwiddleTableType::HALF_N,
+        TwiddleTableType::LARGE,
+    };
+    for(auto precision : {rocfft_precision_single, rocfft_precision_double})
+    {
+        for(auto type : twiddle_kernel_types)
+        {
+            auto kernel_name = twiddle_rtc_kernel_name(type, precision);
+            std::function<std::string(const std::string&)> generate_src
+                = [=](const std::string& kernel_name) -> std::string {
+                return twiddle_rtc(kernel_name, type, precision);
+            };
+            queue.push({kernel_name, generate_src});
+        }
+    }
+}
+
 int main(int argc, char** argv)
 {
     if(argc < 5)
@@ -474,6 +497,7 @@ int main(int argc, char** argv)
     build_stockham_function_pool(queue);
     build_realcomplex(queue);
     build_apply_callback(queue);
+    build_twiddle(queue);
 
     // signal end of results with empty work items
     for(size_t i = 0; i < NUM_THREADS; ++i)

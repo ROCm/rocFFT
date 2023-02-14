@@ -1,5 +1,5 @@
 # #############################################################################
-# Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -143,6 +143,10 @@ set( kgen_logic_files
      # bluestein generator code
      ${CMAKE_SOURCE_DIR}/library/src/include/rtc_bluestein_gen.h
      ${CMAKE_SOURCE_DIR}/library/src/rtc_bluestein_gen.cpp
+
+     # twiddle generator code
+     ${CMAKE_SOURCE_DIR}/library/src/include/rtc_twiddle_gen.h
+     ${CMAKE_SOURCE_DIR}/library/src/rtc_twiddle_gen.cpp
 )
 
 add_custom_command(
@@ -238,6 +242,7 @@ add_library( rocfft-rtc-gen OBJECT
   rtc_realcomplex_gen.cpp
   rtc_stockham_gen.cpp
   rtc_transpose_gen.cpp
+  rtc_twiddle_gen.cpp
 )
 # caching of generation/compilation
 add_library( rocfft-rtc-cache OBJECT
@@ -251,6 +256,7 @@ add_library( rocfft-rtc-launch OBJECT
   rtc_realcomplex_kernel.cpp
   rtc_stockham_kernel.cpp
   rtc_transpose_kernel.cpp
+  rtc_twiddle_kernel.cpp
 )
 target_link_libraries( rocfft-rtc-launch PRIVATE rocfft-rtc-cache )
 

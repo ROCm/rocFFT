@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -17,29 +17,21 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-#pragma once
-#if !defined(TWIDDLES_H)
-#define TWIDDLES_H
 
-#include "../../../shared/gpubuf.h"
-#include "rocfft.h"
-#include <vector>
+#include "rtc_twiddle_kernel.h"
+#include "device/kernel-generator-embed.h"
+#include "rtc_cache.h"
 
-static const size_t       LTWD_BASE_DEFAULT       = 8;
-static const size_t       LARGE_TWIDDLE_THRESHOLD = 4096;
-static const unsigned int TWIDDLES_MAX_RADICES    = 8;
+RTCKernelTwiddle RTCKernelTwiddle::generate(const std::string& gpu_arch,
+                                            TwiddleTableType   type,
+                                            rocfft_precision   precision)
+{
+    auto kernel_name = twiddle_rtc_kernel_name(type, precision);
 
-gpubuf twiddles_create(size_t                     N,
-                       size_t                     length_limit,
-                       rocfft_precision           precision,
-                       const char*                gpu_arch,
-                       size_t                     largeTwdBase,
-                       bool                       attach_halfN,
-                       const std::vector<size_t>& radices,
-                       unsigned int               deviceId);
-gpubuf twiddles_create_2D(
-    size_t N1, size_t N2, rocfft_precision precision, const char* gpu_arch, unsigned int deviceId);
+    kernel_src_gen_t generator{
+        [=](const std::string& kernel_name) { return twiddle_rtc(kernel_name, type, precision); }};
 
-void twiddle_streams_cleanup();
+    auto code = cached_compile(kernel_name, gpu_arch, generator, generator_sum());
 
-#endif // defined( TWIDDLES_H )
+    return RTCKernelTwiddle{kernel_name, code, {}, {}};
+}

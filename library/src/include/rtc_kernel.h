@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -41,7 +41,7 @@ class RTCKernelArgs
 {
 public:
     RTCKernelArgs() = default;
-    void append_ptr(void* ptr)
+    void append_ptr(const void* ptr)
     {
         append(&ptr, sizeof(void*));
     }
@@ -65,6 +65,11 @@ public:
     {
         append(&f, sizeof(float));
     }
+    template <typename T>
+    void append_struct(const T& data)
+    {
+        append(&data, sizeof(T), 8);
+    }
 
     size_t size_bytes() const
     {
@@ -76,15 +81,19 @@ public:
     }
 
 private:
-    void append(void* src, size_t nbytes)
+    void append(const void* src, size_t nbytes, size_t align = 0)
     {
         // values need to be aligned to their width (i.e. 8-byte values
         // need 8-byte alignment, 4-byte needs 4-byte alignment)
+        if(align == 0)
+            align = nbytes;
+
         size_t oldsize = buf.size();
-        size_t padding = oldsize % nbytes ? nbytes - (oldsize % nbytes) : 0;
+        size_t padding = oldsize % align ? align - (oldsize % align) : 0;
         buf.resize(oldsize + padding + nbytes);
         std::copy_n(static_cast<const char*>(src), nbytes, buf.begin() + oldsize + padding);
     }
+
     std::vector<char> buf;
 };
 

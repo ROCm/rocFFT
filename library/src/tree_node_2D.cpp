@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -201,7 +201,8 @@ void RC2DNode::AssignParams_internal()
 bool Single2DNode::CreateTwiddleTableResource()
 {
     // create one set of twiddles for each dimension
-    std::tie(twiddles, twiddles_size) = Repo::GetTwiddles2D(length[0], length[1], precision);
+    std::tie(twiddles, twiddles_size)
+        = Repo::GetTwiddles2D(length[0], length[1], precision, deviceProp.gcnArchName);
 
     return CreateLargeTwdTable();
 }

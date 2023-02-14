@@ -1,5 +1,5 @@
 /******************************************************************************
-* Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+* Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -22,9 +22,11 @@
 
 #include "twiddles.h"
 #include "../../shared/arithmetic.h"
-#include "device/kernels/twiddle_factors.h"
 #include "function_pool.h"
 #include "rocfft_hip.h"
+#include "rtc_cache.h"
+#include "rtc_kernel.h"
+#include "rtc_twiddle_kernel.h"
 #include <cassert>
 #include <math.h>
 #include <numeric>
@@ -92,6 +94,9 @@ protected:
     // what we need.
     bool attach_halfN;
 
+    const rocfft_precision precision;
+    const std::string      gpu_arch;
+
     void GetKernelParams(const std::vector<size_t>& radices,
                          std::vector<size_t>&       radices_prod,
                          std::vector<size_t>&       radices_sum_prod,
@@ -154,45 +159,14 @@ protected:
             throw std::runtime_error("unable to allocate twiddle length "
                                      + std::to_string(total_length));
 
-        auto num_radices = radices.size();
-
-        auto blockSize  = TWIDDLES_THREADS;
-        auto numBlocksX = DivRoundingUp<size_t>(num_radices, blockSize);
-        auto numBlocksY = DivRoundingUp<size_t>(maxElem / minElem, blockSize);
-
         auto device_data_ptr = static_cast<T*>(output.data());
 
-        radices_t radices_device;
-        radices_t radices_prod_device;
-        radices_t radices_sum_prod_device;
-        std::copy(radices.begin(), radices.end(), radices_device.data);
-        std::copy(radices_prod.begin(), radices_prod.end(), radices_prod_device.data);
-        std::copy(radices_sum_prod.begin(), radices_sum_prod.end(), radices_sum_prod_device.data);
-
-        hipLaunchKernelGGL(GenerateTwiddleTableKernel<T>,
-                           dim3(numBlocksX, numBlocksY),
-                           dim3(blockSize, blockSize),
-                           0, // sharedMemBytes
-                           stream,
-                           length_limit,
-                           num_radices,
-                           radices_device,
-                           radices_prod_device,
-                           radices_sum_prod_device,
-                           device_data_ptr);
+        launch_radices_kernel(
+            radices, radices_prod, radices_sum_prod, maxElem, minElem, stream, device_data_ptr);
 
         if(attach_halfN)
         {
-            auto numBlocks_halfN = DivRoundingUp<size_t>(half_N, blockSize);
-
-            hipLaunchKernelGGL(GenerateHalfNTableKernel<T>,
-                               dim3(numBlocks_halfN),
-                               dim3(blockSize),
-                               0, // sharedMemBytes
-                               stream,
-                               half_N,
-                               N,
-                               device_data_ptr + table_sz);
+            launch_half_N_kernel(stream, device_data_ptr + table_sz);
         }
     }
 
@@ -214,35 +188,78 @@ protected:
 
         auto device_data_ptr = static_cast<T*>(output.data());
 
-        hipLaunchKernelGGL(GenerateTwiddleTableKernel<T>,
-                           dim3(numBlocks),
-                           dim3(blockSize),
-                           0, // sharedMemBytes
-                           stream,
-                           length_limit,
-                           N,
-                           device_data_ptr);
+        auto kernel = RTCKernelTwiddle::generate(gpu_arch, TwiddleTableType::LENGTH_N, precision);
+        RTCKernelArgs kargs;
+        kargs.append_size_t(length_limit);
+        kargs.append_size_t(N);
+        kargs.append_ptr(device_data_ptr);
+
+        kernel.launch(kargs, dim3(numBlocks), dim3(blockSize), 0, stream);
 
         if(attach_halfN)
         {
-            auto numBlocks_halfN = DivRoundingUp<size_t>(half_N, blockSize);
-
-            hipLaunchKernelGGL(GenerateHalfNTableKernel<T>,
-                               dim3(numBlocks_halfN),
-                               dim3(blockSize),
-                               0, // sharedMemBytes
-                               stream,
-                               half_N,
-                               N,
-                               device_data_ptr + length);
+            launch_half_N_kernel(stream, device_data_ptr + length);
         }
     }
 
+    void launch_radices_kernel(const std::vector<size_t>& radices,
+                               std::vector<size_t>&       radices_prod,
+                               std::vector<size_t>&       radices_sum_prod,
+                               size_t                     maxElem,
+                               size_t                     minElem,
+                               hipStream_t&               stream,
+                               T*                         output)
+    {
+        auto num_radices = radices.size();
+
+        auto blockSize  = TWIDDLES_THREADS;
+        auto numBlocksX = DivRoundingUp<size_t>(num_radices, blockSize);
+        auto numBlocksY = DivRoundingUp<size_t>(maxElem / minElem, blockSize);
+
+        radices_t radices_device;
+        radices_t radices_prod_device;
+        radices_t radices_sum_prod_device;
+        std::copy(radices.begin(), radices.end(), radices_device.data);
+        std::copy(radices_prod.begin(), radices_prod.end(), radices_prod_device.data);
+        std::copy(radices_sum_prod.begin(), radices_sum_prod.end(), radices_sum_prod_device.data);
+
+        auto kernel = RTCKernelTwiddle::generate(gpu_arch, TwiddleTableType::RADICES, precision);
+        RTCKernelArgs kargs;
+        kargs.append_size_t(length_limit);
+        kargs.append_size_t(num_radices);
+        kargs.append_struct(radices_device);
+        kargs.append_struct(radices_prod_device);
+        kargs.append_struct(radices_sum_prod_device);
+        kargs.append_ptr(output);
+        kernel.launch(kargs, dim3(numBlocksX, numBlocksY), dim3(blockSize, blockSize), 0, stream);
+    }
+
+    void launch_half_N_kernel(hipStream_t& stream, T* output)
+    {
+        auto blockSize = TWIDDLES_THREADS;
+
+        auto kernel = RTCKernelTwiddle::generate(gpu_arch, TwiddleTableType::HALF_N, precision);
+        RTCKernelArgs kargs;
+        kargs.append_size_t(half_N);
+        kargs.append_size_t(N);
+        kargs.append_ptr(output);
+
+        auto numBlocks_halfN = DivRoundingUp<size_t>(half_N, blockSize);
+
+        kernel.launch(kargs, dim3(numBlocks_halfN), dim3(blockSize), 0, stream);
+    }
+
 public:
-    TwiddleTable(size_t _N, size_t _length_limit, bool _attach_halfN)
+    TwiddleTable(rocfft_precision   precision,
+                 const std::string& gpu_arch,
+                 size_t             _N,
+                 size_t             _length_limit,
+                 bool               _attach_halfN)
         : N(_N)
         , length_limit(_length_limit ? _length_limit : _N)
         , attach_halfN(_attach_halfN)
+        , precision(precision)
+        , gpu_arch(gpu_arch)
     {
         half_N = attach_halfN ? (N + 1) / 2 : 0;
     }
@@ -262,8 +279,8 @@ private:
     size_t N2;
 
 public:
-    TwiddleTable2D(size_t _N1, size_t _N2)
-        : TwiddleTable<T>(0, 0, false)
+    TwiddleTable2D(rocfft_precision precision, const std::string& gpu_arch, size_t _N1, size_t _N2)
+        : TwiddleTable<T>(precision, gpu_arch, 0, 0, false)
         , N1(_N1)
         , N2(_N2)
     {
@@ -276,8 +293,6 @@ public:
     {
         if(radices1 == radices2)
             N2 = 0;
-
-        auto blockSize = TWIDDLES_THREADS;
 
         size_t              table_sz_1, maxElem_1, minElem_1;
         std::vector<size_t> radices_prod_1, radices_sum_prod_1;
@@ -304,60 +319,25 @@ public:
             throw std::runtime_error("unable to allocate twiddle length "
                                      + std::to_string(table_sz));
 
-        auto device_data_ptr = static_cast<T*>(output.data());
-
-        auto num_radices_1 = radices1.size();
-
-        auto numBlocksX_1 = DivRoundingUp<size_t>(num_radices_1, blockSize);
-        auto numBlocksY_1 = DivRoundingUp<size_t>(maxElem_1 / minElem_1, blockSize);
-
-        radices_t radices1_device;
-        radices_t radices_prod_device_1;
-        radices_t radices_sum_prod_device_1;
-        std::copy(radices1.begin(), radices1.end(), radices1_device.data);
-        std::copy(radices_prod_1.begin(), radices_prod_1.end(), radices_prod_device_1.data);
-        std::copy(
-            radices_sum_prod_1.begin(), radices_sum_prod_1.end(), radices_sum_prod_device_1.data);
-
-        hipLaunchKernelGGL(GenerateTwiddleTableKernel<T>,
-                           dim3(numBlocksX_1, numBlocksY_1),
-                           dim3(blockSize, blockSize),
-                           0, // sharedMemBytes
-                           stream,
-                           N1,
-                           num_radices_1,
-                           radices1_device,
-                           radices_prod_device_1,
-                           radices_sum_prod_device_1,
-                           device_data_ptr);
-
+        auto device_data_ptr          = static_cast<T*>(output.data());
+        TwiddleTable<T>::length_limit = N1;
+        TwiddleTable<T>::launch_radices_kernel(radices1,
+                                               radices_prod_1,
+                                               radices_sum_prod_1,
+                                               maxElem_1,
+                                               minElem_1,
+                                               stream,
+                                               device_data_ptr);
         if(N2)
         {
-            auto num_radices_2 = radices2.size();
-
-            auto numBlocksX_2 = DivRoundingUp<size_t>(num_radices_2, blockSize);
-            auto numBlocksY_2 = DivRoundingUp<size_t>(maxElem_2 / minElem_2, blockSize);
-
-            radices_t radices2_device;
-            radices_t radices_prod_device_2;
-            radices_t radices_sum_prod_device_2;
-            std::copy(radices2.begin(), radices2.end(), radices2_device.data);
-            std::copy(radices_prod_2.begin(), radices_prod_2.end(), radices_prod_device_2.data);
-            std::copy(radices_sum_prod_2.begin(),
-                      radices_sum_prod_2.end(),
-                      radices_sum_prod_device_2.data);
-
-            hipLaunchKernelGGL(GenerateTwiddleTableKernel<T>,
-                               dim3(numBlocksX_2, numBlocksY_2),
-                               dim3(blockSize, blockSize),
-                               0, // sharedMemBytes
-                               stream,
-                               N2,
-                               num_radices_2,
-                               radices2_device,
-                               radices_prod_device_2,
-                               radices_sum_prod_device_2,
-                               device_data_ptr + table_sz_1);
+            TwiddleTable<T>::length_limit = N2;
+            TwiddleTable<T>::launch_radices_kernel(radices2,
+                                                   radices_prod_2,
+                                                   radices_sum_prod_2,
+                                                   maxElem_2,
+                                                   minElem_2,
+                                                   stream,
+                                                   device_data_ptr + table_sz_1);
         }
     }
 };
@@ -373,10 +353,18 @@ private:
     size_t X, Y;
     size_t tableSize;
 
+    const rocfft_precision precision;
+    const std::string      gpu_arch;
+
 public:
-    TwiddleTableLarge(size_t length, size_t base = LTWD_BASE_DEFAULT)
+    TwiddleTableLarge(rocfft_precision   precision,
+                      const std::string& gpu_arch,
+                      size_t             length,
+                      size_t             base = LTWD_BASE_DEFAULT)
         : N(length)
         , largeTwdBase(base)
+        , precision(precision)
+        , gpu_arch(gpu_arch)
     {
         X         = static_cast<size_t>(1) << largeTwdBase; // ex: 2^8 = 256
         Y         = DivRoundingUp<size_t>(CeilPo2(N), largeTwdBase);
@@ -401,22 +389,23 @@ public:
         auto numBlocksX = DivRoundingUp<size_t>(X, blockSize);
         auto numBlocksY = DivRoundingUp<size_t>(Y, blockSize);
 
-        hipLaunchKernelGGL(GenerateTwiddleTableLargeKernel<T>,
-                           dim3(numBlocksX, numBlocksY),
-                           dim3(blockSize, blockSize),
-                           0, // sharedMemBytes
-                           stream,
-                           phi,
-                           largeTwdBase,
-                           X,
-                           Y,
-                           static_cast<T*>(output.data()));
+        auto kernel = RTCKernelTwiddle::generate(gpu_arch, TwiddleTableType::LARGE, precision);
+        RTCKernelArgs kargs;
+        kargs.append_double(phi);
+        kargs.append_size_t(largeTwdBase);
+        kargs.append_size_t(X);
+        kargs.append_size_t(Y);
+        kargs.append_ptr(output.data());
+
+        kernel.launch(kargs, dim3(numBlocksX, numBlocksY), dim3(blockSize, blockSize), 0, stream);
     }
 };
 
 template <typename T>
 gpubuf twiddles_create_pr(size_t                     N,
                           size_t                     length_limit,
+                          rocfft_precision           precision,
+                          const char*                gpu_arch,
                           size_t                     largeTwdBase,
                           bool                       attach_halfN,
                           const std::vector<size_t>& radices,
@@ -440,7 +429,7 @@ gpubuf twiddles_create_pr(size_t                     N,
 
     if((N <= LARGE_TWIDDLE_THRESHOLD) && largeTwdBase == 0)
     {
-        TwiddleTable<T> twTable(N, length_limit, attach_halfN);
+        TwiddleTable<T> twTable(precision, gpu_arch, N, length_limit, attach_halfN);
         twTable.GenerateTwiddleTable(radices, stream, twts);
     }
     else
@@ -449,12 +438,13 @@ gpubuf twiddles_create_pr(size_t                     N,
 
         if(largeTwdBase == 0)
         {
-            TwiddleTable<T> twTable(N, length_limit, attach_halfN);
+            TwiddleTable<T> twTable(precision, gpu_arch, N, length_limit, attach_halfN);
             twTable.GenerateTwiddleTable(radices, stream, twts);
         }
         else
         {
-            TwiddleTableLarge<T> twTable(N, largeTwdBase); // does not generate radices
+            TwiddleTableLarge<T> twTable(
+                precision, gpu_arch, N, largeTwdBase); // does not generate radices
             twTable.GenerateTwiddleTable(stream, twts);
         }
     }
@@ -468,6 +458,7 @@ gpubuf twiddles_create_pr(size_t                     N,
 gpubuf twiddles_create(size_t                     N,
                        size_t                     length_limit,
                        rocfft_precision           precision,
+                       const char*                gpu_arch,
                        size_t                     largeTwdBase,
                        bool                       attach_halfN,
                        const std::vector<size_t>& radices,
@@ -475,10 +466,10 @@ gpubuf twiddles_create(size_t                     N,
 {
     if(precision == rocfft_precision_single)
         return twiddles_create_pr<float2>(
-            N, length_limit, largeTwdBase, attach_halfN, radices, deviceId);
+            N, length_limit, precision, gpu_arch, largeTwdBase, attach_halfN, radices, deviceId);
     else if(precision == rocfft_precision_double)
         return twiddles_create_pr<double2>(
-            N, length_limit, largeTwdBase, attach_halfN, radices, deviceId);
+            N, length_limit, precision, gpu_arch, largeTwdBase, attach_halfN, radices, deviceId);
     else
     {
         assert(false);
@@ -487,8 +478,8 @@ gpubuf twiddles_create(size_t                     N,
 }
 
 template <typename T>
-gpubuf
-    twiddles_create_2D_pr(size_t N1, size_t N2, rocfft_precision precision, unsigned int deviceId)
+gpubuf twiddles_create_2D_pr(
+    size_t N1, size_t N2, rocfft_precision precision, const char* gpu_arch, unsigned int deviceId)
 {
     auto                kernel = function_pool::get_kernel(fpkey(N1, N2, precision));
     std::vector<size_t> radices1, radices2;
@@ -515,7 +506,7 @@ gpubuf
             throw std::runtime_error("hipStreamCreate failure");
     }
 
-    TwiddleTable2D<T> twTable(N1, N2);
+    TwiddleTable2D<T> twTable(precision, gpu_arch, N1, N2);
     twTable.GenerateTwiddleTable(radices1, radices2, stream, twts);
 
     if(hipStreamSynchronize(stream) != hipSuccess)
@@ -524,12 +515,13 @@ gpubuf
     return twts;
 }
 
-gpubuf twiddles_create_2D(size_t N1, size_t N2, rocfft_precision precision, unsigned int deviceId)
+gpubuf twiddles_create_2D(
+    size_t N1, size_t N2, rocfft_precision precision, const char* gpu_arch, unsigned int deviceId)
 {
     if(precision == rocfft_precision_single)
-        return twiddles_create_2D_pr<float2>(N1, N2, precision, deviceId);
+        return twiddles_create_2D_pr<float2>(N1, N2, precision, gpu_arch, deviceId);
     else if(precision == rocfft_precision_double)
-        return twiddles_create_2D_pr<double2>(N1, N2, precision, deviceId);
+        return twiddles_create_2D_pr<double2>(N1, N2, precision, gpu_arch, deviceId);
     else
     {
         assert(false);

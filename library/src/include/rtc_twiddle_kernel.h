@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -17,29 +17,33 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-#pragma once
-#if !defined(TWIDDLES_H)
-#define TWIDDLES_H
 
-#include "../../../shared/gpubuf.h"
-#include "rocfft.h"
-#include <vector>
+#ifndef ROCFFT_RTC_TWIDDLE_KERNEL_H
+#define ROCFFT_RTC_TWIDDLE_KERNEL_H
 
-static const size_t       LTWD_BASE_DEFAULT       = 8;
-static const size_t       LARGE_TWIDDLE_THRESHOLD = 4096;
-static const unsigned int TWIDDLES_MAX_RADICES    = 8;
+#include "rtc_kernel.h"
+#include "rtc_twiddle_gen.h"
 
-gpubuf twiddles_create(size_t                     N,
-                       size_t                     length_limit,
-                       rocfft_precision           precision,
-                       const char*                gpu_arch,
-                       size_t                     largeTwdBase,
-                       bool                       attach_halfN,
-                       const std::vector<size_t>& radices,
-                       unsigned int               deviceId);
-gpubuf twiddles_create_2D(
-    size_t N1, size_t N2, rocfft_precision precision, const char* gpu_arch, unsigned int deviceId);
+struct RTCKernelTwiddle : public RTCKernel
+{
+    // generate twiddle kernel from type and precision
+    static RTCKernelTwiddle
+        generate(const std::string& gpu_arch, TwiddleTableType type, rocfft_precision precision);
 
-void twiddle_streams_cleanup();
+    // no DeviceCallIn is available at twiddle generation time -
+    // these kernels are launched without it
+    RTCKernelArgs get_launch_args(DeviceCallIn& data) override
+    {
+        return {};
+    }
 
-#endif // defined( TWIDDLES_H )
+protected:
+    RTCKernelTwiddle(const std::string&       kernel_name,
+                     const std::vector<char>& code,
+                     dim3                     gridDim,
+                     dim3                     blockDim)
+        : RTCKernel(kernel_name, code, gridDim, blockDim)
+    {
+    }
+};
+#endif

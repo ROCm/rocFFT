@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -311,8 +311,8 @@ TEST(rocfft_UnitTest, rtc_cache)
         rocfft_plan_destroy(plan);
         plan = nullptr;
     };
-    // check the RTC log to see if a kernel got compiled
-    auto kernel_was_compiled = [&]() {
+    // check the RTC log to see if an FFT kernel got compiled
+    auto fft_kernel_was_compiled = [&]() {
         // HACK: logging is done in a worker thread, so sleep for a
         // bit to give it a chance to actually write.  It at least
         // should flush after writing.
@@ -320,9 +320,10 @@ TEST(rocfft_UnitTest, rtc_cache)
         // look for a ROCFFT_RTC_BEGIN line that indicates RTC happened
         std::ifstream logfile(rtc_log_path);
         std::string   line;
-        while(logfile >> line)
+        while(std::getline(logfile, line))
         {
-            if(line.find("ROCFFT_RTC_BEGIN") != std::string::npos)
+            if(line.find("ROCFFT_RTC_BEGIN") != std::string::npos
+               && line.find("fft_") != std::string::npos)
                 return true;
         }
         return false;
@@ -334,7 +335,7 @@ TEST(rocfft_UnitTest, rtc_cache)
     ASSERT_EQ(rocfft_cache_serialize(&onekernel_cache, &onekernel_cache_bytes),
               rocfft_status_success);
     rocfft_cleanup();
-    ASSERT_TRUE(kernel_was_compiled());
+    ASSERT_TRUE(fft_kernel_was_compiled());
 
     // serialized cache should be bigger than empty cache
     ASSERT_GT(onekernel_cache_bytes, empty_cache_bytes);
@@ -349,7 +350,7 @@ TEST(rocfft_UnitTest, rtc_cache)
     ASSERT_EQ(rocfft_cache_serialize(&onekernel_cache, &onekernel_cache_bytes),
               rocfft_status_success);
     rocfft_cleanup();
-    ASSERT_TRUE(kernel_was_compiled());
+    ASSERT_TRUE(fft_kernel_was_compiled());
     ASSERT_GT(onekernel_cache_bytes, empty_cache_bytes);
 
     // re-init library without blowing away cache.  rebuild plan and
@@ -357,7 +358,7 @@ TEST(rocfft_UnitTest, rtc_cache)
     rocfft_setup();
     build_plan();
     rocfft_cleanup();
-    ASSERT_FALSE(kernel_was_compiled());
+    ASSERT_FALSE(fft_kernel_was_compiled());
 
     // blow away cache again, deserialize one-kernel cache.  re-init
     // library and rebuild plan - kernel should again not be
@@ -367,12 +368,12 @@ TEST(rocfft_UnitTest, rtc_cache)
     ASSERT_EQ(rocfft_cache_deserialize(onekernel_cache, onekernel_cache_bytes),
               rocfft_status_success);
     rocfft_cleanup();
-    ASSERT_FALSE(kernel_was_compiled());
+    ASSERT_FALSE(fft_kernel_was_compiled());
 
     rocfft_setup();
     build_plan();
     rocfft_cleanup();
-    ASSERT_FALSE(kernel_was_compiled());
+    ASSERT_FALSE(fft_kernel_was_compiled());
 
     // use the cache as a system cache and make the user one an empty
     // in-memory cache.  kernel should still not be recompiled.
@@ -381,7 +382,7 @@ TEST(rocfft_UnitTest, rtc_cache)
     rocfft_setup();
     build_plan();
     rocfft_cleanup();
-    ASSERT_FALSE(kernel_was_compiled());
+    ASSERT_FALSE(fft_kernel_was_compiled());
 
     // check that the system cache is not written to, even if it's
     // writable by the current user.  after removing the cache, the
@@ -391,11 +392,11 @@ TEST(rocfft_UnitTest, rtc_cache)
     rocfft_setup();
     build_plan();
     rocfft_cleanup();
-    ASSERT_TRUE(kernel_was_compiled());
+    ASSERT_TRUE(fft_kernel_was_compiled());
     rocfft_setup();
     build_plan();
     rocfft_cleanup();
-    ASSERT_TRUE(kernel_was_compiled());
+    ASSERT_TRUE(fft_kernel_was_compiled());
 }
 
 // make sure cache API functions tolerate null pointers without crashing

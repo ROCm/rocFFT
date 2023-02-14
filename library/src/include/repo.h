@@ -1,5 +1,5 @@
 
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -130,13 +130,16 @@ public:
     static std::pair<void*, size_t> GetTwiddles1D(size_t                     length,
                                                   size_t                     length_limit,
                                                   rocfft_precision           precision,
+                                                  const char*                gpu_arch,
                                                   size_t                     largeTwdBase,
                                                   bool                       attach_halfN,
                                                   const std::vector<size_t>& radices);
-    static std::pair<void*, size_t>
-                GetTwiddles2D(size_t length0, size_t length1, rocfft_precision precision);
-    static void ReleaseTwiddle1D(void* ptr);
-    static void ReleaseTwiddle2D(void* ptr);
+    static std::pair<void*, size_t> GetTwiddles2D(size_t           length0,
+                                                  size_t           length1,
+                                                  rocfft_precision precision,
+                                                  const char*      gpu_arch);
+    static void                     ReleaseTwiddle1D(void* ptr);
+    static void                     ReleaseTwiddle2D(void* ptr);
     // remove cached twiddles
     static void Clear();
 

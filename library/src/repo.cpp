@@ -1,5 +1,5 @@
 /******************************************************************************
-* Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+* Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -105,6 +105,7 @@ void Repo::ReleaseTwiddlesInternal(void*                                        
 std::pair<void*, size_t> Repo::GetTwiddles1D(size_t                     length,
                                              size_t                     length_limit,
                                              rocfft_precision           precision,
+                                             const char*                gpu_arch,
                                              size_t                     largeTwdBase,
                                              bool                       attach_halfN,
                                              const std::vector<size_t>& radices)
@@ -115,13 +116,21 @@ std::pair<void*, size_t> Repo::GetTwiddles1D(size_t                     length,
     repo_key_1D_t key{length, length_limit, precision, largeTwdBase, attach_halfN, radices};
     return GetTwiddlesInternal(
         key, repo.twiddles_1D, repo.twiddles_1D_reverse, [&](unsigned int deviceId) {
-            return twiddles_create(
-                length, length_limit, precision, largeTwdBase, attach_halfN, radices, deviceId);
+            return twiddles_create(length,
+                                   length_limit,
+                                   precision,
+                                   gpu_arch,
+                                   largeTwdBase,
+                                   attach_halfN,
+                                   radices,
+                                   deviceId);
         });
 }
 
-std::pair<void*, size_t>
-    Repo::GetTwiddles2D(size_t length0, size_t length1, rocfft_precision precision)
+std::pair<void*, size_t> Repo::GetTwiddles2D(size_t           length0,
+                                             size_t           length1,
+                                             rocfft_precision precision,
+                                             const char*      gpu_arch)
 {
     std::lock_guard<std::mutex> lck(mtx);
     Repo&                       repo = Repo::GetRepo();
@@ -129,7 +138,7 @@ std::pair<void*, size_t>
     repo_key_2D_t key{length0, length1, precision};
     return GetTwiddlesInternal(
         key, repo.twiddles_2D, repo.twiddles_2D_reverse, [&](unsigned int deviceId) {
-            return twiddles_create_2D(length0, length1, precision, deviceId);
+            return twiddles_create_2D(length0, length1, precision, gpu_arch, deviceId);
         });
 }
 
