@@ -209,37 +209,40 @@ if( BUILD_CLIENTS_SAMPLES
   if(BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SELFTEST OR BUILD_CLIENTS_RIDER)
     find_package( Boost COMPONENTS program_options REQUIRED)
     set(BOOST_DEB "libboost-program-options${Boost_VERSION_MAJOR}.${Boost_VERSION_MINOR}.${Boost_VERSION_PATCH}")
-    set(BOOST_RPM "boost-devel = ${Boost_VERSION}")
+    set(BOOST_RPM "boost-program-options = ${Boost_VERSION_MAJOR}.${Boost_VERSION_MINOR}.${Boost_VERSION_PATCH}")
   endif()
   if( NOT CLIENTS_OS )
     rocm_set_os_id( CLIENTS_OS )
   endif()
   if(BUILD_CLIENTS_TESTS AND (NOT DEFINED BUILD_CLIENTS_TESTS_OPENMP OR BUILD_CLIENTS_TESTS_OPENMP))
     set(OPENMP_DEB "libgomp1")
+    set(FFTW_DEB "libfftw3-bin")
     if(CLIENTS_OS STREQUAL "sles")
       set(OPENMP_RPM "libgomp1")
+      set(FFTW_RPM "libfftw3-3")
     else()
       set(OPENMP_RPM "libgomp")
+      set(FFTW_RPM "fftw-libs")
     endif()
   endif()
   if(CLIENTS_OS STREQUAL "sles")
-    set(BOOST_RPM RPM "libboost_program_options${Boost_VERSION_MAJOR}_${Boost_VERSION_MINOR}_${Boost_VERSION_PATCH}-devel")
+    set(BOOST_RPM RPM "libboost_program_options${Boost_VERSION_MAJOR}_${Boost_VERSION_MINOR}_${Boost_VERSION_PATCH}")
   endif()
   rocm_package_setup_component(clients)
   if(BUILD_CLIENTS_TESTS)
     rocm_package_setup_client_component(
       tests
       DEPENDS
-        DEB ${BOOST_DEB} ${OPENMP_DEB}
-        RPM ${BOOST_RPM} ${OPENMP_RPM}
+        DEB ${BOOST_DEB} ${OPENMP_DEB} ${FFTW_DEB} rocrand
+        RPM ${BOOST_RPM} ${OPENMP_RPM} ${FFTW_RPM} rocrand
     )
   endif()
   if(BUILD_CLIENTS_RIDER)
     rocm_package_setup_client_component(
       benchmarks
       DEPENDS
-        DEB ${BOOST_DEB}
-        RPM ${BOOST_RPM}
+        DEB ${BOOST_DEB} rocrand
+        RPM ${BOOST_RPM} rocrand
     )
     rocm_install(
       DIRECTORY scripts/perf
