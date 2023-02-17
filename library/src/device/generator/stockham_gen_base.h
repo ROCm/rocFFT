@@ -744,7 +744,7 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         return f;
     }
 
-    void collect_length_stride(StatementList& body)
+    virtual void collect_length_stride(StatementList& body)
     {
         if(static_dim)
         {

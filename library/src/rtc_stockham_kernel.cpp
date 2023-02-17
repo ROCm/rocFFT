@@ -166,7 +166,11 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
         static_dim = 0;
     specs->static_dim = static_dim;
 
-    bool unit_stride = node.inStride.front() == 1 && node.outStride.front() == 1;
+    // SBCC considers second dimension for unit-stride-ness.  Other
+    // kernels consider first dimension.
+    bool unit_stride = node.scheme == CS_KERNEL_STOCKHAM_BLOCK_CC
+                           ? (node.inStride[1] == 1 && node.outStride[1] == 1)
+                           : (node.inStride.front() == 1 && node.outStride.front() == 1);
 
     generator.generate_name = [=, &node]() {
         return stockham_rtc_kernel_name(node.scheme,

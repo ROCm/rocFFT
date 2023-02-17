@@ -306,7 +306,7 @@ def list_small_kernels():
         NS(length= 119, workgroup_size=256, threads_per_transform= 17, factors=(17, 7), runtime_compile=True),
         NS(length= 120, workgroup_size= 64, threads_per_transform= 12, factors=(6, 10, 2), runtime_compile=True),
         NS(length= 121, workgroup_size=128, threads_per_transform= 11, factors=(11, 11), runtime_compile=True),
-        NS(length= 125, workgroup_size=256, threads_per_transform= 25, factors=(5, 5, 5), half_lds=False, direct_to_from_reg=False),
+        NS(length= 125, workgroup_size=256, threads_per_transform= 25, factors=(5, 5, 5), half_lds=False, direct_to_from_reg=False, runtime_compile=True),
         NS(length= 126, workgroup_size= 256, threads_per_transform= 42, factors=(6, 7, 3), half_lds=False, runtime_compile=True),
         NS(length= 128, workgroup_size=256, threads_per_transform= 16, factors=(16, 8)),
         NS(length= 135, workgroup_size=128, threads_per_transform=  9, factors=(5, 3, 3, 3), runtime_compile=True),
@@ -591,7 +591,7 @@ def list_large_kernels():
         NS(length=121, factors=[11, 11],    use_3steps_large_twd={
            'sp': 'true',  'dp': 'true'}, workgroup_size=128, runtime_compile=True),
         NS(length=125, factors=[5, 5, 5],    use_3steps_large_twd={
-           'sp': 'true',  'dp': 'false'}),
+           'sp': 'true',  'dp': 'false'}, runtime_compile=True),
         NS(length=128, factors=[16, 8],    use_3steps_large_twd={
            'sp': 'true',  'dp': 'true'}, workgroup_size=256, threads_per_transform= 16),
         NS(length=160, factors=[4, 10, 4],   use_3steps_large_twd={
