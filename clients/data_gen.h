@@ -24,11 +24,8 @@
 #include "../shared/arithmetic.h"
 #include "../shared/gpubuf.h"
 #include "../shared/rocfft_complex.h"
-#include <hip/hip_complex.h>
-#include <hip/hip_fp16.h>
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
-#include <hip/hip_vector_types.h>
 #include <hiprand/hiprand.h>
 #include <hiprand/hiprand_kernel.h>
 #include <vector>
@@ -183,14 +180,14 @@ __device__ static size_t get_batch(const size_t i, const input_val_3D<T>& length
     return widx;
 }
 
-template <typename T1>
+template <typename Tint, typename Treal>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_float_interleaved_data_kernel(const T1               whole_length,
-                                           const T1               zero_length,
-                                           size_t                 idist,
-                                           size_t                 isize,
-                                           const T1               istride,
-                                           rocfft_complex<float>* data)
+    generate_interleaved_data_kernel(const Tint             whole_length,
+                                     const Tint             zero_length,
+                                     size_t                 idist,
+                                     size_t                 isize,
+                                     const Tint             istride,
+                                     rocfft_complex<Treal>* data)
 {
     auto const i = threadIdx.x + blockIdx.x * blockDim.x;
     if(i < isize)
@@ -205,19 +202,20 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         hiprandStatePhilox4_32_10 gen_state;
         hiprand_init(seed, idx, 0, &gen_state);
 
-        data[idx].x = hiprand_uniform(&gen_state);
-        data[idx].y = hiprand_uniform(&gen_state);
+        data[idx].x = hiprand_uniform_double(&gen_state);
+        data[idx].y = hiprand_uniform_double(&gen_state);
     }
 }
 
-template <typename T1>
+template <typename Tint, typename Treal>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_double_interleaved_data_kernel(const T1                whole_length,
-                                            const T1                zero_length,
-                                            size_t                  idist,
-                                            size_t                  isize,
-                                            const T1                istride,
-                                            rocfft_complex<double>* data)
+    generate_planar_data_kernel(const Tint whole_length,
+                                const Tint zero_length,
+                                size_t     idist,
+                                size_t     isize,
+                                const Tint istride,
+                                Treal*     real_data,
+                                Treal*     imag_data)
 {
     auto const i = threadIdx.x + blockIdx.x * blockDim.x;
     if(i < isize)
@@ -232,105 +230,19 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         hiprandStatePhilox4_32_10 gen_state;
         hiprand_init(seed, idx, 0, &gen_state);
 
-        auto item = hiprand_uniform2_double(&gen_state);
-
-        data[idx].x = item.x;
-        data[idx].y = item.y;
+        real_data[idx] = hiprand_uniform_double(&gen_state);
+        imag_data[idx] = hiprand_uniform_double(&gen_state);
     }
 }
 
-template <typename T1>
+template <typename Tint, typename Treal>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_float_planar_data_kernel(const T1 whole_length,
-                                      const T1 zero_length,
-                                      size_t   idist,
-                                      size_t   isize,
-                                      const T1 istride,
-                                      float*   real_data,
-                                      float*   imag_data)
-{
-    auto const i = threadIdx.x + blockIdx.x * blockDim.x;
-    if(i < isize)
-    {
-        auto i_length = get_length(i, whole_length);
-        auto i_batch  = get_batch(i, whole_length);
-        auto i_base   = i_batch * idist;
-
-        auto seed = compute_index(zero_length, istride, i_base);
-        auto idx  = compute_index(i_length, istride, i_base);
-
-        hiprandStatePhilox4_32_10 gen_state;
-        hiprand_init(seed, idx, 0, &gen_state);
-
-        real_data[idx] = hiprand_uniform(&gen_state);
-        imag_data[idx] = hiprand_uniform(&gen_state);
-    }
-}
-
-template <typename T1>
-__global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_double_planar_data_kernel(const T1 whole_length,
-                                       const T1 zero_length,
-                                       size_t   idist,
-                                       size_t   isize,
-                                       const T1 istride,
-                                       double*  real_data,
-                                       double*  imag_data)
-{
-    auto const i = threadIdx.x + blockIdx.x * blockDim.x;
-    if(i < isize)
-    {
-        auto i_length = get_length(i, whole_length);
-        auto i_batch  = get_batch(i, whole_length);
-        auto i_base   = i_batch * idist;
-
-        auto seed = compute_index(zero_length, istride, i_base);
-        auto idx  = compute_index(i_length, istride, i_base);
-
-        hiprandStatePhilox4_32_10 gen_state;
-        hiprand_init(seed, idx, 0, &gen_state);
-
-        auto item = hiprand_uniform2_double(&gen_state);
-
-        real_data[idx] = item.x;
-        imag_data[idx] = item.y;
-    }
-}
-
-template <typename T1>
-__global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_float_real_data_kernel(const T1 whole_length,
-                                    const T1 zero_length,
-                                    size_t   idist,
-                                    size_t   isize,
-                                    const T1 istride,
-                                    float*   data)
-{
-    auto const i = threadIdx.x + blockIdx.x * blockDim.x;
-    if(i < isize)
-    {
-        auto i_length = get_length(i, whole_length);
-        auto i_batch  = get_batch(i, whole_length);
-        auto i_base   = i_batch * idist;
-
-        auto seed = compute_index(zero_length, istride, i_base);
-        auto idx  = compute_index(i_length, istride, i_base);
-
-        hiprandStatePhilox4_32_10 gen_state;
-        hiprand_init(seed, idx, 0, &gen_state);
-
-        data[idx] = hiprand_uniform(&gen_state);
-    }
-}
-
-template <typename T1>
-__global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_double_real_data_kernel(const T1 whole_length,
-                                     const T1 zero_length,
-                                     size_t   idist,
-                                     size_t   isize,
-                                     const T1 istride,
-                                     double*  data)
+    generate_real_data_kernel(const Tint whole_length,
+                              const Tint zero_length,
+                              size_t     idist,
+                              size_t     isize,
+                              const Tint istride,
+                              Treal*     data)
 {
     auto const i = threadIdx.x + blockIdx.x * blockDim.x;
     if(i < isize)
@@ -840,12 +752,12 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DAT
     }
 }
 
-template <typename Tint>
+template <typename Tint, typename Treal>
 inline void generate_interleaved_data(const Tint&            whole_length,
                                       const size_t           idist,
                                       const size_t           isize,
                                       const Tint&            istride,
-                                      rocfft_complex<float>* input_data)
+                                      rocfft_complex<Treal>* input_data)
 {
     auto blockSize       = DATA_GEN_THREADS;
     auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
@@ -854,53 +766,27 @@ inline void generate_interleaved_data(const Tint&            whole_length,
     auto zero_length  = make_zero_length(input_length);
     auto input_stride = get_input_val(istride);
 
-    hipLaunchKernelGGL(generate_float_interleaved_data_kernel,
-                       dim3(numBlocks_setup),
-                       dim3(blockSize),
-                       0, // sharedMemBytes
-                       0, // stream
-                       input_length,
-                       zero_length,
-                       idist,
-                       isize,
-                       input_stride,
-                       reinterpret_cast<rocfft_complex<float>*>(input_data));
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(generate_interleaved_data_kernel<decltype(input_length), Treal>),
+        dim3(numBlocks_setup),
+        dim3(blockSize),
+        0, // sharedMemBytes
+        0, // stream
+        input_length,
+        zero_length,
+        idist,
+        isize,
+        input_stride,
+        input_data);
 }
 
-template <typename Tint>
-inline void generate_interleaved_data(const Tint&             whole_length,
-                                      const size_t            idist,
-                                      const size_t            isize,
-                                      const Tint&             istride,
-                                      rocfft_complex<double>* input_data)
-{
-    auto blockSize       = DATA_GEN_THREADS;
-    auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
-
-    auto input_length = get_input_val(whole_length);
-    auto zero_length  = make_zero_length(input_length);
-    auto input_stride = get_input_val(istride);
-
-    hipLaunchKernelGGL(generate_double_interleaved_data_kernel,
-                       dim3(numBlocks_setup),
-                       dim3(blockSize),
-                       0, // sharedMemBytes
-                       0, // stream
-                       input_length,
-                       zero_length,
-                       idist,
-                       isize,
-                       input_stride,
-                       reinterpret_cast<rocfft_complex<double>*>(input_data));
-}
-
-template <typename Tint>
+template <typename Tint, typename Treal>
 inline void generate_planar_data(const Tint&  whole_length,
                                  const size_t idist,
                                  const size_t isize,
                                  const Tint&  istride,
-                                 float*       real_data,
-                                 float*       imag_data)
+                                 Treal*       real_data,
+                                 Treal*       imag_data)
 {
     auto blockSize       = DATA_GEN_THREADS;
     auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
@@ -909,7 +795,7 @@ inline void generate_planar_data(const Tint&  whole_length,
     auto zero_length  = make_zero_length(input_length);
     auto input_stride = get_input_val(istride);
 
-    hipLaunchKernelGGL(generate_float_planar_data_kernel,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(generate_planar_data_kernel<decltype(input_length), Treal>),
                        dim3(numBlocks_setup),
                        dim3(blockSize),
                        0, // sharedMemBytes
@@ -923,41 +809,12 @@ inline void generate_planar_data(const Tint&  whole_length,
                        imag_data);
 }
 
-template <typename Tint>
-inline void generate_planar_data(const Tint&  whole_length,
-                                 const size_t idist,
-                                 const size_t isize,
-                                 const Tint&  istride,
-                                 double*      real_data,
-                                 double*      imag_data)
-{
-    auto blockSize       = DATA_GEN_THREADS;
-    auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
-
-    auto input_length = get_input_val(whole_length);
-    auto zero_length  = make_zero_length(input_length);
-    auto input_stride = get_input_val(istride);
-
-    hipLaunchKernelGGL(generate_double_planar_data_kernel,
-                       dim3(numBlocks_setup),
-                       dim3(blockSize),
-                       0, // sharedMemBytes
-                       0, // stream
-                       input_length,
-                       zero_length,
-                       idist,
-                       isize,
-                       input_stride,
-                       real_data,
-                       imag_data);
-}
-
-template <typename Tint>
+template <typename Tint, typename Treal>
 inline void generate_real_data(const Tint&  whole_length,
                                const size_t idist,
                                const size_t isize,
                                const Tint&  istride,
-                               float*       input_data)
+                               Treal*       input_data)
 {
     auto blockSize       = DATA_GEN_THREADS;
     auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
@@ -966,34 +823,7 @@ inline void generate_real_data(const Tint&  whole_length,
     auto zero_length  = make_zero_length(input_length);
     auto input_stride = get_input_val(istride);
 
-    hipLaunchKernelGGL(generate_float_real_data_kernel,
-                       dim3(numBlocks_setup),
-                       dim3(blockSize),
-                       0, // sharedMemBytes
-                       0, // stream
-                       input_length,
-                       zero_length,
-                       idist,
-                       isize,
-                       input_stride,
-                       input_data);
-}
-
-template <typename Tint>
-inline void generate_real_data(const Tint&  whole_length,
-                               const size_t idist,
-                               const size_t isize,
-                               const Tint&  istride,
-                               double*      input_data)
-{
-    auto blockSize       = DATA_GEN_THREADS;
-    auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
-
-    auto input_length = get_input_val(whole_length);
-    auto zero_length  = make_zero_length(input_length);
-    auto input_stride = get_input_val(istride);
-
-    hipLaunchKernelGGL(generate_double_real_data_kernel,
+    hipLaunchKernelGGL(HIP_KERNEL_NAME(generate_real_data_kernel<decltype(input_length), Treal>),
                        dim3(numBlocks_setup),
                        dim3(blockSize),
                        0, // sharedMemBytes

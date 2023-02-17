@@ -32,7 +32,7 @@
 
 static const unsigned int KERNEL_THREADS = 64;
 
-__global__ void scale_data_kernel(float2* data, size_t length, float scale)
+__global__ void scale_data_kernel(rocfft_complex<float>* data, size_t length, float scale)
 {
     const auto idx = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -66,10 +66,10 @@ __global__ void offset_data_kernel_real(T* data, size_t length, T offset)
     }
 }
 
-static void init_input_data(size_t               N,
-                            size_t               seed,
-                            std::vector<float2>& host_data,
-                            gpubuf_t<float2>&    device_data)
+static void init_input_data(size_t                              N,
+                            size_t                              seed,
+                            std::vector<rocfft_complex<float>>& host_data,
+                            gpubuf_t<rocfft_complex<float>>&    device_data)
 {
     std::minstd_rand                      gen(seed);
     std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
@@ -81,7 +81,7 @@ static void init_input_data(size_t               N,
         host_data[i].y = dist(gen);
     }
 
-    size_t Nbytes = N * sizeof(float2);
+    size_t Nbytes = N * sizeof(rocfft_complex<float>);
 
     if(device_data.alloc(Nbytes) != hipSuccess)
         throw std::bad_alloc();
@@ -158,7 +158,8 @@ static void run_inverse_fft(rocfft_execution_info info,
     ASSERT_EQ(rocfft_execute(plan_inv, &in_ptr, &out_ptr, info), rocfft_status_success);
 }
 
-static void scale_device_data(hipStream_t stream, float scale, size_t N, float2* data)
+static void
+    scale_device_data(hipStream_t stream, float scale, size_t N, rocfft_complex<float>* data)
 {
     auto blockSize = KERNEL_THREADS;
     auto numBlocks = DivRoundingUp<size_t>(N, blockSize);
@@ -223,15 +224,15 @@ static void compare_data_exact_match(hipStream_t           other_stream,
     ASSERT_EQ(host_data == host_data_compare, true);
 }
 
-static void compare_data(const std::vector<float2>& original_host_data,
-                         const gpubuf_t<float2>&    modified_device_data)
+static void compare_data(const std::vector<rocfft_complex<float>>& original_host_data,
+                         const gpubuf_t<rocfft_complex<float>>&    modified_device_data)
 {
-    std::vector<float2> modified_host_data(original_host_data.size());
+    std::vector<rocfft_complex<float>> modified_host_data(original_host_data.size());
 
     // Copy result back to host
     ASSERT_EQ(hipMemcpy(modified_host_data.data(),
                         modified_device_data.data(),
-                        modified_host_data.size() * sizeof(float2),
+                        modified_host_data.size() * sizeof(rocfft_complex<float>),
                         hipMemcpyDeviceToHost),
               hipSuccess);
 
@@ -280,26 +281,26 @@ TEST(rocfft_UnitTest, DISABLED_hipGraph_execution)
 
     size_t seed = 100;
 
-    auto offset_1 = float2(.1, .1);
-    auto offset_2 = float2(-.1, -.1);
+    auto offset_1 = rocfft_complex<float>{.1, .1};
+    auto offset_2 = rocfft_complex<float>{-.1, -.1};
 
     float scale     = 2.2;
     float inv_scale = 1. / scale;
 
-    auto output_init_val = float2(0., 0.);
+    auto output_init_val = rocfft_complex<float>(0., 0.);
 
     size_t num_kernel_launches = 100;
     size_t num_graph_launches  = 10;
 
-    gpubuf_t<float2>    device_mem_in;
-    std::vector<float2> host_mem_in;
+    gpubuf_t<rocfft_complex<float>>    device_mem_in;
+    std::vector<rocfft_complex<float>> host_mem_in;
     init_input_data(N, seed, host_mem_in, device_mem_in);
-    float2* in_ptr = static_cast<float2*>(device_mem_in.data());
+    rocfft_complex<float>* in_ptr = static_cast<rocfft_complex<float>*>(device_mem_in.data());
 
-    gpubuf_t<float2>    device_mem_out;
-    std::vector<float2> host_mem_out;
-    init_data<float2>(N, output_init_val, host_mem_out, device_mem_out);
-    float2* out_ptr = static_cast<float2*>(device_mem_out.data());
+    gpubuf_t<rocfft_complex<float>>    device_mem_out;
+    std::vector<rocfft_complex<float>> host_mem_out;
+    init_data<rocfft_complex<float>>(N, output_init_val, host_mem_out, device_mem_out);
+    rocfft_complex<float>* out_ptr = static_cast<rocfft_complex<float>*>(device_mem_out.data());
 
     gpubuf_t<size_t>    device_mem_counter;
     std::vector<size_t> host_mem_counter;
@@ -324,11 +325,11 @@ TEST(rocfft_UnitTest, DISABLED_hipGraph_execution)
 
     // add offset to device input data
     for(size_t i = 0; i < num_kernel_launches; ++i)
-        offset_device_data_complex<float2>(stream, offset_1, N, in_ptr);
+        offset_device_data_complex<rocfft_complex<float>>(stream, offset_1, N, in_ptr);
 
     // back out the offsets
     for(size_t i = 0; i < num_kernel_launches; ++i)
-        offset_device_data_complex<float2>(stream, offset_2, N, in_ptr);
+        offset_device_data_complex<rocfft_complex<float>>(stream, offset_2, N, in_ptr);
 
     // scale the device input data
     scale_device_data(stream, scale, N, in_ptr);
@@ -353,11 +354,11 @@ TEST(rocfft_UnitTest, DISABLED_hipGraph_execution)
 
     // add offset to device output data
     for(size_t i = 0; i < num_kernel_launches; ++i)
-        offset_device_data_complex<float2>(stream, offset_1, N, out_ptr);
+        offset_device_data_complex<rocfft_complex<float>>(stream, offset_1, N, out_ptr);
 
     // back out the offsets
     for(size_t i = 0; i < num_kernel_launches; ++i)
-        offset_device_data_complex<float2>(stream, offset_2, N, out_ptr);
+        offset_device_data_complex<rocfft_complex<float>>(stream, offset_2, N, out_ptr);
 
     // increment counter
     offset_device_data_real<size_t>(stream, 1, N, counter_ptr);
@@ -366,7 +367,7 @@ TEST(rocfft_UnitTest, DISABLED_hipGraph_execution)
 
     // make sure no actual work has been done for
     // the captured stream before graph execution
-    compare_data_exact_match<float2>(other_stream, host_mem_out, device_mem_out);
+    compare_data_exact_match<rocfft_complex<float>>(other_stream, host_mem_out, device_mem_out);
 
     ASSERT_EQ(hipGraphInstantiate(&graph_exec, graph, NULL, NULL, 0), hipSuccess);
     ASSERT_EQ(hipGraphDestroy(graph), hipSuccess);

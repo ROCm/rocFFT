@@ -32,7 +32,7 @@
 
 // normalize results of an inverse transform, so it can be directly
 // compared to the original data before the forward transform
-__global__ void normalize_inverse_results(float2* array, float N)
+__global__ void normalize_inverse_results(rocfft_complex<float>* array, float N)
 {
     const int idx = blockIdx.x * blockDim.x + threadIdx.x;
     array[idx].x /= N;
@@ -58,7 +58,7 @@ struct Test_Transform
             datasize *= N;
         }
 
-        size_t Nbytes = datasize * sizeof(float2);
+        size_t Nbytes = datasize * sizeof(rocfft_complex<float>);
 
         // Create HIP device buffers
         if(device_mem_in.alloc(Nbytes) != hipSuccess)
@@ -156,7 +156,7 @@ struct Test_Transform
                            1,
                            0, // sharedMemBytes
                            stream, // stream
-                           static_cast<float2*>(device_mem_out.data()),
+                           static_cast<rocfft_complex<float>*>(device_mem_out.data()),
                            static_cast<float>(host_mem_out.size()));
         ran_transform = true;
     }
@@ -190,7 +190,7 @@ struct Test_Transform
 
             ASSERT_EQ(hipMemcpy(host_mem_out.data(),
                                 device_mem_out.data(),
-                                host_mem_out.size() * sizeof(float2),
+                                host_mem_out.size() * sizeof(rocfft_complex<float>),
                                 hipMemcpyDeviceToHost),
                       hipSuccess);
 
@@ -236,18 +236,18 @@ struct Test_Transform
     {
         do_cleanup();
     }
-    size_t              N                = 0;
-    size_t              dim              = 0;
-    uint32_t            seed             = 0;
-    hipStream_t         stream           = nullptr;
-    rocfft_plan         plan             = nullptr;
-    rocfft_plan         plan_inv         = nullptr;
-    size_t              work_buffer_size = 0;
-    void*               work_buffer      = nullptr;
-    gpubuf              device_mem_in;
-    gpubuf              device_mem_out;
-    std::vector<float2> host_mem_in;
-    std::vector<float2> host_mem_out;
+    size_t                             N                = 0;
+    size_t                             dim              = 0;
+    uint32_t                           seed             = 0;
+    hipStream_t                        stream           = nullptr;
+    rocfft_plan                        plan             = nullptr;
+    rocfft_plan                        plan_inv         = nullptr;
+    size_t                             work_buffer_size = 0;
+    void*                              work_buffer      = nullptr;
+    gpubuf                             device_mem_in;
+    gpubuf                             device_mem_out;
+    std::vector<rocfft_complex<float>> host_mem_in;
+    std::vector<rocfft_complex<float>> host_mem_out;
 
     // ensure that we don't forget to actually run the transform
     bool ran_transform = false;

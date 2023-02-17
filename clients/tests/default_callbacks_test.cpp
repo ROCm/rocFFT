@@ -40,10 +40,10 @@ __device__ T load_cb(T* data, size_t offset, void* cbdata, void* sharedMem)
     return data[offset];
 }
 
-__device__ auto load_cb_double2 = load_cb<double2>;
-__device__ auto load_cb_double  = load_cb<double>;
-__device__ auto load_cb_float2  = load_cb<float2>;
-__device__ auto load_cb_float   = load_cb<float>;
+__device__ auto load_cb_complex_double = load_cb<rocfft_complex<double>>;
+__device__ auto load_cb_double         = load_cb<double>;
+__device__ auto load_cb_complex_float  = load_cb<rocfft_complex<float>>;
+__device__ auto load_cb_float          = load_cb<float>;
 
 // -------------------------------------
 // default store callback definitions
@@ -55,10 +55,10 @@ __device__ void store_cb(T* data, size_t offset, T element, void* cbdata, void* 
     data[offset] = element;
 }
 
-__device__ auto store_cb_double2 = store_cb<double2>;
-__device__ auto store_cb_double  = store_cb<double>;
-__device__ auto store_cb_float2  = store_cb<float2>;
-__device__ auto store_cb_float   = store_cb<float>;
+__device__ auto store_cb_complex_double = store_cb<rocfft_complex<double>>;
+__device__ auto store_cb_double         = store_cb<double>;
+__device__ auto store_cb_complex_float  = store_cb<rocfft_complex<float>>;
+__device__ auto store_cb_float          = store_cb<float>;
 
 // -------------------------------------
 // type traits definitions
@@ -71,13 +71,13 @@ struct is_hip_complex
 };
 
 template <>
-struct is_hip_complex<float2>
+struct is_hip_complex<rocfft_complex<float>>
 {
     static const bool value = true;
 };
 
 template <>
-struct is_hip_complex<double2>
+struct is_hip_complex<rocfft_complex<double>>
 {
     static const bool value = true;
 };
@@ -110,15 +110,15 @@ struct Test_Callback
         float  low_bound_f = -1.0f, up_bound_f = 1.0f;
         double low_bound_d = -1.0, up_bound_d = 1.0;
 
-        std::vector<float2>  h_mem_out_f2, h_mem_out_no_cb_f2;
-        std::vector<double2> h_mem_out_d2, h_mem_out_no_cb_d2;
+        std::vector<rocfft_complex<float>>  h_mem_out_f2, h_mem_out_no_cb_f2;
+        std::vector<rocfft_complex<double>> h_mem_out_d2, h_mem_out_no_cb_d2;
 
         switch(fwrd_transf_type)
         {
         case rocfft_transform_type_complex_forward:
         {
-            std::vector<float2>  h_mem_in_f2;
-            std::vector<double2> h_mem_in_d2;
+            std::vector<rocfft_complex<float>>  h_mem_in_f2;
+            std::vector<rocfft_complex<double>> h_mem_in_d2;
 
             (frwd_transf_precision == rocfft_precision_single)
                 ? run(low_bound_f, up_bound_f, h_mem_in_f2, h_mem_out_f2, h_mem_out_no_cb_f2)
@@ -320,10 +320,11 @@ struct Test_Callback
     void set_load_callback(){};
 
     template <>
-    void set_load_callback<double2>()
+    void set_load_callback<rocfft_complex<double>>()
     {
-        EXPECT_EQ(hipMemcpyFromSymbol(&load_cb_host, HIP_SYMBOL(load_cb_double2), sizeof(void*)),
-                  hipSuccess);
+        EXPECT_EQ(
+            hipMemcpyFromSymbol(&load_cb_host, HIP_SYMBOL(load_cb_complex_double), sizeof(void*)),
+            hipSuccess);
     };
 
     template <>
@@ -334,10 +335,11 @@ struct Test_Callback
     };
 
     template <>
-    void set_load_callback<float2>()
+    void set_load_callback<rocfft_complex<float>>()
     {
-        EXPECT_EQ(hipMemcpyFromSymbol(&load_cb_host, HIP_SYMBOL(load_cb_float2), sizeof(void*)),
-                  hipSuccess);
+        EXPECT_EQ(
+            hipMemcpyFromSymbol(&load_cb_host, HIP_SYMBOL(load_cb_complex_float), sizeof(void*)),
+            hipSuccess);
     };
 
     template <>
@@ -355,10 +357,11 @@ struct Test_Callback
     void set_store_callback(){};
 
     template <>
-    void set_store_callback<double2>()
+    void set_store_callback<rocfft_complex<double>>()
     {
-        EXPECT_EQ(hipMemcpyFromSymbol(&store_cb_host, HIP_SYMBOL(store_cb_double2), sizeof(void*)),
-                  hipSuccess);
+        EXPECT_EQ(
+            hipMemcpyFromSymbol(&store_cb_host, HIP_SYMBOL(store_cb_complex_double), sizeof(void*)),
+            hipSuccess);
     };
 
     template <>
@@ -369,10 +372,11 @@ struct Test_Callback
     };
 
     template <>
-    void set_store_callback<float2>()
+    void set_store_callback<rocfft_complex<float>>()
     {
-        EXPECT_EQ(hipMemcpyFromSymbol(&store_cb_host, HIP_SYMBOL(store_cb_float2), sizeof(void*)),
-                  hipSuccess);
+        EXPECT_EQ(
+            hipMemcpyFromSymbol(&store_cb_host, HIP_SYMBOL(store_cb_complex_float), sizeof(void*)),
+            hipSuccess);
     };
 
     template <>

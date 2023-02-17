@@ -660,40 +660,48 @@ void assert_init_value(const fftw_data_t& output, const size_t idx, const double
 }
 
 template <>
-void assert_init_value(const fftw_data_t& output, const size_t idx, const float2 orig_value)
+void assert_init_value(const fftw_data_t&          output,
+                       const size_t                idx,
+                       const rocfft_complex<float> orig_value)
 {
     // if this is interleaved, check directly
     if(output.size() == 1)
     {
-        float2 actual_value = reinterpret_cast<const float2*>(output.front().data())[idx];
+        rocfft_complex<float> actual_value
+            = reinterpret_cast<const rocfft_complex<float>*>(output.front().data())[idx];
         ASSERT_EQ(actual_value.x, orig_value.x) << "x index " << idx;
         ASSERT_EQ(actual_value.y, orig_value.y) << "y index " << idx;
     }
     else
     {
         // planar
-        float2 actual_value{reinterpret_cast<const float*>(output.front().data())[idx],
-                            reinterpret_cast<const float*>(output.back().data())[idx]};
+        rocfft_complex<float> actual_value{
+            reinterpret_cast<const float*>(output.front().data())[idx],
+            reinterpret_cast<const float*>(output.back().data())[idx]};
         ASSERT_EQ(actual_value.x, orig_value.x) << "x index " << idx;
         ASSERT_EQ(actual_value.y, orig_value.y) << "y index " << idx;
     }
 }
 
 template <>
-void assert_init_value(const fftw_data_t& output, const size_t idx, const double2 orig_value)
+void assert_init_value(const fftw_data_t&           output,
+                       const size_t                 idx,
+                       const rocfft_complex<double> orig_value)
 {
     // if this is interleaved, check directly
     if(output.size() == 1)
     {
-        double2 actual_value = reinterpret_cast<const double2*>(output.front().data())[idx];
+        rocfft_complex<double> actual_value
+            = reinterpret_cast<const rocfft_complex<double>*>(output.front().data())[idx];
         ASSERT_EQ(actual_value.x, orig_value.x) << "x index " << idx;
         ASSERT_EQ(actual_value.y, orig_value.y) << "y index " << idx;
     }
     else
     {
         // planar
-        double2 actual_value{reinterpret_cast<const double*>(output.front().data())[idx],
-                             reinterpret_cast<const double*>(output.back().data())[idx]};
+        rocfft_complex<double> actual_value{
+            reinterpret_cast<const double*>(output.front().data())[idx],
+            reinterpret_cast<const double*>(output.back().data())[idx]};
         ASSERT_EQ(actual_value.x, orig_value.x) << "x index " << idx;
         ASSERT_EQ(actual_value.y, orig_value.y) << "y index " << idx;
     }
@@ -761,14 +769,14 @@ void check_output_strides(const fftw_data_t& output, Tparams& params)
         if(params.otype == fft_array_type_real)
             check_single_output_stride<float>(output, 0, length, stride, 0);
         else
-            check_single_output_stride<float2>(output, 0, length, stride, 0);
+            check_single_output_stride<rocfft_complex<float>>(output, 0, length, stride, 0);
     }
     else
     {
         if(params.otype == fft_array_type_real)
             check_single_output_stride<double>(output, 0, length, stride, 0);
         else
-            check_single_output_stride<double2>(output, 0, length, stride, 0);
+            check_single_output_stride<rocfft_complex<double>>(output, 0, length, stride, 0);
     }
 }
 

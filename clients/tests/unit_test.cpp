@@ -22,8 +22,8 @@
 
 #include "../../shared/environment.h"
 #include "../../shared/gpubuf.h"
+#include "../../shared/rocfft_complex.h"
 #include "hip/hip_runtime_api.h"
-#include "hip/hip_vector_types.h"
 #include <boost/scope_exit.hpp>
 #include <condition_variable>
 #include <fstream>
@@ -444,8 +444,8 @@ TEST(rocfft_UnitTest, rtc_helper_crash)
                                       nullptr));
 
     // alloc a complex buffer
-    gpubuf_t<float2> data;
-    ASSERT_EQ(data.alloc(RTC_PROBLEM_SIZE * sizeof(float2)), hipSuccess);
+    gpubuf_t<rocfft_complex<float>> data;
+    ASSERT_EQ(data.alloc(RTC_PROBLEM_SIZE * sizeof(rocfft_complex<float>)), hipSuccess);
 
     std::vector<void*> ibuffers(1, static_cast<void*>(data.data()));
 

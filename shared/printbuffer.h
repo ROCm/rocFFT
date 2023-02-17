@@ -22,7 +22,6 @@
 #define PRINTBUFFER_H
 
 #include "increment.h"
-#include "rocfft_complex.h"
 #include <algorithm>
 #include <vector>
 
@@ -63,39 +62,9 @@ inline void printbuffer(const Toutput*         output,
     }
 }
 
-// Partial template specializations for printing different buffer types.
-template <typename Toutput>
+template <typename Telem>
 class buffer_printer
 {
-public:
-    template <typename Tallocator,
-              typename Tint1,
-              typename Tint2,
-              typename Tsize,
-              typename Tstream = std::ostream>
-    void print_buffer(const std::vector<std::vector<char, Tallocator>>& buf,
-                      const std::vector<Tint1>&                         length,
-                      const std::vector<Tint2>&                         stride,
-                      const Tsize                                       nbatch,
-                      const Tsize                                       dist,
-                      const std::vector<size_t>&                        offset,
-                      Tstream&                                          stream = std::cout)
-    {
-        throw std::runtime_error("base class for buffer_printer print_buffer not implemented.");
-    };
-    template <typename Tallocator, typename Tstream = std::ostream>
-    void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
-                           const std::vector<size_t>&                        size,
-                           const std::vector<size_t>&                        offset)
-    {
-        throw std::runtime_error(
-            "base class for buffer_printer print_buffer_flat not implemented.");
-    };
-};
-
-template <>
-class buffer_printer<float>
-{
     // The scalar versions might be part of a planar format.
 public:
     template <typename Tallocator,
@@ -113,8 +82,13 @@ public:
     {
         for(const auto& vec : buf)
         {
-            printbuffer(
-                (const float*)(vec.data()), length, stride, nbatch, dist, offset[0], stream);
+            printbuffer(reinterpret_cast<const Telem*>(vec.data()),
+                        length,
+                        stride,
+                        nbatch,
+                        dist,
+                        offset[0],
+                        stream);
         }
     };
     template <typename Tallocator, typename Tstream = std::ostream>
@@ -125,129 +99,12 @@ public:
     {
         for(const auto& vec : buf)
         {
-            auto data = reinterpret_cast<const float*>(vec.data());
+            auto data = reinterpret_cast<const Telem*>(vec.data());
             stream << "idx " << 0;
             for(size_t i = 0; i < size[0]; ++i)
                 stream << " " << data[i];
             stream << std::endl;
         }
-    };
-};
-
-template <>
-class buffer_printer<double>
-{
-    // The scalar versions might be part of a planar format.
-public:
-    template <typename Tallocator,
-              typename Tint1,
-              typename Tint2,
-              typename Tsize,
-              typename Tstream = std::ostream>
-    static void print_buffer(const std::vector<std::vector<char, Tallocator>>& buf,
-                             const std::vector<Tint1>&                         length,
-                             const std::vector<Tint2>&                         stride,
-                             const Tsize                                       nbatch,
-                             const Tsize                                       dist,
-                             const std::vector<size_t>&                        offset,
-                             Tstream&                                          stream = std::cout)
-    {
-        for(const auto& vec : buf)
-        {
-            printbuffer(
-                (const double*)(vec.data()), length, stride, nbatch, dist, offset[0], stream);
-        }
-    };
-    template <typename Tallocator, typename Tstream = std::ostream>
-    static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
-                                  const std::vector<size_t>&                        size,
-                                  const std::vector<size_t>&                        offset,
-                                  Tstream& stream = std::cout)
-    {
-        for(const auto& vec : buf)
-        {
-            auto data = reinterpret_cast<const double*>(vec.data());
-            stream << "idx " << 0;
-            for(size_t i = 0; i < size[0]; ++i)
-                stream << " " << data[i];
-            stream << std::endl;
-        }
-    };
-};
-
-template <>
-class buffer_printer<rocfft_complex<float>>
-{
-public:
-    template <typename Tallocator,
-              typename Tint1,
-              typename Tint2,
-              typename Tsize,
-              typename Tstream = std::ostream>
-    static void print_buffer(const std::vector<std::vector<char, Tallocator>>& buf,
-                             const std::vector<Tint1>&                         length,
-                             const std::vector<Tint2>&                         stride,
-                             const Tsize                                       nbatch,
-                             const Tsize                                       dist,
-                             const std::vector<size_t>&                        offset,
-                             Tstream&                                          stream = std::cout)
-    {
-        printbuffer((const rocfft_complex<float>*)(buf[0].data()),
-                    length,
-                    stride,
-                    nbatch,
-                    dist,
-                    offset[0],
-                    stream);
-    };
-    template <typename Tallocator, typename Tstream = std::ostream>
-    static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
-                                  const std::vector<size_t>&                        size,
-                                  const std::vector<size_t>&                        offset,
-                                  Tstream& stream = std::cout)
-    {
-        auto data = reinterpret_cast<const rocfft_complex<float>*>(buf[0].data());
-        for(size_t i = 0; i < size[0]; ++i)
-            stream << " " << data[i];
-        stream << std::endl;
-    };
-};
-
-template <>
-class buffer_printer<rocfft_complex<double>>
-{
-public:
-    template <typename Tallocator,
-              typename Tint1,
-              typename Tint2,
-              typename Tsize,
-              typename Tstream = std::ostream>
-    static void print_buffer(const std::vector<std::vector<char, Tallocator>>& buf,
-                             const std::vector<Tint1>&                         length,
-                             const std::vector<Tint2>&                         stride,
-                             const Tsize                                       nbatch,
-                             const Tsize                                       dist,
-                             const std::vector<size_t>&                        offset,
-                             Tstream&                                          stream = std::cout)
-    {
-        printbuffer((const rocfft_complex<double>*)(buf[0].data()),
-                    length,
-                    stride,
-                    nbatch,
-                    dist,
-                    offset[0],
-                    stream);
-    };
-    template <typename Tallocator, typename Tstream = std::ostream>
-    static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
-                                  const std::vector<size_t>&                        size,
-                                  const std::vector<size_t>&                        offset,
-                                  Tstream& stream = std::cout)
-    {
-        auto data = reinterpret_cast<const rocfft_complex<double>*>(buf[0].data());
-        for(size_t i = 0; i < size[0]; ++i)
-            stream << " " << data[i];
-        stream << std::endl;
     };
 };
 

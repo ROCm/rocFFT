@@ -19,77 +19,9 @@
 // THE SOFTWARE.
 
 #include "accuracy_test.h"
+#include "../../shared/rocfft_complex.h"
 
-#include <hip/hip_complex.h>
 #include <hip/hip_runtime.h>
-
-__host__ __device__ float multiply_by_scalar(float a, double b)
-{
-    return a * b;
-}
-__host__ __device__ float2 multiply_by_scalar(float2 a, double b)
-{
-    return hipCmulf(a, make_float2(b, 0.0));
-}
-__host__ __device__ double multiply_by_scalar(double a, double b)
-{
-    return a * b;
-}
-__host__ __device__ double2 multiply_by_scalar(double2 a, double b)
-{
-    return hipCmul(a, make_double2(b, 0.0));
-}
-
-__host__ __device__ float divide_by_scalar(float a, double b)
-{
-    return a / b;
-}
-__host__ __device__ float2 divide_by_scalar(float2 a, double b)
-{
-    return hipCdivf(a, make_float2(b, 0.0));
-}
-__host__ __device__ double divide_by_scalar(double a, double b)
-{
-    return a / b;
-}
-__host__ __device__ double2 divide_by_scalar(double2 a, double b)
-{
-    return hipCdiv(a, make_double2(b, 0.0));
-}
-
-__host__ __device__ float add_scalar(float a, double b)
-{
-    return a + b;
-}
-__host__ __device__ float2 add_scalar(float2 a, double b)
-{
-    return hipCaddf(a, make_float2(b, 0.0));
-}
-__host__ __device__ double add_scalar(double a, double b)
-{
-    return a + b;
-}
-__host__ __device__ double2 add_scalar(double2 a, double b)
-{
-    return hipCadd(a, make_double2(b, 0.0));
-}
-
-__host__ __device__ float subtract_scalar(float a, double b)
-{
-    return a - b;
-}
-__host__ __device__ float2 subtract_scalar(float2 a, double b)
-{
-    return hipCsubf(a, make_float2(b, 0.0));
-}
-__host__ __device__ double subtract_scalar(double a, double b)
-{
-    return a - b;
-}
-__host__ __device__ double2 subtract_scalar(double2 a, double b)
-{
-    return hipCsub(a, make_double2(b, 0.0));
-}
 
 // load/store callbacks - cbdata in each is actually a scalar double
 // with a number to apply to each element
@@ -99,7 +31,7 @@ __host__ __device__ Tdata load_callback(Tdata* input, size_t offset, void* cbdat
     auto testdata = static_cast<const callback_test_data*>(cbdata);
     // multiply each element by scalar
     if(input == testdata->base)
-        return multiply_by_scalar(input[offset], testdata->scalar);
+        return input[offset] * testdata->scalar;
     // wrong base address passed, return something obviously wrong
     else
     {
@@ -108,10 +40,10 @@ __host__ __device__ Tdata load_callback(Tdata* input, size_t offset, void* cbdat
     }
 }
 
-__device__ auto load_callback_dev_float   = load_callback<float>;
-__device__ auto load_callback_dev_float2  = load_callback<float2>;
-__device__ auto load_callback_dev_double  = load_callback<double>;
-__device__ auto load_callback_dev_double2 = load_callback<double2>;
+__device__ auto load_callback_dev_float          = load_callback<float>;
+__device__ auto load_callback_dev_complex_float  = load_callback<rocfft_complex<float>>;
+__device__ auto load_callback_dev_double         = load_callback<double>;
+__device__ auto load_callback_dev_complex_double = load_callback<rocfft_complex<double>>;
 
 // load/store callbacks - cbdata in each is actually a scalar double
 // with a number to apply to each element
@@ -122,7 +54,7 @@ __host__ __device__ Tdata
     auto testdata = static_cast<const callback_test_data*>(cbdata);
     // subtract each element by scalar
     if(input == testdata->base)
-        return subtract_scalar(input[offset], testdata->scalar);
+        return input[offset] - testdata->scalar;
     // wrong base address passed, return something obviously wrong
     else
     {
@@ -133,12 +65,12 @@ __host__ __device__ Tdata
 
 __device__ auto load_callback_round_trip_inverse_dev_float
     = load_callback_round_trip_inverse<float>;
-__device__ auto load_callback_round_trip_inverse_dev_float2
-    = load_callback_round_trip_inverse<float2>;
+__device__ auto load_callback_round_trip_inverse_dev_complex_float
+    = load_callback_round_trip_inverse<rocfft_complex<float>>;
 __device__ auto load_callback_round_trip_inverse_dev_double
     = load_callback_round_trip_inverse<double>;
-__device__ auto load_callback_round_trip_inverse_dev_double2
-    = load_callback_round_trip_inverse<double2>;
+__device__ auto load_callback_round_trip_inverse_dev_complex_double
+    = load_callback_round_trip_inverse<rocfft_complex<double>>;
 
 void* get_load_callback_host(fft_array_type itype,
                              fft_precision  precision,
@@ -155,16 +87,16 @@ void* get_load_callback_host(fft_array_type itype,
         case fft_precision_single:
             if(round_trip_inverse)
             {
-                EXPECT_EQ(
-                    hipMemcpyFromSymbol(&load_callback_host,
-                                        HIP_SYMBOL(load_callback_round_trip_inverse_dev_float2),
-                                        sizeof(void*)),
-                    hipSuccess);
+                EXPECT_EQ(hipMemcpyFromSymbol(
+                              &load_callback_host,
+                              HIP_SYMBOL(load_callback_round_trip_inverse_dev_complex_float),
+                              sizeof(void*)),
+                          hipSuccess);
             }
             else
             {
                 EXPECT_EQ(hipMemcpyFromSymbol(&load_callback_host,
-                                              HIP_SYMBOL(load_callback_dev_float2),
+                                              HIP_SYMBOL(load_callback_dev_complex_float),
                                               sizeof(void*)),
                           hipSuccess);
             }
@@ -172,16 +104,16 @@ void* get_load_callback_host(fft_array_type itype,
         case fft_precision_double:
             if(round_trip_inverse)
             {
-                EXPECT_EQ(
-                    hipMemcpyFromSymbol(&load_callback_host,
-                                        HIP_SYMBOL(load_callback_round_trip_inverse_dev_double2),
-                                        sizeof(void*)),
-                    hipSuccess);
+                EXPECT_EQ(hipMemcpyFromSymbol(
+                              &load_callback_host,
+                              HIP_SYMBOL(load_callback_round_trip_inverse_dev_complex_double),
+                              sizeof(void*)),
+                          hipSuccess);
             }
             else
             {
                 EXPECT_EQ(hipMemcpyFromSymbol(&load_callback_host,
-                                              HIP_SYMBOL(load_callback_dev_double2),
+                                              HIP_SYMBOL(load_callback_dev_complex_double),
                                               sizeof(void*)),
                           hipSuccess);
             }
@@ -243,14 +175,14 @@ __host__ __device__ static void
     // add scalar to each element
     if(output == testdata->base)
     {
-        output[offset] = add_scalar(element, testdata->scalar);
+        output[offset] = element + testdata->scalar;
     }
     // otherwise, wrong base address passed, just don't write
 }
-__device__ auto store_callback_dev_float   = store_callback<float>;
-__device__ auto store_callback_dev_float2  = store_callback<float2>;
-__device__ auto store_callback_dev_double  = store_callback<double>;
-__device__ auto store_callback_dev_double2 = store_callback<double2>;
+__device__ auto store_callback_dev_float          = store_callback<float>;
+__device__ auto store_callback_dev_complex_float  = store_callback<rocfft_complex<float>>;
+__device__ auto store_callback_dev_double         = store_callback<double>;
+__device__ auto store_callback_dev_complex_double = store_callback<rocfft_complex<double>>;
 
 template <typename Tdata>
 __host__ __device__ static void store_callback_round_trip_inverse(
@@ -260,18 +192,18 @@ __host__ __device__ static void store_callback_round_trip_inverse(
     // add scalar to each element
     if(output == testdata->base)
     {
-        output[offset] = divide_by_scalar(element, testdata->scalar);
+        output[offset] = element / testdata->scalar;
     }
     // otherwise, wrong base address passed, just don't write
 }
 __device__ auto store_callback_round_trip_inverse_dev_float
     = store_callback_round_trip_inverse<float>;
-__device__ auto store_callback_round_trip_inverse_dev_float2
-    = store_callback_round_trip_inverse<float2>;
+__device__ auto store_callback_round_trip_inverse_dev_complex_float
+    = store_callback_round_trip_inverse<rocfft_complex<float>>;
 __device__ auto store_callback_round_trip_inverse_dev_double
     = store_callback_round_trip_inverse<double>;
-__device__ auto store_callback_round_trip_inverse_dev_double2
-    = store_callback_round_trip_inverse<double2>;
+__device__ auto store_callback_round_trip_inverse_dev_complex_double
+    = store_callback_round_trip_inverse<rocfft_complex<double>>;
 
 void* get_store_callback_host(fft_array_type otype,
                               fft_precision  precision,
@@ -288,16 +220,16 @@ void* get_store_callback_host(fft_array_type otype,
         case fft_precision_single:
             if(round_trip_inverse)
             {
-                EXPECT_EQ(
-                    hipMemcpyFromSymbol(&store_callback_host,
-                                        HIP_SYMBOL(store_callback_round_trip_inverse_dev_float2),
-                                        sizeof(void*)),
-                    hipSuccess);
+                EXPECT_EQ(hipMemcpyFromSymbol(
+                              &store_callback_host,
+                              HIP_SYMBOL(store_callback_round_trip_inverse_dev_complex_float),
+                              sizeof(void*)),
+                          hipSuccess);
             }
             else
             {
                 EXPECT_EQ(hipMemcpyFromSymbol(&store_callback_host,
-                                              HIP_SYMBOL(store_callback_dev_float2),
+                                              HIP_SYMBOL(store_callback_dev_complex_float),
                                               sizeof(void*)),
                           hipSuccess);
             }
@@ -305,16 +237,16 @@ void* get_store_callback_host(fft_array_type otype,
         case fft_precision_double:
             if(round_trip_inverse)
             {
-                EXPECT_EQ(
-                    hipMemcpyFromSymbol(&store_callback_host,
-                                        HIP_SYMBOL(store_callback_round_trip_inverse_dev_double2),
-                                        sizeof(void*)),
-                    hipSuccess);
+                EXPECT_EQ(hipMemcpyFromSymbol(
+                              &store_callback_host,
+                              HIP_SYMBOL(store_callback_round_trip_inverse_dev_complex_double),
+                              sizeof(void*)),
+                          hipSuccess);
             }
             else
             {
                 EXPECT_EQ(hipMemcpyFromSymbol(&store_callback_host,
-                                              HIP_SYMBOL(store_callback_dev_double2),
+                                              HIP_SYMBOL(store_callback_dev_complex_double),
                                               sizeof(void*)),
                           hipSuccess);
             }
@@ -389,7 +321,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
             const size_t elem_size = sizeof(rocfft_complex<float>);
             const size_t num_elems = output.front().size() / elem_size;
 
-            auto output_begin = reinterpret_cast<float2*>(output.front().data());
+            auto output_begin = reinterpret_cast<rocfft_complex<float>*>(output.front().data());
             for(size_t i = 0; i < num_elems; ++i)
             {
                 auto& element = output_begin[i];
@@ -405,7 +337,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
             const size_t elem_size = sizeof(rocfft_complex<double>);
             const size_t num_elems = output.front().size() / elem_size;
 
-            auto output_begin = reinterpret_cast<double2*>(output.front().data());
+            auto output_begin = reinterpret_cast<rocfft_complex<double>*>(output.front().data());
             for(size_t i = 0; i < num_elems; ++i)
             {
                 auto& element = output_begin[i];
@@ -432,7 +364,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
             {
                 const size_t num_elems = buf.size() / elem_size;
 
-                auto output_begin = reinterpret_cast<float2*>(buf.data());
+                auto output_begin = reinterpret_cast<rocfft_complex<float>*>(buf.data());
                 for(size_t i = 0; i < num_elems; ++i)
                 {
                     auto& element = output_begin[i];
@@ -449,7 +381,7 @@ void apply_store_callback(const fft_params& params, fftw_data_t& output)
             {
                 const size_t num_elems = buf.size() / elem_size;
 
-                auto output_begin = reinterpret_cast<double2*>(buf.data());
+                auto output_begin = reinterpret_cast<rocfft_complex<double>*>(buf.data());
                 for(size_t i = 0; i < num_elems; ++i)
                 {
                     auto& element = output_begin[i];
@@ -531,7 +463,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
             const size_t elem_size = sizeof(rocfft_complex<float>);
             const size_t num_elems = input.front().size() / elem_size;
 
-            auto input_begin = reinterpret_cast<float2*>(input.front().data());
+            auto input_begin = reinterpret_cast<rocfft_complex<float>*>(input.front().data());
             for(size_t i = 0; i < num_elems; ++i)
             {
                 input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
@@ -543,7 +475,7 @@ void apply_load_callback(const fft_params& params, fftw_data_t& input)
             const size_t elem_size = sizeof(rocfft_complex<double>);
             const size_t num_elems = input.front().size() / elem_size;
 
-            auto input_begin = reinterpret_cast<double2*>(input.front().data());
+            auto input_begin = reinterpret_cast<rocfft_complex<double>*>(input.front().data());
             for(size_t i = 0; i < num_elems; ++i)
             {
                 input_begin[i] = load_callback(input_begin, i, &cbdata, nullptr);
