@@ -80,6 +80,7 @@ set( kgen_embed_cpp ${CMAKE_BINARY_DIR}/library/src/device/kernel-generator-embe
 
 # files that need to be embedded into the library, to be able to generate code
 set( kgen_embed_files
+     ${CMAKE_SOURCE_DIR}/shared/rocfft_complex.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/common.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/memory_gfx.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/callback.h
@@ -106,6 +107,9 @@ set( kgen_embed_files
 # embedded files obviously already contribute.  these are checksummed
 # to serve as a "version" for the code generator.
 set( kgen_logic_files
+
+     # Complex number datatype
+     ${CMAKE_SOURCE_DIR}/shared/rocfft_complex.h
 
      # python code that does the embedding
      ${CMAKE_SOURCE_DIR}/library/src/device/kernel-generator-embed-cpp.py

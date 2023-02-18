@@ -162,6 +162,18 @@ template <class T>
 struct real_type;
 
 template <>
+struct real_type<rocfft_complex<float>>
+{
+    typedef float type;
+};
+
+template <>
+struct real_type<rocfft_complex<double>>
+{
+    typedef double type;
+};
+
+template <>
 struct real_type<float4>
 {
     typedef float type;
@@ -240,15 +252,15 @@ template <typename T>
 __device__ inline T lib_make_vector2(real_type_t<T> v0, real_type_t<T> v1);
 
 template <>
-__device__ inline float2 lib_make_vector2(float v0, float v1)
+__device__ inline rocfft_complex<float> lib_make_vector2(float v0, float v1)
 {
-    return make_float2(v0, v1);
+    return rocfft_complex<float>(v0, v1);
 }
 
 template <>
-__device__ inline double2 lib_make_vector2(double v0, double v1)
+__device__ inline rocfft_complex<double> lib_make_vector2(double v0, double v1)
 {
-    return make_double2(v0, v1);
+    return rocfft_complex<double>(v0, v1);
 }
 
 template <typename T>

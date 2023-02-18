@@ -21,9 +21,10 @@
 #ifndef RTC_TRANSPOSE_GEN
 #define RTC_TRANSPOSE_GEN
 
-#include "../device/kernels/common.h"
 #include "rocfft.h"
 #include "rtc_kernel.h"
+
+#include "../device/kernels/common.h"
 
 struct TransposeSpecs
 {

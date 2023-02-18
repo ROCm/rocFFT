@@ -21,10 +21,11 @@
 #ifndef RTC_REAL2COMPLEX_EMBED_GEN
 #define RTC_REAL2COMPLEX_EMBED_GEN
 
-#include "../device/kernels/common.h"
 #include "compute_scheme.h"
 #include "rocfft.h"
 #include "rtc_kernel.h"
+
+#include "../device/kernels/common.h"
 
 #include <vector>
 

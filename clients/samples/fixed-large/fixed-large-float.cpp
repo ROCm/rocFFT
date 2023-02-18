@@ -50,10 +50,12 @@ int main()
 
     // Create HIP device object.
     float2* x;
-    hipMalloc(&x, Nbytes);
+    if(hipMalloc(&x, Nbytes) != hipSuccess)
+        throw std::runtime_error("hipMalloc failed.");
 
     //  Copy data to device
-    hipMemcpy(x, &cx[0], Nbytes, hipMemcpyHostToDevice);
+    if(hipMemcpy(x, &cx[0], Nbytes, hipMemcpyHostToDevice) != hipSuccess)
+        throw std::runtime_error("hipMemcpy failed.");
 
     // Create plan
     rocfft_plan plan   = NULL;
@@ -79,31 +81,38 @@ int main()
     if(workBufferSize > 0)
     {
         printf("size of workbuffer=%d\n", (int)workBufferSize);
-        hipMalloc(&workBuffer, workBufferSize);
+        if(hipMalloc(&workBuffer, workBufferSize) != hipSuccess)
+            throw std::runtime_error("hipMalloc failed.");
         rocfft_execution_info_set_work_buffer(info, workBuffer, workBufferSize);
     }
 
     // Execute plan
     rocfft_execute(plan, (void**)&x, NULL, info);
-    hipDeviceSynchronize();
+    if(hipDeviceSynchronize() != hipSuccess)
+        throw std::runtime_error("hipDeviceSynchronize failed.");
 
     // Destroy plan
     rocfft_plan_destroy(plan);
 
     if(workBuffer)
-        hipFree(workBuffer);
+        if(hipFree(workBuffer) != hipSuccess)
+            throw std::runtime_error("hipFree failed.");
 
     rocfft_execution_info_destroy(info);
 
     // Copy result back to host
     std::vector<float2> y(N);
-    hipMemcpy(&y[0], x, Nbytes, hipMemcpyDeviceToHost);
+    if(hipMemcpy(&y[0], x, Nbytes, hipMemcpyDeviceToHost) != hipSuccess)
+        throw std::runtime_error("hipMemcpy failed.");
 
     for(size_t i = 0; i < N; i++)
     {
         std::cout << "element " << i << " input:  (" << cx[i].x << "," << cx[i].y << ")"
                   << " output: (" << y[i].x << "," << y[i].y << ")" << std::endl;
     }
+
+    if(hipFree(x) != hipSuccess)
+        throw std::runtime_error("hipFree failed.");
 
     rocfft_cleanup();
 

@@ -291,6 +291,8 @@ std::string realcomplex_rtc(const std::string& kernel_name, const RealComplexSpe
 {
     std::string src;
     // includes and declarations
+
+    src += rocfft_complex_h;
     src += common_h;
     src += callback_h;
 
@@ -351,6 +353,8 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
 {
     std::string src;
     // includes and declarations
+
+    src += rocfft_complex_h;
     src += common_h;
     src += callback_h;
 
@@ -605,6 +609,8 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
 
     std::string src;
     // includes and declarations
+
+    src += rocfft_complex_h;
     src += common_h;
     src += callback_h;
 
@@ -998,6 +1004,8 @@ std::string apply_callback_rtc(const std::string& kernel_name, rocfft_precision 
     std::string src;
 
     // includes and declarations
+
+    src += rocfft_complex_h;
     src += common_h;
     src += callback_h;
 

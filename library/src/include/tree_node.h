@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "../../../shared/gpubuf.h"
+#include "../../../shared/rocfft_complex.h"
 #include "../device/kernels/callback.h"
 #include "../device/kernels/common.h"
 #include "compute_scheme.h"

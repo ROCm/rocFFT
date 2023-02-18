@@ -26,6 +26,7 @@
 #include <unordered_map>
 #include <vector>
 
+extern const char* rocfft_complex_h;
 extern const char* common_h;
 extern const char* memory_gfx_h;
 extern const char* callback_h;

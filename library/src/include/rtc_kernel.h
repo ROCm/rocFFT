@@ -30,6 +30,7 @@
 #include <string>
 #include <vector>
 
+#include "../../../shared/rocfft_complex.h"
 #include "rtc_generator.h"
 
 struct DeviceCallIn;
@@ -203,9 +204,9 @@ static const char* rtc_precision_type_decl(rocfft_precision precision)
     switch(precision)
     {
     case rocfft_precision_single:
-        return "typedef float2 scalar_type;\n";
+        return "typedef rocfft_complex<float> scalar_type;\n";
     case rocfft_precision_double:
-        return "typedef double2 scalar_type;\n";
+        return "typedef rocfft_complex<double> scalar_type;\n";
     }
 }
 

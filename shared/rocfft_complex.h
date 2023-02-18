@@ -22,7 +22,9 @@
 #define ROCFFT_COMPLEX_H
 
 #include <hip/hip_fp16.h>
+#if !defined(__HIPCC_RTC__)
 #include <iostream>
+#endif
 #include <math.h>
 #include <type_traits>
 
@@ -50,15 +52,8 @@ struct rocfft_complex
     {
     }
 
-    // Conversion from std::complex<Treal>
-    __device__ __host__ constexpr rocfft_complex(const std::complex<Treal>& z)
-        : x{z.real()}
-        , y{z.imag()}
-    {
-    }
-
     // Conversion from different precision
-    template <typename U, std::enable_if_t<std::is_constructible<Treal, U>{}, int> = 0>
+    template <typename U>
     __device__ __host__ explicit constexpr rocfft_complex(const rocfft_complex<U>& z)
         : x(z.x)
         , y(z.y)
@@ -181,65 +176,63 @@ struct rocfft_complex
     }
 
     // Operators for complex-real computations
-    template <typename U, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
-    __device__ __host__ auto operator+(const U& rhs)
-    {
-        auto lhs = *this;
-        return lhs += Treal(rhs);
-    }
-
-    template <typename U, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
-    __device__ __host__ auto operator-(const U& rhs)
-    {
-        auto lhs = *this;
-        return lhs -= Treal(rhs);
-    }
-
-    template <typename U, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+    template <typename U>
     __device__ __host__ auto& operator+=(const U& rhs)
     {
         return (x += Treal(rhs)), *this;
     }
 
-    template <typename U, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+    template <typename U>
     __device__ __host__ auto& operator-=(const U& rhs)
     {
         return (x -= Treal(rhs)), *this;
     }
 
-    template <typename U, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+    __device__ __host__ auto operator+(const Treal& rhs)
+    {
+        auto lhs = *this;
+        return lhs += rhs;
+    }
+
+    __device__ __host__ auto operator-(const Treal& rhs)
+    {
+        auto lhs = *this;
+        return lhs -= rhs;
+    }
+
+    template <typename U>
     __device__ __host__ auto& operator*=(const U& rhs)
     {
         return (x *= Treal(rhs)), (y *= Treal(rhs)), *this;
     }
 
-    template <typename U, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+    template <typename U>
     __device__ __host__ auto operator*(const U& rhs) const
     {
         auto lhs = *this;
         return lhs *= Treal(rhs);
     }
 
-    template <typename U, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+    template <typename U>
     __device__ __host__ auto& operator/=(const U& rhs)
     {
         return (x /= Treal(rhs)), (y /= Treal(rhs)), *this;
     }
 
-    template <typename U, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+    template <typename U>
     __device__ __host__ auto operator/(const U& rhs) const
     {
         auto lhs = *this;
         return lhs /= Treal(rhs);
     }
 
-    template <typename U, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+    template <typename U>
     __device__ __host__ constexpr bool operator==(const U& rhs) const
     {
         return x == Treal(rhs) && y == 0;
     }
 
-    template <typename U, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+    template <typename U>
     __device__ __host__ constexpr bool operator!=(const U& rhs) const
     {
         return !(*this == rhs);
@@ -247,32 +240,34 @@ struct rocfft_complex
 };
 
 // Stream operators
+#if !defined(__HIPCC_RTC__)
 template <typename Treal>
 std::ostream& operator<<(std::ostream& out, const rocfft_complex<Treal>& z)
 {
-    return out << '(' << z.x << ',' << z.y << ')';
+    return out << '(' << static_cast<double>(z.x) << ',' << static_cast<double>(z.y) << ')';
 }
+#endif
 
 // Operators for real-complex computations
-template <typename U, typename Treal, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+template <typename U, typename Treal>
 __device__ __host__ rocfft_complex<Treal> operator+(const U& lhs, const rocfft_complex<Treal>& rhs)
 {
     return {Treal(lhs) + rhs.x, rhs.y};
 }
 
-template <typename U, typename Treal, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+template <typename U, typename Treal>
 __device__ __host__ rocfft_complex<Treal> operator-(const U& lhs, const rocfft_complex<Treal>& rhs)
 {
     return {Treal(lhs) - rhs.x, -rhs.y};
 }
 
-template <typename U, typename Treal, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+template <typename U, typename Treal>
 __device__ __host__ rocfft_complex<Treal> operator*(const U& lhs, const rocfft_complex<Treal>& rhs)
 {
     return {Treal(lhs) * rhs.x, Treal(lhs) * rhs.y};
 }
 
-template <typename U, typename Treal, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+template <typename U, typename Treal>
 __device__ __host__ rocfft_complex<Treal> operator/(const U& lhs, const rocfft_complex<Treal>& rhs)
 {
     // Form of Robert L. Smith's Algorithm 116
@@ -290,13 +285,13 @@ __device__ __host__ rocfft_complex<Treal> operator/(const U& lhs, const rocfft_c
     }
 }
 
-template <typename U, typename Treal, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+template <typename U, typename Treal>
 __device__ __host__ constexpr bool operator==(const U& lhs, const rocfft_complex<Treal>& rhs)
 {
     return Treal(lhs) == rhs.x && 0 == rhs.y;
 }
 
-template <typename U, typename Treal, std::enable_if_t<std::is_convertible<U, Treal>{}, int> = 0>
+template <typename U, typename Treal>
 __device__ __host__ constexpr bool operator!=(const U& lhs, const rocfft_complex<Treal>& rhs)
 {
     return !(lhs == rhs);

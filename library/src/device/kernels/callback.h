@@ -21,6 +21,7 @@
 #ifndef ROCFFT_DEVICE_CALLBACK_H
 #define ROCFFT_DEVICE_CALLBACK_H
 
+#include "../../../../shared/rocfft_complex.h"
 #include <hip/hip_vector_types.h>
 
 #include "memory_gfx.h"
@@ -53,6 +54,40 @@ __device__ void store_cb_default(T* data, size_t offset, T element, void* cbdata
 // callback function types
 template <typename T>
 struct callback_type;
+
+template <>
+struct callback_type<rocfft_complex<float>>
+{
+    typedef rocfft_complex<float> (*load)(rocfft_complex<float>* data,
+                                          size_t                 offset,
+                                          void*                  cbdata,
+                                          void*                  sharedMem);
+    typedef void (*store)(rocfft_complex<float>* data,
+                          size_t                 offset,
+                          rocfft_complex<float>  element,
+                          void*                  cbdata,
+                          void*                  sharedMem);
+};
+
+static __device__ auto load_cb_default_complex_float  = load_cb_default<rocfft_complex<float>>;
+static __device__ auto store_cb_default_complex_float = store_cb_default<rocfft_complex<float>>;
+
+template <>
+struct callback_type<rocfft_complex<double>>
+{
+    typedef rocfft_complex<double> (*load)(rocfft_complex<double>* data,
+                                           size_t                  offset,
+                                           void*                   cbdata,
+                                           void*                   sharedMem);
+    typedef void (*store)(rocfft_complex<double>* data,
+                          size_t                  offset,
+                          rocfft_complex<double>  element,
+                          void*                   cbdata,
+                          void*                   sharedMem);
+};
+
+static __device__ auto load_cb_default_complex_double  = load_cb_default<rocfft_complex<double>>;
+static __device__ auto store_cb_default_complex_double = store_cb_default<rocfft_complex<double>>;
 
 template <>
 struct callback_type<float>

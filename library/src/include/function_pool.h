@@ -23,6 +23,7 @@
 #ifndef FUNCTION_POOL_H
 #define FUNCTION_POOL_H
 
+#include "../../../shared/rocfft_complex.h"
 #include "../device/kernels/common.h"
 #include "tree_node.h"
 #include <sstream>

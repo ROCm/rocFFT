@@ -80,6 +80,7 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     std::string src;
 
     // includes and declarations
+    src += rocfft_complex_h;
     src += common_h;
     src += callback_h;
 

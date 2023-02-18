@@ -24,10 +24,11 @@
 #include <vector>
 
 #include "../device/generator/stockham_gen.h"
-#include "../device/kernels/common.h"
 #include "compute_scheme.h"
 #include "rocfft.h"
 #include "rtc_kernel.h"
+
+#include "../device/kernels/common.h"
 
 // generate name for RTC stockham kernel
 std::string stockham_rtc_kernel_name(ComputeScheme           scheme,

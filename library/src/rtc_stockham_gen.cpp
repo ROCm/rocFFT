@@ -302,6 +302,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
 
     // start off with includes
     std::string src;
+    src += rocfft_complex_h;
     src += common_h;
     src += memory_gfx_h;
     src += callback_h;
