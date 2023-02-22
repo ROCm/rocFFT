@@ -175,16 +175,16 @@ std::string test_kernel_src(const std::string&               kernel_name,
 // things that we need to remember between kernel launches
 struct device_data_t
 {
-    std::vector<float2> host_input_buf;
-    gpubuf_t<float2>    fake_twiddles;
-    gpubuf_t<float2>    input_buf;
-    gpubuf_t<float2>    output_buf;
-    gpubuf_t<size_t>    lengths;
-    gpubuf_t<size_t>    stride_in;
-    gpubuf_t<size_t>    stride_out;
-    size_t              batch;
-    hipEvent_t          start;
-    hipEvent_t          stop;
+    std::vector<rocfft_complex<float>> host_input_buf;
+    gpubuf_t<rocfft_complex<float>>    fake_twiddles;
+    gpubuf_t<rocfft_complex<float>>    input_buf;
+    gpubuf_t<rocfft_complex<float>>    output_buf;
+    gpubuf_t<size_t>                   lengths;
+    gpubuf_t<size_t>                   stride_in;
+    gpubuf_t<size_t>                   stride_out;
+    size_t                             batch;
+    hipEvent_t                         start;
+    hipEvent_t                         stop;
 
     device_data_t()
     {
@@ -227,7 +227,7 @@ float launch_kernel(RTCKernel&     kernel,
         // before each execution
         if(hipMemcpy(data.input_buf.data(),
                      data.host_input_buf.data(),
-                     data.host_input_buf.size() * sizeof(float2),
+                     data.host_input_buf.size() * sizeof(rocfft_complex<float>),
                      hipMemcpyHostToDevice)
            != hipSuccess)
             throw std::runtime_error("failed to hipMemcpy");
@@ -251,7 +251,7 @@ float launch_kernel(RTCKernel&     kernel,
 unsigned int get_lds_bytes(unsigned int length, unsigned int transforms_per_block, bool half_lds)
 {
     // assume single precision complex
-    return length * transforms_per_block * sizeof(float2) / (half_lds ? 2 : 1);
+    return length * transforms_per_block * sizeof(rocfft_complex<float>) / (half_lds ? 2 : 1);
 }
 
 size_t batch_size(unsigned int length)
@@ -262,10 +262,10 @@ size_t batch_size(unsigned int length)
     return target_elems / length;
 }
 
-std::vector<float2> create_input_buf(unsigned int length, size_t batch)
+std::vector<rocfft_complex<float>> create_input_buf(unsigned int length, size_t batch)
 {
-    auto                elems = length * batch;
-    std::vector<float2> buf;
+    auto                               elems = length * batch;
+    std::vector<rocfft_complex<float>> buf;
     buf.reserve(elems);
     std::mt19937 gen;
     for(unsigned int i = 0; i < elems; ++i)
@@ -277,13 +277,13 @@ std::vector<float2> create_input_buf(unsigned int length, size_t batch)
     return buf;
 }
 
-gpubuf_t<float2> create_device_buf(unsigned int length, size_t batch)
+gpubuf_t<rocfft_complex<float>> create_device_buf(unsigned int length, size_t batch)
 {
-    auto             elems = length * batch;
-    gpubuf_t<float2> device_buf;
-    if(device_buf.alloc(elems * sizeof(float2)) != hipSuccess)
+    auto                            elems = length * batch;
+    gpubuf_t<rocfft_complex<float>> device_buf;
+    if(device_buf.alloc(elems * sizeof(rocfft_complex<float>)) != hipSuccess)
         throw std::runtime_error("failed to hipMalloc");
-    if(hipMemset(device_buf.data(), 0, elems * sizeof(float2)) != hipSuccess)
+    if(hipMemset(device_buf.data(), 0, elems * sizeof(rocfft_complex<float>)) != hipSuccess)
         throw std::runtime_error("failed to hipMemset");
 
     return device_buf;
@@ -343,7 +343,7 @@ int main(int argc, char** argv)
     data.fake_twiddles = create_device_buf(length, 1);
     if(hipMemcpy(data.fake_twiddles.data(),
                  host_twiddles.data(),
-                 host_twiddles.size() * sizeof(float2),
+                 host_twiddles.size() * sizeof(rocfft_complex<float>),
                  hipMemcpyHostToDevice)
        != hipSuccess)
         throw std::runtime_error("failed to hipMemcpy");

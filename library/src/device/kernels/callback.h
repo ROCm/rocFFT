@@ -100,17 +100,6 @@ static __device__ auto load_cb_default_float  = load_cb_default<float>;
 static __device__ auto store_cb_default_float = store_cb_default<float>;
 
 template <>
-struct callback_type<float2>
-{
-    typedef float2 (*load)(float2* data, size_t offset, void* cbdata, void* sharedMem);
-    typedef void (*store)(
-        float2* data, size_t offset, float2 element, void* cbdata, void* sharedMem);
-};
-
-static __device__ auto load_cb_default_float2  = load_cb_default<float2>;
-static __device__ auto store_cb_default_float2 = store_cb_default<float2>;
-
-template <>
 struct callback_type<double>
 {
     typedef double (*load)(double* data, size_t offset, void* cbdata, void* sharedMem);
@@ -120,17 +109,6 @@ struct callback_type<double>
 
 static __device__ auto load_cb_default_double  = load_cb_default<double>;
 static __device__ auto store_cb_default_double = store_cb_default<double>;
-
-template <>
-struct callback_type<double2>
-{
-    typedef double2 (*load)(double2* data, size_t offset, void* cbdata, void* sharedMem);
-    typedef void (*store)(
-        double2* data, size_t offset, double2 element, void* cbdata, void* sharedMem);
-};
-
-static __device__ auto load_cb_default_double2  = load_cb_default<double2>;
-static __device__ auto store_cb_default_double2 = store_cb_default<double2>;
 
 // intrinsic
 template <typename T>

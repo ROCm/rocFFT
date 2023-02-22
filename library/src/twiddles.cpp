@@ -465,10 +465,10 @@ gpubuf twiddles_create(size_t                     N,
                        unsigned int               deviceId)
 {
     if(precision == rocfft_precision_single)
-        return twiddles_create_pr<float2>(
+        return twiddles_create_pr<rocfft_complex<float>>(
             N, length_limit, precision, gpu_arch, largeTwdBase, attach_halfN, radices, deviceId);
     else if(precision == rocfft_precision_double)
-        return twiddles_create_pr<double2>(
+        return twiddles_create_pr<rocfft_complex<double>>(
             N, length_limit, precision, gpu_arch, largeTwdBase, attach_halfN, radices, deviceId);
     else
     {
@@ -519,9 +519,9 @@ gpubuf twiddles_create_2D(
     size_t N1, size_t N2, rocfft_precision precision, const char* gpu_arch, unsigned int deviceId)
 {
     if(precision == rocfft_precision_single)
-        return twiddles_create_2D_pr<float2>(N1, N2, precision, gpu_arch, deviceId);
+        return twiddles_create_2D_pr<rocfft_complex<float>>(N1, N2, precision, gpu_arch, deviceId);
     else if(precision == rocfft_precision_double)
-        return twiddles_create_2D_pr<double2>(N1, N2, precision, gpu_arch, deviceId);
+        return twiddles_create_2D_pr<rocfft_complex<double>>(N1, N2, precision, gpu_arch, deviceId);
     else
     {
         assert(false);

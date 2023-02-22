@@ -297,14 +297,18 @@ void SetDefaultCallback(const TreeNode* node, const SetCallbackType& type, void*
     if(is_complex && type == SetCallbackType::LOAD)
     {
         result = (node->precision == rocfft_precision_single)
-                     ? hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_float2), sizeof(void*))
-                     : hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_double2), sizeof(void*));
+                     ? hipMemcpyFromSymbol(
+                         cb, HIP_SYMBOL(load_cb_default_complex_float), sizeof(void*))
+                     : hipMemcpyFromSymbol(
+                         cb, HIP_SYMBOL(load_cb_default_complex_double), sizeof(void*));
     }
     else if(is_complex && type == SetCallbackType::STORE)
     {
         result = (node->precision == rocfft_precision_single)
-                     ? hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_float2), sizeof(void*))
-                     : hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_double2), sizeof(void*));
+                     ? hipMemcpyFromSymbol(
+                         cb, HIP_SYMBOL(store_cb_default_complex_float), sizeof(void*))
+                     : hipMemcpyFromSymbol(
+                         cb, HIP_SYMBOL(store_cb_default_complex_double), sizeof(void*));
     }
     else if(!is_complex && type == SetCallbackType::LOAD)
     {

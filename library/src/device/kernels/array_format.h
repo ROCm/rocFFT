@@ -69,57 +69,72 @@ struct Handler
 };
 
 template <CallbackType cbtype>
-struct Handler<interleaved<float2>, cbtype>
+struct Handler<interleaved<rocfft_complex<float>>, cbtype>
 {
-    static __host__ __device__ inline float2
-        read(const interleaved<float2> in, size_t idx, void* load_cb_fn, void* load_cb_data)
+    static __host__ __device__ inline rocfft_complex<float>
+                    read(const interleaved<rocfft_complex<float>> in,
+                         size_t                                   idx,
+                         void*                                    load_cb_fn,
+                         void*                                    load_cb_data)
     {
-        auto load_cb = get_load_cb<float2, cbtype>(load_cb_fn);
+        auto load_cb = get_load_cb<rocfft_complex<float>, cbtype>(load_cb_fn);
         // callback might modify input, but it's otherwise const
-        return load_cb(const_cast<float2*>(in.C), idx, load_cb_data, nullptr);
+        return load_cb(const_cast<rocfft_complex<float>*>(in.C), idx, load_cb_data, nullptr);
     }
 
-    static __host__ __device__ inline void
-        write(interleaved<float2> out, size_t idx, float2 v, void* store_cb_fn, void* store_cb_data)
+    static __host__ __device__ inline void write(interleaved<rocfft_complex<float>> out,
+                                                 size_t                             idx,
+                                                 rocfft_complex<float>              v,
+                                                 void*                              store_cb_fn,
+                                                 void*                              store_cb_data)
     {
-        auto store_cb = get_store_cb<float2, cbtype>(store_cb_fn);
+        auto store_cb = get_store_cb<rocfft_complex<float>, cbtype>(store_cb_fn);
         store_cb(out.C, idx, v, store_cb_data, nullptr);
     }
 };
 
 template <CallbackType cbtype>
-struct Handler<interleaved<double2>, cbtype>
+struct Handler<interleaved<rocfft_complex<double>>, cbtype>
 {
-    static __host__ __device__ inline double2
-        read(const interleaved<double2> in, size_t idx, void* load_cb_fn, void* load_cb_data)
+    static __host__ __device__ inline rocfft_complex<double>
+                    read(const interleaved<rocfft_complex<double>> in,
+                         size_t                                    idx,
+                         void*                                     load_cb_fn,
+                         void*                                     load_cb_data)
     {
-        auto load_cb = get_load_cb<double2, cbtype>(load_cb_fn);
+        auto load_cb = get_load_cb<rocfft_complex<double>, cbtype>(load_cb_fn);
         // callback might modify input, but it's otherwise const
-        return load_cb(const_cast<double2*>(in.C), idx, load_cb_data, nullptr);
+        return load_cb(const_cast<rocfft_complex<double>*>(in.C), idx, load_cb_data, nullptr);
     }
 
-    static __host__ __device__ inline void write(
-        interleaved<double2> out, size_t idx, double2 v, void* store_cb_fn, void* store_cb_data)
+    static __host__ __device__ inline void write(interleaved<rocfft_complex<double>> out,
+                                                 size_t                              idx,
+                                                 rocfft_complex<double>              v,
+                                                 void*                               store_cb_fn,
+                                                 void*                               store_cb_data)
     {
-        auto store_cb = get_store_cb<double2, cbtype>(store_cb_fn);
+        auto store_cb = get_store_cb<rocfft_complex<double>, cbtype>(store_cb_fn);
         store_cb(out.C, idx, v, store_cb_data, nullptr);
     }
 };
 
 template <CallbackType cbtype>
-struct Handler<planar<float2>, cbtype>
+struct Handler<planar<rocfft_complex<float>>, cbtype>
 {
-    static __host__ __device__ inline float2
-        read(const planar<float2> in, size_t idx, void* load_cb_fn, void* load_cb_data)
+    static __host__ __device__ inline rocfft_complex<float> read(
+        const planar<rocfft_complex<float>> in, size_t idx, void* load_cb_fn, void* load_cb_data)
     {
-        float2 t;
+        rocfft_complex<float> t;
         t.x = in.R[idx];
         t.y = in.I[idx];
         return t;
     }
 
-    static __host__ __device__ inline void
-        write(planar<float2> out, size_t idx, float2 v, void* store_cb_fn, void* store_cb_data)
+    static __host__ __device__ inline void write(planar<rocfft_complex<float>> out,
+                                                 size_t                        idx,
+                                                 rocfft_complex<float>         v,
+                                                 void*                         store_cb_fn,
+                                                 void*                         store_cb_data)
     {
         out.R[idx] = v.x;
         out.I[idx] = v.y;
@@ -127,19 +142,22 @@ struct Handler<planar<float2>, cbtype>
 };
 
 template <CallbackType cbtype>
-struct Handler<planar<double2>, cbtype>
+struct Handler<planar<rocfft_complex<double>>, cbtype>
 {
-    static __host__ __device__ inline double2
-        read(const planar<double2> in, size_t idx, void* load_cb_fn, void* load_cb_data)
+    static __host__ __device__ inline rocfft_complex<double> read(
+        const planar<rocfft_complex<double>> in, size_t idx, void* load_cb_fn, void* load_cb_data)
     {
-        double2 t;
+        rocfft_complex<double> t;
         t.x = in.R[idx];
         t.y = in.I[idx];
         return t;
     }
 
-    static __host__ __device__ inline void
-        write(planar<double2> out, size_t idx, double2 v, void* store_cb_fn, void* store_cb_data)
+    static __host__ __device__ inline void write(planar<rocfft_complex<double>> out,
+                                                 size_t                         idx,
+                                                 rocfft_complex<double>         v,
+                                                 void*                          store_cb_fn,
+                                                 void*                          store_cb_data)
     {
         out.R[idx] = v.x;
         out.I[idx] = v.y;
