@@ -76,23 +76,27 @@ bool use_fftw_wisdom = false;
 // Cache the last cpu fft that was requested
 last_cpu_fft_cache last_cpu_fft_data;
 
-static size_t get_system_memory_GiB()
+system_memory get_system_memory()
 {
-    // system memory often has a little chunk carved out for other
-    // stuff, so round up to nearest GiB.
+    system_memory memory_data;
 #ifdef WIN32
     MEMORYSTATUSEX info;
     info.dwLength = sizeof(info);
     if(!GlobalMemoryStatusEx(&info))
-        return 0;
-    return (info.ullTotalPhys + ONE_GiB - 1) / ONE_GiB;
+        return memory_data;
+    memory_data.total_bytes = info.ullTotalPhys;
+    memory_data.free_bytes  = info.ullAvailPhys;
 #else
     struct sysinfo info;
     if(sysinfo(&info) != 0)
-        return 0;
-    return (info.totalram * info.mem_unit + ONE_GiB - 1) / ONE_GiB;
+        return memory_data;
+    memory_data.total_bytes = info.totalram * info.mem_unit;
+    memory_data.free_bytes  = info.freeram * info.mem_unit;
 #endif
+    return memory_data;
 }
+
+system_memory start_memory = get_system_memory();
 
 void precompile_test_kernels(const std::string& precompile_file)
 {
@@ -256,7 +260,7 @@ int main(int argc, char* argv[])
          "Logical size of input buffer.")
         ("osize", po::value<std::vector<size_t>>(&manual_params.osize)->multitoken(),
          "Logical size of output.")
-        ("R", po::value<size_t>(&ramgb)->default_value(get_system_memory_GiB()), "Ram limit in GiB for tests.")
+        ("R", po::value<size_t>(&ramgb)->default_value((start_memory.total_bytes + ONE_GiB - 1) / ONE_GiB), "Ram limit in GiB for tests.")
         ("single_epsilon",  po::value<double>(&single_epsilon)->default_value(3.75e-5)) 
 	("double_epsilon",  po::value<double>(&double_epsilon)->default_value(1e-15))
         ("wise,w", "use FFTW wisdom")

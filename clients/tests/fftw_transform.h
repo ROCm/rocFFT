@@ -331,6 +331,20 @@ inline void fftw_plan_execute_c2r<double>(typename fftw_trait<double>::fftw_plan
     fftw_execute_dft_c2r(plan, in, out);
 }
 
+// Template wrappers for FFTW print plan:
+template <typename Tfloat>
+inline char* fftw_sprint_plan(const typename fftw_trait<Tfloat>::fftw_plan_type plan);
+template <>
+inline char* fftw_sprint_plan<float>(const typename fftw_trait<float>::fftw_plan_type plan)
+{
+    return fftwf_sprint_plan(plan);
+}
+template <>
+inline char* fftw_sprint_plan<double>(const typename fftw_trait<double>::fftw_plan_type plan)
+{
+    return fftw_sprint_plan(plan);
+}
+
 // Allocator / deallocator for FFTW arrays.
 template <typename Tdata>
 struct fftwAllocator
