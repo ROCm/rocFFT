@@ -113,29 +113,37 @@ inline size_t needed_ram_buffers(const fft_params& params, const int verbose)
     return needed_ram;
 }
 
+template <typename Tfloat>
+bool fftw_plan_uses_bluestein(const typename fftw_trait<Tfloat>::fftw_plan_type& cpu_plan)
+{
+#ifdef FFTW_HAVE_SPRINT_PLAN
+    char*       print_plan_c_str = fftw_sprint_plan<Tfloat>(cpu_plan);
+    std::string print_plan(print_plan_c_str);
+    free(print_plan_c_str);
+    return print_plan.find("bluestein") != std::string::npos;
+#else
+    // assume worst case (bluestein is always used)
+    return true;
+#endif
+}
+
 // Estimate the amount of host memory needed for fftw.
 template <typename Tfloat>
 inline size_t needed_ram_fftw(const fft_params&                                  contiguous_params,
                               const typename fftw_trait<Tfloat>::fftw_plan_type& cpu_plan,
                               const int                                          verbose)
 {
-    char*       print_plan_c_str = fftw_sprint_plan<Tfloat>(cpu_plan);
-    std::string print_plan(print_plan_c_str);
-    free(print_plan_c_str);
-
     size_t total_length = std::accumulate(contiguous_params.length.begin(),
                                           contiguous_params.length.end(),
                                           static_cast<size_t>(1),
                                           std::multiplies<size_t>());
     size_t needed_ram   = 0;
-
     // Detect Bluestein in plan
-    unsigned int needed_ram_dim;
-    if(print_plan.find("bluestein") != std::string::npos)
+    if(fftw_plan_uses_bluestein<Tfloat>(cpu_plan))
     {
         for(size_t dim : contiguous_params.length)
         {
-            needed_ram_dim = dim;
+            unsigned int needed_ram_dim = dim;
 
             // Next-plus-one-power-of-two multiplied any other lengths
             needed_ram_dim--;
