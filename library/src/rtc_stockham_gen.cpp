@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -316,8 +316,6 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     // SBCCs don't need this
     if(scheme != CS_KERNEL_STOCKHAM_BLOCK_CC)
         src += real2complex_device_h;
-
-    src += rtc_workarounds_h;
 
     src += lds2reg->render();
     src += reg2lds->render();

@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -901,7 +901,7 @@ struct FFTBluesteinPadMul : public FFTGPUWork
                                    -in_elem.x() * chirp[idx].y() + in_elem.y() * chirp[idx].x()},
                         }};
             stmts += Else{{
-                Assign{dst[idx], CallExpr{"lib_make_vector2<scalar_type>", {0, 0}}},
+                Assign{dst[idx], CallExpr{"scalar_type", {0, 0}}},
             }};
         }
 

@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2016-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2016-2023 Advanced Micro Devices, Inc. All rights reserved.
  ******************************************************************************/
 
 template <typename T, size_t Base, size_t Steps>
@@ -14,10 +14,10 @@ __device__ T TW_NSteps(const T* const twiddles, size_t u)
     {
         i += 1;
         j      = u & ((1 << Base) - 1);
-        result = lib_make_vector2<T>((result.x * twiddles[(1 << Base) * i + j].x
-                                      - result.y * twiddles[(1 << Base) * i + j].y),
-                                     (result.y * twiddles[(1 << Base) * i + j].x
-                                      + result.x * twiddles[(1 << Base) * i + j].y));
+        result = T((result.x * twiddles[(1 << Base) * i + j].x
+                    - result.y * twiddles[(1 << Base) * i + j].y),
+                   (result.y * twiddles[(1 << Base) * i + j].x
+                    + result.x * twiddles[(1 << Base) * i + j].y));
     }
     // static compiled
     if(Steps >= 3)
@@ -26,10 +26,10 @@ __device__ T TW_NSteps(const T* const twiddles, size_t u)
 
         i += 1;
         j      = u & ((1 << Base) - 1);
-        result = lib_make_vector2<T>((result.x * twiddles[(1 << Base) * i + j].x
-                                      - result.y * twiddles[(1 << Base) * i + j].y),
-                                     (result.y * twiddles[(1 << Base) * i + j].x
-                                      + result.x * twiddles[(1 << Base) * i + j].y));
+        result = T((result.x * twiddles[(1 << Base) * i + j].x
+                    - result.y * twiddles[(1 << Base) * i + j].y),
+                   (result.y * twiddles[(1 << Base) * i + j].x
+                    + result.x * twiddles[(1 << Base) * i + j].y));
     }
     static_assert(Steps < 4, "4-steps is not support");
     // if(Steps >= 4){...}

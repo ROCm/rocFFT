@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -354,11 +354,14 @@ class RefLibOp
                    data->node->inStride);
     }
 
-    inline static float2
-        TwMul(float2* twiddles, const size_t twl, const int direction, float2 val, size_t u)
+    inline static rocfft_complex<float> TwMul(rocfft_complex<float>* twiddles,
+                                              const size_t           twl,
+                                              const int              direction,
+                                              rocfft_complex<float>  val,
+                                              size_t                 u)
     {
-        size_t j      = u & 255;
-        float2 result = twiddles[j];
+        size_t                j      = u & 255;
+        rocfft_complex<float> result = twiddles[j];
 
         float  real, imag;
         size_t h = 1;
@@ -566,9 +569,9 @@ class RefLibOp
             }
             else
             {
-                float2*                   twtc;
-                size_t                    ns = 0;
-                TwiddleTableLarge<float2> twTable(data->node->large1D);
+                rocfft_complex<float>*                   twtc;
+                size_t                                   ns = 0;
+                TwiddleTableLarge<rocfft_complex<float>> twTable(data->node->large1D);
                 std::tie(ns, twtc) = twTable.GenerateTwiddleTable();
 
                 int twl = 0;
@@ -590,7 +593,7 @@ class RefLibOp
                     {
                         for(size_t j = 0; j < cols; j++)
                         {
-                            float2 in_v, ot_v;
+                            rocfft_complex<float> in_v, ot_v;
 
                             in_v.x = in[b * rows * cols + i * cols + j].real();
                             in_v.y = in[b * rows * cols + i * cols + j].imag();

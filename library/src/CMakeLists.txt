@@ -100,7 +100,6 @@ set( kgen_embed_files
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_13.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_16.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_17.h
-     ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_workarounds.h
    )
 
 # files that contribute to the logic of how code gets generated -

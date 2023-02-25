@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -189,7 +189,7 @@ static std::string bluestein_multi_chirp_rtc(const std::string&         kernel_n
     Variable val{"val", "scalar_type"};
 
     func.body += Declaration{tx, "threadIdx.x + blockIdx.x * blockDim.x"};
-    func.body += Declaration{val, CallExpr{"lib_make_vector2<scalar_type>", {0, 0}}};
+    func.body += Declaration{val, CallExpr{"scalar_type", {Literal{"0.0"}, Literal{"0.0"}}}};
 
     func.body
         += If{twl == 1, {Assign{val, CallExpr{"TWLstep1", {twiddles_large, (tx * tx) % (2 * N)}}}}};
@@ -213,10 +213,10 @@ static std::string bluestein_multi_chirp_rtc(const std::string&         kernel_n
 
                          Assign{output[M - tx], val},
                          Assign{output[M - tx + M], val}}};
-    func.body
-        += ElseIf{tx <= (M - N),
-                  {Assign{output[tx], CallExpr{"lib_make_vector2<scalar_type>", {0, 0}}},
-                   Assign{output[tx + M], CallExpr{"lib_make_vector2<scalar_type>", {0, 0}}}}};
+    func.body += ElseIf{
+        tx <= (M - N),
+        {Assign{output[tx], CallExpr{"scalar_type", {Literal{"0.0"}, Literal{"0.0"}}}},
+         Assign{output[tx + M], CallExpr{"scalar_type", {Literal{"0.0"}, Literal{"0.0"}}}}}};
 
     return func.render();
 }
@@ -335,8 +335,8 @@ std::string bluestein_multi_rtc(const std::string& kernel_name, const BluesteinM
         readBlock.body
             += Assign{output[oIdx].y(), -in_elem.x() * chirp[tx].y() + in_elem.y() * chirp[tx].x()};
         func.body += readBlock;
-        func.body
-            += Else{{Assign{output[oIdx], CallExpr{"lib_make_vector2<scalar_type>", {0, 0}}}}};
+        func.body += Else{
+            {Assign{output[oIdx], CallExpr{"scalar_type", {Literal{"0.0"}, Literal{"0.0"}}}}}};
         break;
     }
     case CS_KERNEL_FFT_MUL:

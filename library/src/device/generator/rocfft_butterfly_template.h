@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2016-2022 Advanced Micro Devices, Inc. All rights reserved.
+ * Copyright (C) 2016-2023 Advanced Micro Devices, Inc. All rights reserved.
  ******************************************************************************/
 
 #ifndef ROCFFT_BUTTERFLY_TEMPLATE_H
@@ -17,10 +17,10 @@ __device__ T TW_NSteps(const T* const twiddles, size_t u)
     {
         i += 1;
         j      = u & ((1 << Base) - 1);
-        result = lib_make_vector2<T>((result.x * twiddles[(1 << Base) * i + j].x
-                                      - result.y * twiddles[(1 << Base) * i + j].y),
-                                     (result.y * twiddles[(1 << Base) * i + j].x
-                                      + result.x * twiddles[(1 << Base) * i + j].y));
+        result = T((result.x * twiddles[(1 << Base) * i + j].x
+                    - result.y * twiddles[(1 << Base) * i + j].y),
+                   (result.y * twiddles[(1 << Base) * i + j].x
+                    + result.x * twiddles[(1 << Base) * i + j].y));
     }
     // static compiled
     if(Steps >= 3)
@@ -29,10 +29,10 @@ __device__ T TW_NSteps(const T* const twiddles, size_t u)
 
         i += 1;
         j      = u & ((1 << Base) - 1);
-        result = lib_make_vector2<T>((result.x * twiddles[(1 << Base) * i + j].x
-                                      - result.y * twiddles[(1 << Base) * i + j].y),
-                                     (result.y * twiddles[(1 << Base) * i + j].x
-                                      + result.x * twiddles[(1 << Base) * i + j].y));
+        result = T((result.x * twiddles[(1 << Base) * i + j].x
+                    - result.y * twiddles[(1 << Base) * i + j].y),
+                   (result.y * twiddles[(1 << Base) * i + j].x
+                    + result.x * twiddles[(1 << Base) * i + j].y));
     }
     // we probably don't have 4-steps for large-twiddle
     // if(Steps >= 4){...}
@@ -48,13 +48,13 @@ __device__ T TW3step(const T* const twiddles, size_t u)
 
     u >>= 8;
     j      = u & 255;
-    result = lib_make_vector2<T>((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
-                                 (result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
+    result = T((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+               (result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
 
     u >>= 8;
     j      = u & 255;
-    result = lib_make_vector2<T>((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
-                                 (result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
+    result = T((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
+               (result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
     return result;
 }
 
@@ -132,7 +132,7 @@ __device__ void FwdRad4B1(T* R0, T* R2, T* R1, T* R3)
     (*R2) = (*R0) - (*R2);
     (*R0) = 2.0 * (*R0) - (*R2);
 
-    (*R3) = (*R1) + lib_make_vector2<T>(-(*R3).y, (*R3).x);
+    (*R3) = (*R1) + T(-(*R3).y, (*R3).x);
     (*R1) = 2.0 * (*R1) - (*R3);
 
     res   = (*R1);
@@ -153,7 +153,7 @@ __device__ void InvRad4B1(T* R0, T* R2, T* R1, T* R3)
 
     (*R2) = (*R0) - (*R2);
     (*R0) = 2.0 * (*R0) - (*R2);
-    (*R3) = (*R1) + lib_make_vector2<T>((*R3).y, -(*R3).x);
+    (*R3) = (*R1) + T((*R3).y, -(*R3).x);
     (*R1) = 2.0 * (*R1) - (*R3);
 
     res   = (*R1);
@@ -498,21 +498,21 @@ __device__ void FwdRad8B1(T* R0, T* R4, T* R2, T* R6, T* R1, T* R5, T* R3, T* R7
 
     (*R2) = (*R0) - (*R2);
     (*R0) = 2.0 * (*R0) - (*R2);
-    (*R3) = (*R1) + lib_make_vector2<T>(-(*R3).y, (*R3).x);
+    (*R3) = (*R1) + T(-(*R3).y, (*R3).x);
     (*R1) = 2.0 * (*R1) - (*R3);
     (*R6) = (*R4) - (*R6);
     (*R4) = 2.0 * (*R4) - (*R6);
-    (*R7) = (*R5) + lib_make_vector2<T>(-(*R7).y, (*R7).x);
+    (*R7) = (*R5) + T(-(*R7).y, (*R7).x);
 
     (*R5) = 2.0 * (*R5) - (*R7);
 
     (*R4) = (*R0) - (*R4);
     (*R0) = 2.0 * (*R0) - (*R4);
-    (*R5) = ((*R1) - C8Q * (*R5)) - C8Q * lib_make_vector2<T>((*R5).y, -(*R5).x);
+    (*R5) = ((*R1) - C8Q * (*R5)) - C8Q * T((*R5).y, -(*R5).x);
     (*R1) = 2.0 * (*R1) - (*R5);
-    (*R6) = (*R2) + lib_make_vector2<T>(-(*R6).y, (*R6).x);
+    (*R6) = (*R2) + T(-(*R6).y, (*R6).x);
     (*R2) = 2.0 * (*R2) - (*R6);
-    (*R7) = ((*R3) + C8Q * (*R7)) - C8Q * lib_make_vector2<T>((*R7).y, -(*R7).x);
+    (*R7) = ((*R3) + C8Q * (*R7)) - C8Q * T((*R7).y, -(*R7).x);
     (*R3) = 2.0 * (*R3) - (*R7);
 
     res   = (*R1);
@@ -540,20 +540,20 @@ __device__ void InvRad8B1(T* R0, T* R4, T* R2, T* R6, T* R1, T* R5, T* R3, T* R7
 
     (*R2) = (*R0) - (*R2);
     (*R0) = 2.0 * (*R0) - (*R2);
-    (*R3) = (*R1) + lib_make_vector2<T>((*R3).y, -(*R3).x);
+    (*R3) = (*R1) + T((*R3).y, -(*R3).x);
     (*R1) = 2.0 * (*R1) - (*R3);
     (*R6) = (*R4) - (*R6);
     (*R4) = 2.0 * (*R4) - (*R6);
-    (*R7) = (*R5) + lib_make_vector2<T>((*R7).y, -(*R7).x);
+    (*R7) = (*R5) + T((*R7).y, -(*R7).x);
     (*R5) = 2.0 * (*R5) - (*R7);
 
     (*R4) = (*R0) - (*R4);
     (*R0) = 2.0 * (*R0) - (*R4);
-    (*R5) = ((*R1) - C8Q * (*R5)) + C8Q * lib_make_vector2<T>((*R5).y, -(*R5).x);
+    (*R5) = ((*R1) - C8Q * (*R5)) + C8Q * T((*R5).y, -(*R5).x);
     (*R1) = 2.0 * (*R1) - (*R5);
-    (*R6) = (*R2) + lib_make_vector2<T>((*R6).y, -(*R6).x);
+    (*R6) = (*R2) + T((*R6).y, -(*R6).x);
     (*R2) = 2.0 * (*R2) - (*R6);
-    (*R7) = ((*R3) + C8Q * (*R7)) + C8Q * lib_make_vector2<T>((*R7).y, -(*R7).x);
+    (*R7) = ((*R3) + C8Q * (*R7)) + C8Q * T((*R7).y, -(*R7).x);
     (*R3) = 2.0 * (*R3) - (*R7);
 
     res   = (*R1);
@@ -582,25 +582,24 @@ __device__ void FwdRad9B1(T* R0, T* R1, T* R2, T* R3, T* R4, T* R5, T* R6, T* R7
     // borrow R8 as temp
     (*R8) = (C9QB * p0) + (C9QD * p1) + (p2) + (C9QH * ((*R4) - (*R5)));
     (*R1) = ((*R0) + (C9QA * v0) + (C9QC * v1) - (C9QE * v2) - (C9QG * ((*R4) + (*R5))))
-            + lib_make_vector2<T>((*R8).y, -(*R8).x);
-    (*R8) = (*R1) + 2.0 * lib_make_vector2<T>(-(*R8).y, (*R8).x);
+            + T((*R8).y, -(*R8).x);
+    (*R8) = (*R1) + 2.0 * T(-(*R8).y, (*R8).x);
     // borrow R7 as temp
     (*R7) = -(C9QB * ((*R4) - (*R5))) + (C9QD * p0) - (p2) + (C9QH * p1);
     (*R2) = ((*R0) + (C9QA * ((*R4) + (*R5))) + (C9QC * v0) - (C9QE * v2) - (C9QG * v1))
-            + lib_make_vector2<T>((*R7).y, -(*R7).x);
-    (*R7) = (*R2) + 2.0 * lib_make_vector2<T>(-(*R7).y, (*R7).x);
+            + T((*R7).y, -(*R7).x);
+    (*R7) = (*R2) + 2.0 * T(-(*R7).y, (*R7).x);
     // borrow R6 temp
     (*R6) = C9QF * (p0 + ((*R4) - (*R5)) - p1);
-    (*R3) = ((*R0) + v2 - C9QE * (v0 + v1 + ((*R4) + (*R5))))
-            + lib_make_vector2<T>((*R6).y, -(*R6).x);
-    (*R6) = (*R3) + 2.0 * lib_make_vector2<T>(-(*R6).y, (*R6).x);
+    (*R3) = ((*R0) + v2 - C9QE * (v0 + v1 + ((*R4) + (*R5)))) + T((*R6).y, -(*R6).x);
+    (*R6) = (*R3) + 2.0 * T(-(*R6).y, (*R6).x);
     // borrow p0 as temp
     p0 = -(C9QB * p1) - (C9QD * ((*R4) - (*R5))) + (p2) + (C9QH * p0);
     p1 = (*R0);
     (*R0) += (v0 + v1 + v2 + (*R4) + (*R5));
     (*R4) = (p1 + (C9QA * v1) + (C9QC * ((*R4) + (*R5))) - (C9QE * v2) - (C9QG * v0))
-            + lib_make_vector2<T>(p0.y, -p0.x);
-    (*R5) = (*R4) + 2.0 * lib_make_vector2<T>(-p0.y, p0.x);
+            + T(p0.y, -p0.x);
+    (*R5) = (*R4) + 2.0 * T(-p0.y, p0.x);
 }
 
 template <typename T>
@@ -619,25 +618,24 @@ __device__ void InvRad9B1(T* R0, T* R1, T* R2, T* R3, T* R4, T* R5, T* R6, T* R7
     // borrow R8 as temp
     (*R8) = (C9QB * p0) + (C9QD * p1) + (p2) + (C9QH * ((*R4) - (*R5)));
     (*R1) = ((*R0) + (C9QA * v0) + (C9QC * v1) - (C9QE * v2) - (C9QG * ((*R4) + (*R5))))
-            + lib_make_vector2<T>(-(*R8).y, (*R8).x);
-    (*R8) = (*R1) + 2.0 * lib_make_vector2<T>((*R8).y, -(*R8).x);
+            + T(-(*R8).y, (*R8).x);
+    (*R8) = (*R1) + 2.0 * T((*R8).y, -(*R8).x);
     // borrow R7 as temp
     (*R7) = -(C9QB * ((*R4) - (*R5))) + (C9QD * p0) - (p2) + (C9QH * p1);
     (*R2) = ((*R0) + (C9QA * ((*R4) + (*R5))) + (C9QC * v0) - (C9QE * v2) - (C9QG * v1))
-            + lib_make_vector2<T>(-(*R7).y, (*R7).x);
-    (*R7) = (*R2) + 2.0 * lib_make_vector2<T>((*R7).y, -(*R7).x);
+            + T(-(*R7).y, (*R7).x);
+    (*R7) = (*R2) + 2.0 * T((*R7).y, -(*R7).x);
     // borrow R6 temp
     (*R6) = C9QF * (p0 + ((*R4) - (*R5)) - p1);
-    (*R3) = ((*R0) + v2 - C9QE * (v0 + v1 + ((*R4) + (*R5))))
-            + lib_make_vector2<T>(-(*R6).y, (*R6).x);
-    (*R6) = (*R3) + 2.0 * lib_make_vector2<T>((*R6).y, -(*R6).x);
+    (*R3) = ((*R0) + v2 - C9QE * (v0 + v1 + ((*R4) + (*R5)))) + T(-(*R6).y, (*R6).x);
+    (*R6) = (*R3) + 2.0 * T((*R6).y, -(*R6).x);
     // borrow p0 as temp
     p0 = -(C9QB * p1) - (C9QD * ((*R4) - (*R5))) + (p2) + (C9QH * p0);
     p1 = (*R0);
     (*R0) += (v0 + v1 + v2 + (*R4) + (*R5));
     (*R4) = (p1 + (C9QA * v1) + (C9QC * ((*R4) + (*R5))) - (C9QE * v2) - (C9QG * v0))
-            + lib_make_vector2<T>(-p0.y, p0.x);
-    (*R5) = (*R4) + 2.0 * lib_make_vector2<T>(p0.y, -p0.x);
+            + T(-p0.y, p0.x);
+    (*R5) = (*R4) + 2.0 * T(p0.y, -p0.x);
 }
 
 template <typename T>
@@ -824,57 +822,57 @@ __device__ void FwdRad16B1(T* R0,
 
     (*R2)  = (*R0) - (*R2);
     (*R0)  = 2.0 * (*R0) - (*R2);
-    (*R3)  = (*R1) + lib_make_vector2<T>(-(*R3).y, (*R3).x);
+    (*R3)  = (*R1) + T(-(*R3).y, (*R3).x);
     (*R1)  = 2.0 * (*R1) - (*R3);
     (*R6)  = (*R4) - (*R6);
     (*R4)  = 2.0 * (*R4) - (*R6);
-    (*R7)  = (*R5) + lib_make_vector2<T>(-(*R7).y, (*R7).x);
+    (*R7)  = (*R5) + T(-(*R7).y, (*R7).x);
     (*R5)  = 2.0 * (*R5) - (*R7);
     (*R10) = (*R8) - (*R10);
     (*R8)  = 2.0 * (*R8) - (*R10);
-    (*R11) = (*R9) + lib_make_vector2<T>(-(*R11).y, (*R11).x);
+    (*R11) = (*R9) + T(-(*R11).y, (*R11).x);
     (*R9)  = 2.0 * (*R9) - (*R11);
     (*R14) = (*R12) - (*R14);
     (*R12) = 2.0 * (*R12) - (*R14);
-    (*R15) = (*R13) + lib_make_vector2<T>(-(*R15).y, (*R15).x);
+    (*R15) = (*R13) + T(-(*R15).y, (*R15).x);
     (*R13) = 2.0 * (*R13) - (*R15);
 
     (*R4)  = (*R0) - (*R4);
     (*R0)  = 2.0 * (*R0) - (*R4);
-    (*R5)  = ((*R1) - C8Q * (*R5)) - C8Q * lib_make_vector2<T>((*R5).y, -(*R5).x);
+    (*R5)  = ((*R1) - C8Q * (*R5)) - C8Q * T((*R5).y, -(*R5).x);
     (*R1)  = 2.0 * (*R1) - (*R5);
-    (*R6)  = (*R2) + lib_make_vector2<T>(-(*R6).y, (*R6).x);
+    (*R6)  = (*R2) + T(-(*R6).y, (*R6).x);
     (*R2)  = 2.0 * (*R2) - (*R6);
-    (*R7)  = ((*R3) + C8Q * (*R7)) - C8Q * lib_make_vector2<T>((*R7).y, -(*R7).x);
+    (*R7)  = ((*R3) + C8Q * (*R7)) - C8Q * T((*R7).y, -(*R7).x);
     (*R3)  = 2.0 * (*R3) - (*R7);
     (*R12) = (*R8) - (*R12);
     (*R8)  = 2.0 * (*R8) - (*R12);
-    (*R13) = ((*R9) - C8Q * (*R13)) - C8Q * lib_make_vector2<T>((*R13).y, -(*R13).x);
+    (*R13) = ((*R9) - C8Q * (*R13)) - C8Q * T((*R13).y, -(*R13).x);
     (*R9)  = 2.0 * (*R9) - (*R13);
-    (*R14) = (*R10) + lib_make_vector2<T>(-(*R14).y, (*R14).x);
+    (*R14) = (*R10) + T(-(*R14).y, (*R14).x);
     (*R10) = 2.0 * (*R10) - (*R14);
-    (*R15) = ((*R11) + C8Q * (*R15)) - C8Q * lib_make_vector2<T>((*R15).y, -(*R15).x);
+    (*R15) = ((*R11) + C8Q * (*R15)) - C8Q * T((*R15).y, -(*R15).x);
     (*R11) = 2.0 * (*R11) - (*R15);
 
     (*R8) = (*R0) - (*R8);
     (*R0) = 2.0 * (*R0) - (*R8);
-    (*R9) = ((*R1) - C16A * (*R9)) - C16B * lib_make_vector2<T>((*R9).y, -(*R9).x);
+    (*R9) = ((*R1) - C16A * (*R9)) - C16B * T((*R9).y, -(*R9).x);
     res   = (*R8);
     (*R1) = 2.0 * (*R1) - (*R9);
 
-    (*R10) = ((*R2) - C8Q * (*R10)) - C8Q * lib_make_vector2<T>((*R10).y, -(*R10).x);
+    (*R10) = ((*R2) - C8Q * (*R10)) - C8Q * T((*R10).y, -(*R10).x);
     (*R2)  = 2.0 * (*R2) - (*R10);
-    (*R11) = ((*R3) - C16B * (*R11)) - C16A * lib_make_vector2<T>((*R11).y, -(*R11).x);
+    (*R11) = ((*R3) - C16B * (*R11)) - C16A * T((*R11).y, -(*R11).x);
     (*R3)  = 2.0 * (*R3) - (*R11);
 
-    (*R12) = (*R4) + lib_make_vector2<T>(-(*R12).y, (*R12).x);
+    (*R12) = (*R4) + T(-(*R12).y, (*R12).x);
     (*R4)  = 2.0 * (*R4) - (*R12);
-    (*R13) = ((*R5) + C16B * (*R13)) - C16A * lib_make_vector2<T>((*R13).y, -(*R13).x);
+    (*R13) = ((*R5) + C16B * (*R13)) - C16A * T((*R13).y, -(*R13).x);
     (*R5)  = 2.0 * (*R5) - (*R13);
 
-    (*R14) = ((*R6) + C8Q * (*R14)) - C8Q * lib_make_vector2<T>((*R14).y, -(*R14).x);
+    (*R14) = ((*R6) + C8Q * (*R14)) - C8Q * T((*R14).y, -(*R14).x);
     (*R6)  = 2.0 * (*R6) - (*R14);
-    (*R15) = ((*R7) + C16A * (*R15)) - C16B * lib_make_vector2<T>((*R15).y, -(*R15).x);
+    (*R15) = ((*R7) + C16A * (*R15)) - C16B * T((*R15).y, -(*R15).x);
     (*R7)  = 2.0 * (*R7) - (*R15);
 
     res    = (*R1);
@@ -937,53 +935,53 @@ __device__ void InvRad16B1(T* R0,
 
     (*R2)  = (*R0) - (*R2);
     (*R0)  = 2.0 * (*R0) - (*R2);
-    (*R3)  = (*R1) + lib_make_vector2<T>((*R3).y, -(*R3).x);
+    (*R3)  = (*R1) + T((*R3).y, -(*R3).x);
     (*R1)  = 2.0 * (*R1) - (*R3);
     (*R6)  = (*R4) - (*R6);
     (*R4)  = 2.0 * (*R4) - (*R6);
-    (*R7)  = (*R5) + lib_make_vector2<T>((*R7).y, -(*R7).x);
+    (*R7)  = (*R5) + T((*R7).y, -(*R7).x);
     (*R5)  = 2.0 * (*R5) - (*R7);
     (*R10) = (*R8) - (*R10);
     (*R8)  = 2.0 * (*R8) - (*R10);
-    (*R11) = (*R9) + lib_make_vector2<T>((*R11).y, -(*R11).x);
+    (*R11) = (*R9) + T((*R11).y, -(*R11).x);
     (*R9)  = 2.0 * (*R9) - (*R11);
     (*R14) = (*R12) - (*R14);
     (*R12) = 2.0 * (*R12) - (*R14);
-    (*R15) = (*R13) + lib_make_vector2<T>((*R15).y, -(*R15).x);
+    (*R15) = (*R13) + T((*R15).y, -(*R15).x);
     (*R13) = 2.0 * (*R13) - (*R15);
 
     (*R4)  = (*R0) - (*R4);
     (*R0)  = 2.0 * (*R0) - (*R4);
-    (*R5)  = ((*R1) - C8Q * (*R5)) + C8Q * lib_make_vector2<T>((*R5).y, -(*R5).x);
+    (*R5)  = ((*R1) - C8Q * (*R5)) + C8Q * T((*R5).y, -(*R5).x);
     (*R1)  = 2.0 * (*R1) - (*R5);
-    (*R6)  = (*R2) + lib_make_vector2<T>((*R6).y, -(*R6).x);
+    (*R6)  = (*R2) + T((*R6).y, -(*R6).x);
     (*R2)  = 2.0 * (*R2) - (*R6);
-    (*R7)  = ((*R3) + C8Q * (*R7)) + C8Q * lib_make_vector2<T>((*R7).y, -(*R7).x);
+    (*R7)  = ((*R3) + C8Q * (*R7)) + C8Q * T((*R7).y, -(*R7).x);
     (*R3)  = 2.0 * (*R3) - (*R7);
     (*R12) = (*R8) - (*R12);
     (*R8)  = 2.0 * (*R8) - (*R12);
-    (*R13) = ((*R9) - C8Q * (*R13)) + C8Q * lib_make_vector2<T>((*R13).y, -(*R13).x);
+    (*R13) = ((*R9) - C8Q * (*R13)) + C8Q * T((*R13).y, -(*R13).x);
     (*R9)  = 2.0 * (*R9) - (*R13);
-    (*R14) = (*R10) + lib_make_vector2<T>((*R14).y, -(*R14).x);
+    (*R14) = (*R10) + T((*R14).y, -(*R14).x);
     (*R10) = 2.0 * (*R10) - (*R14);
-    (*R15) = ((*R11) + C8Q * (*R15)) + C8Q * lib_make_vector2<T>((*R15).y, -(*R15).x);
+    (*R15) = ((*R11) + C8Q * (*R15)) + C8Q * T((*R15).y, -(*R15).x);
     (*R11) = 2.0 * (*R11) - (*R15);
 
     (*R8)  = (*R0) - (*R8);
     (*R0)  = 2.0 * (*R0) - (*R8);
-    (*R9)  = ((*R1) - C16A * (*R9)) + C16B * lib_make_vector2<T>((*R9).y, -(*R9).x);
+    (*R9)  = ((*R1) - C16A * (*R9)) + C16B * T((*R9).y, -(*R9).x);
     (*R1)  = 2.0 * (*R1) - (*R9);
-    (*R10) = ((*R2) - C8Q * (*R10)) + C8Q * lib_make_vector2<T>((*R10).y, -(*R10).x);
+    (*R10) = ((*R2) - C8Q * (*R10)) + C8Q * T((*R10).y, -(*R10).x);
     (*R2)  = 2.0 * (*R2) - (*R10);
-    (*R11) = ((*R3) - C16B * (*R11)) + C16A * lib_make_vector2<T>((*R11).y, -(*R11).x);
+    (*R11) = ((*R3) - C16B * (*R11)) + C16A * T((*R11).y, -(*R11).x);
     (*R3)  = 2.0 * (*R3) - (*R11);
-    (*R12) = (*R4) + lib_make_vector2<T>((*R12).y, -(*R12).x);
+    (*R12) = (*R4) + T((*R12).y, -(*R12).x);
     (*R4)  = 2.0 * (*R4) - (*R12);
-    (*R13) = ((*R5) + C16B * (*R13)) + C16A * lib_make_vector2<T>((*R13).y, -(*R13).x);
+    (*R13) = ((*R5) + C16B * (*R13)) + C16A * T((*R13).y, -(*R13).x);
     (*R5)  = 2.0 * (*R5) - (*R13);
-    (*R14) = ((*R6) + C8Q * (*R14)) + C8Q * lib_make_vector2<T>((*R14).y, -(*R14).x);
+    (*R14) = ((*R6) + C8Q * (*R14)) + C8Q * T((*R14).y, -(*R14).x);
     (*R6)  = 2.0 * (*R6) - (*R14);
-    (*R15) = ((*R7) + C16A * (*R15)) + C16B * lib_make_vector2<T>((*R15).y, -(*R15).x);
+    (*R15) = ((*R7) + C16A * (*R15)) + C16B * T((*R15).y, -(*R15).x);
     (*R7)  = 2.0 * (*R7) - (*R15);
 
     res    = (*R1);

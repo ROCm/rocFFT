@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -41,58 +41,64 @@ static const unsigned int LAUNCH_BOUNDS_R2C_C2R_KERNEL = 256;
 #include "vector_types.h"
 #include <cuComplex.h>
 
-__device__ inline float2 operator-(const float2& a, const float2& b)
+__device__ inline rocfft_complex<float> operator-(const rocfft_complex<float>& a,
+                                                  const rocfft_complex<float>& b)
 {
-    return make_float2(a.x - b.x, a.y - b.y);
+    return rocfft_complex<float>(a.x - b.x, a.y - b.y);
 }
-__device__ inline float2 operator+(const float2& a, const float2& b)
+__device__ inline rocfft_complex<float> operator+(const rocfft_complex<float>& a,
+                                                  const rocfft_complex<float>& b)
 {
-    return make_float2(a.x + b.x, a.y + b.y);
+    return rocfft_complex<float>(a.x + b.x, a.y + b.y);
 }
-__device__ inline float2 operator*(const float& a, const float2& b)
+__device__ inline rocfft_complex<float> operator*(const float& a, const rocfft_complex<float>& b)
 {
-    return make_float2(a * b.x, a * b.y);
+    return rocfft_complex<float>(a * b.x, a * b.y);
 }
-__device__ inline float2 operator*=(float2& a, const float2& b)
+__device__ inline rocfft_complex<float> operator*=(rocfft_complex<float>&       a,
+                                                   const rocfft_complex<float>& b)
 {
     a = cuCmulf(a, b);
     return a;
 }
-__device__ inline float2 operator*=(float2& a, const float& b)
+__device__ inline rocfft_complex<float> operator*=(rocfft_complex<float>& a, const float& b)
 {
-    a = cuCmulf(a, make_float2(b, b));
+    a = cuCmulf(a, rocfft_complex<float>(b, b));
     return a;
 }
-__device__ inline float2 operator-(const float2& a)
+__device__ inline rocfft_complex<float> operator-(const rocfft_complex<float>& a)
 {
-    return cuCmulf(a, make_float2(-1.0, -1.0));
+    return cuCmulf(a, rocfft_complex<float>(-1.0, -1.0));
 }
 
-__device__ inline double2 operator-(const double2& a, const double2& b)
+__device__ inline rocfft_complex<double> operator-(const rocfft_complex<double>& a,
+                                                   const rocfft_complex<double>& b)
 {
-    return make_double2(a.x - b.x, a.y - b.y);
+    return rocfft_complex<double>(a.x - b.x, a.y - b.y);
 }
-__device__ inline double2 operator+(const double2& a, const double2& b)
+__device__ inline rocfft_complex<double> operator+(const rocfft_complex<double>& a,
+                                                   const rocfft_complex<double>& b)
 {
-    return make_double2(a.x + b.x, a.y + b.y);
+    return rocfft_complex<double>(a.x + b.x, a.y + b.y);
 }
-__device__ inline double2 operator*(const double& a, const double2& b)
+__device__ inline rocfft_complex<double> operator*(const double& a, const rocfft_complex<double>& b)
 {
-    return make_double2(a * b.x, a * b.y);
+    return rocfft_complex<double>(a * b.x, a * b.y);
 }
-__device__ inline double2 operator*=(double2& a, const double2& b)
+__device__ inline rocfft_complex<double> operator*=(rocfft_complex<double>&       a,
+                                                    const rocfft_complex<double>& b)
 {
     a = cuCmul(a, b);
     return a;
 }
-__device__ inline double2 operator*=(double2& a, const double& b)
+__device__ inline rocfft_complex<double> operator*=(rocfft_complex<double>& a, const double& b)
 {
-    a = cuCmul(a, make_double2(b, b));
+    a = cuCmul(a, rocfft_complex<double>(b, b));
     return a;
 }
-__device__ inline double2 operator-(const double2& a)
+__device__ inline rocfft_complex<double> operator-(const rocfft_complex<double>& a)
 {
-    return cuCmul(a, make_double2(-1.0, -1.0));
+    return cuCmul(a, rocfft_complex<double>(-1.0, -1.0));
 }
 
 #endif
@@ -173,36 +179,8 @@ struct real_type<rocfft_complex<double>>
     typedef double type;
 };
 
-template <>
-struct real_type<float4>
-{
-    typedef float type;
-};
-
-template <>
-struct real_type<double4>
-{
-    typedef double type;
-};
-
-template <>
-struct real_type<float2>
-{
-    typedef float type;
-};
-
-template <>
-struct real_type<double2>
-{
-    typedef double type;
-};
-
 template <class T>
 using real_type_t = typename real_type<T>::type;
-
-/* example of using real_type_t */
-// real_type_t<float2> float_scalar;
-// real_type_t<double2> double_scalar;
 
 template <class T>
 struct complex_type;
@@ -210,13 +188,13 @@ struct complex_type;
 template <>
 struct complex_type<float>
 {
-    typedef float2 type;
+    typedef rocfft_complex<float> type;
 };
 
 template <>
 struct complex_type<double>
 {
-    typedef double2 type;
+    typedef rocfft_complex<double> type;
 };
 
 template <class T>
@@ -225,59 +203,6 @@ using complex_type_t = typename complex_type<T>::type;
 /// example of using complex_type_t:
 // complex_type_t<float> float_complex_val;
 // complex_type_t<double> double_complex_val;
-
-template <class T>
-struct vector4_type;
-
-template <>
-struct vector4_type<float2>
-{
-    typedef float4 type;
-};
-
-template <>
-struct vector4_type<double2>
-{
-    typedef double4 type;
-};
-
-template <class T>
-using vector4_type_t = typename vector4_type<T>::type;
-
-/* example of using vector4_type_t */
-// vector4_type_t<float2> float4_scalar;
-// vector4_type_t<double2> double4_scalar;
-
-template <typename T>
-__device__ inline T lib_make_vector2(real_type_t<T> v0, real_type_t<T> v1);
-
-template <>
-__device__ inline rocfft_complex<float> lib_make_vector2(float v0, float v1)
-{
-    return rocfft_complex<float>(v0, v1);
-}
-
-template <>
-__device__ inline rocfft_complex<double> lib_make_vector2(double v0, double v1)
-{
-    return rocfft_complex<double>(v0, v1);
-}
-
-template <typename T>
-__device__ inline T
-    lib_make_vector4(real_type_t<T> v0, real_type_t<T> v1, real_type_t<T> v2, real_type_t<T> v3);
-
-template <>
-__device__ inline float4 lib_make_vector4(float v0, float v1, float v2, float v3)
-{
-    return make_float4(v0, v1, v2, v3);
-}
-
-template <>
-__device__ inline double4 lib_make_vector4(double v0, double v1, double v2, double v3)
-{
-    return make_double4(v0, v1, v2, v3);
-}
 
 template <typename T>
 __device__ T TWLstep1(const T* twiddles, size_t u)
@@ -294,8 +219,8 @@ __device__ T TWLstep2(const T* twiddles, size_t u)
     T      result = twiddles[j];
     u >>= 8;
     j      = u & 255;
-    result = lib_make_vector2<T>((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
-                                 (result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
+    result = T((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+               (result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
     return result;
 }
 
@@ -306,12 +231,12 @@ __device__ T TWLstep3(const T* twiddles, size_t u)
     T      result = twiddles[j];
     u >>= 8;
     j      = u & 255;
-    result = lib_make_vector2<T>((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
-                                 (result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
+    result = T((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+               (result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
     u >>= 8;
     j      = u & 255;
-    result = lib_make_vector2<T>((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
-                                 (result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
+    result = T((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
+               (result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
     return result;
 }
 
@@ -322,16 +247,16 @@ __device__ T TWLstep4(const T* twiddles, size_t u)
     T      result = twiddles[j];
     u >>= 8;
     j      = u & 255;
-    result = lib_make_vector2<T>((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
-                                 (result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
+    result = T((result.x * twiddles[256 + j].x - result.y * twiddles[256 + j].y),
+               (result.y * twiddles[256 + j].x + result.x * twiddles[256 + j].y));
     u >>= 8;
     j      = u & 255;
-    result = lib_make_vector2<T>((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
-                                 (result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
+    result = T((result.x * twiddles[512 + j].x - result.y * twiddles[512 + j].y),
+               (result.y * twiddles[512 + j].x + result.x * twiddles[512 + j].y));
     u >>= 8;
     j      = u & 255;
-    result = lib_make_vector2<T>((result.x * twiddles[768 + j].x - result.y * twiddles[768 + j].y),
-                                 (result.y * twiddles[768 + j].x + result.x * twiddles[768 + j].y));
+    result = T((result.x * twiddles[768 + j].x - result.y * twiddles[768 + j].y),
+               (result.y * twiddles[768 + j].x + result.x * twiddles[768 + j].y));
     return result;
 }
 
