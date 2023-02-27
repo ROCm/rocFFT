@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -24,6 +24,11 @@
 #include "increment.h"
 #include <algorithm>
 #include <vector>
+
+static std::ostream& operator<<(std::ostream& stream, const _Float16& f)
+{
+    return stream << static_cast<double>(f);
+}
 
 // Output a formatted general-dimensional array with given length and stride in batches
 // separated by dist.

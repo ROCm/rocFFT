@@ -414,8 +414,16 @@ std::string rocfft_rider_command(rocfft_plan plan)
 
     rider << "-t " << plan->transformType << " ";
 
-    if(plan->precision == rocfft_precision_double)
-        rider << "--double ";
+    rider << "--precision ";
+    switch(plan->precision)
+    {
+    case rocfft_precision_single:
+        rider << "single ";
+        break;
+    case rocfft_precision_double:
+        rider << "double ";
+        break;
+    }
     rider << "--itype " << plan->desc.inArrayType << " ";
     rider << "--otype " << plan->desc.outArrayType << " ";
     rider << "--istride ";

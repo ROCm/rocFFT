@@ -41,7 +41,7 @@ bool canOptimizeWithStride(TreeNode* stockham)
     // sizes that do 7 rows seem to be slower for single.
     // TODO: the threshold may be set dependent one what kind of transport is the fused kernel
     //   eg. different value for TRANSPOSE, Z_XY, and XY_Z...
-    //   for example, 21504 -t 1 --double works quite good with minRows==2
+    //   for example, 21504 -t 1 --precision double works quite good with minRows==2
     size_t minRows = stockham->precision == rocfft_precision_single ? 8 : 4;
     return numTrans >= minRows;
 }

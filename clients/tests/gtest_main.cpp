@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -61,6 +61,7 @@ fft_params manual_params;
 size_t ramgb;
 
 // Manually specified precision cutoffs:
+double half_epsilon;
 double single_epsilon;
 double double_epsilon;
 
@@ -69,6 +70,8 @@ double max_linf_eps_double = 0.0;
 double max_l2_eps_double   = 0.0;
 double max_linf_eps_single = 0.0;
 double max_l2_eps_single   = 0.0;
+double max_linf_eps_half   = 0.0;
+double max_l2_eps_half     = 0.0;
 
 // Control whether we use FFTW's wisdom (which we use to imply FFTW_MEASURE).
 bool use_fftw_wisdom = false;
@@ -232,7 +235,8 @@ int main(int argc, char* argv[])
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
         ("callback", "Inject load/store callbacks")
         ("checkstride", "Check that data is not written outside of output strides")
-        ("double", "Double precision transform (default: single)")
+        ("double", "Double precision transform (deprecated: use --precision double)")
+        ("precision", po::value<fft_precision>(&manual_params.precision), "Transform precision: single (default), double, half")
         ( "itype", po::value<fft_array_type>(&manual_params.itype)
           ->default_value(fft_array_type_unset),
           "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
@@ -261,6 +265,7 @@ int main(int argc, char* argv[])
         ("osize", po::value<std::vector<size_t>>(&manual_params.osize)->multitoken(),
          "Logical size of output.")
         ("R", po::value<size_t>(&ramgb)->default_value((start_memory.total_bytes + ONE_GiB - 1) / ONE_GiB), "Ram limit in GiB for tests.")
+        ("half_epsilon",  po::value<double>(&single_epsilon)->default_value(0.0)) 
         ("single_epsilon",  po::value<double>(&single_epsilon)->default_value(3.75e-5)) 
 	("double_epsilon",  po::value<double>(&double_epsilon)->default_value(1e-15))
         ("wise,w", "use FFTW wisdom")
@@ -402,7 +407,6 @@ int main(int argc, char* argv[])
 
         manual_params.placement
             = vm.count("notInPlace") ? fft_placement_notinplace : fft_placement_inplace;
-        manual_params.precision = vm.count("double") ? fft_precision_double : fft_precision_single;
 
         if(vm.count("callback"))
         {
@@ -446,6 +450,8 @@ int main(int argc, char* argv[])
     rocfft_cleanup();
 
     std::cout << "Random seed: " << random_seed << std::endl;
+    std::cout << "half precision max l-inf epsilon: " << max_linf_eps_half << std::endl;
+    std::cout << "half precision max l2 epsilon:     " << max_l2_eps_half << std::endl;
     std::cout << "single precision max l-inf epsilon: " << max_linf_eps_single << std::endl;
     std::cout << "single precision max l2 epsilon:     " << max_l2_eps_single << std::endl;
     std::cout << "double precision max l-inf epsilon: " << max_linf_eps_double << std::endl;

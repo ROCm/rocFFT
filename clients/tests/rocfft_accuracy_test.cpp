@@ -1,4 +1,4 @@
-// Copyright (C) 2022 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,9 @@ void fft_vs_reference(rocfft_params& params, bool round_trip)
 {
     switch(params.precision)
     {
+    case fft_precision_half:
+        fft_vs_reference_impl<_Float16, rocfft_params>(params, round_trip);
+        break;
     case fft_precision_single:
         fft_vs_reference_impl<float, rocfft_params>(params, round_trip);
         break;

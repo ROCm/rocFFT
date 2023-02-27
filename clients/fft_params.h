@@ -62,9 +62,26 @@ enum fft_transform_type
 
 enum fft_precision
 {
+    fft_precision_half,
     fft_precision_single,
     fft_precision_double,
 };
+
+static std::istream& operator>>(std::istream& str, fft_precision& precision)
+{
+    std::string word;
+    str >> word;
+
+    if(word == "half")
+        precision = fft_precision_half;
+    else if(word == "single")
+        precision = fft_precision_single;
+    else if(word == "double")
+        precision = fft_precision_double;
+    else
+        throw std::runtime_error("Invalid precision specified");
+    return str;
+}
 
 enum fft_array_type
 {
@@ -89,6 +106,9 @@ inline Tsize var_size(const fft_precision precision, const fft_array_type type)
     size_t var_size = 0;
     switch(precision)
     {
+    case fft_precision_half:
+        var_size = sizeof(_Float16);
+        break;
     case fft_precision_single:
         var_size = sizeof(float);
         break;
@@ -421,6 +441,9 @@ public:
         }
         switch(precision)
         {
+        case fft_precision_half:
+            ret += "half_";
+            break;
         case fft_precision_single:
             ret += "single_";
             break;
@@ -1200,6 +1223,9 @@ public:
     {
         switch(precision)
         {
+        case fft_precision_half:
+            set_input<_Float16>(input, itype, length, ilength(), istride, idist, nbatch);
+            break;
         case fft_precision_double:
             set_input<double>(input, itype, length, ilength(), istride, idist, nbatch);
             break;
@@ -1220,6 +1246,12 @@ public:
         {
             switch(precision)
             {
+            case fft_precision_half:
+            {
+                buffer_printer<rocfft_complex<_Float16>> s;
+                s.print_buffer(buf, ilength(), istride, nbatch, idist, ioffset);
+                break;
+            }
             case fft_precision_single:
             {
                 buffer_printer<rocfft_complex<float>> s;
@@ -1241,6 +1273,12 @@ public:
         {
             switch(precision)
             {
+            case fft_precision_half:
+            {
+                buffer_printer<_Float16> s;
+                s.print_buffer(buf, ilength(), istride, nbatch, idist, ioffset);
+                break;
+            }
             case fft_precision_single:
             {
                 buffer_printer<float> s;
@@ -1272,6 +1310,12 @@ public:
         {
             switch(precision)
             {
+            case fft_precision_half:
+            {
+                buffer_printer<rocfft_complex<_Float16>> s;
+                s.print_buffer(buf, olength(), ostride, nbatch, odist, ooffset);
+                break;
+            }
             case fft_precision_single:
             {
                 buffer_printer<rocfft_complex<float>> s;
@@ -1291,6 +1335,12 @@ public:
         {
             switch(precision)
             {
+            case fft_precision_half:
+            {
+                buffer_printer<_Float16> s;
+                s.print_buffer(buf, olength(), ostride, nbatch, odist, ooffset);
+                break;
+            }
             case fft_precision_single:
             {
                 buffer_printer<float> s;
@@ -1322,6 +1372,12 @@ public:
         {
             switch(precision)
             {
+            case fft_precision_half:
+            {
+                buffer_printer<rocfft_complex<_Float16>> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
             case fft_precision_single:
             {
                 buffer_printer<rocfft_complex<float>> s;
@@ -1341,6 +1397,12 @@ public:
         {
             switch(precision)
             {
+            case fft_precision_half:
+            {
+                buffer_printer<_Float16> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
             case fft_precision_single:
             {
                 buffer_printer<float> s;
@@ -1371,6 +1433,12 @@ public:
         {
             switch(precision)
             {
+            case fft_precision_half:
+            {
+                buffer_printer<rocfft_complex<_Float16>> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
             case fft_precision_single:
             {
                 buffer_printer<rocfft_complex<float>> s;
@@ -1390,6 +1458,12 @@ public:
         {
             switch(precision)
             {
+            case fft_precision_half:
+            {
+                buffer_printer<_Float16> s;
+                s.print_buffer_flat(buf, osize, ooffset);
+                break;
+            }
             case fft_precision_single:
             {
                 buffer_printer<float> s;
@@ -1821,6 +1895,19 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
         case fft_array_type_hermitian_interleaved:
             switch(precision)
             {
+            case fft_precision_half:
+                copy_buffers_1to1(
+                    reinterpret_cast<const rocfft_complex<_Float16>*>(input[0].data()),
+                    reinterpret_cast<rocfft_complex<_Float16>*>(output[0].data()),
+                    length,
+                    nbatch,
+                    istride,
+                    idist,
+                    ostride,
+                    odist,
+                    ioffset,
+                    ooffset);
+                break;
             case fft_precision_single:
                 copy_buffers_1to1(reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
                                   reinterpret_cast<rocfft_complex<float>*>(output[0].data()),
@@ -1854,6 +1941,18 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
             {
                 switch(precision)
                 {
+                case fft_precision_half:
+                    copy_buffers_1to1(reinterpret_cast<const _Float16*>(input[idx].data()),
+                                      reinterpret_cast<_Float16*>(output[idx].data()),
+                                      length,
+                                      nbatch,
+                                      istride,
+                                      idist,
+                                      ostride,
+                                      odist,
+                                      ioffset,
+                                      ooffset);
+                    break;
                 case fft_precision_single:
                     copy_buffers_1to1(reinterpret_cast<const float*>(input[idx].data()),
                                       reinterpret_cast<float*>(output[idx].data()),
@@ -1892,6 +1991,19 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
         // copy 1to2
         switch(precision)
         {
+        case fft_precision_half:
+            copy_buffers_1to2(reinterpret_cast<const rocfft_complex<_Float16>*>(input[0].data()),
+                              reinterpret_cast<_Float16*>(output[0].data()),
+                              reinterpret_cast<_Float16*>(output[1].data()),
+                              length,
+                              nbatch,
+                              istride,
+                              idist,
+                              ostride,
+                              odist,
+                              ioffset,
+                              ooffset);
+            break;
         case fft_precision_single:
             copy_buffers_1to2(reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
                               reinterpret_cast<float*>(output[0].data()),
@@ -1927,6 +2039,19 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
         // copy 2 to 1
         switch(precision)
         {
+        case fft_precision_half:
+            copy_buffers_2to1(reinterpret_cast<const _Float16*>(input[0].data()),
+                              reinterpret_cast<const _Float16*>(input[1].data()),
+                              reinterpret_cast<rocfft_complex<_Float16>*>(output[0].data()),
+                              length,
+                              nbatch,
+                              istride,
+                              idist,
+                              ostride,
+                              odist,
+                              ioffset,
+                              ooffset);
+            break;
         case fft_precision_single:
             copy_buffers_2to1(reinterpret_cast<const float*>(input[0].data()),
                               reinterpret_cast<const float*>(input[1].data()),
@@ -2282,6 +2407,22 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
         case fft_array_type_hermitian_interleaved:
             switch(precision)
             {
+            case fft_precision_half:
+                dist = distance_1to1_complex(
+                    reinterpret_cast<const rocfft_complex<_Float16>*>(input[0].data()),
+                    reinterpret_cast<const rocfft_complex<_Float16>*>(output[0].data()),
+                    length,
+                    nbatch,
+                    istride,
+                    idist,
+                    ostride,
+                    odist,
+                    linf_failures,
+                    linf_cutoff,
+                    ioffset,
+                    ooffset,
+                    output_scalar);
+                break;
             case fft_precision_single:
                 dist = distance_1to1_complex(
                     reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
@@ -2325,6 +2466,21 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                 VectorNorms d;
                 switch(precision)
                 {
+                case fft_precision_half:
+                    d = distance_1to1_real(reinterpret_cast<const _Float16*>(input[idx].data()),
+                                           reinterpret_cast<const _Float16*>(output[idx].data()),
+                                           length,
+                                           nbatch,
+                                           istride,
+                                           idist,
+                                           ostride,
+                                           odist,
+                                           linf_failures,
+                                           linf_cutoff,
+                                           ioffset,
+                                           ooffset,
+                                           output_scalar);
+                    break;
                 case fft_precision_single:
                     d = distance_1to1_real(reinterpret_cast<const float*>(input[idx].data()),
                                            reinterpret_cast<const float*>(output[idx].data()),
@@ -2370,6 +2526,22 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
     {
         switch(precision)
         {
+        case fft_precision_half:
+            dist = distance_1to2(reinterpret_cast<const rocfft_complex<_Float16>*>(input[0].data()),
+                                 reinterpret_cast<const _Float16*>(output[0].data()),
+                                 reinterpret_cast<const _Float16*>(output[1].data()),
+                                 length,
+                                 nbatch,
+                                 istride,
+                                 idist,
+                                 ostride,
+                                 odist,
+                                 linf_failures,
+                                 linf_cutoff,
+                                 ioffset,
+                                 ooffset,
+                                 output_scalar);
+            break;
         case fft_precision_single:
             dist = distance_1to2(reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
                                  reinterpret_cast<const float*>(output[0].data()),
@@ -2411,6 +2583,23 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
     {
         switch(precision)
         {
+        case fft_precision_half:
+            dist
+                = distance_1to2(reinterpret_cast<const rocfft_complex<_Float16>*>(output[0].data()),
+                                reinterpret_cast<const _Float16*>(input[0].data()),
+                                reinterpret_cast<const _Float16*>(input[1].data()),
+                                length,
+                                nbatch,
+                                ostride,
+                                odist,
+                                istride,
+                                idist,
+                                linf_failures,
+                                linf_cutoff,
+                                ioffset,
+                                ooffset,
+                                output_scalar);
+            break;
         case fft_precision_single:
             dist = distance_1to2(reinterpret_cast<const rocfft_complex<float>*>(output[0].data()),
                                  reinterpret_cast<const float*>(input[0].data()),
@@ -2565,11 +2754,11 @@ inline VectorNorms norm_complex(const Tcomplex*            input,
             {
                 const auto idx = compute_index(index, istride, idx_base);
 
-                const double rval = std::abs(input[idx + offset[0]].real());
+                const double rval = std::abs(static_cast<double>(input[idx + offset[0]].real()));
                 cur_linf          = std::max(rval, cur_linf);
                 cur_l2 += rval * rval;
 
-                const double ival = std::abs(input[idx + offset[0]].imag());
+                const double ival = std::abs(static_cast<double>(input[idx + offset[0]].imag()));
                 cur_linf          = std::max(ival, cur_linf);
                 cur_l2 += ival * ival;
 
@@ -2610,7 +2799,7 @@ inline VectorNorms norm_real(const Tfloat*              input,
             do
             {
                 const auto   idx = compute_index(index, istride, idx_base);
-                const double val = std::abs(input[idx + offset[0]]);
+                const double val = std::abs(static_cast<double>(input[idx + offset[0]]));
                 cur_linf         = std::max(val, cur_linf);
                 cur_l2 += val * val;
 
@@ -2642,6 +2831,14 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
     case fft_array_type_hermitian_interleaved:
         switch(precision)
         {
+        case fft_precision_half:
+            norm = norm_complex(reinterpret_cast<const rocfft_complex<_Float16>*>(input[0].data()),
+                                length,
+                                nbatch,
+                                istride,
+                                idist,
+                                offset);
+            break;
         case fft_precision_single:
             norm = norm_complex(reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
                                 length,
@@ -2669,6 +2866,14 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
             VectorNorms n;
             switch(precision)
             {
+            case fft_precision_half:
+                n = norm_real(reinterpret_cast<const _Float16*>(input[idx].data()),
+                              length,
+                              nbatch,
+                              istride,
+                              idist,
+                              offset);
+                break;
             case fft_precision_single:
                 n = norm_real(reinterpret_cast<const float*>(input[idx].data()),
                               length,

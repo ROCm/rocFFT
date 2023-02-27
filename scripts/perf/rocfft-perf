@@ -604,7 +604,12 @@ def command_bweff(arguments):
         for prob in generator.generate_problems():
 
             # determine appropriate batch size
-            elem_size_bytes = 8 if prob.precision == "single" else 16
+            if prob.precision == "half":
+                elem_size_bytes = 4
+            elif prob.precision == "single":
+                elem_size_bytes = 8
+            elif prob.precision == "double":
+                elem_size_bytes = 16
 
             for length in prob.length:
                 elem_size_bytes *= length

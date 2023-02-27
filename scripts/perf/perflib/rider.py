@@ -55,8 +55,12 @@ def run(rider,
     cmd += ['-b', nbatch]
     if not inplace:
         cmd += ['-o']
-    if precision == 'double':
-        cmd += ['--double']
+    if precision == 'half':
+        cmd += ['--precision', 'half']
+    elif precision == 'single':
+        cmd += ['--precision', 'single']
+    elif precision == 'double':
+        cmd += ['--precision', 'double']
     if device is not None:
         cmd += ['--device', device]
 

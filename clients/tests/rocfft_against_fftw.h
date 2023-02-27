@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -145,39 +145,29 @@ static typename fftw_trait<Tfloat>::fftw_plan_type
 template <typename Tfloat>
 void fftw_run(fft_transform_type                          transformType,
               typename fftw_trait<Tfloat>::fftw_plan_type cpu_plan,
-              void*                                       cpu_in,
-              void*                                       cpu_out)
+              fftw_data_t&                                cpu_in,
+              fftw_data_t&                                cpu_out)
 {
-    using fftw_complex_type = typename fftw_trait<Tfloat>::fftw_complex_type;
-
     switch(transformType)
     {
     case fft_transform_type_complex_forward:
     {
-        fftw_plan_execute_c2c<Tfloat>(cpu_plan,
-                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
-                                      reinterpret_cast<fftw_complex_type*>(cpu_out));
+        fftw_plan_execute_c2c<Tfloat>(cpu_plan, cpu_in, cpu_out);
         break;
     }
     case fft_transform_type_complex_inverse:
     {
-        fftw_plan_execute_c2c<Tfloat>(cpu_plan,
-                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
-                                      reinterpret_cast<fftw_complex_type*>(cpu_out));
+        fftw_plan_execute_c2c<Tfloat>(cpu_plan, cpu_in, cpu_out);
         break;
     }
     case fft_transform_type_real_forward:
     {
-        fftw_plan_execute_r2c<Tfloat>(cpu_plan,
-                                      reinterpret_cast<Tfloat*>(cpu_in),
-                                      reinterpret_cast<fftw_complex_type*>(cpu_out));
+        fftw_plan_execute_r2c<Tfloat>(cpu_plan, cpu_in, cpu_out);
         break;
     }
     case fft_transform_type_real_inverse:
     {
-        fftw_plan_execute_c2r<Tfloat>(cpu_plan,
-                                      reinterpret_cast<fftw_complex_type*>(cpu_in),
-                                      reinterpret_cast<Tfloat*>(cpu_out));
+        fftw_plan_execute_c2r<Tfloat>(cpu_plan, cpu_in, cpu_out);
         break;
     }
     }
@@ -224,6 +214,9 @@ inline double type_epsilon(const fft_precision precision)
 {
     switch(precision)
     {
+    case fft_precision_half:
+        return type_epsilon<_Float16>();
+        break;
     case fft_precision_single:
         return type_epsilon<float>();
         break;
@@ -232,7 +225,6 @@ inline double type_epsilon(const fft_precision precision)
         break;
     default:
         throw std::runtime_error("Invalid precision");
-        return 0.0;
     }
 }
 

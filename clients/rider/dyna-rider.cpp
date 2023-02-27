@@ -1,4 +1,4 @@
-// Copyright (C) 2020 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2020 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -362,7 +362,8 @@ int main(int argc, char* argv[])
         ("verbose", po::value<int>(&verbose)->default_value(0), "Control output verbosity")
         ("ntrial,N", po::value<int>(&ntrial)->default_value(1), "Trial size for the problem")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
-        ("double", "Double precision transform (default: single)")
+        ("double", "Double precision transform (deprecated: use --precision double)")
+        ("precision", po::value<fft_precision>(&params.precision), "Transform precision: single (default), double, half")
         ("transformType,t", po::value<fft_transform_type>(&params.transform_type)
          ->default_value(fft_transform_type_complex_forward),
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "

@@ -41,8 +41,6 @@ extern size_t ramgb;
 
 static const size_t ONE_GiB = 1 << 30;
 
-typedef std::vector<std::vector<char, fftwAllocator<char>>> fftw_data_t;
-
 typedef std::tuple<fft_transform_type, fft_result_placement, fft_array_type, fft_array_type>
     type_place_io_t;
 
@@ -93,6 +91,9 @@ inline size_t needed_ram_buffers(const fft_params& params, const int verbose)
     }
     switch(params.precision)
     {
+    case fft_precision_half:
+        needed_ram *= 2;
+        break;
     case fft_precision_single:
         needed_ram *= 4;
         break;
@@ -172,6 +173,9 @@ inline size_t needed_ram_fftw(const fft_params&                                 
     }
     switch(contiguous_params.precision)
     {
+    case fft_precision_half:
+        needed_ram *= 2;
+        break;
     case fft_precision_single:
         needed_ram *= 4;
         break;
@@ -598,6 +602,17 @@ void* get_store_callback_host(fft_array_type otype,
                               fft_precision  precision,
                               bool           round_trip_inverse);
 
+static auto allocate_cpu_fft_buffer(const fft_precision        precision,
+                                    const fft_array_type       type,
+                                    const std::vector<size_t>& size)
+{
+    // FFTW does not support half-precision, so we do single instead.
+    // So if we need to do a half-precision FFTW transform, allocate
+    // enough buffer for single-precision instead.
+    return allocate_host_buffer<fftwAllocator<char>>(
+        precision == fft_precision_half ? fft_precision_single : precision, type, size);
+}
+
 template <typename Tfloat>
 inline void execute_cpu_fft(fft_params&                                  params,
                             fft_params&                                  contiguous_params,
@@ -608,7 +623,7 @@ inline void execute_cpu_fft(fft_params&                                  params,
     // CPU output might not be allocated already for us, if FFTW never
     // needed an output buffer during planning
     if(cpu_output.empty())
-        cpu_output = allocate_host_buffer<fftwAllocator<char>>(
+        cpu_output = allocate_cpu_fft_buffer(
             contiguous_params.precision, contiguous_params.otype, contiguous_params.osize);
 
     // If this is either C2R or callbacks are enabled, the
@@ -623,10 +638,7 @@ inline void execute_cpu_fft(fft_params&                                  params,
 
     // run FFTW (which may destroy CPU input)
     apply_load_callback(params, *input_ptr);
-    fftw_run<Tfloat>(contiguous_params.transform_type,
-                     cpu_plan,
-                     input_ptr->front().data(),
-                     cpu_output.front().data());
+    fftw_run<Tfloat>(contiguous_params.transform_type, cpu_plan, *input_ptr, cpu_output);
     // clean up
     fftw_destroy_plan_type(cpu_plan);
     // ask FFTW to fully clean up, since it tries to cache plan details
@@ -981,6 +993,12 @@ inline void compare_round_trip_inverse(Tparams&           params,
 
     switch(params.precision)
     {
+    case fft_precision_half:
+        max_linf_eps_half
+            = std::max(max_linf_eps_half, diff.l_inf / cpu_input_norm.l_inf / log(total_length));
+        max_l2_eps_half
+            = std::max(max_l2_eps_half, diff.l_2 / cpu_input_norm.l_2 * sqrt(log2(total_length)));
+        break;
     case fft_precision_single:
         max_linf_eps_single
             = std::max(max_linf_eps_single, diff.l_inf / cpu_input_norm.l_inf / log(total_length));
@@ -1122,19 +1140,6 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         std::cout << contiguous_params.str("\n\t") << std::endl;
     }
 
-    // helper function to convert double input/output to float
-    // in-place so we don't need extra memory
-    auto convert_to_single = [](fftw_data_t& data) {
-        for(auto& arr : data)
-        {
-            const double* readPtr  = reinterpret_cast<const double*>(arr.data());
-            const double* readEnd  = readPtr + (arr.size() / sizeof(double));
-            float*        writePtr = reinterpret_cast<float*>(arr.data());
-            std::copy(readPtr, readEnd, writePtr);
-            arr.resize(arr.size() / 2);
-        }
-    };
-
     std::vector<gpubuf> ibuffer(ibuffer_sizes.size());
     std::vector<void*>  pibuffer(ibuffer_sizes.size());
     for(unsigned int i = 0; i < ibuffer.size(); ++i)
@@ -1175,11 +1180,13 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                 if(last_cpu_fft_data.precision == fft_precision_double)
                 {
                     // convert the input/output to single-precision
-                    convert_cpu_output_precision
-                        = std::async(std::launch::async, [&]() { convert_to_single(cpu_output); });
-                    convert_cpu_input_precision
-                        = std::async(std::launch::async, [&]() { convert_to_single(cpu_input); });
-                    last_cpu_fft_data.precision = fft_precision_single;
+                    convert_cpu_output_precision = std::async(std::launch::async, [&]() {
+                        narrow_precision_inplace<double, float>(cpu_output.front());
+                    });
+                    convert_cpu_input_precision  = std::async(std::launch::async, [&]() {
+                        narrow_precision_inplace<double, float>(cpu_input.front());
+                    });
+                    last_cpu_fft_data.precision  = fft_precision_single;
                 }
                 else
                 {
@@ -1205,7 +1212,7 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     // Allocate CPU input
     if(run_fftw)
     {
-        cpu_input = allocate_host_buffer<fftwAllocator<char>>(
+        cpu_input = allocate_cpu_fft_buffer(
             contiguous_params.precision, contiguous_params.itype, contiguous_params.isize);
     }
 
@@ -1220,7 +1227,7 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         // creation time.
         if(use_fftw_wisdom)
         {
-            cpu_output = allocate_host_buffer<fftwAllocator<char>>(
+            cpu_output = allocate_cpu_fft_buffer(
                 contiguous_params.precision, contiguous_params.otype, contiguous_params.osize);
         }
         cpu_plan = fftw_plan_via_rocfft<Tfloat>(contiguous_params.length,
@@ -1567,6 +1574,12 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
 
     switch(params.precision)
     {
+    case fft_precision_half:
+        max_linf_eps_half
+            = std::max(max_linf_eps_half, diff.l_inf / cpu_output_norm.l_inf / log(total_length));
+        max_l2_eps_half
+            = std::max(max_l2_eps_half, diff.l_2 / cpu_output_norm.l_2 * sqrt(log2(total_length)));
+        break;
     case fft_precision_single:
         max_linf_eps_single
             = std::max(max_linf_eps_single, diff.l_inf / cpu_output_norm.l_inf / log(total_length));

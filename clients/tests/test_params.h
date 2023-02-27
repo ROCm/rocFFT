@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 extern int    verbose;
 extern size_t random_seed;
 extern size_t ramgb;
+extern double half_epsilon;
 extern double single_epsilon;
 extern double double_epsilon;
 
@@ -36,5 +37,7 @@ extern double max_linf_eps_double;
 extern double max_l2_eps_double;
 extern double max_linf_eps_single;
 extern double max_l2_eps_single;
+extern double max_linf_eps_half;
+extern double max_l2_eps_half;
 
 #endif
