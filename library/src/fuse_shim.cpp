@@ -42,7 +42,10 @@ bool canOptimizeWithStride(TreeNode* stockham)
     // TODO: the threshold may be set dependent one what kind of transport is the fused kernel
     //   eg. different value for TRANSPOSE, Z_XY, and XY_Z...
     //   for example, 21504 -t 1 --precision double works quite good with minRows==2
-    size_t minRows = stockham->precision == rocfft_precision_single ? 8 : 4;
+    size_t minRows = (stockham->precision == rocfft_precision_single
+                      || stockham->precision == rocfft_precision_half)
+                         ? 8
+                         : 4;
     return numTrans >= minRows;
 }
 

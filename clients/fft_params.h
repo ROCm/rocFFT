@@ -259,7 +259,7 @@ public:
     std::vector<size_t>  istride;
     std::vector<size_t>  ostride;
     size_t               nbatch         = 1;
-    fft_precision        precision      = fft_precision_double;
+    fft_precision        precision      = fft_precision_single;
     fft_transform_type   transform_type = fft_transform_type_complex_forward;
     fft_result_placement placement      = fft_placement_inplace;
     size_t               idist          = 0;
@@ -380,10 +380,18 @@ public:
         ss << separator;
         ss << "transform_type: " << transform_type_name() << separator;
         ss << array_type_name(itype) << " -> " << array_type_name(otype) << separator;
-        if(precision == fft_precision_single)
+        switch(precision)
+        {
+        case fft_precision_half:
+            ss << "half-precision";
+            break;
+        case fft_precision_single:
             ss << "single-precision";
-        else
+            break;
+        case fft_precision_double:
             ss << "double-precision";
+            break;
+        }
         ss << separator;
 
         ss << "ilength:";
@@ -596,7 +604,9 @@ public:
 
         length = vector_parser(vals, "len", pos);
 
-        if(vals[pos] == "single")
+        if(vals[pos] == "half")
+            precision = fft_precision_half;
+        else if(vals[pos] == "single")
             precision = fft_precision_single;
         else if(vals[pos] == "double")
             precision = fft_precision_double;

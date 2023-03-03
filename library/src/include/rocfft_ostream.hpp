@@ -21,6 +21,7 @@
 #ifndef _ROCFFT_OSTREAM_HPP_
 #define _ROCFFT_OSTREAM_HPP_
 
+#include "../../../shared/rocfft_complex.h"
 #include "rocfft.h"
 #include <cmath>
 #include <condition_variable>

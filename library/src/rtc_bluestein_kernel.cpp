@@ -21,6 +21,7 @@
 #include "rtc_bluestein_kernel.h"
 #include "../../shared/arithmetic.h"
 #include "../../shared/array_predicate.h"
+#include "../../shared/precision_type.h"
 #include "function_pool.h"
 #include "kernel_launch.h"
 #include "rtc_bluestein_gen.h"
@@ -106,10 +107,18 @@ RTCKernelArgs RTCKernelBluesteinSingle::get_launch_args(DeviceCallIn& data)
         if(array_type_is_planar(data.node->outArrayType))
             kargs.append_ptr(data.bufOut[1]);
     }
-    if(data.node->precision == rocfft_precision_single)
+    switch(data.node->precision)
+    {
+    case rocfft_precision_half:
+        kargs.append_half(data.node->scale_factor);
+        break;
+    case rocfft_precision_single:
         kargs.append_float(data.node->scale_factor);
-    else
+        break;
+    case rocfft_precision_double:
         kargs.append_double(data.node->scale_factor);
+        break;
+    }
 
     // callback params
     kargs.append_ptr(data.callbacks.load_cb_fn);
@@ -220,15 +229,7 @@ RTCKernelArgs RTCKernelBluesteinMulti::get_launch_args(DeviceCallIn& data)
     }
     else
     {
-        size_t cBytes;
-        if(data.node->precision == rocfft_precision_single)
-        {
-            cBytes = sizeof(float) * 2;
-        }
-        else
-        {
-            cBytes = sizeof(double) * 2;
-        }
+        const size_t cBytes = complex_type_size(data.node->precision);
 
         void* bufIn0  = data.bufIn[0];
         void* bufOut0 = data.bufOut[0];
@@ -266,10 +267,18 @@ RTCKernelArgs RTCKernelBluesteinMulti::get_launch_args(DeviceCallIn& data)
         kargs.append_ptr(data.callbacks.store_cb_fn);
         kargs.append_ptr(data.callbacks.store_cb_data);
 
-        if(data.node->precision == rocfft_precision_single)
+        switch(data.node->precision)
+        {
+        case rocfft_precision_half:
+            kargs.append_half(data.node->scale_factor);
+            break;
+        case rocfft_precision_single:
             kargs.append_float(data.node->scale_factor);
-        else
+            break;
+        case rocfft_precision_double:
             kargs.append_double(data.node->scale_factor);
+            break;
+        }
     }
     return kargs;
 }

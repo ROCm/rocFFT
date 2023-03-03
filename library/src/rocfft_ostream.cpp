@@ -429,6 +429,9 @@ rocfft_ostream& operator<<(rocfft_ostream& os, rocfft_precision precision)
 {
     switch(precision)
     {
+    case rocfft_precision_half:
+        os << "half";
+        break;
     case rocfft_precision_single:
         os << "single";
         break;

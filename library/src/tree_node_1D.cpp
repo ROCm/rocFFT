@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "tree_node_1D.h"
+#include "../../shared/precision_type.h"
 #include "../device/kernels/bank_shift.h"
 #include "function_pool.h"
 #include "fuse_shim.h"
@@ -824,8 +825,8 @@ void SBCCNode::SetIntrinsicMode()
        && (dir2regMode == TRY_ENABLE_IF_SUPPORT))
     {
         // General rejections: cases we can't use buffer load
-        if(((uint64_t)iDist * batch * sizeof_precision(precision) < 0xFFFFFFFF)
-           && ((uint64_t)oDist * batch * sizeof_precision(precision) < 0xFFFFFFFF))
+        if(((uint64_t)iDist * batch * complex_type_size(precision) < 0xFFFFFFFF)
+           && ((uint64_t)oDist * batch * complex_type_size(precision) < 0xFFFFFFFF))
         {
             if(placement == rocfft_placement_inplace)
                 intrinsicMode = IntrinsicAccessType::ENABLE_LOAD_ONLY;
@@ -991,8 +992,8 @@ void SBCRNode::SetIntrinsicMode()
     // TODO- To test on gfx90a
     if(is_device_gcn_arch(deviceProp, "gfx908") && (dir2regMode == TRY_ENABLE_IF_SUPPORT))
     {
-        if(((uint64_t)iDist * batch * sizeof_precision(precision) < 0xFFFFFFFF)
-           && ((uint64_t)oDist * batch * sizeof_precision(precision) < 0xFFFFFFFF))
+        if(((uint64_t)iDist * batch * complex_type_size(precision) < 0xFFFFFFFF)
+           && ((uint64_t)oDist * batch * complex_type_size(precision) < 0xFFFFFFFF))
         {
             intrinsicMode = IntrinsicAccessType::ENABLE_BOTH;
         }

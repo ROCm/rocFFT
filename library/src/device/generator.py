@@ -879,20 +879,6 @@ class Using(BaseNode):
         return f'using {self.name} = {self.spec};'
 
 
-@name_args(['name', 'arguments', 'templates', 'qualifier'])
-class Prototype(BaseNode):
-
-    def __str__(self) -> str:
-        f = ''
-        if self.templates:
-            f += 'template<' + str(self.templates) + '>'
-        if self.qualifier is not None:
-            f += self.qualifier + ' '
-        f += ' void ' + self.name
-        f += '(' + str(self.arguments) + ') FUNCTION_POOL_STANDALONE_BODY ;'
-        return f
-
-
 @name_args([
     'name', 'value', 'arguments', 'templates', 'qualifier', 'launch_bounds',
     'body', 'meta'
@@ -915,10 +901,6 @@ class Function(BaseNode):
         f += '(' + str(self.arguments) + ')'
         f += '{' + njoin(self.body) + '}'
         return f
-
-    def prototype(self):
-        return Prototype(self.name, self.arguments, self.templates,
-                         self.qualifier)
 
     def address(self):
         return Address(self.name)

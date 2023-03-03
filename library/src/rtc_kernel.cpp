@@ -68,6 +68,9 @@ void RTCKernel::launch(DeviceCallIn& data)
         case rocfft_precision_single:
             kargs.append_float(data.node->scale_factor);
             break;
+        case rocfft_precision_half:
+            kargs.append_half(data.node->scale_factor);
+            break;
         }
     }
 

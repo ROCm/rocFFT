@@ -158,20 +158,12 @@ list( SORT rocfft_device_source )
 
 # function pool is a generated file, but put it in its own
 # library so it's easier to link to.
-#
-# build function pool into two separate libraries - one that has
-# functions callable by rocFFT and depends on amdhip64, and another
-# one usable by AOT RTC that contains no device code
 list( FILTER rocfft_device_source EXCLUDE REGEX function_pool.cpp )
 add_library( rocfft-function-pool OBJECT
   function_pool.cpp
 )
-target_compile_definitions( rocfft-function-pool PRIVATE FUNCTION_POOL_STANDALONE_BODY= )
-add_library( rocfft-function-pool-standalone OBJECT
-  function_pool.cpp
-)
-target_compile_definitions( rocfft-function-pool-standalone PRIVATE FUNCTION_POOL_STANDALONE_BODY={} )
-foreach( pool rocfft-function-pool rocfft-function-pool-standalone )
+
+foreach( pool rocfft-function-pool )
   target_include_directories( ${pool}
     PRIVATE
     $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/device>

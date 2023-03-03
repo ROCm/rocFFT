@@ -56,6 +56,23 @@ template <typename T>
 struct callback_type;
 
 template <>
+struct callback_type<rocfft_complex<_Float16>>
+{
+    typedef rocfft_complex<_Float16> (*load)(rocfft_complex<_Float16>* data,
+                                             size_t                    offset,
+                                             void*                     cbdata,
+                                             void*                     sharedMem);
+    typedef void (*store)(rocfft_complex<_Float16>* data,
+                          size_t                    offset,
+                          rocfft_complex<_Float16>  element,
+                          void*                     cbdata,
+                          void*                     sharedMem);
+};
+
+static __device__ auto load_cb_default_complex_half  = load_cb_default<rocfft_complex<_Float16>>;
+static __device__ auto store_cb_default_complex_half = store_cb_default<rocfft_complex<_Float16>>;
+
+template <>
 struct callback_type<rocfft_complex<float>>
 {
     typedef rocfft_complex<float> (*load)(rocfft_complex<float>* data,
@@ -88,6 +105,17 @@ struct callback_type<rocfft_complex<double>>
 
 static __device__ auto load_cb_default_complex_double  = load_cb_default<rocfft_complex<double>>;
 static __device__ auto store_cb_default_complex_double = store_cb_default<rocfft_complex<double>>;
+
+template <>
+struct callback_type<_Float16>
+{
+    typedef _Float16 (*load)(_Float16* data, size_t offset, void* cbdata, void* sharedMem);
+    typedef void (*store)(
+        _Float16* data, size_t offset, _Float16 element, void* cbdata, void* sharedMem);
+};
+
+static __device__ auto load_cb_default_half  = load_cb_default<_Float16>;
+static __device__ auto store_cb_default_half = store_cb_default<_Float16>;
 
 template <>
 struct callback_type<float>

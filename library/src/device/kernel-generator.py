@@ -123,8 +123,10 @@ class FFTKernel(BaseNode):
             f += str(self.function.address())
         use_3steps_large_twd = getattr(self.function.meta,
                                        'use_3steps_large_twd', None)
+        # assume half-precision needs the same thing as single
+        precision = 'sp' if self.function.meta.precision == 'half' else self.function.meta.precision
         if use_3steps_large_twd is not None:
-            f += ', ' + str(use_3steps_large_twd[self.function.meta.precision])
+            f += ', ' + str(use_3steps_large_twd[precision])
         else:
             f += ', false'
         factors = getattr(self.function.meta, 'factors', None)
@@ -164,7 +166,8 @@ def generate_cpu_function_pool(functions):
     function_map = Map('function_map')
     precisions = {
         'sp': 'rocfft_precision_single',
-        'dp': 'rocfft_precision_double'
+        'dp': 'rocfft_precision_double',
+        'half': 'rocfft_precision_half',
     }
 
     populate = StatementList()
@@ -181,7 +184,6 @@ def generate_cpu_function_pool(functions):
 
     return StatementList(
         Include('"../include/function_pool.h"'),
-        StatementList(*[f.prototype() for f in functions]),
         Function(name='function_pool::function_pool',
                  value=False,
                  arguments=ArgumentList(),
@@ -797,23 +799,27 @@ def generate_kernel(kernel, precisions, stockham_aot):
             threads_per_transform, 0
         ]
 
-        f = Function(name=launcher.name,
-                     arguments=ArgumentList(data, back),
-                     meta=NS(
-                         factors=factors,
-                         length=length,
-                         params=params,
-                         precision=precision,
-                         runtime_compile=runtime_compile,
-                         scheme=scheme,
-                         workgroup_size=workgroup_size,
-                         transforms_per_block=transforms_per_block,
-                         threads_per_transform=tpt_list,
-                         transpose=sbrc_transpose_type,
-                         use_3steps_large_twd=use_3steps_large_twd,
-                     ))
+        precisions = [precision]
+        if precision == 'sp':
+            precisions.append('half')
+        for p in precisions:
+            f = Function(name=launcher.name,
+                         arguments=ArgumentList(data, back),
+                         meta=NS(
+                             factors=factors,
+                             length=length,
+                             params=params,
+                             precision=p,
+                             runtime_compile=runtime_compile,
+                             scheme=scheme,
+                             workgroup_size=workgroup_size,
+                             transforms_per_block=transforms_per_block,
+                             threads_per_transform=tpt_list,
+                             transpose=sbrc_transpose_type,
+                             use_3steps_large_twd=use_3steps_large_twd,
+                         ))
 
-        cpu_functions.append(f)
+            cpu_functions.append(f)
 
     return cpu_functions
 

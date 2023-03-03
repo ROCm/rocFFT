@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "tree_node.h"
+#include "../../shared/precision_type.h"
 #include "function_pool.h"
 #include "kernel_launch.h"
 #include "logging.h"
@@ -147,7 +148,7 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
     SetupGPAndFnPtr_internal(fnPtr, gp);
 
     // common: sum up the value;
-    gp.lds_bytes = (lds + lds_padding * bwd) * sizeof_precision(precision);
+    gp.lds_bytes = (lds + lds_padding * bwd) * complex_type_size(precision);
     if(scheme == CS_KERNEL_STOCKHAM && ebtype == EmbeddedType::NONE)
     {
         auto key = fpkey(length[0], precision, scheme);

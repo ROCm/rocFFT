@@ -118,19 +118,6 @@ static bool is_cube_size(const std::vector<size_t>& length)
     return length.size() == 3 && length[0] == length[1] && length[1] == length[2];
 }
 
-inline size_t sizeof_precision(rocfft_precision precision)
-{
-    switch(precision)
-    {
-    case rocfft_precision_single:
-        return 2 * sizeof(float);
-    case rocfft_precision_double:
-        return 2 * sizeof(double);
-    }
-    assert(false);
-    return 0;
-}
-
 class TreeNode;
 
 // The mininal tree node data needed to decide the scheme

@@ -124,10 +124,18 @@ RTCKernelArgs RTCKernelRealComplex::get_launch_args(DeviceCallIn& data)
     if(data.node->scheme == CS_KERNEL_COPY_CMPLX_TO_HERM
        || data.node->scheme == CS_KERNEL_COPY_CMPLX_TO_R)
     {
-        if(data.node->precision == rocfft_precision_single)
+        switch(data.node->precision)
+        {
+        case rocfft_precision_half:
+            kargs.append_half(data.node->scale_factor);
+            break;
+        case rocfft_precision_single:
             kargs.append_float(data.node->scale_factor);
-        else
+            break;
+        case rocfft_precision_double:
             kargs.append_double(data.node->scale_factor);
+            break;
+        }
     }
 
     return kargs;
@@ -221,10 +229,18 @@ RTCKernelArgs RTCKernelRealComplexEven::get_launch_args(DeviceCallIn& data)
     kargs.append_ptr(data.callbacks.store_cb_data);
     if(data.node->IsScalingEnabled())
     {
-        if(data.node->precision == rocfft_precision_single)
+        switch(data.node->precision)
+        {
+        case rocfft_precision_half:
+            kargs.append_half(data.node->scale_factor);
+            break;
+        case rocfft_precision_single:
             kargs.append_float(data.node->scale_factor);
-        else
+            break;
+        case rocfft_precision_double:
             kargs.append_double(data.node->scale_factor);
+            break;
+        }
     }
 
     return kargs;

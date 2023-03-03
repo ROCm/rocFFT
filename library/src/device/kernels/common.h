@@ -179,6 +179,12 @@ struct real_type<rocfft_complex<double>>
     typedef double type;
 };
 
+template <>
+struct real_type<rocfft_complex<_Float16>>
+{
+    typedef _Float16 type;
+};
+
 template <class T>
 using real_type_t = typename real_type<T>::type;
 

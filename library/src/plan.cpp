@@ -22,6 +22,7 @@
 #include "../../shared/arithmetic.h"
 #include "../../shared/array_predicate.h"
 #include "../../shared/environment.h"
+#include "../../shared/precision_type.h"
 #include "../../shared/ptrdiff.h"
 #include "assignment_policy.h"
 #include "function_pool.h"
@@ -415,15 +416,7 @@ std::string rocfft_rider_command(rocfft_plan plan)
     rider << "-t " << plan->transformType << " ";
 
     rider << "--precision ";
-    switch(plan->precision)
-    {
-    case rocfft_precision_single:
-        rider << "single ";
-        break;
-    case rocfft_precision_double:
-        rider << "double ";
-        break;
-    }
+    rider << precision_name(plan->precision) << " ";
     rider << "--itype " << plan->desc.inArrayType << " ";
     rider << "--otype " << plan->desc.outArrayType << " ";
     rider << "--istride ";
@@ -466,7 +459,7 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     p->batch          = number_of_transforms;
     p->placement      = placement;
     p->precision      = precision;
-    p->base_type_size = (precision == rocfft_precision_double) ? sizeof(double) : sizeof(float);
+    p->base_type_size = real_type_size(precision);
     p->transformType  = transform_type;
 
     if(description != nullptr)
@@ -701,9 +694,7 @@ rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
 {
     log_trace(__func__, "plan", plan);
     rocfft_cout << std::endl;
-    rocfft_cout << "precision: "
-                << ((plan->precision == rocfft_precision_single) ? "single" : "double")
-                << std::endl;
+    rocfft_cout << "precision: " << precision_name(plan->precision) << std::endl;
 
     rocfft_cout << "transform type: ";
     switch(plan->transformType)
@@ -1276,7 +1267,7 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
 
     os << "\n" << indentStr.c_str();
 
-    os << ((precision == rocfft_precision_single) ? "single-precision" : "double-precision");
+    os << precision_name(precision) << "-precision";
 
     os << std::endl << indentStr.c_str();
     os << "array type: ";
@@ -1333,13 +1324,13 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     {
         os << "\n"
            << indentStr.c_str()
-           << "twiddle table length: " << twiddles_size / sizeof_precision(precision);
+           << "twiddle table length: " << twiddles_size / complex_type_size(precision);
     }
     if(twiddles_large)
     {
         os << "\n"
            << indentStr.c_str()
-           << "large twiddle table length: " << twiddles_large_size / sizeof_precision(precision);
+           << "large twiddle table length: " << twiddles_large_size / complex_type_size(precision);
     }
     if(lengthBlue)
         os << "\n" << indentStr.c_str() << "lengthBlue: " << lengthBlue;

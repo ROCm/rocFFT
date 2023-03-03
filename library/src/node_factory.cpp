@@ -20,6 +20,7 @@
 
 #include "node_factory.h"
 #include "../../shared/arithmetic.h"
+#include "../../shared/precision_type.h"
 #include "function_pool.h"
 #include "fuse_shim.h"
 #include "hip/hip_runtime_api.h"
@@ -301,6 +302,10 @@ bool NodeFactory::CheckLarge1DMaps()
 // Checks whether the non-pow2 length input is supported for a Bluestein compute scheme
 bool NodeFactory::NonPow2LengthSupported(rocfft_precision precision, size_t length)
 {
+    // assume half precision behaves the same as single
+    if(precision == rocfft_precision_half)
+        precision = rocfft_precision_single;
+
     // Exceptions which have been found to perform poorly when compared to the next pow2 length
     static const std::map<rocfft_precision, std::set<size_t>> length_exceptions
         = {{rocfft_precision_single,
@@ -571,7 +576,8 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
         if(nodeData.length[0] <= block_threshold)
         {
             // Enable block compute under these conditions
-            if(nodeData.precision == rocfft_precision_single)
+            if(nodeData.precision == rocfft_precision_single
+               || nodeData.precision == rocfft_precision_half)
             {
                 if(map1DLengthSingle.find(nodeData.length[0]) != map1DLengthSingle.end())
                 {
@@ -635,7 +641,8 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
     }
     else // if not Pow2
     {
-        if(nodeData.precision == rocfft_precision_single)
+        if(nodeData.precision == rocfft_precision_single
+           || nodeData.precision == rocfft_precision_half)
         {
             if(map1DLengthSingle.find(nodeData.length[0]) != map1DLengthSingle.end())
             {
@@ -832,7 +839,7 @@ bool NodeFactory::use_CS_2D_SINGLE(NodeMetaData& nodeData)
         fpkey(nodeData.length[0], nodeData.length[1], nodeData.precision, CS_KERNEL_2D_SINGLE));
 
     int ldsUsage = nodeData.length[0] * nodeData.length[1] * kernel.transforms_per_block
-                   * sizeof_precision(nodeData.precision);
+                   * complex_type_size(nodeData.precision);
     if(1.5 * ldsUsage > ldsSize)
         return false;
 

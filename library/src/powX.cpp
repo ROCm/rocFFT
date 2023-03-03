@@ -42,6 +42,7 @@
 #include "real2complex.h"
 
 #include "../../shared/environment.h"
+#include "../../shared/precision_type.h"
 #include "../../shared/printbuffer.h"
 #include "../../shared/ptrdiff.h"
 #include "../../shared/rocfft_complex.h"
@@ -94,10 +95,10 @@ static size_t data_size_bytes(const std::vector<size_t>& lengths,
                               rocfft_array_type          type)
 {
     // first compute the raw number of elements
-    size_t elems = std::accumulate(
+    const size_t elems = std::accumulate(
         lengths.begin(), lengths.end(), static_cast<size_t>(1), std::multiplies<size_t>());
     // size of each element
-    size_t elemsize = (precision == rocfft_precision_single ? sizeof(float) : sizeof(double));
+    const size_t elemsize = real_type_size(precision);
     switch(type)
     {
     case rocfft_array_type_complex_interleaved:
@@ -174,7 +175,7 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
 {
     const size_t size_elems = compute_ptrdiff(length_cm, stride_cm, batch, dist);
 
-    size_t base_type_size = (precision == rocfft_precision_double) ? sizeof(double) : sizeof(float);
+    size_t base_type_size = real_type_size(precision);
     if(type != rocfft_array_type_real)
     {
         // complex elements
@@ -204,6 +205,12 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
 
         switch(precision)
         {
+        case rocfft_precision_half:
+        {
+            buffer_printer<_Float16> s;
+            s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+            break;
+        }
         case rocfft_precision_single:
         {
             buffer_printer<float> s;
@@ -228,6 +235,28 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
 
         switch(precision)
         {
+        case rocfft_precision_half:
+        {
+            switch(type)
+            {
+            case rocfft_array_type_complex_interleaved:
+            case rocfft_array_type_hermitian_interleaved:
+            {
+                buffer_printer<rocfft_complex<_Float16>> s;
+                s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+                break;
+            }
+            case rocfft_array_type_real:
+            {
+                buffer_printer<_Float16> s;
+                s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
+                break;
+            }
+            default:
+                throw std::runtime_error("invalid array format");
+            }
+            break;
+        }
         case rocfft_precision_single:
         {
             switch(type)
@@ -296,31 +325,69 @@ void SetDefaultCallback(const TreeNode* node, const SetCallbackType& type, void*
 
     if(is_complex && type == SetCallbackType::LOAD)
     {
-        result = (node->precision == rocfft_precision_single)
-                     ? hipMemcpyFromSymbol(
-                         cb, HIP_SYMBOL(load_cb_default_complex_float), sizeof(void*))
-                     : hipMemcpyFromSymbol(
-                         cb, HIP_SYMBOL(load_cb_default_complex_double), sizeof(void*));
+        switch(node->precision)
+        {
+        case rocfft_precision_half:
+            result
+                = hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_complex_half), sizeof(void*));
+            break;
+        case rocfft_precision_single:
+            result
+                = hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_complex_float), sizeof(void*));
+            break;
+        case rocfft_precision_double:
+            result = hipMemcpyFromSymbol(
+                cb, HIP_SYMBOL(load_cb_default_complex_double), sizeof(void*));
+            break;
+        }
     }
     else if(is_complex && type == SetCallbackType::STORE)
     {
-        result = (node->precision == rocfft_precision_single)
-                     ? hipMemcpyFromSymbol(
-                         cb, HIP_SYMBOL(store_cb_default_complex_float), sizeof(void*))
-                     : hipMemcpyFromSymbol(
-                         cb, HIP_SYMBOL(store_cb_default_complex_double), sizeof(void*));
+        switch(node->precision)
+        {
+        case rocfft_precision_half:
+            result
+                = hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_complex_half), sizeof(void*));
+            break;
+        case rocfft_precision_single:
+            result = hipMemcpyFromSymbol(
+                cb, HIP_SYMBOL(store_cb_default_complex_float), sizeof(void*));
+            break;
+        case rocfft_precision_double:
+            result = hipMemcpyFromSymbol(
+                cb, HIP_SYMBOL(store_cb_default_complex_double), sizeof(void*));
+            break;
+        }
     }
     else if(!is_complex && type == SetCallbackType::LOAD)
     {
-        result = (node->precision == rocfft_precision_single)
-                     ? hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_float), sizeof(void*))
-                     : hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_double), sizeof(void*));
+        switch(node->precision)
+        {
+        case rocfft_precision_half:
+            result = hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_half), sizeof(void*));
+            break;
+        case rocfft_precision_single:
+            result = hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_float), sizeof(void*));
+            break;
+        case rocfft_precision_double:
+            result = hipMemcpyFromSymbol(cb, HIP_SYMBOL(load_cb_default_double), sizeof(void*));
+            break;
+        }
     }
     else if(!is_complex && type == SetCallbackType::STORE)
     {
-        result = (node->precision == rocfft_precision_single)
-                     ? hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_float), sizeof(void*))
-                     : hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_double), sizeof(void*));
+        switch(node->precision)
+        {
+        case rocfft_precision_half:
+            result = hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_half), sizeof(void*));
+            break;
+        case rocfft_precision_single:
+            result = hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_float), sizeof(void*));
+            break;
+        case rocfft_precision_double:
+            result = hipMemcpyFromSymbol(cb, HIP_SYMBOL(store_cb_default_double), sizeof(void*));
+            break;
+        }
     }
 
     if(result != hipSuccess)
@@ -377,9 +444,7 @@ void TransformPowX(const ExecPlan&       execPlan,
             data.log_func = nullptr;
 
         // Size of complex type
-        const size_t complexTSize = (data.node->precision == rocfft_precision_single)
-                                        ? sizeof(float) * 2
-                                        : sizeof(double) * 2;
+        const size_t complexTSize = complex_type_size(data.node->precision);
 
         switch(data.node->obIn)
         {

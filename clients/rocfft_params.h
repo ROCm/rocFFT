@@ -60,6 +60,8 @@ inline rocfft_precision rocfft_precision_from_fftparams(const fft_precision val)
         return rocfft_precision_single;
     case fft_precision_double:
         return rocfft_precision_double;
+    case fft_precision_half:
+        return rocfft_precision_half;
     default:
         throw std::runtime_error("Invalid precision");
     }

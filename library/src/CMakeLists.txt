@@ -381,11 +381,11 @@ target_link_libraries( rocfft_config_search PRIVATE
   ${ROCFFT_HOST_LINK_LIBS}
   generator
   rocfft-rtc-launch
-  rocfft-function-pool-standalone
+  rocfft-function-pool
   )
 target_link_libraries( rocfft_aot_helper PRIVATE
   generator
-  rocfft-function-pool-standalone
+  rocfft-function-pool
   )
 
 # compile kernels into the cache file we ship

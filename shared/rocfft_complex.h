@@ -241,6 +241,11 @@ struct rocfft_complex
 
 // Stream operators
 #if !defined(__HIPCC_RTC__)
+static std::ostream& operator<<(std::ostream& stream, const _Float16& f)
+{
+    return stream << static_cast<double>(f);
+}
+
 template <typename Treal>
 std::ostream& operator<<(std::ostream& out, const rocfft_complex<Treal>& z)
 {

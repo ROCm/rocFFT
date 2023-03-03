@@ -25,11 +25,6 @@
 #include <algorithm>
 #include <vector>
 
-static std::ostream& operator<<(std::ostream& stream, const _Float16& f)
-{
-    return stream << static_cast<double>(f);
-}
-
 // Output a formatted general-dimensional array with given length and stride in batches
 // separated by dist.
 template <typename Toutput, typename T1, typename T2, typename Tsize, typename Tstream>

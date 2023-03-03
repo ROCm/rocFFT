@@ -84,6 +84,7 @@ typedef enum rocfft_precision_e
 {
     rocfft_precision_single,
     rocfft_precision_double,
+    rocfft_precision_half,
 } rocfft_precision;
 
 /*! @brief Result placement
