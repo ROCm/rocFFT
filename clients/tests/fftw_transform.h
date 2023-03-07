@@ -509,6 +509,11 @@ inline void fftw_plan_execute_c2r<double>(typename fftw_trait<double>::fftw_plan
 template <typename Tfloat>
 inline char* fftw_sprint_plan(const typename fftw_trait<Tfloat>::fftw_plan_type plan);
 template <>
+inline char* fftw_sprint_plan<_Float16>(const typename fftw_trait<_Float16>::fftw_plan_type plan)
+{
+    return fftwf_sprint_plan(plan);
+}
+template <>
 inline char* fftw_sprint_plan<float>(const typename fftw_trait<float>::fftw_plan_type plan)
 {
     return fftwf_sprint_plan(plan);
