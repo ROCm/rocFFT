@@ -18,8 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "../rocfft_params.h"
-
 #include "accuracy_test.h"
 
 std::vector<std::vector<size_t>> callback_sizes = {

@@ -21,7 +21,6 @@
 #ifndef FFT_PARAMS_H
 #define FFT_PARAMS_H
 
-#include "data_gen.h"
 #include <algorithm>
 #include <hip/hip_runtime.h>
 #include <iostream>
@@ -36,6 +35,7 @@
 #include <vector>
 
 #include "../shared/array_validator.h"
+#include "../shared/data_gen.h"
 #include "../shared/printbuffer.h"
 #include "../shared/ptrdiff.h"
 

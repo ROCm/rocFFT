@@ -20,7 +20,7 @@
 
 #include "../../shared/arithmetic.h"
 #include "../../shared/gpubuf.h"
-#include "../rocfft_params.h"
+#include "../../shared/rocfft_params.h"
 #include "accuracy_test.h"
 #include "rocfft.h"
 #include "rocfft_against_fftw.h"

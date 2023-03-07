@@ -34,7 +34,6 @@
 #include "../../shared/concurrency.h"
 #include "../../shared/environment.h"
 #include "../../shared/work_queue.h"
-#include "../rocfft_params.h"
 #include "rocfft.h"
 #include "rocfft_accuracy_test.h"
 #include "test_params.h"
@@ -265,8 +264,8 @@ int main(int argc, char* argv[])
         ("osize", po::value<std::vector<size_t>>(&manual_params.osize)->multitoken(),
          "Logical size of output.")
         ("R", po::value<size_t>(&ramgb)->default_value((start_memory.total_bytes + ONE_GiB - 1) / ONE_GiB), "Ram limit in GiB for tests.")
-        ("half_epsilon",  po::value<double>(&single_epsilon)->default_value(0.0)) 
-        ("single_epsilon",  po::value<double>(&single_epsilon)->default_value(3.75e-5)) 
+        ("half_epsilon",  po::value<double>(&single_epsilon)->default_value(0.0))
+        ("single_epsilon",  po::value<double>(&single_epsilon)->default_value(3.75e-5))
 	("double_epsilon",  po::value<double>(&double_epsilon)->default_value(1e-15))
         ("wise,w", "use FFTW wisdom")
         ("wisdomfile,W",

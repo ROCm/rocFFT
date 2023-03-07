@@ -30,8 +30,8 @@
 #include <string>
 #include <vector>
 
+#include "../../shared/fft_params.h"
 #include "../../shared/gpubuf.h"
-#include "../fft_params.h"
 #include "fftw_transform.h"
 #include "rocfft_against_fftw.h"
 #include "test_params.h"

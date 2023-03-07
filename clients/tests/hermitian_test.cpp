@@ -19,7 +19,7 @@
 // THE SOFTWARE.
 
 #include "../../shared/gpubuf.h"
-#include "../rocfft_params.h"
+#include "../../shared/rocfft_params.h"
 #include "../samples/rocfft/examplekernels.h"
 #include "../samples/rocfft/exampleutils.h"
 #include "accuracy_test.h"

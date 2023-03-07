@@ -26,7 +26,7 @@
 
 #include <hip/hip_runtime.h>
 
-#include "../rocfft_params.h"
+#include "../../shared/rocfft_params.h"
 #include "fftw_transform.h"
 #include "rocfft.h"
 

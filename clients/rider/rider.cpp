@@ -24,7 +24,7 @@
 #include <sstream>
 
 #include "../../shared/gpubuf.h"
-#include "../rocfft_params.h"
+#include "../../shared/rocfft_params.h"
 #include "rider.h"
 #include "rocfft.h"
 #include <boost/program_options.hpp>

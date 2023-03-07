@@ -18,14 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#pragma once
-
 #ifndef ROCFFT_ACCURACY_TEST
 #define ROCFFT_ACCURACY_TEST
 
-#include "../rocfft_params.h"
+#include "../../shared/rocfft_params.h"
 #include "accuracy_test.h"
-#include "rocfft_accuracy_test.h"
 
 void fft_vs_reference(rocfft_params& params, bool round_trip = false);
 

@@ -21,7 +21,7 @@
 #ifndef EXAMPLEKERNELS_H
 #define EXAMPLEKERNELS_H
 
-#include "../../data_gen.h"
+#include "../../../shared/data_gen.h"
 #include <hip/hip_complex.h>
 #include <hip/hip_runtime.h>
 #include <iostream>

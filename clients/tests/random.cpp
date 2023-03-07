@@ -22,7 +22,6 @@
 #include <iostream>
 #include <random>
 
-#include "../rocfft_params.h"
 #include "accuracy_test.h"
 #include "rocfft_accuracy_test.h"
 

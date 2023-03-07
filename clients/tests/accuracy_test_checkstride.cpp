@@ -18,8 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "../fft_params.h"
-
 #include "accuracy_test.h"
 
 inline auto param_checkstride()
