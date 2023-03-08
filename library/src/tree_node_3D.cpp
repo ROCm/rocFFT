@@ -389,11 +389,6 @@ void BLOCKRC3DNode::BuildTree_internal()
 
 void BLOCKRC3DNode::AssignParams_internal()
 {
-    // could go as low as 3 kernels if all dimensions are SBRC-able,
-    // but less than 6.  If we ended up with 6 we should have just
-    // done 3D_TRTRTR instead.
-    assert(childNodes.size() >= 3 && childNodes.size() < 6);
-
     childNodes.front()->inStride = inStride;
     childNodes.front()->iDist    = iDist;
 
