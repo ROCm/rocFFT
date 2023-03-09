@@ -26,6 +26,7 @@
 #include <iostream>
 #include <mutex>
 #include <numeric>
+#include <sstream>
 #ifdef BUILD_CLIENTS_TESTS_OPENMP
 #include <omp.h>
 #endif
