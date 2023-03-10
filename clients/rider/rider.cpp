@@ -142,7 +142,8 @@ int main(int argc, char* argv[])
 
         params.placement
             = vm.count("notInPlace") ? fft_placement_notinplace : fft_placement_inplace;
-        params.precision = vm.count("double") ? fft_precision_double : fft_precision_single;
+        if(vm.count("double"))
+            params.precision = fft_precision_double;
 
         if(vm.count("notInPlace"))
         {

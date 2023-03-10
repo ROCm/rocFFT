@@ -406,6 +406,8 @@ int main(int argc, char* argv[])
 
         manual_params.placement
             = vm.count("notInPlace") ? fft_placement_notinplace : fft_placement_inplace;
+        if(vm.count("double"))
+            manual_params.precision = fft_precision_double;
 
         if(vm.count("callback"))
         {
