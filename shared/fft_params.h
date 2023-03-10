@@ -2213,11 +2213,12 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
 
             do
             {
-                const auto   idx   = compute_index(index, istride, idx_base);
-                const auto   odx   = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
-                const double rdiff = std::abs(output[odx + ooffset[0]].real() * output_scalar
-                                              - input[idx + ioffset[0]].real());
-                cur_linf           = std::max(rdiff, cur_linf);
+                const auto   idx = compute_index(index, istride, idx_base);
+                const auto   odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const double rdiff
+                    = std::abs(static_cast<double>(output[odx + ooffset[0]].real()) * output_scalar
+                               - static_cast<double>(input[idx + ioffset[0]].real()));
+                cur_linf = std::max(rdiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -2227,9 +2228,10 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
                 }
                 cur_l2 += rdiff * rdiff;
 
-                const double idiff = std::abs(output[odx + ooffset[0]].imag() * output_scalar
-                                              - input[idx + ioffset[0]].imag());
-                cur_linf           = std::max(idiff, cur_linf);
+                const double idiff
+                    = std::abs(static_cast<double>(output[odx + ooffset[0]].imag()) * output_scalar
+                               - static_cast<double>(input[idx + ioffset[0]].imag()));
+                cur_linf = std::max(idiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -2290,7 +2292,8 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
                 const auto   idx = compute_index(index, istride, idx_base);
                 const auto   odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
                 const double diff
-                    = std::abs(output[odx + ooffset[0]] * output_scalar - input[idx + ioffset[0]]);
+                    = std::abs(static_cast<double>(output[odx + ooffset[0]]) * output_scalar
+                               - static_cast<double>(input[idx + ioffset[0]]));
                 cur_linf = std::max(diff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
@@ -2350,11 +2353,12 @@ inline VectorNorms distance_1to2(const rocfft_complex<Tval>*             input,
             const auto length   = partitions[part].second;
             do
             {
-                const auto   idx   = compute_index(index, istride, idx_base);
-                const auto   odx   = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
-                const double rdiff = std::abs(output0[odx + ooffset[0]] * output_scalar
-                                              - input[idx + ioffset[0]].real());
-                cur_linf           = std::max(rdiff, cur_linf);
+                const auto   idx = compute_index(index, istride, idx_base);
+                const auto   odx = idx_equals_odx ? idx : compute_index(index, ostride, odx_base);
+                const double rdiff
+                    = std::abs(static_cast<double>(output0[odx + ooffset[0]]) * output_scalar
+                               - static_cast<double>(input[idx + ioffset[0]].real()));
+                cur_linf = std::max(rdiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
@@ -2364,9 +2368,10 @@ inline VectorNorms distance_1to2(const rocfft_complex<Tval>*             input,
                 }
                 cur_l2 += rdiff * rdiff;
 
-                const double idiff = std::abs(output1[odx + ooffset[1]] * output_scalar
-                                              - input[idx + ioffset[0]].imag());
-                cur_linf           = std::max(idiff, cur_linf);
+                const double idiff
+                    = std::abs(static_cast<double>(output1[odx + ooffset[1]]) * output_scalar
+                               - static_cast<double>(input[idx + ioffset[0]].imag()));
+                cur_linf = std::max(idiff, cur_linf);
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);

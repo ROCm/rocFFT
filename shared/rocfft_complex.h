@@ -28,6 +28,10 @@
 #include <math.h>
 #include <type_traits>
 
+#ifdef __HIP_PLATFORM_NVIDIA__
+typedef __half _Float16;
+#endif
+
 template <typename Treal>
 struct rocfft_complex
 {
