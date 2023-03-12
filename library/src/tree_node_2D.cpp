@@ -28,8 +28,10 @@
 /*****************************************************
  * 2D_RTRT  *
  *****************************************************/
-void RTRT2DNode::BuildTree_internal()
+void RTRT2DNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
+    bool noSolution = child_schemes.empty();
+
     // first row fft
     NodeMetaData row1PlanData(this);
     row1PlanData.length.push_back(length[0]);
@@ -39,10 +41,14 @@ void RTRT2DNode::BuildTree_internal()
     {
         row1PlanData.length.push_back(length[index]);
     }
-    auto row1Plan = NodeFactory::CreateExplicitNode(row1PlanData, this);
+    // skip the decide scheme part in node factory
+    ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[0];
+    auto          row1Plan = NodeFactory::CreateExplicitNode(row1PlanData, this, determined_scheme);
     row1Plan->RecursiveBuildTree();
 
     // first transpose
+    if(!noSolution)
+        assert(child_schemes[1] == CS_KERNEL_TRANSPOSE);
     auto trans1Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     trans1Plan->length.push_back(length[0]);
     trans1Plan->length.push_back(length[1]);
@@ -62,10 +68,14 @@ void RTRT2DNode::BuildTree_internal()
     {
         row2PlanData.length.push_back(length[index]);
     }
-    auto row2Plan = NodeFactory::CreateExplicitNode(row2PlanData, this);
+    // skip the decide scheme part in node factory
+    determined_scheme = (noSolution) ? CS_NONE : child_schemes[2];
+    auto row2Plan     = NodeFactory::CreateExplicitNode(row2PlanData, this, determined_scheme);
     row2Plan->RecursiveBuildTree();
 
     // second transpose
+    if(!noSolution)
+        assert(child_schemes[3] == CS_KERNEL_TRANSPOSE);
     auto trans2Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     trans2Plan->length.push_back(length[1]);
     trans2Plan->length.push_back(length[0]);
@@ -138,8 +148,10 @@ void RTRT2DNode::AssignParams_internal()
 /*****************************************************
  * 2D_RC  *
  *****************************************************/
-void RC2DNode::BuildTree_internal()
+void RC2DNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
+    bool noSolution = child_schemes.empty();
+
     // row fft
     NodeMetaData rowPlanData(this);
     rowPlanData.length.push_back(length[0]);
@@ -149,10 +161,14 @@ void RC2DNode::BuildTree_internal()
     {
         rowPlanData.length.push_back(length[index]);
     }
-    auto rowPlan = NodeFactory::CreateExplicitNode(rowPlanData, this);
+    // skip the decide scheme part in node factory
+    ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[0];
+    auto          rowPlan = NodeFactory::CreateExplicitNode(rowPlanData, this, determined_scheme);
     rowPlan->RecursiveBuildTree();
 
     // column fft
+    if(!noSolution)
+        assert(child_schemes[1] == CS_KERNEL_STOCKHAM_BLOCK_CC);
     auto colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
     colPlan->length.push_back(length[1]);
     colPlan->dimension = 1;
@@ -209,12 +225,13 @@ bool Single2DNode::CreateTwiddleTableResource()
 
 void Single2DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    auto kernel = function_pool::get_kernel(fpkey(length[0], length[1], precision));
+    auto kernel = function_pool::get_kernel(GetKernelKey());
     fnPtr       = kernel.device_function;
     bwd         = kernel.transforms_per_block;
+    wgs         = kernel.workgroup_size;
 
     gp.b_x   = (batch + bwd - 1) / bwd;
-    gp.wgs_x = kernel.workgroup_size;
+    gp.wgs_x = wgs;
 
     // if fastest length is power of 2, pad it to avoid LDS bank conflicts
     auto padded_len0 = IsPo2(length[0]) ? length[0] + 1 : length[0];

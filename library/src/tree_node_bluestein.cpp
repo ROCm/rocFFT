@@ -63,7 +63,7 @@ inline size_t FindBlue(size_t len, rocfft_precision precision, bool forcePow2)
 /*****************************************************
  * CS_BLUESTEIN
  *****************************************************/
-void BluesteinNode::BuildTree_internal()
+void BluesteinNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
     bool useSingleKernel = BluesteinSingleNode::SizeFits(length[0], precision);
 

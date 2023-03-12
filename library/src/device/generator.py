@@ -800,6 +800,12 @@ class Map(BaseNodeOps):
         throw = StatementList(Throw('std::runtime_error("' + str(key) + '")'))
         return If(Equal(status, "false"), throw)
 
+    def assert_insert(self, key, value):
+        insert = Call('insert_default_entry',
+                      arguments=ArgumentList(key, value)).inline()
+        throw = StatementList(Throw('std::runtime_error("' + str(key) + '")'))
+        return If(Equal(insert, "false"), throw)
+
     # def __getitem__(self, idx):
     #     return ArrayElement(self.name, idx)
 

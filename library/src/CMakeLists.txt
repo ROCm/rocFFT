@@ -178,6 +178,7 @@ set( rocfft_source
   assignment_policy.cpp
   node_factory.cpp
   rtc_exports.cpp
+  solution_map.cpp
   )
 
 # SQLite 3.36.0 enabled the backup API by default, which we need

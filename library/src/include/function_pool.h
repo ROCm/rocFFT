@@ -1,5 +1,5 @@
 /******************************************************************************
-* Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+* Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -29,26 +29,6 @@
 #include <sstream>
 #include <unordered_map>
 
-using FMKey
-    = std::tuple<std::array<size_t, 2>, rocfft_precision, ComputeScheme, SBRC_TRANSPOSE_TYPE>;
-
-static inline FMKey fpkey(size_t              length,
-                          rocfft_precision    precision,
-                          ComputeScheme       scheme    = CS_KERNEL_STOCKHAM,
-                          SBRC_TRANSPOSE_TYPE transpose = NONE)
-{
-    return {{length, 0}, precision, scheme, transpose};
-}
-
-static inline FMKey fpkey(size_t              length1,
-                          size_t              length2,
-                          rocfft_precision    precision,
-                          ComputeScheme       scheme    = CS_KERNEL_2D_SINGLE,
-                          SBRC_TRANSPOSE_TYPE transpose = NONE)
-{
-    return {{length1, length2}, precision, scheme, transpose};
-}
-
 inline std::string PrintMissingKernelInfo(const FMKey& key)
 {
     const auto&               lengthVec = std::get<0>(key);
@@ -65,23 +45,8 @@ inline std::string PrintMissingKernelInfo(const FMKey& key)
     return msg.str();
 }
 
-struct SimpleHash
-{
-    size_t operator()(const FMKey& p) const noexcept
-    {
-        size_t h = 0;
-        for(auto& v : std::get<0>(p))
-            h ^= std::hash<int>{}(v);
-        h ^= std::hash<rocfft_precision>{}(std::get<1>(p));
-        h ^= std::hash<ComputeScheme>{}(std::get<2>(p));
-        h ^= std::hash<SBRC_TRANSPOSE_TYPE>{}(std::get<3>(p));
-        return h;
-    }
-};
-
 struct FFTKernel
 {
-
     // generated launch function, which will be nullptr if the kernel
     // is built using runtime compilation
     DevFnCall           device_function = nullptr;
@@ -103,9 +68,9 @@ struct FFTKernel
     // build time), using runtime compilation.
     bool aot_rtc = false;
 
-    FFTKernel() = delete;
-
+    FFTKernel()                 = default;
     FFTKernel(const FFTKernel&) = default;
+
     FFTKernel& operator=(const FFTKernel&) = default;
 
     FFTKernel(DevFnCall             fn,
@@ -128,16 +93,82 @@ struct FFTKernel
         , aot_rtc(aot_rtc)
     {
     }
+
+    FFTKernel(const KernelConfig& config)
+        : factors(config.factors)
+        , transforms_per_block(config.transforms_per_block)
+        , workgroup_size(config.workgroup_size)
+        , threads_per_transform(config.threads_per_transform)
+        , use_3steps_large_twd(config.use_3steps_large_twd)
+        , half_lds(config.half_lds)
+        , direct_to_from_reg(config.direct_to_from_reg)
+    {
+    }
+
+    KernelConfig get_kernel_config() const
+    {
+        KernelConfig config;
+        config.transforms_per_block  = transforms_per_block;
+        config.workgroup_size        = workgroup_size;
+        config.threads_per_transform = threads_per_transform;
+        config.use_3steps_large_twd  = use_3steps_large_twd;
+        config.half_lds              = half_lds;
+        config.direct_to_from_reg    = direct_to_from_reg;
+        config.factors               = factors;
+
+        return config;
+    }
 };
 
 class function_pool
 {
+    // when AOT generator adds a default key-kernel,
+    // we get the keys of two version: empty-config vs full-config
+    // make the pair as an entry in a map so that we know they are the same things
+    std::unordered_map<FMKey, FMKey, SimpleHash>     def_key_pool;
     std::unordered_map<FMKey, FFTKernel, SimpleHash> function_map;
 
     ROCFFT_DEVICE_EXPORT function_pool();
 
+private:
+    static const FMKey& get_actual_key(const FMKey& key)
+    {
+        function_pool& func_pool = get_function_pool();
+
+        // - for keys that we are querying with no/empty kernel-config, actually we are refering to
+        //   the default kernel-configs in kernel-generator.py. So get the actual keys to look-up
+        //   the pool.
+        // - if not in the def_key_pool, then we simply use itself (for dynamically added kernel)
+        if(func_pool.def_key_pool.count(key) > 0)
+            return func_pool.def_key_pool.at(key);
+        else
+            return key;
+    }
+
+    // insert a key-kernel pair for AOT generator, this is a private function and can be called
+    // only in ctor. That is, the default kernel-config we set in the kernel-generator.py
+    // we save a pair as <key-empty-config, key-actual-config> that allows us to use
+    // the empty-config key to get the default kernel
+    bool insert_default_entry(const FMKey& def_key, const FFTKernel& kernel)
+    {
+        const auto&               lengthVec = std::get<0>(def_key);
+        const rocfft_precision    precision = std::get<1>(def_key);
+        const ComputeScheme       scheme    = std::get<2>(def_key);
+        const SBRC_TRANSPOSE_TYPE trans     = std::get<3>(def_key);
+
+        // simple_key means the same thing as def_key, but we just remove kernel-config
+        // so we don't need to know the exact config when we're lookin' for the default kernel
+        FMKey simple_key = fpkey(
+            lengthVec[0], lengthVec[1], precision, scheme, trans, KernelConfig::EmptyConfig());
+        def_key_pool.emplace(simple_key, def_key);
+
+        // still use the detailed key with config to maintain the function map
+        return std::get<1>(function_map.emplace(def_key, kernel));
+    }
+
 public:
     function_pool(const function_pool&) = delete;
+
     function_pool& operator=(const function_pool&) = delete;
 
     static function_pool& get_function_pool()
@@ -148,10 +179,47 @@ public:
 
     ~function_pool() {}
 
+    // add a new kernel in runtime
+    static bool add_new_kernel(const FMKey& new_key)
+    {
+        // already has this kernel
+        if(has_function(new_key))
+            return true;
+
+        const KernelConfig& config = std::get<4>(new_key);
+        FFTKernel           new_kernel(config);
+
+        function_pool& func_pool = get_function_pool();
+        return std::get<1>(func_pool.function_map.emplace(new_key, new_kernel));
+    }
+
+    // add an alternative kernel with different kernel config from base FMKey
+    static bool add_alternative_kernel(const FMKey&            base_FMKey,
+                                       const KernelConfig&     alt_config,
+                                       std::unique_ptr<FMKey>& out_FMKey)
+    {
+        if(!has_function(base_FMKey))
+            return false;
+
+        FFTKernel alt_kernel(alt_config);
+
+        const auto&               lengthVec = std::get<0>(base_FMKey);
+        const rocfft_precision    precision = std::get<1>(base_FMKey);
+        const ComputeScheme       scheme    = std::get<2>(base_FMKey);
+        const SBRC_TRANSPOSE_TYPE trans     = std::get<3>(base_FMKey);
+
+        out_FMKey = std::make_unique<FMKey>(lengthVec, precision, scheme, trans, alt_config);
+
+        function_pool& func_pool = get_function_pool();
+        return std::get<1>(func_pool.function_map.emplace(*out_FMKey, alt_kernel));
+    }
+
     static bool has_function(const FMKey& key)
     {
         function_pool& func_pool = get_function_pool();
-        return func_pool.function_map.count(key) > 0;
+
+        auto real_key = function_pool::get_actual_key(key);
+        return func_pool.function_map.count(real_key) > 0;
     }
 
     static size_t get_largest_length(rocfft_precision precision)
@@ -182,13 +250,17 @@ public:
     static DevFnCall get_function(const FMKey& key)
     {
         function_pool& func_pool = get_function_pool();
-        return func_pool.function_map.at(key).device_function;
+
+        auto real_key = function_pool::get_actual_key(key);
+        return func_pool.function_map.at(real_key).device_function;
     }
 
     static FFTKernel get_kernel(const FMKey& key)
     {
         function_pool& func_pool = get_function_pool();
-        return func_pool.function_map.at(key);
+
+        auto real_key = function_pool::get_actual_key(key);
+        return func_pool.function_map.at(real_key);
     }
 
     // helper for common used
@@ -197,9 +269,11 @@ public:
         return has_function(fpkey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
     }
 
-    static bool has_SBRC_kernel(size_t length, rocfft_precision precision)
+    static bool has_SBRC_kernel(size_t              length,
+                                rocfft_precision    precision,
+                                SBRC_TRANSPOSE_TYPE trans_type = TILE_ALIGNED)
     {
-        return has_function(fpkey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
+        return has_function(fpkey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_RC, trans_type));
     }
 
     static bool has_SBCR_kernel(size_t length, rocfft_precision precision)

@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -42,7 +42,7 @@ protected:
 
 protected:
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 };
 
 /*****************************************************
@@ -63,7 +63,7 @@ protected:
         scheme = CS_3D_TRTRTR;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 };
 
 /*****************************************************
@@ -86,7 +86,7 @@ protected:
         scheme = CS_3D_BLOCK_RC;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 };
 
 /*****************************************************
@@ -107,7 +107,7 @@ protected:
         scheme = CS_3D_BLOCK_CR;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 };
 
 /*****************************************************
@@ -130,7 +130,7 @@ protected:
     }
 
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 };
 
 /*****************************************************
@@ -158,7 +158,7 @@ protected:
     void SetDirectRegType();
 
 public:
-    bool KernelCheck() override;
+    bool KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) override;
 
     SBRC_TRANSPOSE_TYPE sbrc_transpose_type(unsigned int blockWidth) const override
     {
@@ -175,6 +175,9 @@ public:
             return TILE_ALIGNED;
         return TILE_UNALIGNED;
     }
+
+    // override for sbrcTransType
+    FMKey GetKernelKey() const override;
 };
 
 /*****************************************************

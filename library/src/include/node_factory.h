@@ -39,7 +39,9 @@ public:
     // Create node (user level) using this function
     static std::unique_ptr<TreeNode> CreateNodeFromScheme(ComputeScheme s,
                                                           TreeNode*     parent = nullptr);
-    static std::unique_ptr<TreeNode> CreateExplicitNode(NodeMetaData& nodeData, TreeNode* parent);
+    static std::unique_ptr<TreeNode> CreateExplicitNode(NodeMetaData& nodeData,
+                                                        TreeNode*     parent,
+                                                        ComputeScheme determined_scheme = CS_NONE);
 
     static bool NonPow2LengthSupported(rocfft_precision precision, size_t len);
 

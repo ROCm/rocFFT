@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -39,25 +39,24 @@ using namespace std::placeholders;
 #include "device/kernel-generator-embed.h"
 
 // generate name for RTC stockham kernel
-std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
-                                     size_t                  length1D,
-                                     size_t                  length2D,
-                                     size_t                  static_dim,
-                                     int                     direction,
-                                     rocfft_precision        precision,
-                                     rocfft_result_placement placement,
-                                     rocfft_array_type       inArrayType,
-                                     rocfft_array_type       outArrayType,
-                                     bool                    unitstride,
-                                     size_t                  largeTwdBase,
-                                     size_t                  largeTwdSteps,
-                                     bool                    largeTwdBatchIsTransformCount,
-                                     EmbeddedType            ebtype,
-                                     DirectRegType           dir2regMode,
-                                     IntrinsicAccessType     intrinsicMode,
-                                     SBRC_TRANSPOSE_TYPE     transpose_type,
-                                     bool                    enable_callbacks,
-                                     bool                    enable_scaling)
+std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
+                                     const StockhamGeneratorSpecs& specs2d,
+                                     ComputeScheme                 scheme,
+                                     int                           direction,
+                                     rocfft_precision              precision,
+                                     rocfft_result_placement       placement,
+                                     rocfft_array_type             inArrayType,
+                                     rocfft_array_type             outArrayType,
+                                     bool                          unitstride,
+                                     size_t                        largeTwdBase,
+                                     size_t                        largeTwdSteps,
+                                     bool                          largeTwdBatchIsTransformCount,
+                                     EmbeddedType                  ebtype,
+                                     DirectRegType                 dir2regMode,
+                                     IntrinsicAccessType           intrinsicMode,
+                                     SBRC_TRANSPOSE_TYPE           transpose_type,
+                                     bool                          enable_callbacks,
+                                     bool                          enable_scaling)
 {
     std::string kernel_name = "fft_rtc";
 
@@ -67,14 +66,40 @@ std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
         kernel_name += "_back";
 
     kernel_name += "_len";
-    kernel_name += std::to_string(length1D);
-    if(length2D)
-        kernel_name += "x" + std::to_string(length2D);
+    kernel_name += std::to_string(specs.length);
+    if(scheme == CS_KERNEL_2D_SINGLE)
+        kernel_name += "x" + std::to_string(specs2d.length);
 
-    if(static_dim)
+    // need to save the kernel configurations in name,
+    kernel_name += "_factors";
+    for(auto f : specs.factors)
+    {
+        kernel_name += "_";
+        kernel_name += std::to_string(f);
+    }
+    if(scheme == CS_KERNEL_2D_SINGLE)
+    {
+        kernel_name += "_x";
+        for(auto f : specs2d.factors)
+        {
+            kernel_name += "_";
+            kernel_name += std::to_string(f);
+        }
+    }
+    kernel_name += "_wgs_";
+    kernel_name += std::to_string(specs.workgroup_size);
+    kernel_name += "_tpt_";
+    kernel_name += std::to_string(specs.threads_per_transform);
+    if(scheme == CS_KERNEL_2D_SINGLE)
+        kernel_name += "x" + std::to_string(specs2d.threads_per_transform);
+
+    if(specs.half_lds)
+        kernel_name += "_halfLds";
+
+    if(specs.static_dim)
     {
         kernel_name += "_dim";
-        kernel_name += std::to_string(static_dim);
+        kernel_name += std::to_string(specs.static_dim);
     }
 
     kernel_name += rtc_precision_name(precision);

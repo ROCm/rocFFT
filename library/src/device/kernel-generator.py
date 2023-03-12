@@ -43,7 +43,7 @@ from operator import mul
 
 from generator import (ArgumentList, BaseNode, Call, CommentBlock, Function,
                        Include, LineBreak, Map, StatementList, Variable,
-                       name_args, write, clang_format_file)
+                       Assign, name_args, write, clang_format_file)
 
 from collections import namedtuple
 
@@ -169,18 +169,21 @@ def generate_cpu_function_pool(functions):
         'dp': 'rocfft_precision_double',
         'half': 'rocfft_precision_half',
     }
+    var_kernel = Variable('kernel', 'FFTKernel')
 
     populate = StatementList()
+    populate += var_kernel.declaration()
     for f in functions:
         length, precision, scheme, transpose = f.meta.length, f.meta.precision, f.meta.scheme, f.meta.transpose
         if isinstance(length, (int, str)):
             length = [length, 0]
+        populate += Assign(var_kernel, FFTKernel(f))
         key = Call(name='std::make_tuple',
                    arguments=ArgumentList(
                        'std::array<size_t, 2>({' + cjoin(length) + '})',
-                       precisions[precision], scheme, transpose
-                       or 'NONE')).inline()
-        populate += function_map.assert_emplace(key, FFTKernel(f))
+                       precisions[precision], scheme, transpose or 'NONE',
+                       'kernel.get_kernel_config()')).inline()
+        populate += function_map.assert_insert(key, var_kernel)
 
     return StatementList(
         Include('"../include/function_pool.h"'),

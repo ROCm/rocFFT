@@ -332,7 +332,7 @@ std::string stockham_variants(const std::string&      filename,
             kernel.generate_device_function(), {}, kernel.generate_global_function(), false);
 
         std::vector<LaunchSuffix> suffixes;
-        suffixes.push_back({"sbrc", "CS_KERNEL_STOCKHAM_BLOCK_RC", "SBRC_2D", "NONE"});
+        suffixes.push_back({"sbrc", "CS_KERNEL_STOCKHAM_BLOCK_RC", "SBRC_2D", "TILE_ALIGNED"});
         suffixes.push_back(
             {"sbrc_unaligned", "CS_KERNEL_STOCKHAM_BLOCK_RC", "SBRC_2D", "TILE_UNALIGNED"});
         suffixes.push_back({"sbrc3d_fft_trans_xy_z_tile_aligned",

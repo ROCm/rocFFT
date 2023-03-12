@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,7 @@
 #include "../device/kernels/callback.h"
 #include "../device/kernels/common.h"
 #include "compute_scheme.h"
+#include "function_map_key.h"
 #include "kargs.h"
 #include "rtc_kernel.h"
 #include <hip/hip_runtime_api.h>
@@ -77,8 +78,10 @@ enum rocfft_optimize_strategy
 
 std::string PrintOperatingBuffer(const OperatingBuffer ob);
 std::string PrintOperatingBufferCode(const OperatingBuffer ob);
-std::string PrintSBRCTransposeType(const SBRC_TRANSPOSE_TYPE ty);
 std::string PrintDirectToFromRegMode(const DirectRegType ty);
+std::string PrintArrayType(const rocfft_array_type aryType);
+std::string PrintPlacement(const rocfft_result_placement placement);
+std::string PrintEBType(const EmbeddedType ebtype);
 
 typedef void (*DevFnCall)(const void*, void*);
 
@@ -101,6 +104,47 @@ struct GridParam
     }
 };
 
+// get device property
+static hipDeviceProp_t get_curr_device_prop()
+{
+    hipDeviceProp_t prop;
+    int             deviceId = 0;
+    if(hipGetDevice(&deviceId) != hipSuccess)
+        throw std::runtime_error("hipGetDevice failed.");
+
+    if(hipGetDeviceProperties(&prop, deviceId) != hipSuccess)
+        throw std::runtime_error("hipGetDeviceProperties failed for deviceId "
+                                 + std::to_string(deviceId));
+
+    return prop;
+}
+
+// get the arch name, as a part of key of solution map
+static std::string get_arch_name(const hipDeviceProp_t& prop)
+{
+    static const std::vector<std::string> arch_list = {"gfx803",
+                                                       "gfx900",
+                                                       "gfx906",
+                                                       "gfx908",
+                                                       "gfx90a",
+                                                       "gfx1030",
+                                                       "gfx1100",
+                                                       "gfx1101",
+                                                       "gfx1102"};
+
+    static const std::string anyArch("any");
+    std::string              archName(prop.gcnArchName);
+
+    for(const auto& arch : arch_list)
+    {
+        if(archName.find(arch) != std::string::npos)
+            return arch;
+    }
+
+    // kind of a fall-back solution
+    return anyArch;
+}
+
 static bool is_device_gcn_arch(const hipDeviceProp_t& prop, const std::string& cmpTarget)
 {
     std::string archName(prop.gcnArchName);
@@ -117,6 +161,22 @@ static bool is_cube_size(const std::vector<size_t>& length)
 {
     return length.size() == 3 && length[0] == length[1] && length[1] == length[2];
 }
+
+struct SchemeTree
+{
+    ComputeScheme                            curScheme;
+    std::vector<std::unique_ptr<SchemeTree>> children;
+
+    SchemeTree() {}
+    SchemeTree(ComputeScheme s)
+        : curScheme(s)
+    {
+    }
+};
+
+using SchemeVec = std::vector<ComputeScheme>;
+
+static SchemeVec EmptySchemeVec = {};
 
 class TreeNode;
 
@@ -296,7 +356,10 @@ public:
     DirectRegType dir2regMode = DirectRegType::FORCE_OFF_OR_NOT_SUPPORT;
 
     // sbrc transpose type
-    SBRC_TRANSPOSE_TYPE sbrcTranstype = SBRC_TRANSPOSE_TYPE::NONE;
+    mutable SBRC_TRANSPOSE_TYPE sbrcTranstype = SBRC_TRANSPOSE_TYPE::NONE;
+
+    // specified kernel key from solution map. (if there is any)
+    std::unique_ptr<FMKey> specified_key;
 
     // Tree structure:
     // non-owning pointer to parent node, may be null
@@ -392,8 +455,10 @@ public:
         return false;
     }
 
-    virtual void RecursiveBuildTree(); // Main tree builder: override by child
-    virtual void SanityCheck();
+    void RecursiveBuildTree(SchemeTree* solution_scheme = nullptr);
+
+    virtual void SanityCheck(SchemeTree*         solution_scheme = nullptr,
+                             std::vector<FMKey>& kernel_keys     = EmptyFMKeyVec);
     // If high dims are contiguous, we can collapse them to make offset
     // calculation simpler
     void CollapseContiguousDims();
@@ -428,7 +493,7 @@ public:
                                size_t& chirpSize);
 
     // Output plan information for debug purposes:
-    void Print(rocfft_ostream& os, int indent = 0) const;
+    virtual void Print(rocfft_ostream& os, int indent = 0) const;
 
     // logic B - using in-place transposes, todo
     //void RecursiveBuildTreeLogicB();
@@ -462,10 +527,10 @@ public:
         return false;
     }
 
-    virtual bool KernelCheck()                                             = 0;
-    virtual bool CreateDevKernelArgs()                                     = 0;
-    virtual bool CreateTwiddleTableResource()                              = 0;
-    virtual void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) = 0;
+    virtual bool KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) = 0;
+    virtual bool CreateDevKernelArgs()                                        = 0;
+    virtual bool CreateTwiddleTableResource()                                 = 0;
+    virtual void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)    = 0;
 
     // for 3D SBRC kernels, decide the transpose type based on the
     // block width and lengths that the block tiles need to align on.
@@ -473,6 +538,16 @@ public:
     virtual SBRC_TRANSPOSE_TYPE sbrc_transpose_type(unsigned int blockWidth) const
     {
         return NONE;
+    }
+
+    // default implementation of leaf node, for non-sbrc type without sbrc_trans
+    virtual FMKey GetKernelKey() const
+    {
+        if(specified_key)
+            return *specified_key.get();
+
+        return (dimension == 1) ? fpkey(length[0], precision, scheme)
+                                : fpkey(length[0], length[1], precision, scheme);
     }
 
     // Compute the large twd decomposition base
@@ -484,8 +559,8 @@ public:
     bool IsBluesteinChirpSetup();
 
 protected:
-    virtual void BuildTree_internal()    = 0;
-    virtual void AssignParams_internal() = 0;
+    virtual void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) = 0;
+    virtual void AssignParams_internal()                                             = 0;
 };
 
 class InternalNode : public TreeNode
@@ -517,7 +592,7 @@ protected:
     }
 
 public:
-    bool KernelCheck() override
+    bool KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) override
     {
         return true;
     }
@@ -545,9 +620,11 @@ public:
     size_t              wgs              = 0;
     size_t              lds              = 0;
 
-    void           BuildTree_internal() final {} // nothing to do in leaf node
-    void           AssignParams_internal() final {} // nothing to do in leaf node
-    bool           CreateLargeTwdTable();
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) final {
+    } // nothing to do in leaf node
+    void AssignParams_internal() final {} // nothing to do in leaf node
+    bool CreateLargeTwdTable();
+
     virtual size_t GetTwiddleTableLength();
     // Limit length of generated twiddle table.  Default limit is 0,
     // which means to generate the full length of table.
@@ -557,8 +634,12 @@ public:
     }
     virtual void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) = 0;
 
-    bool         KernelCheck() override;
-    void         SanityCheck() override;
+public:
+    // leaf node would print additional informations about kernel setting
+    void         Print(rocfft_ostream& os, int indent = 0) const override;
+    bool         KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) override;
+    void         SanityCheck(SchemeTree*         solution_scheme = nullptr,
+                             std::vector<FMKey>& kernel_keys     = EmptyFMKeyVec) override;
     virtual bool CreateDevKernelArgs() override;
     bool         CreateTwiddleTableResource() override;
     void         SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) override;
@@ -608,6 +689,12 @@ struct ExecPlan
     // are the nodes that do actual work
     std::vector<TreeNode*> execSeq;
 
+    // kernels that extracted from solution map
+    std::vector<FMKey> solution_kernels;
+
+    // scheme decompositions from solution map
+    std::unique_ptr<SchemeTree> rootScheme;
+
     // flattened potentially-fusable shims of rootPlan
     std::vector<FuseShim*> fuseShims;
 
@@ -618,6 +705,10 @@ struct ExecPlan
 
     std::vector<size_t> iLength;
     std::vector<size_t> oLength;
+
+    // description for this problem, for searching solution map
+    // TODO- what information should be included ?
+    std::string problemToken;
 
     // default: starting from ABT, balance buffers and fusions
     // we could allow users to set in the later PR
@@ -642,7 +733,8 @@ struct ExecPlan
     std::pair<TreeNode*, TreeNode*> get_load_store_nodes() const;
 };
 
-void ProcessNode(ExecPlan& execPlan);
-void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan);
+std::unique_ptr<SchemeTree> ApplySolution(ExecPlan& execPlan);
+void                        ProcessNode(ExecPlan& execPlan);
+void                        PrintNode(rocfft_ostream& os, const ExecPlan& execPlan);
 
 #endif // TREE_NODE_H

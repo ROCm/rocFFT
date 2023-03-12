@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -41,7 +41,9 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     // if scale factor is enabled, we force RTC for this kernel
     bool enable_scaling = node.IsScalingEnabled();
 
-    SBRC_TRANSPOSE_TYPE transpose_type = NONE;
+    // for sbrc variant, the sbrcTranstype should be assigned when we are here
+    // since the value is assigned in KernelCheck()
+    SBRC_TRANSPOSE_TYPE transpose_type = node.sbrcTranstype;
 
     // SBRC variants look in the function pool for plain BLOCK_RC to
     // learn the block width, then decide on the transpose type once
@@ -62,7 +64,9 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     std::optional<FFTKernel> kernel;
 
     // find function pool entry so we can construct specs for the generator
+    // NB: make sure all SBRC-type node have the correct trans_type value
     FMKey key;
+    key = node.GetKernelKey();
     switch(pool_scheme)
     {
     case CS_KERNEL_STOCKHAM:
@@ -70,9 +74,11 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     case CS_KERNEL_STOCKHAM_BLOCK_CR:
     case CS_KERNEL_STOCKHAM_BLOCK_RC:
     {
+        if((pool_scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) && (transpose_type == NONE))
+            throw std::runtime_error("Invalid SBRC_TRANS_TYPE for SBRC kernel");
+
         // these go into the function pool normally and are passed to
         // the generator as-is
-        key    = fpkey(node.length[0], node.precision, pool_scheme);
         kernel = pool.get_kernel(key);
         // if a kernel is already precompiled, just use that.  but
         // changing largeTwdBatch transform count requires RTC, so we
@@ -80,15 +86,6 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
         if(kernel->device_function && !enable_scaling && !node.largeTwdBatchIsTransformCount)
         {
             return generator;
-        }
-
-        // for SBRC variants, get the "real" kernel using the block
-        // width and correct transpose type
-        if(pool_scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
-        {
-            transpose_type = node.sbrc_transpose_type(kernel->transforms_per_block);
-            key            = fpkey(node.length[0], node.precision, node.scheme, transpose_type);
-            kernel         = pool.get_kernel(key);
         }
 
         std::vector<unsigned int> factors;
@@ -107,7 +104,6 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     }
     case CS_KERNEL_2D_SINGLE:
     {
-        key    = fpkey(node.length[0], node.length[1], node.precision, node.scheme);
         kernel = pool.get_kernel(key);
         // already precompiled?
         if(kernel->device_function && !enable_scaling)
@@ -173,10 +169,9 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                            : (node.inStride.front() == 1 && node.outStride.front() == 1);
 
     generator.generate_name = [=, &node]() {
-        return stockham_rtc_kernel_name(node.scheme,
-                                        node.length[0],
-                                        node.scheme == CS_KERNEL_2D_SINGLE ? node.length[1] : 0,
-                                        static_dim,
+        return stockham_rtc_kernel_name(*specs,
+                                        specs2d ? *specs2d : *specs,
+                                        node.scheme,
                                         node.direction,
                                         node.precision,
                                         node.placement,

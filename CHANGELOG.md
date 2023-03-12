@@ -51,8 +51,8 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Added gfx1100 and gfx1102 to default AMDGPU_TARGETS.
 
 ### Changed
-- Moved runtime compilation cache to in-memory by default.  A default on-disk cache can encounter contention problems 
-on multi-node clusters with a shared filesystem.  rocFFT can still be told to use an on-disk cache by setting the 
+- Moved runtime compilation cache to in-memory by default.  A default on-disk cache can encounter contention problems
+on multi-node clusters with a shared filesystem.  rocFFT can still be told to use an on-disk cache by setting the
 ROCFFT_RTC_CACHE_PATH environment variable.
 
 ## rocFFT 1.0.18 for ROCm 5.3.0

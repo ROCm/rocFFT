@@ -25,6 +25,7 @@
 #define TO_STR2(x) #x
 #define TO_STR(x) TO_STR2(x)
 #define ENUMSTR(x) x, TO_STR(x)
+#define STRENUM(x) TO_STR(x), x
 
 static const std::map<ComputeScheme, const char*>& ComputeSchemetoStringMap()
 {
@@ -88,4 +89,18 @@ static const std::map<ComputeScheme, const char*>& ComputeSchemetoStringMap()
 std::string PrintScheme(ComputeScheme cs)
 {
     return ComputeSchemetoStringMap().at(cs);
+}
+
+static std::map<std::string, ComputeScheme> StrToComputeSchemeMap()
+{
+    std::map<std::string, ComputeScheme> String2ComputeScheme;
+    for(auto i : ComputeSchemetoStringMap())
+        String2ComputeScheme.emplace(i.second, i.first);
+    return String2ComputeScheme;
+}
+
+ComputeScheme StrToComputeScheme(const std::string& str)
+{
+    static auto csmap = StrToComputeSchemeMap();
+    return csmap.at(str);
 }

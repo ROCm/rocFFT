@@ -1,5 +1,5 @@
 /******************************************************************************
-* Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+* Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -27,6 +27,7 @@
 #include "rocfft_hip.h"
 #include "rocfft_ostream.hpp"
 #include "rtc_cache.h"
+#include "solution_map.h"
 #include <fcntl.h>
 #include <memory>
 
@@ -116,6 +117,9 @@ rocfft_status rocfft_setup()
         if(layer_mode & rocfft_layer_mode_log_rtc)
             open_log_stream("ROCFFT_LOG_RTC_PATH", log_rtc_fd);
     }
+
+    // setup solution map once in program at the start of library use
+    solution_map::get_solution_map().setup();
 
     log_trace(__func__);
     return rocfft_status_success;

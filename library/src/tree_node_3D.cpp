@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -28,16 +28,22 @@
 /*****************************************************
  * 3D_RTRT  *
  *****************************************************/
-void RTRT3DNode::BuildTree_internal()
+void RTRT3DNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
+    bool noSolution = child_schemes.empty();
+
     // 2d fft
     NodeMetaData xyPlanData(this);
     xyPlanData.length    = length;
     xyPlanData.dimension = 2;
-    auto xyPlan          = NodeFactory::CreateExplicitNode(xyPlanData, this);
+    // skip the decide scheme part in node factory
+    ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[0];
+    auto          xyPlan = NodeFactory::CreateExplicitNode(xyPlanData, this, determined_scheme);
     xyPlan->RecursiveBuildTree();
 
     // first transpose
+    if(!noSolution)
+        assert(child_schemes[1] == CS_KERNEL_TRANSPOSE_XY_Z);
     auto trans1Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
     trans1Plan->length = length;
     trans1Plan->SetTransposeOutputLength();
@@ -50,10 +56,14 @@ void RTRT3DNode::BuildTree_internal()
     zPlanData.length.push_back(length[2]);
     zPlanData.length.push_back(length[0]);
     zPlanData.length.push_back(length[1]);
-    auto zPlan = NodeFactory::CreateExplicitNode(zPlanData, this);
+    // skip the decide scheme part in node factory
+    determined_scheme = determined_scheme = (noSolution) ? CS_NONE : child_schemes[2];
+    auto zPlan = NodeFactory::CreateExplicitNode(zPlanData, this, determined_scheme);
     zPlan->RecursiveBuildTree();
 
     // second transpose
+    if(!noSolution)
+        assert(child_schemes[3] == CS_KERNEL_TRANSPOSE_Z_XY);
     auto trans2Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
     trans2Plan->length = zPlan->length;
     trans2Plan->SetTransposeOutputLength();
@@ -143,13 +153,17 @@ void RTRT3DNode::AssignParams_internal()
 /*****************************************************
  * 3D_TRTRTR  *
  *****************************************************/
-void TRTRTR3DNode::BuildTree_internal()
+void TRTRTR3DNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
+    bool noSolution = child_schemes.empty();
+
     std::vector<size_t> cur_length = length;
 
     for(int i = 0; i < 6; i += 2)
     {
         // transpose Z_XY
+        if(!noSolution)
+            assert(child_schemes[i] == CS_KERNEL_TRANSPOSE_Z_XY);
         auto trans_plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
         trans_plan->length = cur_length;
         trans_plan->SetTransposeOutputLength();
@@ -162,7 +176,9 @@ void TRTRTR3DNode::BuildTree_internal()
         NodeMetaData row_plan_data(this);
         row_plan_data.length    = cur_length;
         row_plan_data.dimension = 1;
-        auto row_plan           = NodeFactory::CreateExplicitNode(row_plan_data, this);
+        // skip the decide scheme part in node factory
+        ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[i + 1];
+        auto row_plan = NodeFactory::CreateExplicitNode(row_plan_data, this, determined_scheme);
         row_plan->RecursiveBuildTree();
 
         // TR
@@ -264,8 +280,10 @@ void TRTRTR3DNode::AssignParams_internal()
 /*****************************************************
  * CS_3D_BLOCK_RC  *
  *****************************************************/
-void BLOCKRC3DNode::BuildTree_internal()
+void BLOCKRC3DNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
+    bool noSolution = child_schemes.empty();
+
     std::vector<size_t> cur_length = length;
 
     // NB:
@@ -317,7 +335,7 @@ void BLOCKRC3DNode::BuildTree_internal()
         if(have_sbrc)
         {
             auto kernel = function_pool::get_kernel(
-                fpkey(cur_length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
+                fpkey(cur_length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC, TILE_ALIGNED));
 
             size_t otherDim = use_ZXY_sbrc ? cur_length[1] : cur_length[2];
             if(otherDim % kernel.transforms_per_block != 0)
@@ -344,8 +362,10 @@ void BLOCKRC3DNode::BuildTree_internal()
 
         if(have_sbrc)
         {
-            auto sbrcScheme   = (use_ZXY_sbrc) ? CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY
-                                               : CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z;
+            auto sbrcScheme = (use_ZXY_sbrc) ? CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY
+                                             : CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z;
+            if(!noSolution)
+                assert(child_schemes[childNodes.size()] == sbrcScheme);
             auto sbrc_node    = NodeFactory::CreateNodeFromScheme(sbrcScheme, this);
             sbrc_node->length = cur_length;
             sbrc_node->SetTransposeOutputLength();
@@ -357,12 +377,16 @@ void BLOCKRC3DNode::BuildTree_internal()
             NodeMetaData row_plan_data(this);
             row_plan_data.length    = cur_length;
             row_plan_data.dimension = 1;
-            auto row_plan           = NodeFactory::CreateExplicitNode(row_plan_data, this);
+            ComputeScheme determined_scheme
+                = (noSolution) ? CS_NONE : child_schemes[childNodes.size()];
+            auto row_plan = NodeFactory::CreateExplicitNode(row_plan_data, this, determined_scheme);
             row_plan->RecursiveBuildTree();
 
             // transpose XY_Z
             auto transScheme = (use_ZXY_sbrc) ? CS_KERNEL_TRANSPOSE_Z_XY : CS_KERNEL_TRANSPOSE_XY_Z;
-            auto trans_plan  = NodeFactory::CreateNodeFromScheme(transScheme, this);
+            if(!noSolution)
+                assert(child_schemes[childNodes.size() + 1] == transScheme);
+            auto trans_plan    = NodeFactory::CreateNodeFromScheme(transScheme, this);
             trans_plan->length = cur_length;
             trans_plan->SetTransposeOutputLength();
             if(!use_ZXY_sbrc)
@@ -469,14 +493,18 @@ void BLOCKRC3DNode::AssignParams_internal()
 /*****************************************************
  * CS_3D_BLOCK_CR  *
  *****************************************************/
-void BLOCKCR3DNode::BuildTree_internal()
+void BLOCKCR3DNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
+    bool noSolution = child_schemes.empty();
+
     // TODO: It works only for 3 SBCR children nodes for now.
     //       The final logic will be similar to what SBRC has.
 
     std::vector<size_t> cur_length = length;
     for(int i = 0; i < 3; ++i)
     {
+        if(!noSolution)
+            assert(child_schemes[i] == CS_KERNEL_STOCKHAM_BLOCK_CR);
         auto node = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CR, this);
         node->length.push_back(cur_length[2]);
         node->length.push_back(cur_length[0] * cur_length[1]);
@@ -521,8 +549,10 @@ void BLOCKCR3DNode::AssignParams_internal()
 /*****************************************************
  * CS_3D_RC  *
  *****************************************************/
-void RC3DNode::BuildTree_internal()
+void RC3DNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
+    bool noSolution = child_schemes.empty();
+
     // 2d fft
     NodeMetaData xyPlanData(this);
     xyPlanData.length.push_back(length[0]);
@@ -533,7 +563,9 @@ void RC3DNode::BuildTree_internal()
     {
         xyPlanData.length.push_back(length[index]);
     }
-    auto xyPlan = NodeFactory::CreateExplicitNode(xyPlanData, this);
+    // skip the decide scheme part in node factory
+    ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[0];
+    auto          xyPlan = NodeFactory::CreateExplicitNode(xyPlanData, this, determined_scheme);
     xyPlan->RecursiveBuildTree();
 
     // z col fft
@@ -550,16 +582,27 @@ void RC3DNode::BuildTree_internal()
 
     // use explicit SBCC kernel if available
     std::unique_ptr<TreeNode> zPlan;
-    if(function_pool::has_SBCC_kernel(length[2], precision))
+
+    // skip the decide scheme part in node factory
+    determined_scheme = (noSolution) ? CS_NONE : child_schemes[1];
+    if(determined_scheme)
     {
-        zPlan            = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
-        zPlan->length    = zPlanData.length;
-        zPlan->dimension = 1;
+        zPlan = NodeFactory::CreateExplicitNode(zPlanData, this, determined_scheme);
+        zPlan->RecursiveBuildTree();
     }
     else
     {
-        zPlan = NodeFactory::CreateExplicitNode(zPlanData, this);
-        zPlan->RecursiveBuildTree();
+        if(function_pool::has_SBCC_kernel(length[2], precision))
+        {
+            zPlan            = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
+            zPlan->length    = zPlanData.length;
+            zPlan->dimension = 1;
+        }
+        else
+        {
+            zPlan = NodeFactory::CreateExplicitNode(zPlanData, this);
+            zPlan->RecursiveBuildTree();
+        }
     }
 
     // RC
@@ -597,38 +640,37 @@ void RC3DNode::AssignParams_internal()
 /*****************************************************
  * Base Class of fused SBRC and Transpose
  *****************************************************/
-bool SBRCTranspose3DNode::KernelCheck()
+FMKey SBRCTranspose3DNode::GetKernelKey() const
 {
-    // check we have the kernel,
-    // we always have aligned, get the kernel and the bwd
-    FMKey key = fpkey(length[0], precision, scheme, TILE_ALIGNED);
-    if(!function_pool::has_function(key))
+    if(specified_key)
+        return *specified_key.get();
+
+    // NB: Need to make sure that sbrcTranstype has the correct value
+    if(sbrcTranstype == SBRC_TRANSPOSE_TYPE::NONE)
     {
-        if(LOG_TRACE_ENABLED())
-            (*LogSingleton::GetInstance().GetTraceOS()) << PrintMissingKernelInfo(key);
-        return false;
+        // find the base kernel at first
+        FMKey baseKey = fpkey(length[0], precision, scheme, TILE_ALIGNED);
+        // if we have the base kernel, then we set the exact sbrc_trans_type and return the real key
+        // if we don't, then we simply return a key with NONE sbrc_trans_type
+        // which will make KernelCheck() trigger an exception
+        if(function_pool::has_function(baseKey))
+        {
+            auto bwd      = function_pool::get_kernel(baseKey).transforms_per_block;
+            sbrcTranstype = sbrc_transpose_type(bwd);
+        }
     }
 
-    auto bwd = function_pool::get_kernel(key).transforms_per_block;
+    return fpkey(length[0], precision, scheme, sbrcTranstype);
+}
 
-    // check if we have the sbrc_type that we are actually applying
-    sbrcTranstype = sbrc_transpose_type(bwd);
-    if(!function_pool::has_function(fpkey(length[0], precision, scheme, sbrcTranstype)))
-    {
-        if(LOG_TRACE_ENABLED())
-            (*LogSingleton::GetInstance().GetTraceOS())
-                << PrintMissingKernelInfo(fpkey(length[0], precision, scheme, sbrcTranstype));
-        return false;
-    }
-
-    dir2regMode = (function_pool::get_kernel(key).direct_to_from_reg)
-                      ? DirectRegType::TRY_ENABLE_IF_SUPPORT
-                      : DirectRegType::FORCE_OFF_OR_NOT_SUPPORT;
+bool SBRCTranspose3DNode::KernelCheck(std::vector<FMKey>& kernel_keys)
+{
+    bool res = LeafNode::KernelCheck(kernel_keys);
 
     // set according to benchmark
     SetDirectRegType();
 
-    return true;
+    return res;
 }
 
 void SBRCTranspose3DNode::SetDirectRegType()
@@ -678,15 +720,14 @@ void SBRCTranspose3DNode::SetDirectRegType()
  *****************************************************/
 void SBRCTransXY_ZNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    auto kernel
-        = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd           = kernel.transforms_per_block;
-    wgs           = kernel.workgroup_size;
-    lds           = length[0] * bwd;
-    sbrcTranstype = sbrc_transpose_type(bwd);
-    fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
-    gp.b_x        = DivRoundingUp(length[2], bwd) * length[1] * batch;
-    gp.wgs_x      = kernel.workgroup_size;
+    // sbrcTransType has already been assigned in KernelCheck();
+    auto kernel = function_pool::get_kernel(GetKernelKey());
+    fnPtr       = kernel.device_function;
+    bwd         = kernel.transforms_per_block;
+    wgs         = kernel.workgroup_size;
+    lds         = length[0] * bwd;
+    gp.b_x      = DivRoundingUp(length[2], bwd) * length[1] * batch;
+    gp.wgs_x    = wgs;
 }
 
 /*****************************************************
@@ -695,15 +736,14 @@ void SBRCTransXY_ZNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
  *****************************************************/
 void SBRCTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    auto kernel
-        = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd           = kernel.transforms_per_block;
-    wgs           = kernel.workgroup_size;
-    lds           = length[0] * bwd;
-    sbrcTranstype = sbrc_transpose_type(bwd);
-    fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
-    gp.b_x        = DivRoundingUp(length[1], bwd) * length[2] * batch;
-    gp.wgs_x      = kernel.workgroup_size;
+    // sbrcTransType has already been assigned in KernelCheck();
+    auto kernel = function_pool::get_kernel(GetKernelKey());
+    fnPtr       = kernel.device_function;
+    bwd         = kernel.transforms_per_block;
+    wgs         = kernel.workgroup_size;
+    lds         = length[0] * bwd;
+    gp.b_x      = DivRoundingUp(length[1], bwd) * length[2] * batch;
+    gp.wgs_x    = wgs;
 }
 
 /*****************************************************
@@ -712,16 +752,15 @@ void SBRCTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp
  *****************************************************/
 void RealCmplxTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    auto kernel
-        = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
-    bwd           = kernel.transforms_per_block;
-    wgs           = kernel.workgroup_size;
-    lds           = length[0] * bwd;
-    lds_padding   = 1;
-    sbrcTranstype = sbrc_transpose_type(bwd);
-    fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
-    gp.b_x        = DivRoundingUp(length[1], bwd) * length[2] * batch;
-    gp.wgs_x      = kernel.workgroup_size;
+    // sbrcTransType has already been assigned in KernelCheck();
+    auto kernel = function_pool::get_kernel(GetKernelKey());
+    fnPtr       = kernel.device_function;
+    bwd         = kernel.transforms_per_block;
+    wgs         = kernel.workgroup_size;
+    lds         = length[0] * bwd;
+    lds_padding = 1;
+    gp.b_x      = DivRoundingUp(length[1], bwd) * length[2] * batch;
+    gp.wgs_x    = wgs;
 }
 
 bool RealCmplxTransZ_XYNode::CreateDevKernelArgs()

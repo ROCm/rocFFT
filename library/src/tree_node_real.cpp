@@ -105,7 +105,7 @@ static bool SBCR_dim_available(const std::vector<size_t>& length,
 /*****************************************************
  * CS_REAL_TRANSFORM_USING_CMPLX
  *****************************************************/
-void RealTransCmplxNode::BuildTree_internal()
+void RealTransCmplxNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
     // Embed the data into a full-length complex array, perform a
     // complex transform, and then extract the relevant output.
@@ -186,7 +186,7 @@ void RealTransCmplxNode::AssignParams_internal()
 /*****************************************************
  * CS_REAL_TRANSFORM_EVEN
  *****************************************************/
-void RealTransEvenNode::BuildTree_internal()
+void RealTransEvenNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
     // Fastest moving dimension must be even:
     assert(length[0] % 2 == 0);
@@ -432,7 +432,7 @@ void RealTransEvenNode::AssignParams_internal()
 /*****************************************************
  * CS_REAL_2D_EVEN
  *****************************************************/
-void Real2DEvenNode::BuildTree_internal()
+void Real2DEvenNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
     // Fastest moving dimension must be even:
     assert(length[0] % 2 == 0);
@@ -779,7 +779,7 @@ void Real2DEvenNode::AssignParams_internal_TR_pair()
 /*****************************************************
  * CS_REAL_3D_EVEN
  *****************************************************/
-void Real3DEvenNode::BuildTree_internal()
+void Real3DEvenNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
     Build_solution();
 

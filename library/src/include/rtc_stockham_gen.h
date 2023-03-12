@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,25 +31,24 @@
 #include "../device/kernels/common.h"
 
 // generate name for RTC stockham kernel
-std::string stockham_rtc_kernel_name(ComputeScheme           scheme,
-                                     size_t                  length1D,
-                                     size_t                  length2D,
-                                     size_t                  static_dim,
-                                     int                     direction,
-                                     rocfft_precision        precision,
-                                     rocfft_result_placement placement,
-                                     rocfft_array_type       inArrayType,
-                                     rocfft_array_type       outArrayType,
-                                     bool                    unitstride,
-                                     size_t                  largeTwdBase,
-                                     size_t                  largeTwdSteps,
-                                     bool                    largeTwdBatchIsTransformCount,
-                                     EmbeddedType            ebtype,
-                                     DirectRegType           dir2regMode,
-                                     IntrinsicAccessType     intrinsicMode,
-                                     SBRC_TRANSPOSE_TYPE     transpose_type,
-                                     bool                    enable_callbacks,
-                                     bool                    enable_scaling);
+std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
+                                     const StockhamGeneratorSpecs& specs2d,
+                                     ComputeScheme                 scheme,
+                                     int                           direction,
+                                     rocfft_precision              precision,
+                                     rocfft_result_placement       placement,
+                                     rocfft_array_type             inArrayType,
+                                     rocfft_array_type             outArrayType,
+                                     bool                          unitstride,
+                                     size_t                        largeTwdBase,
+                                     size_t                        largeTwdSteps,
+                                     bool                          largeTwdBatchIsTransformCount,
+                                     EmbeddedType                  ebtype,
+                                     DirectRegType                 dir2regMode,
+                                     IntrinsicAccessType           intrinsicMode,
+                                     SBRC_TRANSPOSE_TYPE           transpose_type,
+                                     bool                          enable_callbacks,
+                                     bool                          enable_scaling);
 
 // generate source for RTC stockham kernel.  transforms_per_block may
 // be nullptr, but if non-null, stockham_rtc stores the number of

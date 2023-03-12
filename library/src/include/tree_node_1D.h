@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,7 @@ protected:
         scheme = CS_L1D_TRTRT;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 };
 
 /*****************************************************
@@ -54,7 +54,7 @@ protected:
         scheme = CS_L1D_CC;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 };
 
 /*****************************************************
@@ -71,7 +71,7 @@ protected:
         scheme = CS_L1D_CRT;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 };
 
 /*****************************************************
@@ -125,7 +125,7 @@ protected:
 
 public:
     // we can put codes here to switch-on/off some features at arch-wise
-    bool KernelCheck() override;
+    bool KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) override;
 
     // reads + writes are along columns so both may benefit from padding
     bool PaddingBenefitsInput() override
@@ -163,7 +163,10 @@ public:
     SBRC_TRANSPOSE_TYPE sbrc_transpose_type(unsigned int blockWidth) const override;
 
     // we can put codes here to switch-on/off some features at arch-wise
-    bool KernelCheck() override;
+    bool KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) override;
+
+    // override for sbrcTransType
+    FMKey GetKernelKey() const override;
 
     // writes are along columns so they may benefit from padding
     bool PaddingBenefitsOutput() override
@@ -200,7 +203,7 @@ protected:
 
 public:
     // we can put codes here to switch-on/off some features at arch-wise
-    bool KernelCheck() override;
+    bool KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) override;
 
     bool CreateTwiddleTableResource() override;
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,7 @@ protected:
         scheme = CS_BLUESTEIN;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 };
 
 /*****************************************************
@@ -58,7 +58,7 @@ public:
     // check if the specified 1D length fits into single-kernel Bluestein
     static bool SizeFits(size_t length, rocfft_precision precision);
 
-    bool KernelCheck() override
+    bool KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) override
     {
         GetKernelFactors();
         return true;

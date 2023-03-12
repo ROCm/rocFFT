@@ -132,18 +132,15 @@ void stockham_combo(ComputeScheme             scheme,
         unitstride_range = {false};
 
         base_steps.resize(1);
-        // All SBRCs have TILE_UNALIGNED
-        sbrc_trans_types.push_back(SBRC_TRANSPOSE_TYPE::TILE_UNALIGNED);
-        // Finish SBRC-2D
-        if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
-            break;
-        // All 3D SBRCs have TILE_ALIGNED, but "NO" SBRC_TRANSPOSE_TYPE::NONE
-        sbrc_trans_types.push_back(SBRC_TRANSPOSE_TYPE::TILE_ALIGNED);
+        // All SBRCs have ALIGNED and UNALIGNED, but no NONE
         sbrc_trans_types.erase(sbrc_trans_types.begin());
-        // Finish ERC
-        if(scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
+        sbrc_trans_types.push_back(SBRC_TRANSPOSE_TYPE::TILE_ALIGNED);
+        sbrc_trans_types.push_back(SBRC_TRANSPOSE_TYPE::TILE_UNALIGNED);
+        // Finish SBRC-2D and SBRC-3D-ERC without DIAGONAL
+        if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC
+           || scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
             break;
-        // DIAGNAL Transpose
+        // DIAGONAL Transpose
         sbrc_trans_types.push_back(SBRC_TRANSPOSE_TYPE::DIAGONAL);
 
         break;
@@ -239,6 +236,15 @@ void build_stockham_function_pool(CompileQueue& queue)
         std::vector<unsigned int> factors;
         std::copy(i.second.factors.begin(), i.second.factors.end(), std::back_inserter(factors));
 
+        StockhamGeneratorSpecs specs{factors,
+                                     {},
+                                     {static_cast<unsigned int>(precision)},
+                                     static_cast<unsigned int>(i.second.workgroup_size),
+                                     PrintScheme(scheme)};
+        specs.threads_per_transform = i.second.threads_per_transform[0];
+        specs.half_lds              = i.second.half_lds;
+        specs.direct_to_from_reg    = i.second.direct_to_from_reg;
+
         stockham_combo(scheme,
                        i.second,
                        [=, &queue](int                     direction,
@@ -273,10 +279,9 @@ void build_stockham_function_pool(CompileQueue& queue)
                                    return;
                            }
 
-                           auto kernel_name = stockham_rtc_kernel_name(scheme,
-                                                                       length1D,
-                                                                       0,
-                                                                       0,
+                           auto kernel_name = stockham_rtc_kernel_name(specs,
+                                                                       specs,
+                                                                       scheme,
                                                                        direction,
                                                                        precision,
                                                                        placement,

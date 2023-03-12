@@ -109,11 +109,11 @@ enum StrideBin
     SB_NONUNIT,
 };
 
-enum class EmbeddedType
+enum class EmbeddedType : int
 {
-    NONE, // Works as the regular complex to complex FFT kernel
-    Real2C_POST, // Works with even-length real2complex post-processing
-    C2Real_PRE, // Works with even-length complex2real pre-processing
+    NONE        = 0, // Works as the regular complex to complex FFT kernel
+    Real2C_POST = 1, // Works with even-length real2complex post-processing
+    C2Real_PRE  = 2, // Works with even-length complex2real pre-processing
 };
 
 // TODO: rework this
@@ -141,11 +141,9 @@ enum SBRC_TYPE
 
 enum SBRC_TRANSPOSE_TYPE
 {
-    NONE,
-    // best, but requires cube sizes
-    DIAGONAL,
-    // OK, doesn't require handling unaligned corner case
-    TILE_ALIGNED,
+    NONE, // indicating this is a non-sbrc type, an SBRC kernel shouldn't have this
+    DIAGONAL, // best, but requires cube sizes
+    TILE_ALIGNED, // OK, doesn't require handling unaligned corner case
     TILE_UNALIGNED,
 };
 

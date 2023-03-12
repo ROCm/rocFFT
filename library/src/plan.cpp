@@ -33,6 +33,7 @@
 #include "rocfft.h"
 #include "rocfft_ostream.hpp"
 #include "rtc_kernel.h"
+#include "solution_map.h"
 
 #include <algorithm>
 #include <assert.h>
@@ -47,6 +48,7 @@
 #define TO_STR2(x) #x
 #define TO_STR(x) TO_STR2(x)
 #define ENUMSTR(x) x, TO_STR(x)
+#define STRENUM(x) TO_STR(x), x
 
 // clang-format off
 #define ROCFFT_VERSION_STRING (TO_STR(rocfft_version_major) "." \
@@ -55,9 +57,40 @@
                                TO_STR(rocfft_version_tweak) )
 // clang-format on
 
+static std::map<rocfft_precision, const char*> PrecisionToStrMap()
+{
+    std::map<rocfft_precision, const char*> PrecisionToStr = {{rocfft_precision_single, "single"},
+                                                              {rocfft_precision_double, "double"},
+                                                              {rocfft_precision_half, "half"}};
+    return PrecisionToStr;
+}
+
+static std::map<std::string, rocfft_precision> StrToPrecisionMap()
+{
+    std::map<std::string, rocfft_precision> StrToPrecision;
+    for(auto i : PrecisionToStrMap())
+        StrToPrecision.emplace(i.second, i.first);
+    return StrToPrecision;
+}
+
+static std::map<SBRC_TRANSPOSE_TYPE, const char*> SBRCTransTypetoStrMap()
+{
+    std::map<SBRC_TRANSPOSE_TYPE, const char*> SBRCTransTypeToStr = {
+        {ENUMSTR(NONE)}, {ENUMSTR(DIAGONAL)}, {ENUMSTR(TILE_ALIGNED)}, {ENUMSTR(TILE_UNALIGNED)}};
+    return SBRCTransTypeToStr;
+}
+
+static std::map<std::string, SBRC_TRANSPOSE_TYPE> StrToSBRCTransTypeMap()
+{
+    std::map<std::string, SBRC_TRANSPOSE_TYPE> StrToSBRCTransType;
+    for(auto i : SBRCTransTypetoStrMap())
+        StrToSBRCTransType.emplace(i.second, i.first);
+    return StrToSBRCTransType;
+}
+
 std::string PrintOperatingBuffer(const OperatingBuffer ob)
 {
-    const std::map<OperatingBuffer, const char*> BuffertoString
+    static const std::map<OperatingBuffer, const char*> BuffertoString
         = {{ENUMSTR(OB_UNINIT)},
            {ENUMSTR(OB_USER_IN)},
            {ENUMSTR(OB_USER_OUT)},
@@ -69,18 +102,19 @@ std::string PrintOperatingBuffer(const OperatingBuffer ob)
 
 std::string PrintOperatingBufferCode(const OperatingBuffer ob)
 {
-    const std::map<OperatingBuffer, const char*> BuffertoString = {{OB_UNINIT, "ERR"},
-                                                                   {OB_USER_IN, "A"},
-                                                                   {OB_USER_OUT, "B"},
-                                                                   {OB_TEMP, "T"},
-                                                                   {OB_TEMP_CMPLX_FOR_REAL, "C"},
-                                                                   {OB_TEMP_BLUESTEIN, "S"}};
+    static const std::map<OperatingBuffer, const char*> BuffertoString
+        = {{OB_UNINIT, "ERR"},
+           {OB_USER_IN, "A"},
+           {OB_USER_OUT, "B"},
+           {OB_TEMP, "T"},
+           {OB_TEMP_CMPLX_FOR_REAL, "C"},
+           {OB_TEMP_BLUESTEIN, "S"}};
     return BuffertoString.at(ob);
 }
 
 std::string PrintOptimizeStrategy(const rocfft_optimize_strategy ros)
 {
-    const std::map<rocfft_optimize_strategy, const char*> StrategytoString
+    static const std::map<rocfft_optimize_strategy, const char*> StrategytoString
         = {{rocfft_optimize_min_buffer, "MINIMIZE_BUFFER"},
            {rocfft_optimize_balance, "BALANCE_BUFFER_FUSION"},
            {rocfft_optimize_max_fusion, "MAXIMIZE_FUSION"}};
@@ -89,16 +123,60 @@ std::string PrintOptimizeStrategy(const rocfft_optimize_strategy ros)
 
 std::string PrintSBRCTransposeType(const SBRC_TRANSPOSE_TYPE ty)
 {
-    const std::map<SBRC_TRANSPOSE_TYPE, const char*> TypetoString = {
-        {ENUMSTR(NONE)}, {ENUMSTR(DIAGONAL)}, {ENUMSTR(TILE_ALIGNED)}, {ENUMSTR(TILE_UNALIGNED)}};
-    return TypetoString.at(ty);
+    static auto sbrc2strMap = SBRCTransTypetoStrMap();
+    return sbrc2strMap.at(ty);
 }
 
 std::string PrintDirectToFromRegMode(const DirectRegType ty)
 {
-    const std::map<DirectRegType, const char*> TypetoString
+    static const std::map<DirectRegType, const char*> TypetoString
         = {{ENUMSTR(FORCE_OFF_OR_NOT_SUPPORT)}, {ENUMSTR(TRY_ENABLE_IF_SUPPORT)}};
     return TypetoString.at(ty);
+}
+
+std::string PrintPrecision(const rocfft_precision pre)
+{
+    static auto precision2strMap = PrecisionToStrMap();
+    return precision2strMap.at(pre);
+}
+
+std::string PrintArrayType(const rocfft_array_type aryType)
+{
+    static const std::map<rocfft_array_type, const char*> aryTypeStr
+        = {{rocfft_array_type_complex_interleaved, "CI"},
+           {rocfft_array_type_complex_planar, "CP"},
+           {rocfft_array_type_real, "R"},
+           {rocfft_array_type_hermitian_interleaved, "HI"},
+           {rocfft_array_type_hermitian_planar, "HP"},
+           {rocfft_array_type_unset, "NA"}};
+    return aryTypeStr.at(aryType);
+}
+std::string PrintPlacement(const rocfft_result_placement placement)
+{
+    static const std::map<rocfft_result_placement, const char*> placementStr
+        = {{rocfft_placement_inplace, "IP"}, {rocfft_placement_notinplace, "OP"}};
+    return placementStr.at(placement);
+}
+std::string PrintEBType(const EmbeddedType ebtype)
+{
+    if(ebtype == EmbeddedType::NONE)
+        return std::string("NONE");
+    else if(ebtype == EmbeddedType::Real2C_POST)
+        return std::string("POST");
+    else
+        return std::string("PRE");
+}
+
+SBRC_TRANSPOSE_TYPE StrToSBRCTransType(const std::string& str)
+{
+    static auto str2sbrcMap = StrToSBRCTransTypeMap();
+    return str2sbrcMap.at(str);
+}
+
+rocfft_precision StrToPrecision(const std::string& str)
+{
+    static auto str2precisionMap = StrToPrecisionMap();
+    return str2precisionMap.at(str);
 }
 
 rocfft_status rocfft_plan_description_set_scale_factor(rocfft_plan_description description,
@@ -552,19 +630,18 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
         rootPlanData.rootIsC2C    = (rootPlanData.inArrayType != rocfft_array_type_real)
                                  && (rootPlanData.outArrayType != rocfft_array_type_real);
 
-        ExecPlan& execPlan = plan->execPlan;
-        int       deviceId = 0;
-        if(hipGetDevice(&deviceId) != hipSuccess)
-        {
-            throw std::runtime_error("hipGetDevice failed.");
-        }
-        if(hipGetDeviceProperties(&(execPlan.deviceProp), deviceId) != hipSuccess)
-        {
-            throw std::runtime_error("hipGetDeviceProperties failed for deviceId "
-                                     + std::to_string(deviceId));
-        }
+        ExecPlan& execPlan      = plan->execPlan;
+        execPlan.deviceProp     = get_curr_device_prop();
         rootPlanData.deviceProp = execPlan.deviceProp;
-        execPlan.rootPlan       = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
+
+        execPlan.rootPlan   = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
+        execPlan.rootScheme = ApplySolution(execPlan);
+        if(execPlan.rootScheme)
+        {
+            execPlan.rootPlan = nullptr;
+            execPlan.rootPlan = NodeFactory::CreateExplicitNode(
+                rootPlanData, nullptr, execPlan.rootScheme->curScheme);
+        }
 
         std::copy(plan->lengths.begin(),
                   plan->lengths.begin() + plan->rank,
@@ -923,7 +1000,7 @@ bool TreeNode::isLeafNode() const
 // That should be done in buffer assignment stage or
 // TraverseTreeAssignPlacementsLogicA().
 
-void TreeNode::RecursiveBuildTree()
+void TreeNode::RecursiveBuildTree(SchemeTree* solution_scheme)
 {
     // Some-Common-Work...
     // We must follow the placement of RootPlan, so needs to make it explicit
@@ -933,11 +1010,18 @@ void TreeNode::RecursiveBuildTree()
         allowOutofplace = !allowInplace;
     }
 
+    SchemeVec child_schemes;
+    if(solution_scheme)
+    {
+        for(const auto& child : solution_scheme->children)
+            child_schemes.push_back(child->curScheme);
+    }
+
     // overriden by each derived class
-    BuildTree_internal();
+    BuildTree_internal(child_schemes);
 }
 
-void TreeNode::SanityCheck()
+void TreeNode::SanityCheck(SchemeTree* solution_scheme, std::vector<FMKey>& kernel_keys)
 {
     // no un-defined node is allowed in the tree
     if(nodeType == NT_UNDEFINED)
@@ -961,11 +1045,24 @@ void TreeNode::SanityCheck()
     if(length.size() < dimension)
         throw std::runtime_error("not enough length[] for dimension");
 
-    OperatingBuffer previousOut = obIn;
-    for(auto& child : childNodes)
+    // make sure the tree has the same decomposition way as in solution map
+    if(solution_scheme)
     {
+        if(childNodes.size() != solution_scheme->children.size())
+            throw std::runtime_error("scheme-decomposition error: plan-tree != scheme-tree");
+        if(scheme != solution_scheme->curScheme)
+            throw std::runtime_error("scheme-decomposition error: node-scheme != solution-scheme");
+    }
+
+    OperatingBuffer previousOut = obIn;
+    for(size_t id = 0; id < childNodes.size(); ++id)
+    {
+        auto&       child = childNodes[id];
+        SchemeTree* child_scheme
+            = (solution_scheme) ? solution_scheme->children[id].get() : nullptr;
+
         // 1. Recursively check child
-        child->SanityCheck();
+        child->SanityCheck(child_scheme, kernel_keys);
 
         // 2. Assert that the kernel chain is connected
         // Note: The Bluestein algorithm uses setup nodes that aren't
@@ -986,8 +1083,8 @@ bool TreeNode::fuse_CS_KERNEL_TRANSPOSE_Z_XY()
 {
     if(function_pool::has_SBRC_kernel(length[0], precision))
     {
-        auto kernel
-            = function_pool::get_kernel(fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
+        auto kernel = function_pool::get_kernel(
+            fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC, TILE_ALIGNED));
         size_t bwd = kernel.transforms_per_block;
         if((length[1] >= bwd) && (length[2] >= bwd) && (length[1] * length[2] % bwd == 0))
             return true;
@@ -1214,12 +1311,12 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     while(i--)
         indentStr += "    ";
 
-    os << "\n" << indentStr.c_str() << "scheme: " << PrintScheme(scheme).c_str();
-    os << "\n" << indentStr.c_str();
+    os << "\n" << indentStr << "scheme: " << PrintScheme(scheme);
+    os << "\n" << indentStr;
     os << "dimension: " << dimension;
-    os << "\n" << indentStr.c_str();
+    os << "\n" << indentStr;
     os << "batch: " << batch;
-    os << "\n" << indentStr.c_str();
+    os << "\n" << indentStr;
     os << "length: ";
     for(size_t i = 0; i < length.size(); i++)
     {
@@ -1227,7 +1324,7 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     }
     if(!outputLength.empty())
     {
-        os << "\n" << indentStr.c_str();
+        os << "\n" << indentStr;
         os << "outputLength: ";
         for(size_t i = 0; i < outputLength.size(); i++)
         {
@@ -1235,119 +1332,78 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
         }
     }
 
-    os << "\n" << indentStr.c_str() << "iStrides: ";
+    os << "\n" << indentStr << "iStrides: ";
     for(size_t i = 0; i < inStride.size(); i++)
         os << inStride[i] << " ";
 
-    os << "\n" << indentStr.c_str() << "oStrides: ";
+    os << "\n" << indentStr << "oStrides: ";
     for(size_t i = 0; i < outStride.size(); i++)
         os << outStride[i] << " ";
 
     if(iOffset)
     {
-        os << "\n" << indentStr.c_str();
+        os << "\n" << indentStr;
         os << "iOffset: " << iOffset;
     }
     if(oOffset)
     {
-        os << "\n" << indentStr.c_str();
+        os << "\n" << indentStr;
         os << "oOffset: " << oOffset;
     }
 
-    os << "\n" << indentStr.c_str();
+    os << "\n" << indentStr;
     os << "iDist: " << iDist;
-    os << "\n" << indentStr.c_str();
+    os << "\n" << indentStr;
     os << "oDist: " << oDist;
 
-    os << "\n" << indentStr.c_str();
+    os << "\n" << indentStr;
     os << "direction: " << direction;
 
-    os << "\n" << indentStr.c_str();
-    os << ((placement == rocfft_placement_inplace) ? "inplace" : "not inplace");
+    os << "\n" << indentStr;
+    os << "placement: " << PrintPlacement(placement);
 
-    os << "\n" << indentStr.c_str();
-
+    os << "\n" << indentStr;
     os << precision_name(precision) << "-precision";
 
-    os << std::endl << indentStr.c_str();
+    os << std::endl << indentStr;
     os << "array type: ";
-    switch(inArrayType)
-    {
-    case rocfft_array_type_complex_interleaved:
-        os << "complex interleaved";
-        break;
-    case rocfft_array_type_complex_planar:
-        os << "complex planar";
-        break;
-    case rocfft_array_type_real:
-        os << "real";
-        break;
-    case rocfft_array_type_hermitian_interleaved:
-        os << "hermitian interleaved";
-        break;
-    case rocfft_array_type_hermitian_planar:
-        os << "hermitian planar";
-        break;
-    default:
-        os << "unset";
-        break;
-    }
+    os << PrintArrayType(inArrayType);
     os << " -> ";
-    switch(outArrayType)
-    {
-    case rocfft_array_type_complex_interleaved:
-        os << "complex interleaved";
-        break;
-    case rocfft_array_type_complex_planar:
-        os << "complex planar";
-        break;
-    case rocfft_array_type_real:
-        os << "real";
-        break;
-    case rocfft_array_type_hermitian_interleaved:
-        os << "hermitian interleaved";
-        break;
-    case rocfft_array_type_hermitian_planar:
-        os << "hermitian planar";
-        break;
-    default:
-        os << "unset";
-        break;
-    }
+    os << PrintArrayType(outArrayType);
+
     if(large1D)
     {
-        os << "\n" << indentStr.c_str() << "large1D: " << large1D;
-        os << "\n" << indentStr.c_str() << "largeTwdBase: " << largeTwdBase;
-        os << "\n" << indentStr.c_str() << "largeTwdSteps: " << ltwdSteps;
+        os << "\n" << indentStr << "large1D: " << large1D;
+        os << "\n" << indentStr << "largeTwdBase: " << largeTwdBase;
+        os << "\n" << indentStr << "largeTwdSteps: " << ltwdSteps;
     }
     if(twiddles)
     {
         os << "\n"
-           << indentStr.c_str()
-           << "twiddle table length: " << twiddles_size / complex_type_size(precision);
+           << indentStr << "twiddle table length: " << twiddles_size / complex_type_size(precision);
     }
     if(twiddles_large)
     {
         os << "\n"
-           << indentStr.c_str()
+           << indentStr
            << "large twiddle table length: " << twiddles_large_size / complex_type_size(precision);
     }
     if(lengthBlue)
-        os << "\n" << indentStr.c_str() << "lengthBlue: " << lengthBlue;
+        os << "\n" << indentStr << "lengthBlue: " << lengthBlue;
     os << "\n";
     switch(ebtype)
     {
     case EmbeddedType::NONE:
         break;
     case EmbeddedType::C2Real_PRE:
-        os << indentStr.c_str() << "EmbeddedType: C2Real_PRE\n";
+        os << indentStr << "EmbeddedType: C2Real_PRE\n";
         break;
     case EmbeddedType::Real2C_POST:
-        os << indentStr.c_str() << "EmbeddedType: Real2C_POST\n";
+        os << indentStr << "EmbeddedType: Real2C_POST\n";
         break;
     }
 
-    os << indentStr.c_str() << "SBRC_Trans_Type: " << PrintSBRCTransposeType(sbrcTranstype).c_str();
+    os << indentStr << "SBRC_Trans_Type: " << PrintSBRCTransposeType(sbrcTranstype);
     os << "\n";
 
     switch(intrinsicMode)
@@ -1355,15 +1411,14 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     case IntrinsicAccessType::DISABLE_BOTH:
         break;
     case IntrinsicAccessType::ENABLE_LOAD_ONLY:
-        os << indentStr.c_str() << "Intrinsic Mode: LOAD_ONLY\n";
+        os << indentStr << "Intrinsic Mode: LOAD_ONLY\n";
         break;
     case IntrinsicAccessType::ENABLE_BOTH:
-        os << indentStr.c_str() << "Intrinsic Mode: LOAD_AND_STORE\n";
+        os << indentStr << "Intrinsic Mode: LOAD_AND_STORE\n";
         break;
     }
 
-    os << indentStr.c_str()
-       << "Direct_to_from_Reg: " << PrintDirectToFromRegMode(dir2regMode).c_str();
+    os << indentStr << "Direct_to_from_Reg: " << PrintDirectToFromRegMode(dir2regMode);
     os << "\n";
     if(IsScalingEnabled())
         os << indentStr << "scale factor: " << scale_factor << "\n";
@@ -1517,9 +1572,166 @@ void RuntimeCompilePlan(ExecPlan& execPlan)
     }
 }
 
+// Input a node, get the representative prob-token as the key of solution-map
+void GetProblemToken(const TreeNode& probNode, std::string& min_token, std::string& full_token)
+{
+    // min_token: consider only length, precision, placement, complex/real,
+    //             and direction for real-trans (R2C/C2R)
+    // full_token: consider batch, dist, stride, offset, direction for complex
+    // When searching solution, looking for full-match first, and then min-match
+    std::string token("");
+
+    for(size_t i = 0; i < probNode.dimension; ++i)
+        token += std::to_string(probNode.length[i]) + "_";
+
+    token += (probNode.precision == rocfft_precision_single) ? "sp_" : "dp_";
+    token += (probNode.placement == rocfft_placement_inplace) ? "ip_" : "op_";
+
+    bool is_real_trans = ((probNode.inArrayType == rocfft_array_type_real)
+                          || (probNode.outArrayType == rocfft_array_type_real));
+    bool is_fwd        = (probNode.direction == -1);
+
+    if(is_real_trans)
+    {
+        token += "real_";
+        token += (is_fwd) ? "fwd_" : "bwd_";
+        min_token = token;
+    }
+    else
+    {
+        token += "complex";
+        min_token = token;
+        token += (is_fwd) ? "_fwd_" : "_bwd_";
+    }
+
+    token += "batch_" + std::to_string(probNode.batch);
+    token += "_idist_" + std::to_string(probNode.iDist);
+    token += "_odist_" + std::to_string(probNode.oDist);
+
+    full_token = token;
+}
+
+// generate all possible keys from a root problem, try them all to find a solution.
+void GenerateProbKeys(const TreeNode& probNode, std::vector<ProblemKey>& possibleKeys)
+{
+    possibleKeys.clear();
+
+    std::string min_token;
+    std::string full_token;
+    std::string archName = get_arch_name(probNode.deviceProp);
+    GetProblemToken(probNode, min_token, full_token);
+
+    for(auto arch : {archName, std::string("any")})
+    {
+        for(auto prob_token : {full_token, min_token})
+        {
+            ProblemKey problemKey(arch, prob_token);
+            possibleKeys.push_back(problemKey);
+        }
+    }
+}
+
+// recursively apply the solutions (breadth-first)
+// return: A pointer of a sub-scheme-tree
+// If solution is a kernel, append the kernel_key to the output vector
+std::unique_ptr<SchemeTree>
+    RecursivelyApplySol(const ProblemKey& problemKey, ExecPlan& execPlan, size_t sol_option)
+{
+    auto& sol_map_single = solution_map::get_solution_map();
+    if(!sol_map_single.has_solution_node(problemKey, sol_option))
+        return nullptr;
+
+    std::string                 arch     = problemKey.arch;
+    SolutionNode                sol_node = sol_map_single.get_solution_node(problemKey, sol_option);
+    std::unique_ptr<SchemeTree> curScheme
+        = std::make_unique<SchemeTree>(SchemeTree(sol_node.using_scheme));
+
+    if(sol_node.sol_node_type == SOL_INTERNAL_NODE)
+    {
+        if(sol_node.solution_childnodes.empty())
+            return nullptr;
+
+        // we stick to the current arch same as the root's problemkey
+        // e.g even we are in gfx908, but if the found root solution is in "any" map,
+        // then we should keep looking-up the "any" map
+        for(auto& child_node : sol_node.solution_childnodes)
+        {
+            ProblemKey probKey(arch, child_node.child_token);
+            auto childScheme = RecursivelyApplySol(probKey, execPlan, child_node.child_option);
+            if(!childScheme)
+                return nullptr;
+
+            curScheme->children.emplace_back(std::move(childScheme));
+        }
+    }
+    // SOL_LEAF_NODE
+    else if(sol_node.sol_node_type == SOL_LEAF_NODE)
+    {
+        // a leaf node should have exactly one child sol-node (SOL_KERNEL_ONLY)
+        if(sol_node.solution_childnodes.size() != 1)
+            return nullptr;
+
+        std::string& kernel_token  = sol_node.solution_childnodes[0].child_token;
+        size_t       kernel_option = sol_node.solution_childnodes[0].child_option;
+
+        ProblemKey probKey_kernel(arch, kernel_token);
+        if(!sol_map_single.has_solution_node(probKey_kernel, kernel_option))
+            return nullptr;
+
+        // get the kernel of this leaf node, be sure to pick the right kernel option
+        SolutionNode kernel_node = sol_map_single.get_solution_node(probKey_kernel, kernel_option);
+        execPlan.solution_kernels.push_back(kernel_node.kernel_key);
+
+        if(LOG_TRACE_ENABLED())
+        {
+            (*LogSingleton::GetInstance().GetTraceOS())
+                << "found the kernel solution(" << arch << ", " << kernel_token
+                << ") with option: " << kernel_option << std::endl;
+        }
+    }
+    // we shouldn't handle any SOL_KERNEL_ONLY directly
+    else
+    {
+        throw std::runtime_error("Tree-Decomposition in solution map is invalid");
+        return nullptr;
+    }
+
+    // if here, means we've found valid solutions of all sub-probs
+    if(LOG_TRACE_ENABLED())
+    {
+        (*LogSingleton::GetInstance().GetTraceOS())
+            << "found solution for problemKey(" << problemKey.arch << ", " << problemKey.probToken
+            << ") with option: " << sol_option << std::endl;
+    }
+
+    return curScheme;
+}
+
+std::unique_ptr<SchemeTree> ApplySolution(ExecPlan& execPlan)
+{
+    std::vector<ProblemKey>     possibleKeys;
+    std::unique_ptr<SchemeTree> rootNodeScheme = nullptr;
+    GenerateProbKeys(*(execPlan.rootPlan), possibleKeys);
+
+    for(const auto& probKey : possibleKeys)
+    {
+        // found a valid solution-tree-decomposition
+        rootNodeScheme = RecursivelyApplySol(probKey, execPlan, 0);
+        if(rootNodeScheme)
+            break;
+
+        execPlan.solution_kernels = EmptyFMKeyVec;
+    }
+
+    return rootNodeScheme;
+}
+
 void ProcessNode(ExecPlan& execPlan)
 {
-    execPlan.rootPlan->RecursiveBuildTree();
+    SchemeTree* rootScheme = (execPlan.rootScheme) ? execPlan.rootScheme.get() : nullptr;
+    bool        noSolution = (rootScheme == nullptr);
+
+    execPlan.rootPlan->RecursiveBuildTree(rootScheme);
 
     assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->dimension);
     assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->inStride.size());
@@ -1527,8 +1739,12 @@ void ProcessNode(ExecPlan& execPlan)
 
     // collect leaf-nodes to execSeq and fuseShims
     execPlan.rootPlan->CollectLeaves(execPlan.execSeq, execPlan.fuseShims);
-    CheckFuseShimForArch(execPlan);
-    OrderFuseShims(execPlan.execSeq, execPlan.fuseShims);
+
+    if(noSolution)
+    {
+        CheckFuseShimForArch(execPlan);
+        OrderFuseShims(execPlan.execSeq, execPlan.fuseShims);
+    }
 
     // initialize root plan input/output location if not already done
     if(execPlan.rootPlan->obOut == OB_UNINIT)
@@ -1546,11 +1762,14 @@ void ProcessNode(ExecPlan& execPlan)
     AssignmentPolicy policy;
     policy.AssignBuffers(execPlan);
 
-    // Apply the fusion after buffer, strides are assigned
-    execPlan.rootPlan->ApplyFusion();
+    if(noSolution)
+    {
+        // Apply the fusion after buffer, strides are assigned
+        execPlan.rootPlan->ApplyFusion();
 
-    // collect the execSeq since we've fused some kernels
-    execPlan.rootPlan->CollectLeaves(execPlan.execSeq, execPlan.fuseShims);
+        // collect the execSeq since we've fused some kernels
+        execPlan.rootPlan->CollectLeaves(execPlan.execSeq, execPlan.fuseShims);
+    }
 
     // So we also need to update the whole tree including internal nodes
     // NB: The order matters: assign param -> fusion -> refresh internal node param
@@ -1563,7 +1782,28 @@ void ProcessNode(ExecPlan& execPlan)
     execPlan.rootPlan->CollapseContiguousDims();
 
     // Check the buffer, param and tree integrity, Note we do this after fusion
-    execPlan.rootPlan->SanityCheck();
+    try
+    {
+        // rootScheme might be nullptr and solution_kernels might be empty (when no solution)
+        // if has solution, will also check if it's valid
+        execPlan.rootPlan->SanityCheck(rootScheme, execPlan.solution_kernels);
+    }
+    catch(const std::exception& e)
+    {
+        // When SanityCheck fails,
+        // if solution_kernels is empty or rootScheme is nullptr,
+        // means this is nothing to do with solution map. Throw to terminate
+        if(execPlan.solution_kernels.empty() || rootScheme == nullptr)
+            throw;
+        else
+        {
+            // data from solution map are invalid, then we're not able to use them
+            if(LOG_TRACE_ENABLED())
+                (*LogSingleton::GetInstance().GetTraceOS())
+                    << "input solution are invalid, try replacing kernels" << std::endl;
+            execPlan.rootPlan->SanityCheck();
+        }
+    }
 
     // get workBufSize..
     size_t tmpBufSize       = 0;

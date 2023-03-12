@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -23,6 +23,9 @@
 
 #include <string>
 
+// TODO-
+// (PROB_DESCRIPTION << 24) | (KERNEL_ALGO << 16 ) |
+// (KERNEL_OR_DECOMPOSITION_TYPE << 8) | (KERNEL_LAYOUT) ????
 enum ComputeScheme
 {
     CS_NONE,
@@ -80,6 +83,7 @@ enum ComputeScheme
     CS_KERNEL_3D_SINGLE // not implemented yet
 };
 
-std::string PrintScheme(ComputeScheme cs);
+std::string   PrintScheme(ComputeScheme cs);
+ComputeScheme StrToComputeScheme(const std::string& str);
 
 #endif

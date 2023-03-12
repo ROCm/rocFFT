@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,8 +29,10 @@
 /*****************************************************
  * L1D_TRTRT  *
  *****************************************************/
-void TRTRT1DNode::BuildTree_internal()
+void TRTRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
+    bool noSolution = child_schemes.empty();
+
     size_t lenFactor1 = length.back();
     size_t lenFactor0 = length[0] / lenFactor1;
     if(lenFactor0 * lenFactor1 != length[0])
@@ -38,6 +40,8 @@ void TRTRT1DNode::BuildTree_internal()
     length.pop_back();
 
     // first transpose
+    if(!noSolution)
+        assert(child_schemes[0] == CS_KERNEL_TRANSPOSE);
     auto trans1Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     trans1Plan->length.push_back(lenFactor0);
     trans1Plan->length.push_back(lenFactor1);
@@ -57,11 +61,16 @@ void TRTRT1DNode::BuildTree_internal()
     {
         row1PlanData.length.push_back(length[index]);
     }
-    auto row1Plan     = NodeFactory::CreateExplicitNode(row1PlanData, this);
-    row1Plan->large1D = 0;
+
+    // skip the decide scheme part in node factory
+    ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[1];
+    auto          row1Plan = NodeFactory::CreateExplicitNode(row1PlanData, this, determined_scheme);
+    row1Plan->large1D      = 0;
     row1Plan->RecursiveBuildTree();
 
     // second transpose
+    if(!noSolution)
+        assert(child_schemes[2] == CS_KERNEL_TRANSPOSE);
     auto trans2Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     trans2Plan->length.push_back(lenFactor1);
     trans2Plan->length.push_back(lenFactor0);
@@ -74,6 +83,8 @@ void TRTRT1DNode::BuildTree_internal()
     trans2Plan->SetTransposeOutputLength();
 
     // second row fft
+    if(!noSolution)
+        assert(child_schemes[3] == CS_KERNEL_STOCKHAM);
     auto row2Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM, this);
     row2Plan->length.push_back(lenFactor0);
     row2Plan->length.push_back(lenFactor1);
@@ -84,6 +95,8 @@ void TRTRT1DNode::BuildTree_internal()
     }
 
     // third transpose
+    if(!noSolution)
+        assert(child_schemes[4] == CS_KERNEL_TRANSPOSE);
     auto trans3Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     trans3Plan->length.push_back(lenFactor0);
     trans3Plan->length.push_back(lenFactor1);
@@ -297,8 +310,10 @@ void TRTRT1DNode::AssignParams_internal()
 /*****************************************************
  * L1D_CC  *
  *****************************************************/
-void CC1DNode::BuildTree_internal()
+void CC1DNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
+    bool noSolution = child_schemes.empty();
+
     size_t lenFactor1 = length.back();
     size_t lenFactor0 = length[0] / lenFactor1;
     if(lenFactor0 * lenFactor1 != length[0])
@@ -306,6 +321,8 @@ void CC1DNode::BuildTree_internal()
     length.pop_back();
 
     // first plan, column-to-column
+    if(!noSolution)
+        assert(child_schemes[0] == CS_KERNEL_STOCKHAM_BLOCK_CC);
     auto col2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
     // large1D flag to confirm we need multiply twiddle factor
     col2colPlan->large1D = length[0];
@@ -329,6 +346,8 @@ void CC1DNode::BuildTree_internal()
     std::swap(col2colPlan->outputLength[0], col2colPlan->outputLength[1]);
 
     // second plan, row-to-column
+    if(!noSolution)
+        assert(child_schemes[1] == CS_KERNEL_STOCKHAM_BLOCK_RC);
     auto row2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_RC, this);
     row2colPlan->length.push_back(lenFactor0);
     row2colPlan->length.push_back(lenFactor1);
@@ -498,8 +517,10 @@ void CC1DNode::AssignParams_internal()
 /*****************************************************
  * L1D_CRT  *
  *****************************************************/
-void CRT1DNode::BuildTree_internal()
+void CRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
 {
+    bool noSolution = child_schemes.empty();
+
     size_t lenFactor1 = length.back();
     size_t lenFactor0 = length[0] / lenFactor1;
     if(lenFactor0 * lenFactor1 != length[0])
@@ -507,6 +528,8 @@ void CRT1DNode::BuildTree_internal()
     length.pop_back();
 
     // first plan, column-to-column
+    if(!noSolution)
+        assert(child_schemes[0] == CS_KERNEL_STOCKHAM_BLOCK_CC);
     auto col2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
     // large1D flag to confirm we need multiply twiddle factor
     col2colPlan->large1D = length[0];
@@ -530,6 +553,8 @@ void CRT1DNode::BuildTree_internal()
     std::swap(col2colPlan->outputLength[0], col2colPlan->outputLength[1]);
 
     // second plan, row-to-row
+    if(!noSolution)
+        assert(child_schemes[1] == CS_KERNEL_STOCKHAM);
     auto row2rowPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM, this);
     row2rowPlan->length.push_back(lenFactor0);
     row2rowPlan->length.push_back(lenFactor1);
@@ -542,6 +567,8 @@ void CRT1DNode::BuildTree_internal()
     // row2rowPlan->allowOutofplace = false;
 
     // third plan, transpose
+    if(!noSolution)
+        assert(child_schemes[2] == CS_KERNEL_TRANSPOSE);
     auto transPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     transPlan->length.push_back(lenFactor0);
     transPlan->length.push_back(lenFactor1);
@@ -717,15 +744,17 @@ void Stockham1DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
     for(size_t j = 1; j < length.size(); j++)
         batch_accum *= length[j];
 
-    auto kernel = function_pool::get_kernel(fpkey(length[0], precision));
+    auto key    = GetKernelKey();
+    auto kernel = function_pool::get_kernel(key);
     fnPtr       = kernel.device_function;
 
     if(ebtype != EmbeddedType::NONE)
         lds_padding = 1;
 
     bwd      = kernel.transforms_per_block;
+    wgs      = kernel.workgroup_size;
     gp.b_x   = (batch_accum + bwd - 1) / bwd;
-    gp.wgs_x = kernel.workgroup_size;
+    gp.wgs_x = wgs;
 
     // we don't even need lds (kernel_1,2,3,4,5,6,7,10,11,13,17) since we don't use them at all
     // TODO: we can even use swizzle to do the butterfly shuffle if threads_per_transform[0] <= warpSize
@@ -767,9 +796,9 @@ std::vector<size_t> Stockham1DNode::CollapsibleDims()
 /*****************************************************
  * SBCC  *
  *****************************************************/
-bool SBCCNode::KernelCheck()
+bool SBCCNode::KernelCheck(std::vector<FMKey>& kernel_keys)
 {
-    bool res = LeafNode::KernelCheck();
+    bool res = LeafNode::KernelCheck(kernel_keys);
 
     // set according to benchmark
     SetDirectRegType();
@@ -859,14 +888,14 @@ void SBCCNode::SetIntrinsicMode()
 
 void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    auto kernel = function_pool::get_kernel(fpkey(length[0], precision, scheme));
+    auto kernel = function_pool::get_kernel(GetKernelKey());
     fnPtr       = kernel.device_function;
     bwd         = kernel.transforms_per_block;
     wgs         = kernel.workgroup_size;
     lds         = length[0] * bwd;
     gp.b_x      = ((length[1]) - 1) / bwd + 1;
     gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
-    gp.wgs_x = kernel.workgroup_size;
+    gp.wgs_x = wgs;
 }
 
 std::vector<size_t> SBCCNode::CollapsibleDims()
@@ -880,9 +909,32 @@ std::vector<size_t> SBCCNode::CollapsibleDims()
 /*****************************************************
  * SBRC  *
  *****************************************************/
-bool SBRCNode::KernelCheck()
+FMKey SBRCNode::GetKernelKey() const
 {
-    bool res = LeafNode::KernelCheck();
+    if(specified_key)
+        return *specified_key.get();
+
+    // NB: Need to make sure that sbrcTranstype has the correct value
+    if(sbrcTranstype == SBRC_TRANSPOSE_TYPE::NONE)
+    {
+        // find the base kernel at first
+        FMKey baseKey = fpkey(length[0], precision, scheme, TILE_ALIGNED);
+        // if we have the base kernel, then we set the exact sbrc_trans_type and return the real key
+        // if we don't, then we simply return a key with NONE sbrc_trans_type
+        // which will make KernelCheck() trigger an exception
+        if(function_pool::has_function(baseKey))
+        {
+            auto bwd      = function_pool::get_kernel(baseKey).transforms_per_block;
+            sbrcTranstype = sbrc_transpose_type(bwd);
+        }
+    }
+
+    return fpkey(length[0], precision, scheme, sbrcTranstype);
+}
+
+bool SBRCNode::KernelCheck(std::vector<FMKey>& kernel_keys)
+{
+    bool res = LeafNode::KernelCheck(kernel_keys);
 
     // set according to benchmark
     SetDirectRegType();
@@ -930,30 +982,29 @@ void SBRCNode::SetDirectRegType()
 
 void SBRCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    auto kernel   = function_pool::get_kernel(fpkey(length[0], precision, scheme));
-    bwd           = kernel.transforms_per_block;
-    wgs           = kernel.workgroup_size;
-    lds           = length[0] * bwd;
-    sbrcTranstype = sbrc_transpose_type(bwd);
-    fnPtr         = function_pool::get_function(fpkey(length[0], precision, scheme, sbrcTranstype));
-    gp.b_x        = (length[1] - 1) / bwd + 1;
+    // sbrcTransType has already been assigned in KernelCheck();
+    auto kernel = function_pool::get_kernel(GetKernelKey());
+    fnPtr       = kernel.device_function;
+    bwd         = kernel.transforms_per_block;
+    wgs         = kernel.workgroup_size;
+    lds         = length[0] * bwd;
+    gp.b_x      = (length[1] - 1) / bwd + 1;
     gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
-    gp.wgs_x = kernel.workgroup_size;
+    gp.wgs_x = wgs;
 }
 
 SBRC_TRANSPOSE_TYPE SBRCNode::sbrc_transpose_type(unsigned int blockWidth) const
 {
-    // NB: Since we need a NONE as default, so this NONE is actually TILE_ALIGNED
     auto alignment_dimension = length[1];
-    return (alignment_dimension % blockWidth == 0) ? NONE : TILE_UNALIGNED;
+    return (alignment_dimension % blockWidth == 0) ? TILE_ALIGNED : TILE_UNALIGNED;
 }
 
 /*****************************************************
  * SBCR  *
  *****************************************************/
-bool SBCRNode::KernelCheck()
+bool SBCRNode::KernelCheck(std::vector<FMKey>& kernel_keys)
 {
-    bool res = LeafNode::KernelCheck();
+    bool res = LeafNode::KernelCheck(kernel_keys);
 
     // set according to benchmark
     SetDirectRegType();
@@ -1002,14 +1053,14 @@ void SBCRNode::SetIntrinsicMode()
 
 void SBCRNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
 {
-    auto kernel = function_pool::get_kernel(fpkey(length[0], precision, scheme));
+    auto kernel = function_pool::get_kernel(GetKernelKey());
     fnPtr       = kernel.device_function;
     wgs         = kernel.workgroup_size;
     bwd         = kernel.transforms_per_block;
     lds         = length[0] * bwd;
     gp.b_x      = ((length[1]) - 1) / bwd + 1;
     gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
-    gp.wgs_x = kernel.workgroup_size;
+    gp.wgs_x = wgs;
 
     if(ebtype != EmbeddedType::NONE)
         lds_padding = 1;

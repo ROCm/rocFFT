@@ -37,7 +37,7 @@ protected:
         scheme = CS_REAL_TRANSFORM_USING_CMPLX;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 
 public:
     bool UseOutputLengthForPadding() override
@@ -60,7 +60,7 @@ protected:
         scheme = CS_REAL_TRANSFORM_EVEN;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 
 public:
     // 3D Even can possibly set this
@@ -97,7 +97,7 @@ protected:
         scheme = CS_REAL_2D_EVEN;
     }
     void     AssignParams_internal() override;
-    void     BuildTree_internal() override;
+    void     BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
     Solution solution = TR_PAIR;
 
     void BuildTree_internal_SBCC();
@@ -134,7 +134,7 @@ protected:
         scheme = CS_REAL_3D_EVEN;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal() override;
+    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
 
     Solution solution = TR_PAIRS;
 

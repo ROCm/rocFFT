@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -472,13 +472,16 @@ std::unique_ptr<TreeNode> NodeFactory::CreateNodeFromScheme(ComputeScheme s, Tre
     }
 }
 
-std::unique_ptr<TreeNode> NodeFactory::CreateExplicitNode(NodeMetaData& nodeData, TreeNode* parent)
+std::unique_ptr<TreeNode> NodeFactory::CreateExplicitNode(NodeMetaData& nodeData,
+                                                          TreeNode*     parent,
+                                                          ComputeScheme determined_scheme)
 {
-    // TreeNode*     p = dummyNode->parent;
-    ComputeScheme s = DecideNodeScheme(nodeData, parent);
-    if(s == CS_NONE)
+    if(determined_scheme == CS_NONE)
+        determined_scheme = DecideNodeScheme(nodeData, parent);
+    if(determined_scheme == CS_NONE)
         throw std::runtime_error("DecideNodeScheme Failed!: CS_NONE");
-    auto node = CreateNodeFromScheme(s, parent);
+
+    auto node = CreateNodeFromScheme(determined_scheme, parent);
     node->CopyNodeData(nodeData);
     return node;
 }
@@ -866,8 +869,8 @@ size_t NodeFactory::count_3D_SBRC_nodes(NodeMetaData& nodeData)
         if(function_pool::has_SBRC_kernel(nodeData.length[i], nodeData.precision))
         {
             // make sure the SBRC kernel on that dimension would be tile-aligned
-            auto kernel = function_pool::get_kernel(
-                fpkey(nodeData.length[i], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_RC));
+            auto kernel = function_pool::get_kernel(fpkey(
+                nodeData.length[i], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_RC, TILE_ALIGNED));
             if(nodeData.length[(i + 2) % nodeData.length.size()] % kernel.transforms_per_block == 0)
                 ++sbrc_dimensions;
         }

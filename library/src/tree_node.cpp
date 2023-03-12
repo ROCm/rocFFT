@@ -75,24 +75,60 @@ size_t LeafNode::GetTwiddleTableLength()
 
 void LeafNode::GetKernelFactors()
 {
-    ComputeScheme _scheme = scheme;
-    if(_scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z || _scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY
-       || _scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
-        _scheme = CS_KERNEL_STOCKHAM_BLOCK_RC;
-
-    FMKey key     = (dimension == 1) ? fpkey(length[0], precision, _scheme)
-                                     : fpkey(length[0], length[1], precision, _scheme);
+    FMKey key     = GetKernelKey();
     kernelFactors = function_pool::get_kernel(key).factors;
 }
 
-bool LeafNode::KernelCheck()
+bool LeafNode::KernelCheck(std::vector<FMKey>& kernel_keys)
 {
     if(!externalKernel)
+    {
+        // such as solutions kernels for 2D_RTRT or 1D_CRT, the "T" kernel is not an external one
+        // so in the solution map we will keep it as a empty key. By storing and checking the emptykey,
+        // we can increase the reilability of solution map.
+        if(!kernel_keys.empty())
+        {
+            assert(kernel_keys.front() == EmptyFMKey);
+            kernel_keys.erase(kernel_keys.begin());
+            if(LOG_TRACE_ENABLED())
+                (*LogSingleton::GetInstance().GetTraceOS())
+                    << "solution kernel is an built-in kernel" << std::endl;
+        }
         return true;
+    }
 
-    // check we have the kernel
-    FMKey key = (dimension == 1) ? fpkey(length[0], precision, scheme)
-                                 : fpkey(length[0], length[1], precision, scheme);
+    specified_key = nullptr;
+    if(!kernel_keys.empty())
+    {
+        FMKey assignedKey = kernel_keys.front();
+        kernel_keys.erase(kernel_keys.begin());
+
+        // check if the assigned key is consistent with the node information
+        const auto&            key_lengths   = std::get<0>(assignedKey);
+        const rocfft_precision key_precision = std::get<1>(assignedKey);
+        const ComputeScheme    key_scheme    = std::get<2>(assignedKey);
+        if((length[0] != key_lengths[0]) || (dimension == 2 && length[1] != key_lengths[1])
+           || (precision != key_precision) || (scheme != key_scheme))
+        {
+            if(LOG_TRACE_ENABLED())
+                (*LogSingleton::GetInstance().GetTraceOS())
+                    << "solution kernel keys are invalid" << std::endl;
+            return false;
+        }
+        else
+        {
+            // get the sbrc_trans_type from assignedKey (for sbrc)
+            sbrcTranstype = std::get<3>(assignedKey);
+
+            function_pool::add_new_kernel(assignedKey);
+            specified_key = std::make_unique<FMKey>(assignedKey);
+        }
+    }
+
+    // get the final key and check if we have the kernel.
+    // Note that the check is trivial if we are using "specified_key"
+    // since we definitly have the kernel, but not trivial if it's the auto-gen key
+    FMKey key = GetKernelKey();
     if(!function_pool::has_function(key))
     {
         if(LOG_TRACE_ENABLED())
@@ -109,12 +145,32 @@ bool LeafNode::KernelCheck()
     return true;
 }
 
-void LeafNode::SanityCheck()
+void LeafNode::SanityCheck(SchemeTree* solution_scheme, std::vector<FMKey>& kernels_keys)
 {
-    if(!KernelCheck())
-        throw std::runtime_error("Kernel not found");
+    if(!KernelCheck(kernels_keys))
+        throw std::runtime_error("Kernel not found or mismatches node");
 
-    TreeNode::SanityCheck();
+    TreeNode::SanityCheck(solution_scheme, kernels_keys);
+}
+
+void LeafNode::Print(rocfft_ostream& os, int indent) const
+{
+    TreeNode::Print(os, indent);
+
+    std::string indentStr;
+    while(indent--)
+        indentStr += "    ";
+
+    os << indentStr.c_str() << "Leaf-Node: external-kernel configuration: ";
+    indentStr += "    ";
+    os << "\n" << indentStr.c_str() << "workgroup_size: " << wgs;
+    os << "\n" << indentStr.c_str() << "trans_per_block: " << bwd;
+    os << "\n" << indentStr.c_str() << "radices: [ ";
+    for(size_t i = 0; i < kernelFactors.size(); i++)
+    {
+        os << kernelFactors[i] << " ";
+    }
+    os << "]\n";
 }
 
 bool LeafNode::CreateDevKernelArgs()
@@ -147,11 +203,12 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
     // derived classes setup the gp (bwd, wgs, lds, padding), funPtr
     SetupGPAndFnPtr_internal(fnPtr, gp);
 
+    auto key = GetKernelKey();
+
     // common: sum up the value;
     gp.lds_bytes = (lds + lds_padding * bwd) * complex_type_size(precision);
     if(scheme == CS_KERNEL_STOCKHAM && ebtype == EmbeddedType::NONE)
     {
-        auto key = fpkey(length[0], precision, scheme);
         if(function_pool::has_function(key))
         {
             auto kernel = function_pool::get_kernel(key);
@@ -176,7 +233,6 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
     if((scheme == CS_KERNEL_STOCKHAM_BLOCK_CC || scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
        && (dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT) && (ebtype == EmbeddedType::NONE))
     {
-        auto key = fpkey(length[0], precision, scheme);
         if(function_pool::has_function(key))
         {
             auto kernel = function_pool::get_kernel(key);
