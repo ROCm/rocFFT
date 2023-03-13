@@ -1,8 +1,3 @@
-
-.. toctree::
-   :maxdepth: 2 
-   :caption: Contents:
-
 Real data
 ---------
 
@@ -23,7 +18,7 @@ they store real and imaginary components, but store only about half of the compl
 forward transform and analyze the output or they can process the output and do a backward transform to get back real data.
 This is illustrated in the following figure.
 
-.. figure:: ./images/realfft_fwdinv.jpg
+.. figure:: ./data/images/realfft_fwdinv.jpg
 
    **Forward and Backward Real FFTs**
 
@@ -36,7 +31,7 @@ This is illustrated in the following figure.
 
 Let us consider a 1D real FFT of length :math:`N`. The full output looks as shown in following figure.
 
-.. figure:: ./images/realfft_1dlen.jpg
+.. figure:: ./data/images/realfft_1dlen.jpg
 
    **1D Real FFT of Length N**
 
@@ -46,13 +41,13 @@ elements, where the division :math:`N/2` is rounded down. Examples for even and 
 
 Example for :math:`N = 8` is shown in following figure.
 
-.. figure:: ./images/realfft_ex_n8.jpg
+.. figure:: ./data/images/realfft_ex_n8.jpg
 
    **Example for N = 8**
 
 Example for :math:`N = 7` is shown in following figure.
 
-.. figure:: ./images/realfft_ex_n7.jpg
+.. figure:: ./data/images/realfft_ex_n7.jpg
 
    **Example for N = 7**
 
@@ -94,13 +89,13 @@ The following figures and examples explain in detail the real FFT features of th
 
 Here is a schematic that illustrates the forward 1D FFT (real to hermitian).
 
-.. figure:: ./images/realfft_expl_01.jpg
+.. figure:: ./data/images/realfft_expl_01.jpg
 
    **1D FFT - Real to Hermitian**
 
 Below is a schematic that shows an example of not in-place transform with even :math:`N` and how strides and distances are set.
 
-.. figure:: ./images/realfft_expl_02.jpg
+.. figure:: ./data/images/realfft_expl_02.jpg
 
    **1D FFT - Real to Hermitian, Example 1**
 
@@ -108,7 +103,7 @@ Below is a schematic that shows an example of in-place transform with even :math
 Notice that even though we are dealing with only 1 buffer (in-place), the output strides/distance can take different
 values compared to input strides/distance.
 
-.. figure:: ./images/realfft_expl_03.jpg
+.. figure:: ./data/images/realfft_expl_03.jpg
 
    **1D FFT - Real to Hermitian, Example 2**
 
@@ -116,13 +111,13 @@ Below is a schematic that shows an example of in-place transform with odd :math:
 Notice that even though we are dealing with only 1 buffer (in-place), the output strides/distance can take different
 values compared to input strides/distance.
 
-.. figure:: ./images/realfft_expl_04.jpg
+.. figure:: ./data/images/realfft_expl_04.jpg
 
    **1D FFT - Real to Hermitian, Example 3**
 
 And here is a schematic that illustrates the backward 1D FFT (hermitian to real).
 
-.. figure:: ./images/realfft_expl_05.jpg
+.. figure:: ./data/images/realfft_expl_05.jpg
 
    **1D FFT - Hermitian to Real**
 
@@ -130,13 +125,13 @@ Below is a schematic that shows an example of in-place transform with even :math
 Notice that even though we are dealing with only 1 buffer (in-place), the output strides/distance can take different
 values compared to input strides/distance.
 
-.. figure:: ./images/realfft_expl_06.jpg
+.. figure:: ./data/images/realfft_expl_06.jpg
 
    **1D FFT - Hermitian to Real, Example**
 
 And here is a schematic that illustrates the in-place forward 2D FFT (real to hermitian) .
 
-.. figure:: ./images/realfft_expl_07.jpg
+.. figure:: ./data/images/realfft_expl_07.jpg
 
    **2D FFT - Real to Hermitian In Place**
 
@@ -144,7 +139,7 @@ Below is a schematic that shows an example of in-place 2D transform and how stri
 Notice that even though we are dealing with only 1 buffer (in-place), the output strides/distance can take different
 values compared to input strides/distance.
 
-.. figure:: ./images/realfft_expl_08.jpg
+.. figure:: ./data/images/realfft_expl_08.jpg
 
    **2D FFT - Real to Hermitian, Example**
 

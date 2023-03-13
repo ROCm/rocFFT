@@ -83,6 +83,18 @@ However, the preferred method for compiling rocFFT is to call cmake directly.
 
 Please refer to the [library documentation][4] for current documentation.
 
+### How to build documentation
+
+Please follow the steps below to build the documentation.
+
+```
+cd docs
+
+pip3 install -r .sphinx/requirements.txt
+
+python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
+```
+
 ## Examples
 
 Examples may be found in the [clients/samples][5] subdirectory.
