@@ -41,7 +41,7 @@ bool valid_length_stride_1d_multi(const unsigned int        idx,
                                   const std::vector<size_t> s,
                                   const int                 verbose)
 {
-    size_t              l0, s0;
+    size_t              l0{0}, s0{0};
     std::vector<size_t> l1{}, s1{};
     for(unsigned int i = 0; i < l.size(); ++i)
     {
