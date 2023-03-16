@@ -64,7 +64,8 @@ int main(int argc, char* argv[])
     }
 
     // Placeness for the transform
-    rocfft_setup();
+    if(rocfft_setup() != rocfft_status_success)
+        throw std::runtime_error("rocfft_setup failed.");
     const rocfft_result_placement place
         = vm.count("outofplace") ? rocfft_placement_notinplace : rocfft_placement_inplace;
     const bool inplace = place == rocfft_placement_inplace;
@@ -122,7 +123,7 @@ int main(int argc, char* argv[])
         throw std::runtime_error("hipSetDevice failed.");
 
     // Create HIP device object and allocate data
-    hipDoubleComplex* gpu_in = NULL;
+    hipDoubleComplex* gpu_in = nullptr;
     if(hipMalloc(&gpu_in, isize * sizeof(hipDoubleComplex)) != hipSuccess)
         throw std::runtime_error("hipMalloc failed.");
 
@@ -145,7 +146,7 @@ int main(int argc, char* argv[])
     printbuffer_cm(idata, length, istride, 1, isize);
 
     // Create the a descrition struct to set data layout:
-    rocfft_plan_description gpu_description = NULL;
+    rocfft_plan_description gpu_description = nullptr;
     // rocfft_status can be used to capture API status info
     rocfft_status rc = rocfft_plan_description_create(&gpu_description);
     if(rc != rocfft_status_success)
@@ -153,8 +154,8 @@ int main(int argc, char* argv[])
     rc = rocfft_plan_description_set_data_layout(gpu_description,
                                                  rocfft_array_type_complex_interleaved,
                                                  rocfft_array_type_complex_interleaved,
-                                                 NULL,
-                                                 NULL,
+                                                 nullptr,
+                                                 nullptr,
                                                  istride.size(), // input stride length
                                                  istride.data(), // input stride data
                                                  0, // input batch distance
@@ -163,12 +164,12 @@ int main(int argc, char* argv[])
                                                  0); // ouptut batch distance
     if(rc != rocfft_status_success)
         throw std::runtime_error("failed to set data layout");
-    // We can also pass "NULL" instead of a description; rocFFT will use reasonable
+    // We can also pass "nullptr" instead of a description; rocFFT will use reasonable
     // default parameters.  If the data isn't contiguous, we need to set strides, etc,
     // using the description.
 
     // Create the plan
-    rocfft_plan gpu_plan = NULL;
+    rocfft_plan gpu_plan = nullptr;
     rc                   = rocfft_plan_create(&gpu_plan,
                             place,
                             direction,
@@ -181,7 +182,7 @@ int main(int argc, char* argv[])
         throw std::runtime_error("failed to create plan");
 
     // Get the execution info for the fft plan (in particular, work memory requirements):
-    rocfft_execution_info planinfo = NULL;
+    rocfft_execution_info planinfo = nullptr;
     rc                             = rocfft_execution_info_create(&planinfo);
     if(rc != rocfft_status_success)
         throw std::runtime_error("failed to create execution info");
@@ -191,7 +192,7 @@ int main(int argc, char* argv[])
         throw std::runtime_error("failed to get work buffer size");
 
     // If the transform requires work memory, allocate a work buffer:
-    void* wbuffer = NULL;
+    void* wbuffer = nullptr;
     if(workbuffersize > 0)
     {
         hip_status = hipMalloc(&wbuffer, workbuffersize);
@@ -203,7 +204,7 @@ int main(int argc, char* argv[])
     }
 
     // If the transform is out-of-place, allocate the output buffer as well:
-    double2* gpu_out = inplace ? gpu_in : NULL;
+    double2* gpu_out = inplace ? gpu_in : nullptr;
     if(!inplace)
     {
         hip_status = hipMalloc(&gpu_out, osize * sizeof(hipDoubleComplex));
@@ -238,17 +239,24 @@ int main(int argc, char* argv[])
         if(hipFree(gpu_out) != hipSuccess)
             throw std::runtime_error("hipFree failed.");
     }
-    if(wbuffer != NULL)
+    if(wbuffer != nullptr)
     {
         if(hipFree(wbuffer) != hipSuccess)
             throw std::runtime_error("hipFree failed.");
     }
 
     // Clean up: destroy plans:
-    rocfft_execution_info_destroy(planinfo);
-    rocfft_plan_description_destroy(gpu_description);
-    rocfft_plan_destroy(gpu_plan);
+    if(rocfft_execution_info_destroy(planinfo) != rocfft_status_success)
+        throw std::runtime_error("rocfft_execution_info_destroy failed.");
+    planinfo = nullptr;
+    if(rocfft_plan_description_destroy(gpu_description) != rocfft_status_success)
+        throw std::runtime_error("rocfft_plan_description_destroy failed.");
+    gpu_description = nullptr;
+    if(rocfft_plan_destroy(gpu_plan) != rocfft_status_success)
+        throw std::runtime_error("rocfft_plan_destroy failed.");
+    gpu_plan = nullptr;
 
-    rocfft_cleanup();
+    if(rocfft_cleanup() != rocfft_status_success)
+        throw std::runtime_error("rocfft_cleanup failed.");
     return 0;
 }

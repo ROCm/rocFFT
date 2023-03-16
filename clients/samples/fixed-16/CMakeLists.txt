@@ -52,7 +52,7 @@ if( NOT HIP_FOUND )
   find_package( HIP REQUIRED )
 endif()
 
-set( sample_list fixed-16-float fixed-16-double )
+set( sample_list fixed-16-float fixed-16-double fixed-16-half )
 
 foreach( sample ${sample_list} )
 
@@ -63,7 +63,7 @@ foreach( sample ${sample_list} )
             $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
   )
 
-  target_link_libraries( ${sample} PRIVATE roc::rocfft ${FFTW_LIBRARIES} )
+  target_link_libraries( ${sample} PRIVATE roc::rocfft hip::device ${FFTW_LIBRARIES} )
 
   target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} )
 

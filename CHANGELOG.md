@@ -4,6 +4,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## (Unreleased) rocFFT 2.0.0
 
+### Added
+- Implemented half-precision transforms, which can be requested by passing rocfft_precision_half to rocfft_plan_create.
+
 ### Changed
 - Replaced std::complex with hipComplex data types for data generator.
 - FFT plan dimensions are now sorted to be row-major internally where possible, which produces better plans if the dimensions were accidentally specified in a different order (column-major, for example).

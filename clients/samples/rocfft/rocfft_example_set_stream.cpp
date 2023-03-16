@@ -23,14 +23,15 @@
 #include <hip/hip_runtime_api.h>
 #include <iostream>
 #include <stdexcept>
+#include <vector>
 
 struct fft_fixture_t
 {
-    double2*              cpu_buf;
-    double2*              gpu_buf;
-    hipStream_t           stream;
-    rocfft_execution_info info;
-    rocfft_plan           plan;
+    std::vector<double2>  cpu_buf;
+    double2*              gpu_buf = nullptr;
+    hipStream_t           stream  = nullptr;
+    rocfft_execution_info info    = nullptr;
+    rocfft_plan           plan    = nullptr;
 };
 
 int main(int argc, char* argv[])
@@ -45,11 +46,12 @@ int main(int argc, char* argv[])
     fft_fixture_t ffts[2];
 
     /// preparation
-    rocfft_setup();
+    if(rocfft_setup() != rocfft_status_success)
+        throw std::runtime_error("rocfft_setup failed.");
     for(auto& it : ffts)
     {
         // create cpu buffer
-        it.cpu_buf = new double2[length];
+        it.cpu_buf.resize(length);
 
         // init cpu buffer...
 
@@ -58,7 +60,8 @@ int main(int argc, char* argv[])
             throw std::runtime_error("hipMalloc failed.");
 
         // copy host to device
-        if(hipMemcpy(it.gpu_buf, it.cpu_buf, total_bytes, hipMemcpyHostToDevice) != hipSuccess)
+        if(hipMemcpy(it.gpu_buf, it.cpu_buf.data(), total_bytes, hipMemcpyHostToDevice)
+           != hipSuccess)
             throw std::runtime_error("hipMemcpy failed.");
 
         // create stream
@@ -110,7 +113,7 @@ int main(int argc, char* argv[])
     {
         if(hipStreamSynchronize(it.stream) != hipSuccess)
             throw std::runtime_error("hipStreamSynchronize failed.");
-        hip_status = hipMemcpy(it.cpu_buf, it.gpu_buf, total_bytes, hipMemcpyDeviceToHost);
+        hip_status = hipMemcpy(it.cpu_buf.data(), it.gpu_buf, total_bytes, hipMemcpyDeviceToHost);
         if(hip_status != hipSuccess)
             throw std::runtime_error("hipMemcpy failed.");
     }
@@ -130,9 +133,9 @@ int main(int argc, char* argv[])
             throw std::runtime_error("hipStreamDestroy failed.");
         if(hipFree(it.gpu_buf) != hipSuccess)
             throw std::runtime_error("hipFree failed.");
-        delete[] it.cpu_buf;
     }
 
-    rocfft_cleanup();
+    if(rocfft_cleanup() != rocfft_status_success)
+        throw std::runtime_error("rocfft_cleanup failed.");
     return 0;
 }

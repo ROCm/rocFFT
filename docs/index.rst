@@ -16,12 +16,12 @@ The code is open and hosted here: https://github.com/ROCmSoftwarePlatform/rocFFT
 The rocFFT library:
 
 * Provides a fast and accurate platform for calculating discrete FFTs.
-* Supports single and double precision floating point formats.
+* Supports half (FP16), single, and double precision floating point formats.
 * Supports 1D, 2D, and 3D transforms.
 * Supports computation of transforms in batches.
 * Supports real and complex FFTs.
 * Supports arbitrary lengths, with optimizations for combinations of
-  powers of 2, 3, and 5.
+  powers of 2, 3, 5, 7, 11, 13, and 17.
 
 FFT Computation
 ---------------
@@ -356,6 +356,9 @@ data types that are appropriate for the transform being performed.
 +-------------------------+--------------------+----------------------+
 |Transform type           | Load element type  | Store element type   |
 +=========================+====================+======================+
+|Complex-to-complex,      | `_Float16_2`       | `_Float16_2`         |
+|half-precision           |                    |                      |
++-------------------------+--------------------+----------------------+
 |Complex-to-complex,      | `float2`           | `float2`             |
 |single-precision         |                    |                      |
 +-------------------------+--------------------+----------------------+
@@ -365,8 +368,14 @@ data types that are appropriate for the transform being performed.
 |Real-to-complex,         | `float`            | `float2`             |
 |single-precision         |                    |                      |
 +-------------------------+--------------------+----------------------+
+|Real-to-complex,         | `_Float16`         | `_Float16_2`         |
+|half-precision           |                    |                      |
++-------------------------+--------------------+----------------------+
 |Real-to-complex,         | `double`           | `double2`            |
 |double-precision         |                    |                      |
++-------------------------+--------------------+----------------------+
+|Complex-to-real,         | `_Float16_2`       | `_Float16`           |
+|half-precision           |                    |                      |
 +-------------------------+--------------------+----------------------+
 |Complex-to-real,         | `float2`           | `float`              |
 |single-precision         |                    |                      |

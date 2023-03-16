@@ -44,7 +44,8 @@ int main()
     // rocfft gpu compute
     // ========================================
 
-    rocfft_setup();
+    if(rocfft_setup() != rocfft_status_success)
+        throw std::runtime_error("rocfft_setup failed.");
 
     size_t Nbytes = N * sizeof(double2);
 
@@ -58,47 +59,58 @@ int main()
         throw std::runtime_error("hipMemcpy failed.");
 
     // Create plan
-    rocfft_plan plan   = NULL;
+    rocfft_plan plan   = nullptr;
     size_t      length = N;
-    rocfft_plan_create(&plan,
-                       rocfft_placement_inplace,
-                       rocfft_transform_type_complex_forward,
-                       rocfft_precision_double,
-                       1,
-                       &length,
-                       1,
-                       NULL);
+    if(rocfft_plan_create(&plan,
+                          rocfft_placement_inplace,
+                          rocfft_transform_type_complex_forward,
+                          rocfft_precision_double,
+                          1,
+                          &length,
+                          1,
+                          nullptr)
+       != rocfft_status_success)
+        throw std::runtime_error("rocfft_plan_create failed.");
 
     // Setup work buffer
     void*  workBuffer     = nullptr;
     size_t workBufferSize = 0;
-    rocfft_plan_get_work_buffer_size(plan, &workBufferSize);
+    if(rocfft_plan_get_work_buffer_size(plan, &workBufferSize) != rocfft_status_success)
+        throw std::runtime_error("rocfft_plan_get_work_buffer_size failed.");
 
     // Setup exec info to pass work buffer to the library
     rocfft_execution_info info = nullptr;
-    rocfft_execution_info_create(&info);
+    if(rocfft_execution_info_create(&info) != rocfft_status_success)
+        throw std::runtime_error("rocfft_execution_info_create failed.");
 
     if(workBufferSize > 0)
     {
         printf("size of workbuffer=%d\n", (int)workBufferSize);
         if(hipMalloc(&workBuffer, workBufferSize) != hipSuccess)
             throw std::runtime_error("hipMalloc failed.");
-        rocfft_execution_info_set_work_buffer(info, workBuffer, workBufferSize);
+        if(rocfft_execution_info_set_work_buffer(info, workBuffer, workBufferSize)
+           != rocfft_status_success)
+            throw std::runtime_error("rocfft_execution_info_set_work_buffer failed.");
     }
 
     // Execute plan
-    rocfft_execute(plan, (void**)&x, NULL, info);
+    if(rocfft_execute(plan, (void**)&x, nullptr, info) != rocfft_status_success)
+        throw std::runtime_error("rocfft_execute failed.");
     if(hipDeviceSynchronize() != hipSuccess)
         throw std::runtime_error("hipDeviceSynchronize failed.");
 
     // Destroy plan
-    rocfft_plan_destroy(plan);
+    if(rocfft_plan_destroy(plan) != rocfft_status_success)
+        throw std::runtime_error("rocfft_plan_destroy failed.");
+    plan = nullptr;
 
     if(workBuffer)
         if(hipFree(workBuffer) != hipSuccess)
             throw std::runtime_error("hipFree failed.");
 
-    rocfft_execution_info_destroy(info);
+    if(rocfft_execution_info_destroy(info) != rocfft_status_success)
+        throw std::runtime_error("rocfft_execution_info_destroy failed.");
+    info = nullptr;
 
     // Copy result back to host
     std::vector<double2> y(N);
@@ -114,7 +126,8 @@ int main()
     if(hipFree(x) != hipSuccess)
         throw std::runtime_error("hipFree failed.");
 
-    rocfft_cleanup();
+    if(rocfft_cleanup() != rocfft_status_success)
+        throw std::runtime_error("rocfft_cleanup failed.");
 
     return 0;
 }
