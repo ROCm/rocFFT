@@ -2,7 +2,7 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
-## (Unreleased) rocFFT 2.0.0
+## (Unreleased) rocFFT 1.0.23
 
 ### Added
 - Implemented half-precision transforms, which can be requested by passing rocfft_precision_half to rocfft_plan_create.
