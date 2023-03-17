@@ -56,9 +56,6 @@ struct StockhamKernelCC : public StockhamKernel
     Variable thread{"thread", "unsigned int"}; // replacing tid_ver
     Variable tid_hor{"tid_hor", "unsigned int"}; // id along row
 
-    // stride between consecutive columns
-    Variable stride1{"stride1", "const size_t"};
-
     // large twiddle support
     Multiply ltwd_entries{Parens{ShiftLeft{1, large_twiddle_base}}, 3};
     And      ltwd_in_lds{apply_large_twiddle, Less{large_twiddle_base, 8}};
@@ -115,7 +112,7 @@ struct StockhamKernelCC : public StockhamKernel
                     R[hr * width + w],
                     IntrinsicLoad{
                         {buf,
-                         tid_hor * stride1 + Parens{Expression{idx}} * stride0,
+                         tid_hor * stride[1] + Parens{Expression{idx}} * stride0,
                          offset,
                          std::holds_alternative<Literal>(guard) ? pred : (guard && pred)}}};
             }
@@ -124,7 +121,7 @@ struct StockhamKernelCC : public StockhamKernel
                 load += Assign{
                     R[hr * width + w],
                     LoadGlobal{buf,
-                               offset + tid_hor * stride1 + Parens{Expression{idx}} * stride0}};
+                               offset + tid_hor * stride[1] + Parens{Expression{idx}} * stride0}};
             }
         }
         return load;
@@ -152,7 +149,7 @@ struct StockhamKernelCC : public StockhamKernel
             {
                 // no need to and with trivial "true"
                 work += IntrinsicStore{buf,
-                                       tid_hor * stride1 + Parens{Expression{idx}} * stride0,
+                                       tid_hor * stride[1] + Parens{Expression{idx}} * stride0,
                                        offset,
                                        R[hr * width + w],
                                        std::holds_alternative<Literal>(guard) ? pred
@@ -160,24 +157,13 @@ struct StockhamKernelCC : public StockhamKernel
             }
             else
             {
-                work += StoreGlobal{buf,
-                                    offset + tid_hor * stride1 + Parens{Expression{idx}} * stride0,
-                                    R[hr * width + w]};
+                work
+                    += StoreGlobal{buf,
+                                   offset + tid_hor * stride[1] + Parens{Expression{idx}} * stride0,
+                                   R[hr * width + w]};
             }
         }
         return work;
-    }
-
-    // Base method checks if StrideBin==SB_UNIT and hardcodes stride0
-    // to 1.  But for SBCC kernels we use stride1 for unit-stride checks
-    void collect_length_stride(StatementList& body) override
-    {
-        if(static_dim)
-        {
-            body += Declaration{dim, static_dim};
-        }
-        body += Declaration{stride0, stride[0]};
-        body += Declaration{stride1, Ternary{stride_type == "SB_UNIT", 1, stride[1]}};
     }
 
     StatementList calculate_offsets() override
@@ -202,7 +188,7 @@ struct StockhamKernelCC : public StockhamKernel
         stmts += Assign{plength, num_of_tiles};
         stmts += Assign{tile_index, block_id % num_of_tiles};
         stmts += Assign{remaining, block_id / num_of_tiles};
-        stmts += Assign{offset, tile_index * transforms_per_block * stride1};
+        stmts += Assign{offset, tile_index * transforms_per_block * stride[1]};
 
         stmts += For{d,
                      2,
@@ -266,7 +252,7 @@ struct StockhamKernelCC : public StockhamKernel
             auto stripmine_h = workgroup_size / stripmine_w;
 
             auto offset_tile_rbuf = [&](unsigned int i) {
-                return tid_hor * stride1 + (thread + i * stripmine_h) * stride0;
+                return tid_hor * stride[1] + (thread + i * stripmine_h) * stride0;
             };
             auto offset_tile_wlds = [&](unsigned int i) {
                 return tid_hor * stride_lds + (thread + i * stripmine_h) * 1;
@@ -337,7 +323,7 @@ struct StockhamKernelCC : public StockhamKernel
             auto stripmine_h = workgroup_size / stripmine_w;
 
             auto offset_tile_wbuf = [&](unsigned int i) {
-                return tid_hor * stride1 + (thread + i * stripmine_h) * stride0;
+                return tid_hor * stride[1] + (thread + i * stripmine_h) * stride0;
             };
             auto offset_tile_rlds = [&](unsigned int i) {
                 return tid_hor * stride_lds + (thread + i * stripmine_h) * 1;

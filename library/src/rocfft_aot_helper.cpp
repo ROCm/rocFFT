@@ -88,6 +88,8 @@ void stockham_combo(ComputeScheme             scheme,
     case CS_KERNEL_STOCKHAM_BLOCK_CC:
     {
         placements.push_back(rocfft_placement_inplace);
+        // SBCC is never unit stride
+        unitstride_range = {false};
 
         // if no dir-to-reg support, then we don't have intrinsic buffer RW,
         // and only force_off_or_not_support for dir2reg. Else, we have all possibilities
