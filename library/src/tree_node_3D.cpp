@@ -23,6 +23,7 @@
 #include "function_pool.h"
 #include "logging.h"
 #include "node_factory.h"
+#include "tuning_helper.h"
 #include <numeric>
 
 /*****************************************************
@@ -666,15 +667,30 @@ FMKey SBRCTranspose3DNode::GetKernelKey() const
 bool SBRCTranspose3DNode::KernelCheck(std::vector<FMKey>& kernel_keys)
 {
     bool res = LeafNode::KernelCheck(kernel_keys);
+    if(!res)
+        return false;
 
-    // set according to benchmark
-    SetDirectRegType();
+    // if we are doing tuning or running with the tuned solution, we have the specified_key.
+    // we must directly run the kernel with the exact setting as the config
+    // without the hardcoded tuning
+    if(specified_key != nullptr)
+        return true;
 
-    return res;
+    // hardocded-tuning according to benchmark
+    TuneDirectRegType();
+
+    return true;
 }
 
-void SBRCTranspose3DNode::SetDirectRegType()
+void SBRCTranspose3DNode::TuneDirectRegType()
 {
+    // half precision has not been tested yet, disable it for now.
+    if(precision == rocfft_precision_half)
+    {
+        dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+        return;
+    }
+
     if(is_device_gcn_arch(deviceProp, "gfx906"))
     {
         // bad results from benchmark:

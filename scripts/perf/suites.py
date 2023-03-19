@@ -29,6 +29,8 @@ all_precisions = ['single', 'double']
 all_directions = [-1, 1]
 all_inplaces = [True, False]
 all_reals = [True, False]
+def_tuning_min_wgs = 64
+def_tuning_max_wgs = 512
 
 # yapf: disable
 lengths = {
@@ -343,7 +345,7 @@ def mktag(tag, dimension, precision, direction, inplace, real):
 
 # yield problem sizes with default precision, direction, etc
 def default_length_params(tag, lengths, nbatch, precisions=all_precisions, \
-    directions=all_directions, inplaces=all_inplaces, reals=all_reals):
+    directions=all_directions, inplaces=all_inplaces, reals=all_reals, min_wgs=def_tuning_min_wgs, max_wgs=def_tuning_max_wgs):
 
     for precision, direction, inplace, real in product(precisions, directions,
                                                        inplaces, reals):
@@ -356,7 +358,9 @@ def default_length_params(tag, lengths, nbatch, precisions=all_precisions, \
                           direction=direction,
                           inplace=inplace,
                           real=real,
-                          precision=precision)
+                          precision=precision,
+                          min_wgs=min_wgs,
+                          max_wgs=max_wgs)
 
 
 def md():
@@ -389,13 +393,12 @@ def qa():
                   real=False,
                   precision='double')
 
-    yield Problem((336, 336, 56),
-                  tag=mktag('qa3', 3, 'double', -1, False, False),
-                  nbatch=1,
-                  direction=-1,
-                  inplace=False,
-                  real=False,
-                  precision='double')
+    yield from default_length_params("336x336x56", [(336, 336, 56)],
+                                     1,
+                                     directions=[-1],
+                                     precisions=['double'],
+                                     inplaces=[True, False],
+                                     reals=[False])
 
     for length3 in lengths['md']:
         for direction in [-1, 1]:
@@ -677,3 +680,114 @@ def short_test():
                                                     (4294967296)],
                                      1,
                                      reals=[False])
+
+
+def tuning_example():
+    """tuning 3 examples problems"""
+
+    yield from default_length_params("81_1d", [(81)],
+                                     60000,
+                                     directions=[-1],
+                                     precisions=['double'],
+                                     inplaces=[False],
+                                     reals=[False],
+                                     min_wgs=128,
+                                     max_wgs=256)
+
+    yield from default_length_params("81_2d", [(81, 81)],
+                                     8000,
+                                     directions=[-1],
+                                     precisions=['double'],
+                                     inplaces=[False],
+                                     reals=[False],
+                                     min_wgs=128,
+                                     max_wgs=256)
+
+    # batch=500 to enabling tuning with intrinsic buffer
+    yield from default_length_params("81_3d", [(81, 81, 81)],
+                                     500,
+                                     directions=[-1],
+                                     precisions=['double'],
+                                     inplaces=[False],
+                                     reals=[False],
+                                     min_wgs=128,
+                                     max_wgs=256)
+
+
+def tuning_suite():
+    """tuning"""
+
+    # basically, when tuning for single, we can tune wgs range from 128~512, for double, wgs range is 128~256
+    # but you can also change it for particular problem.
+    # But inside our cpp tuner implementation, min_wgs might still be automatically changed
+    # if the setting gives no any candidate (example, a len64 with min_wgs=128 might not derive any)
+
+    # complex transforms in suite qa.
+    for length1 in [
+            8192, 10000, 10752, 15625, 16384, 16807, 18816, 19683, 21504
+    ]:
+        for direction in [1]:
+            yield Problem([length1],
+                          tag=mktag("qa1", 1, 'double', direction, False,
+                                    False),
+                          nbatch=10000,
+                          direction=direction,
+                          inplace=False,
+                          real=False,
+                          precision='double',
+                          min_wgs=128,
+                          max_wgs=256)
+
+    # batch=5000 to enabling tuning with intrinsic buffer
+    # since batch 10000 causes memory offset > 2^32, buffer inst will be disabled
+    for length1 in [32256, 43008]:
+        for direction in [1]:
+            yield Problem([length1],
+                          tag=mktag("qa1", 1, 'double', direction, False,
+                                    False),
+                          nbatch=5000,
+                          direction=direction,
+                          inplace=False,
+                          real=False,
+                          precision='double',
+                          min_wgs=128,
+                          max_wgs=256)
+
+    # we'd like to search more for this problem, so min_wgs = 64, not 128
+    yield from default_length_params("336x336x56", [(336, 336, 56)],
+                                     1,
+                                     directions=[-1],
+                                     precisions=['double'],
+                                     inplaces=[True, False],
+                                     reals=[False],
+                                     max_wgs=256)
+
+    for length in lengths['qa1d10b']:
+        yield Problem([length],
+                      tag=mktag("qa1d10b", 1, 'single', -1, True, False),
+                      nbatch=10,
+                      direction=-1,
+                      inplace=True,
+                      real=False,
+                      precision='single',
+                      min_wgs=128)
+
+    for length2 in lengths['qa2d10b']:
+        yield Problem(length2,
+                      tag=mktag("qa2d10b", 2, 'single', -1, True, False),
+                      nbatch=10,
+                      direction=-1,
+                      inplace=True,
+                      real=False,
+                      precision='single',
+                      min_wgs=128)
+
+    for length3 in lengths['qa3d10b']:
+        yield Problem(length3,
+                      tag=mktag("qa3d10b", 3, 'single', -1, True, False),
+                      nbatch=10,
+                      direction=-1,
+                      inplace=True,
+                      real=False,
+                      precision='single',
+                      min_wgs=128)

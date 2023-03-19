@@ -792,12 +792,13 @@ class Map(BaseNodeOps):
     def emplace(self, key, value):
         return Call(self.name + '.emplace', arguments=ArgumentList(key, value))
 
-    def assert_emplace(self, key, value):
+    def assert_emplace(self, key, value, what_error):
         emplace = Call(self.name + '.emplace',
                        arguments=ArgumentList(key, value)).inline()
         status = Call(name='std::get<1>',
                       arguments=ArgumentList(emplace)).inline()
-        throw = StatementList(Throw('std::runtime_error("' + str(key) + '")'))
+        throw = StatementList(
+            Throw('std::runtime_error("' + str(what_error) + '")'))
         return If(Equal(status, "false"), throw)
 
     def assert_insert(self, key, value):

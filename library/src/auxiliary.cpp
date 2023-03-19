@@ -28,6 +28,7 @@
 #include "rocfft_ostream.hpp"
 #include "rtc_cache.h"
 #include "solution_map.h"
+#include "tuning_helper.h"
 #include <fcntl.h>
 #include <memory>
 
@@ -40,6 +41,7 @@ int log_profile_fd  = -1;
 int log_plan_fd     = -1;
 int log_kernelio_fd = -1;
 int log_rtc_fd      = -1;
+int log_tuning_fd   = -1;
 
 /**
  *  @brief Logging function
@@ -116,10 +118,15 @@ rocfft_status rocfft_setup()
         // open log_rtc file
         if(layer_mode & rocfft_layer_mode_log_rtc)
             open_log_stream("ROCFFT_LOG_RTC_PATH", log_rtc_fd);
+
+        // open log_tuning file
+        if(layer_mode & rocfft_layer_mode_log_tuning)
+            open_log_stream("ROCFFT_LOG_TUNING_PATH", log_tuning_fd);
     }
 
     // setup solution map once in program at the start of library use
     solution_map::get_solution_map().setup();
+    TuningBenchmarker::GetSingleton().Setup();
 
     log_trace(__func__);
     return rocfft_status_success;
@@ -136,6 +143,8 @@ rocfft_status rocfft_cleanup()
 #ifdef ROCFFT_RUNTIME_COMPILE
     RTCCache::single.reset();
 #endif
+
+    TuningBenchmarker::GetSingleton().Clean();
 
     LogSingleton::GetInstance().SetLayerMode(rocfft_layer_mode_none);
     // Close log files
@@ -169,9 +178,23 @@ rocfft_status rocfft_cleanup()
         CLOSE(log_rtc_fd);
         log_rtc_fd = -1;
     }
+    if(log_tuning_fd != -1)
+    {
+        CLOSE(log_tuning_fd);
+        log_tuning_fd = -1;
+    }
 
     // stop all log worker threads
     rocfft_ostream::cleanup();
 
     return rocfft_status_success;
 }
+
+#ifdef ROCFFT_BUILD_OFFLINE_TUNER
+rocfft_status rocfft_get_offline_tuner_handle(void** offline_tuner)
+{
+    TuningBenchmarker::GetSingleton().SetBindingSolutionMap(&solution_map::get_solution_map());
+    *offline_tuner = &(TuningBenchmarker::GetSingleton());
+    return rocfft_status_success;
+}
+#endif

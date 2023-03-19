@@ -29,6 +29,7 @@
 
 import itertools
 import logging
+import json
 
 from dataclasses import dataclass, field
 from pathlib import Path as path
@@ -68,7 +69,15 @@ class Problem:
     real: bool = False
     precision: str = "single"
     tag: str = None
+    min_wgs: int = 64
+    max_wgs: int = 512
     meta: Dict[str, str] = field(default_factory=dict)
+
+    def toJSON(self):
+        tuning_dict = self.__dict__
+        del tuning_dict['tag']
+        del tuning_dict['meta']
+        return tuning_dict
 
 
 @dataclass

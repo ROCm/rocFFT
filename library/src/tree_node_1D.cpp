@@ -24,6 +24,7 @@
 #include "function_pool.h"
 #include "fuse_shim.h"
 #include "node_factory.h"
+#include "tuning_helper.h"
 #include <numeric>
 
 /*****************************************************
@@ -326,15 +327,6 @@ void CC1DNode::BuildTree_internal(const SchemeVec& child_schemes)
     auto col2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
     // large1D flag to confirm we need multiply twiddle factor
     col2colPlan->large1D = length[0];
-    if(function_pool::has_SBCC_kernel(lenFactor1, precision))
-    {
-        // decompose the large twd table for L1D_CC
-        // exclude some exceptions that don't get benefit from 3-step LargeTwd (set in FFTKernel)
-        auto kernel
-            = function_pool::get_kernel(fpkey(lenFactor1, precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
-        col2colPlan->largeTwd3Steps = kernel.use_3steps_large_twd;
-        col2colPlan->set_large_twd_base_steps(length[0]);
-    }
     col2colPlan->length.push_back(lenFactor1);
     col2colPlan->length.push_back(lenFactor0);
     col2colPlan->dimension = 1;
@@ -533,15 +525,6 @@ void CRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
     auto col2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
     // large1D flag to confirm we need multiply twiddle factor
     col2colPlan->large1D = length[0];
-    if(function_pool::has_SBCC_kernel(lenFactor1, precision))
-    {
-        // decompose the large twd table for L1D_CRT
-        // exclude some exceptions that don't get benefit from 3-step LargeTwd (set in FFTKernel)
-        auto kernel
-            = function_pool::get_kernel(fpkey(lenFactor1, precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
-        col2colPlan->largeTwd3Steps = kernel.use_3steps_large_twd;
-        col2colPlan->set_large_twd_base_steps(length[0]);
-    }
     col2colPlan->length.push_back(lenFactor1);
     col2colPlan->length.push_back(lenFactor0);
     col2colPlan->dimension = 1;
@@ -799,18 +782,46 @@ std::vector<size_t> Stockham1DNode::CollapsibleDims()
 bool SBCCNode::KernelCheck(std::vector<FMKey>& kernel_keys)
 {
     bool res = LeafNode::KernelCheck(kernel_keys);
+    if(!res)
+        return false;
 
-    // set according to benchmark
-    SetDirectRegType();
+    if(large1D > 0)
+    {
+        FMKey key      = GetKernelKey();
+        auto  kernel   = function_pool::get_kernel(key);
+        largeTwd3Steps = kernel.use_3steps_large_twd;
+        get_large_twd_base_steps(large1D, largeTwd3Steps, largeTwdBase, ltwdSteps);
+    }
 
-    // set according to benchmark
-    SetIntrinsicMode();
+    // if we are doing tuning or running with the tuned solution, we have the specified_key.
+    // we must directly run the kernel with the exact setting as the config
+    // without the hardcoded tuning
+    if(specified_key != nullptr)
+    {
+        InitIntrinsicMode();
+        return true;
+    }
 
-    return res;
+    // hardocded-tuning according to benchmark
+    TuneDirectRegType();
+
+    // check if we can use buffer instr
+    InitIntrinsicMode();
+    // hardocded-tuning according to benchmark
+    TuneIntrinsicMode();
+
+    return true;
 }
 
-void SBCCNode::SetDirectRegType()
+void SBCCNode::TuneDirectRegType()
 {
+    // half precision has not been tested yet, disable it for now.
+    if(precision == rocfft_precision_half)
+    {
+        dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+        return;
+    }
+
     // for Navi, Haven't tested all.
     if(is_device_gcn_arch(deviceProp, "gfx1030"))
     {
@@ -842,47 +853,73 @@ void SBCCNode::SetDirectRegType()
     }
 }
 
-void SBCCNode::SetIntrinsicMode()
+void SBCCNode::InitIntrinsicMode()
 {
-    // NB: remember set this value at this point instead of SetupGPAndFnPtr_internal()
-    //     since we might need to pass this value to RTC generator
-    intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
-
-    // TODO- To test on gfx90a
-    if((is_device_gcn_arch(deviceProp, "gfx906") || is_device_gcn_arch(deviceProp, "gfx908")
-        || is_device_gcn_arch(deviceProp, "gfx1030"))
-       && (dir2regMode == TRY_ENABLE_IF_SUPPORT))
+    // 1. General rejections: (Guard) cases we definitely can't use buffer instruction
+    // 2. half precision has not been tested yet, disable it for now.
+    if(((uint64_t)iDist * batch * complex_type_size(precision) >= 0xFFFFFFFF)
+       || ((uint64_t)oDist * batch * complex_type_size(precision) >= 0xFFFFFFFF)
+       || (precision == rocfft_precision_half))
     {
-        // General rejections: cases we can't use buffer load
-        if(((uint64_t)iDist * batch * complex_type_size(precision) < 0xFFFFFFFF)
-           && ((uint64_t)oDist * batch * complex_type_size(precision) < 0xFFFFFFFF))
-        {
-            if(placement == rocfft_placement_inplace)
-                intrinsicMode = IntrinsicAccessType::ENABLE_LOAD_ONLY;
-            else
-                intrinsicMode = IntrinsicAccessType::ENABLE_BOTH;
-        }
+        intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
+        return;
+    }
 
-        // Based on benchmark results
-        if(is_device_gcn_arch(deviceProp, "gfx906"))
-        {
-            // bad results from benchmark:
-            // {96,sp}, {125,sp}, {192,sp/dp}, {240,dp}, {256,sp/dp}, {343,sp/dp}
-            std::map<rocfft_precision, std::set<size_t>> exceptions
-                = {{rocfft_precision_single, {96, 125, 192, 256, 343}},
-                   {rocfft_precision_double, {192, 240, 256, 343}}};
-            if(exceptions.at(precision).count(length[0]))
-                intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
-        }
-        else if(is_device_gcn_arch(deviceProp, "gfx908"))
-        {
-            // bad results from benchmark:
-            // {104,sp/dp}, {192,dp}, {240,dp}, {289,sp}
-            std::map<rocfft_precision, std::set<size_t>> exceptions = {
-                {rocfft_precision_single, {104, 289}}, {rocfft_precision_double, {104, 192, 240}}};
-            if(exceptions.at(precision).count(length[0]))
-                intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
-        }
+    // case 1: is runing tuning or a tuned solution, then use the setting in the config
+    if(specified_key != nullptr)
+    {
+        auto& config  = std::get<4>(*specified_key.get());
+        intrinsicMode = (config.intrinsic_buffer_inst) ? IntrinsicAccessType::ENABLE_BOTH
+                                                       : IntrinsicAccessType::DISABLE_BOTH;
+        return;
+    }
+
+    // case 2: un-tuned: auto decision: try to use buffer instruction as possible
+    if(dir2regMode == TRY_ENABLE_IF_SUPPORT)
+    {
+        if(placement == rocfft_placement_inplace)
+            intrinsicMode = IntrinsicAccessType::ENABLE_LOAD_ONLY;
+        else
+            intrinsicMode = IntrinsicAccessType::ENABLE_BOTH;
+    }
+}
+
+// NB: remember set this value at this point instead of SetupGPAndFnPtr_internal()
+//     since we might need to pass this value to RTC generator
+void SBCCNode::TuneIntrinsicMode()
+{
+    // already disabled
+    if(intrinsicMode == IntrinsicAccessType::DISABLE_BOTH)
+        return;
+
+    // hardcoded turn-off in some exception cases
+    // 1. currently we only enable this on 906, 908, 1030. TODO- test on 90a
+    if((is_device_gcn_arch(deviceProp, "gfx906") == false)
+       && (is_device_gcn_arch(deviceProp, "gfx908") == false)
+       && (is_device_gcn_arch(deviceProp, "gfx1030") == false))
+    {
+        intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
+    }
+    // 2. exception cases on 906. Based on benchmark results
+    else if(is_device_gcn_arch(deviceProp, "gfx906"))
+    {
+        // bad results from benchmark:
+        // {96,sp}, {125,sp}, {192,sp/dp}, {240,dp}, {256,sp/dp}, {343,sp/dp}
+        std::map<rocfft_precision, std::set<size_t>> exceptions
+            = {{rocfft_precision_single, {96, 125, 192, 256, 343}},
+               {rocfft_precision_double, {192, 240, 256, 343}}};
+        if(exceptions.at(precision).count(length[0]))
+            intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
+    }
+    // 3. exception cases on 908. Based on benchmark results
+    else if(is_device_gcn_arch(deviceProp, "gfx908"))
+    {
+        // bad results from benchmark:
+        // {104,sp/dp}, {192,dp}, {240,dp}, {289,sp}
+        std::map<rocfft_precision, std::set<size_t>> exceptions
+            = {{rocfft_precision_single, {104, 289}}, {rocfft_precision_double, {104, 192, 240}}};
+        if(exceptions.at(precision).count(length[0]))
+            intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
     }
 }
 
@@ -935,15 +972,30 @@ FMKey SBRCNode::GetKernelKey() const
 bool SBRCNode::KernelCheck(std::vector<FMKey>& kernel_keys)
 {
     bool res = LeafNode::KernelCheck(kernel_keys);
+    if(!res)
+        return false;
 
-    // set according to benchmark
-    SetDirectRegType();
+    // if we are doing tuning or running with the tuned solution, we have the specified_key.
+    // we must directly run the kernel with the exact setting as the config
+    // without the hardcoded tuning
+    if(specified_key != nullptr)
+        return true;
 
-    return res;
+    // hardocded-tuning according to benchmark
+    TuneDirectRegType();
+
+    return true;
 }
 
-void SBRCNode::SetDirectRegType()
+void SBRCNode::TuneDirectRegType()
 {
+    // half precision has not been tested yet, disable it for now.
+    if(precision == rocfft_precision_half)
+    {
+        dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+        return;
+    }
+
     if(is_device_gcn_arch(deviceProp, "gfx906"))
     {
         // bad results from benchmark:
@@ -1005,18 +1057,38 @@ SBRC_TRANSPOSE_TYPE SBRCNode::sbrc_transpose_type(unsigned int blockWidth) const
 bool SBCRNode::KernelCheck(std::vector<FMKey>& kernel_keys)
 {
     bool res = LeafNode::KernelCheck(kernel_keys);
+    if(!res)
+        return false;
 
-    // set according to benchmark
-    SetDirectRegType();
+    // if we are doing tuning or running with the tuned solution, we have the specified_key.
+    // we must directly run the kernel with the exact setting as the config
+    // without the hardcoded tuning
+    if(specified_key != nullptr)
+    {
+        InitIntrinsicMode();
+        return true;
+    }
 
-    // set according to benchmark
-    SetIntrinsicMode();
+    // hardocded-tuning according to benchmark
+    TuneDirectRegType();
 
-    return res;
+    // check if we can use buffer instr
+    InitIntrinsicMode();
+    // hardocded-tuning according to benchmark
+    TuneIntrinsicMode();
+
+    return true;
 }
 
-void SBCRNode::SetDirectRegType()
+void SBCRNode::TuneDirectRegType()
 {
+    // half precision has not been tested yet, disable it for now.
+    if(precision == rocfft_precision_half)
+    {
+        dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
+        return;
+    }
+
     // switch on/off according to the arch
     // tweaking the setting based on the benchmark results.
 
@@ -1034,20 +1106,47 @@ void SBCRNode::SetDirectRegType()
     }
 }
 
-void SBCRNode::SetIntrinsicMode()
+void SBCRNode::InitIntrinsicMode()
 {
-    // NB: remember set this value at this point instead of SetupGPAndFnPtr_internal()
-    //     since we might need to pass this value to RTC generator
-    intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
-
-    // TODO- To test on gfx90a
-    if(is_device_gcn_arch(deviceProp, "gfx908") && (dir2regMode == TRY_ENABLE_IF_SUPPORT))
+    // 1. General rejections: (Guard) cases we definitely can't use buffer instruction
+    // 2. half precision has not been tested yet, disable it for now.
+    if(((uint64_t)iDist * batch * complex_type_size(precision) >= 0xFFFFFFFF)
+       || ((uint64_t)oDist * batch * complex_type_size(precision) >= 0xFFFFFFFF)
+       || (precision == rocfft_precision_half))
     {
-        if(((uint64_t)iDist * batch * complex_type_size(precision) < 0xFFFFFFFF)
-           && ((uint64_t)oDist * batch * complex_type_size(precision) < 0xFFFFFFFF))
-        {
-            intrinsicMode = IntrinsicAccessType::ENABLE_BOTH;
-        }
+        intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
+        return;
+    }
+
+    // case 1: is runing tuning or a tuned solution, then use the setting in the config
+    if(specified_key != nullptr)
+    {
+        auto& config  = std::get<4>(*specified_key.get());
+        intrinsicMode = (config.intrinsic_buffer_inst) ? IntrinsicAccessType::ENABLE_BOTH
+                                                       : IntrinsicAccessType::DISABLE_BOTH;
+        return;
+    }
+
+    // case 2: un-tuned: auto decision: try to use buffer instruction as possible
+    if(dir2regMode == TRY_ENABLE_IF_SUPPORT)
+    {
+        intrinsicMode = IntrinsicAccessType::ENABLE_BOTH;
+    }
+}
+
+// NB: remember set this value at this point instead of SetupGPAndFnPtr_internal()
+//     since we might need to pass this value to RTC generator
+void SBCRNode::TuneIntrinsicMode()
+{
+    // already disabled
+    if(intrinsicMode == IntrinsicAccessType::DISABLE_BOTH)
+        return;
+
+    // hardcoded turn-off in some exception cases
+    // 1. currently we only enable this on 908. TODO- test on 90a
+    if(is_device_gcn_arch(deviceProp, "gfx908") == false)
+    {
+        intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
     }
 }
 

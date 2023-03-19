@@ -83,7 +83,10 @@ enum ComputeScheme
     CS_KERNEL_3D_SINGLE // not implemented yet
 };
 
+// print abbreviation for kernel scheme
+std::string   PrintKernelSchemeAbbr(ComputeScheme cs);
 std::string   PrintScheme(ComputeScheme cs);
 ComputeScheme StrToComputeScheme(const std::string& str);
+bool          ComputeSchemeIsAProblem(ComputeScheme cs);
 
 #endif

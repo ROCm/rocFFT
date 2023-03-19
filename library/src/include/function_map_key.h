@@ -27,20 +27,15 @@
 
 #include "compute_scheme.h"
 #include "data_descriptor.h"
-#include "rocfft.h"
+#include "enum_printer.h"
 #include "twiddles.h"
-
-std::string PrintSBRCTransposeType(const SBRC_TRANSPOSE_TYPE ty);
-std::string PrintPrecision(const rocfft_precision pre);
-
-SBRC_TRANSPOSE_TYPE StrToSBRCTransType(const std::string& str);
-rocfft_precision    StrToPrecision(const std::string& str);
 
 struct KernelConfig
 {
     bool                use_3steps_large_twd  = false;
     bool                half_lds              = false;
     bool                direct_to_from_reg    = false;
+    bool                intrinsic_buffer_inst = false;
     unsigned int        transforms_per_block  = 0;
     int                 workgroup_size        = 0;
     std::array<int, 2>  threads_per_transform = {0, 0};
@@ -49,6 +44,25 @@ struct KernelConfig
     KernelConfig()                    = default;
     KernelConfig(const KernelConfig&) = default;
 
+    KernelConfig(bool                  use_3steps,
+                 std::vector<size_t>&& factors,
+                 int                   tpb,
+                 int                   wgs,
+                 std::array<int, 2>&&  tpt,
+                 bool                  half_lds              = false,
+                 bool                  direct_to_from_reg    = false,
+                 bool                  intrinsic_buffer_inst = false)
+        : use_3steps_large_twd(use_3steps)
+        , half_lds(half_lds)
+        , direct_to_from_reg(direct_to_from_reg)
+        , intrinsic_buffer_inst(intrinsic_buffer_inst)
+        , transforms_per_block(tpb)
+        , workgroup_size(wgs)
+        , threads_per_transform(tpt)
+        , factors(factors)
+    {
+    }
+
     KernelConfig& operator=(const KernelConfig&) = default;
 
     bool operator==(const KernelConfig& rhs) const
@@ -56,6 +70,7 @@ struct KernelConfig
         return std::tie(use_3steps_large_twd,
                         half_lds,
                         direct_to_from_reg,
+                        intrinsic_buffer_inst,
                         transforms_per_block,
                         workgroup_size,
                         threads_per_transform,
@@ -63,10 +78,84 @@ struct KernelConfig
                == std::tie(rhs.use_3steps_large_twd,
                            rhs.half_lds,
                            rhs.direct_to_from_reg,
+                           rhs.intrinsic_buffer_inst,
                            rhs.transforms_per_block,
                            rhs.workgroup_size,
                            rhs.threads_per_transform,
                            rhs.factors);
+    }
+
+    bool operator<(const KernelConfig& rhs) const
+    {
+        size_t l_h = std::hash<bool>{}(use_3steps_large_twd);
+        size_t r_h = std::hash<bool>{}(rhs.use_3steps_large_twd);
+        if(l_h > r_h)
+            return true;
+        if(l_h < r_h)
+            return false;
+
+        l_h = std::hash<bool>{}(half_lds);
+        r_h = std::hash<bool>{}(rhs.half_lds);
+        if(l_h > r_h)
+            return true;
+        if(l_h < r_h)
+            return false;
+
+        l_h = std::hash<bool>{}(direct_to_from_reg);
+        r_h = std::hash<bool>{}(rhs.direct_to_from_reg);
+        if(l_h > r_h)
+            return true;
+        if(l_h < r_h)
+            return false;
+
+        l_h = std::hash<bool>{}(intrinsic_buffer_inst);
+        r_h = std::hash<bool>{}(rhs.intrinsic_buffer_inst);
+        if(l_h > r_h)
+            return true;
+        if(l_h < r_h)
+            return false;
+
+        if(transforms_per_block > rhs.transforms_per_block)
+            return true;
+        if(transforms_per_block < rhs.transforms_per_block)
+            return false;
+
+        if(workgroup_size > rhs.workgroup_size)
+            return true;
+        if(workgroup_size < rhs.workgroup_size)
+            return false;
+
+        if(threads_per_transform > rhs.threads_per_transform)
+            return true;
+        if(threads_per_transform < rhs.threads_per_transform)
+            return false;
+
+        return (factors > rhs.factors);
+    }
+
+    std::string Print() const
+    {
+        std::stringstream ss;
+        ss << "KernelConfig: {";
+
+        ss << "3steps: " << (use_3steps_large_twd ? "true" : "false")
+           << ", half_lds: " << (half_lds ? "true" : "false")
+           << ", direct_reg: " << (direct_to_from_reg ? "true" : "false")
+           << ", try_use_buf_inst: " << (intrinsic_buffer_inst ? "true" : "false")
+           << ", tpb: " << transforms_per_block << ", wgs: " << workgroup_size << ", tpt: ["
+           << threads_per_transform[0] << "," << threads_per_transform[1] << "], factors: [";
+
+        std::string COMMA = "";
+        for(auto factor : factors)
+        {
+            ss << COMMA << factor;
+            COMMA = ", ";
+        }
+        ss << "]";
+
+        ss << "}";
+
+        return ss.str();
     }
 
     static KernelConfig EmptyConfig()
@@ -88,6 +177,7 @@ namespace std
             h ^= std::hash<bool>{}(config.use_3steps_large_twd);
             h ^= std::hash<bool>{}(config.half_lds);
             h ^= std::hash<bool>{}(config.direct_to_from_reg);
+            h ^= std::hash<bool>{}(config.intrinsic_buffer_inst);
             h ^= std::hash<unsigned int>{}(config.transforms_per_block);
             h ^= std::hash<int>{}(config.workgroup_size);
             for(auto& v : config.threads_per_transform)
@@ -118,6 +208,7 @@ struct ToString<KernelConfig>
         str += FieldDescriptor<bool>().describe("use_3steps", value.use_3steps_large_twd) + ",";
         str += FieldDescriptor<bool>().describe("half_lds", value.half_lds) + ",";
         str += FieldDescriptor<bool>().describe("dir_reg", value.direct_to_from_reg) + ",";
+        str += FieldDescriptor<bool>().describe("buffer_inst", value.intrinsic_buffer_inst) + ",";
         str += FieldDescriptor<unsigned int>().describe("tpb", value.transforms_per_block) + ",";
         str += FieldDescriptor<int>().describe("wgs", value.workgroup_size) + ",";
         str += VectorFieldDescriptor<int>().describe("tpt", tpt) + ",";
@@ -138,6 +229,7 @@ struct FromString<KernelConfig>
         FieldParser<bool>().parse("use_3steps", ret.use_3steps_large_twd, current);
         FieldParser<bool>().parse("half_lds", ret.half_lds, current);
         FieldParser<bool>().parse("dir_reg", ret.direct_to_from_reg, current);
+        FieldParser<bool>().parse("buffer_inst", ret.intrinsic_buffer_inst, current);
         FieldParser<size_t>().parse("tpb", tpb, current);
         FieldParser<int>().parse("wgs", ret.workgroup_size, current);
         VectorFieldParser<int>().parse("tpt", tpt, current);
@@ -188,6 +280,42 @@ static inline FMKey fpkey(size_t              length1,
                           KernelConfig        kernel_config = KernelConfig::EmptyConfig())
 {
     return {{length1, length2}, precision, scheme, transpose, kernel_config};
+}
+
+// add an alternative kernel with different kernel config from base FMKey
+static FMKey get_alternative_FMKey(const FMKey& base_FMKey, const KernelConfig& alt_config)
+{
+    const auto&               lengthVec = std::get<0>(base_FMKey);
+    const rocfft_precision    precision = std::get<1>(base_FMKey);
+    const ComputeScheme       scheme    = std::get<2>(base_FMKey);
+    const SBRC_TRANSPOSE_TYPE trans     = std::get<3>(base_FMKey);
+
+    return {lengthVec, precision, scheme, trans, alt_config};
+}
+
+static void GetKernelToken(const FMKey& key, std::string& min_token)
+{
+    const auto&            lengthVec = std::get<0>(key);
+    const rocfft_precision precision = std::get<1>(key);
+    const ComputeScheme    scheme    = std::get<2>(key);
+
+    min_token = "kernel";
+
+    min_token += "_len";
+    min_token += std::to_string(lengthVec[0]);
+    if(scheme == CS_KERNEL_2D_SINGLE)
+        min_token += "x" + std::to_string(lengthVec[1]);
+
+    min_token += "_" + PrintPrecision(precision);
+    min_token += "_" + PrintKernelSchemeAbbr(scheme);
+
+    // NB: KernelToken is used when tuning the kernel configuration,
+    //     But when we try different setting of TPB, the SBRCTransType
+    //     would not be the same value. So we should not keep the SBRCTransType
+    //     in the token, and all the SBRC kernels in that solution-vec may have
+    //     specify the real type.
+    // const SBRC_TRANSPOSE_TYPE transType = std::get<3>(key);
+    // min_token += "_" + PrintSBRCTransposeType(transType);
 }
 
 template <>

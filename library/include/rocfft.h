@@ -214,7 +214,7 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_destroy(rocfft_plan plan);
  *  @details rocFFT multiplies each element of the result by the given factor at the end of the transform.
  *
  *  The supplied factor must be a finite number.  That is, it must neither be infinity nor NaN.
- * 
+ *
  *  @param[in] description description handle
  *  @param[in] scale scaling factor
  *  */
@@ -223,10 +223,10 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_factor(
 
 /*!
  *  @brief Set advanced data layout parameters on a plan description
- * 
+ *
  *  @details This API specifies advanced layout of input/output
  *  buffers for a plan description.
- * 
+ *
  *  The following parameters are supported for inputs and outputs:
  *
  *  * Array type (real, hermitian, or complex data, in either
@@ -507,6 +507,16 @@ ROCFFT_EXPORT rocfft_status rocfft_cache_buffer_free(void* buffer);
  *  this operation.  The cache is unmodified if either a null buffer
  *  pointer or a zero length is passed. */
 ROCFFT_EXPORT rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_bytes);
+#endif
+
+#ifdef ROCFFT_BUILD_OFFLINE_TUNER
+/*! @brief Get a handler of offline-tuner
+
+ *  @details This is for developers only, so the actual type is not
+ *  public to API yet. This API is used only in our standalone executable.
+ *  Must be called after rocfft_setup. And de-references the return handle to get
+ *  the tuner-pointer */
+ROCFFT_EXPORT rocfft_status rocfft_get_offline_tuner_handle(void** offline_tuner);
 #endif
 
 #ifdef __cplusplus

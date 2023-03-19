@@ -34,20 +34,11 @@
 #include "../device/kernels/callback.h"
 #include "../device/kernels/common.h"
 #include "compute_scheme.h"
+#include "enum_printer.h"
 #include "function_map_key.h"
 #include "kargs.h"
 #include "rtc_kernel.h"
 #include <hip/hip_runtime_api.h>
-
-enum OperatingBuffer
-{
-    OB_UNINIT              = 0b00000,
-    OB_USER_IN             = 0b00001,
-    OB_USER_OUT            = 0b00010,
-    OB_TEMP                = 0b00100,
-    OB_TEMP_CMPLX_FOR_REAL = 0b01000,
-    OB_TEMP_BLUESTEIN      = 0b10000,
-};
 
 enum NodeType
 {
@@ -66,22 +57,6 @@ enum FuseType
     FT_TRANSPOSE_C2R, // transpose + pre-c2r
     FT_STOCKHAM_R2C_TRANSPOSE, // Stokham + post-r2c + transpose (Advance of FT_R2C_TRANSPOSE)
 };
-
-// TODO: move this to rocfft.h and allow users to select via plan description
-// the decision strategy for buffer assigment
-enum rocfft_optimize_strategy
-{
-    rocfft_optimize_min_buffer, // minimize number of buffers, possibly fewer fusions
-    rocfft_optimize_balance, // balance between buffer and fusion
-    rocfft_optimize_max_fusion, // maximize number of fusions, possibly more buffers
-};
-
-std::string PrintOperatingBuffer(const OperatingBuffer ob);
-std::string PrintOperatingBufferCode(const OperatingBuffer ob);
-std::string PrintDirectToFromRegMode(const DirectRegType ty);
-std::string PrintArrayType(const rocfft_array_type aryType);
-std::string PrintPlacement(const rocfft_result_placement placement);
-std::string PrintEBType(const EmbeddedType ebtype);
 
 typedef void (*DevFnCall)(const void*, void*);
 
@@ -162,9 +137,12 @@ static bool is_cube_size(const std::vector<size_t>& length)
     return length.size() == 3 && length[0] == length[1] && length[1] == length[2];
 }
 
+void get_large_twd_base_steps(size_t large1DLen, bool use3steps, size_t& base, size_t& steps);
+
 struct SchemeTree
 {
     ComputeScheme                            curScheme;
+    size_t                                   numKernels = 0;
     std::vector<std::unique_ptr<SchemeTree>> children;
 
     SchemeTree() {}
@@ -342,7 +320,7 @@ public:
     bool largeTwd3Steps = false;
     // "Steps": how many exact loops we need to decompose the LTWD?
     // if we pass this as a template arg in kernel, should avoid dynamic while-loop
-    // We will update this in set_large_twd_base_steps()
+    // We will update this in get_large_twd_base_steps()
     size_t ltwdSteps = 0;
     // true if large twd multiply uses batch as transform count - this
     // is done on strided large 1D FFTs where the batch dimension moves
@@ -643,6 +621,7 @@ public:
     virtual bool CreateDevKernelArgs() override;
     bool         CreateTwiddleTableResource() override;
     void         SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) override;
+    FMKey        GetKernelKey() const override;
     virtual void GetKernelFactors();
 };
 
@@ -706,10 +685,6 @@ struct ExecPlan
     std::vector<size_t> iLength;
     std::vector<size_t> oLength;
 
-    // description for this problem, for searching solution map
-    // TODO- what information should be included ?
-    std::string problemToken;
-
     // default: starting from ABT, balance buffers and fusions
     // we could allow users to set in the later PR
     rocfft_optimize_strategy assignOptStrategy = rocfft_optimize_balance;
@@ -734,7 +709,10 @@ struct ExecPlan
 };
 
 std::unique_ptr<SchemeTree> ApplySolution(ExecPlan& execPlan);
-void                        ProcessNode(ExecPlan& execPlan);
-void                        PrintNode(rocfft_ostream& os, const ExecPlan& execPlan);
+
+// get a min_token (without batch, stride, offset...) of a node, for generating a prob-key
+void GetNodeToken(const TreeNode& probNode, std::string& min_token, std::string& full_token);
+void ProcessNode(ExecPlan& execPlan);
+void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan);
 
 #endif // TREE_NODE_H

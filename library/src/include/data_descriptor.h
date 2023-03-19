@@ -23,8 +23,6 @@
 #ifndef DATA_DESCRIPTOR_H
 #define DATA_DESCRIPTOR_H
 
-#include "../device/kernels/common.h"
-#include "tree_node.h"
 #include <regex>
 #include <sstream>
 

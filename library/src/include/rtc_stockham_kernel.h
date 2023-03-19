@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,24 @@ struct RTCKernelStockham : public RTCKernel
                                                       bool               enable_callbacks);
 
     virtual RTCKernelArgs get_launch_args(DeviceCallIn& data) override;
+
+protected:
+    struct RTCStockhamGenerator : public RTCKernel::RTCGenerator
+    {
+        // For rtc_stockham_kernel, once it's the correct type from generate_from_node,
+        // we assign the name function.
+        // Changed for tuning framework: since we'd like to get the kernel name information
+        // anyway, even when it's compiled.
+        virtual bool valid() const override
+        {
+            return (generate_name) ? true : false;
+        }
+        // generator is the correct type, but kernel is already compiled
+        virtual bool is_pre_compiled() const override
+        {
+            return generate_name && (!generate_src) && (!construct_rtckernel);
+        }
+    };
 
 private:
     // true if the kernel is hardcoded for a number of dimensions.

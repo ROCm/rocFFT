@@ -105,9 +105,20 @@ def run(rider,
     token = ""
     times = []
 
+    soltokenTag = "[SolToken]: "
+    soltoken = ""
+    matchTag = "[TokenMatch]: "
+    match = ""
+
     for line in cout.splitlines():
         if line.startswith(tokentoken):
             token = line[len(tokentoken):]
+
+    for line in cerr.splitlines():
+        if line.startswith(soltokenTag):
+            soltoken = line[len(soltokenTag):]
+        elif line.startswith(matchTag):
+            match = line[len(matchTag):]
 
     if proc.returncode == 0:
         for m in re.finditer('Execution gpu time: ([ 0-9.]*) ms', cout,
@@ -130,4 +141,4 @@ def run(rider,
 
     success = proc.returncode == 0
 
-    return token, times, success
+    return token, times, success, soltoken, match

@@ -126,6 +126,10 @@ option(BUILD_ADDRESS_SANITIZER "Build with address sanitizer enabled" OFF)
 option(ROCFFT_RUNTIME_COMPILE "Enable runtime compilation of kernels" ON)
 option(ROCFFT_RUNTIME_COMPILE_DEFAULT "Compile kernels at runtime by default" OFF)
 
+# Using -DROCFFT_BUILD_OFFLINE_TUNER=ON to compile an executable,
+# Set default to OFF since users are not likely to tune
+option(ROCFFT_BUILD_OFFLINE_TUNER "Build with offline tuner executable rocfft_offline_tuner" OFF)
+
 if(BUILD_ADDRESS_SANITIZER)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -shared-libasan")

@@ -103,5 +103,6 @@ struct rocfft_plan_t
 };
 
 bool PlanPowX(ExecPlan& execPlan);
+bool GetTuningKernelInfo(ExecPlan& execPlan);
 
 #endif // PLAN_H

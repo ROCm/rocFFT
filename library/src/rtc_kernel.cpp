@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -120,8 +120,19 @@ void RTCKernel::launch(
         throw std::runtime_error("hipModuleLaunchKernel failure");
 }
 
-std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
-    const TreeNode& node, const std::string& gpu_arch, bool enable_callbacks)
+bool RTCKernel::get_occupancy(dim3 blockDim, unsigned int lds_bytes, int& occupancy)
+{
+    hipError_t ret = hipModuleOccupancyMaxActiveBlocksPerMultiprocessor(
+        &occupancy, kernel, blockDim.x * blockDim.y * blockDim.z, lds_bytes);
+
+    return ret == hipSuccess;
+}
+
+std::shared_future<std::unique_ptr<RTCKernel>>
+    RTCKernel::runtime_compile(const TreeNode&    node,
+                               const std::string& gpu_arch,
+                               std::string&       kernel_name,
+                               bool               enable_callbacks)
 {
 
 #ifdef ROCFFT_RUNTIME_COMPILE
@@ -152,7 +163,7 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
         generator = RTCKernelApplyCallback::generate_from_node(node, gpu_arch, enable_callbacks);
     if(generator.valid())
     {
-        std::string kernel_name = generator.generate_name();
+        kernel_name = generator.generate_name();
 
         auto compile = [=]() {
             if(hipSetDevice(deviceId) != hipSuccess)
@@ -176,6 +187,11 @@ std::shared_future<std::unique_ptr<RTCKernel>> RTCKernel::runtime_compile(
 
         // compile to code object
         return std::async(std::launch::async, compile);
+    }
+    // a pre-compiled rtc-stockham-kernel goes here
+    else if(generator.is_pre_compiled())
+    {
+        kernel_name = generator.generate_name();
     }
 #endif
     // runtime compilation is not enabled or no kernel found, return

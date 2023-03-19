@@ -22,6 +22,7 @@
 #include "../../shared/arithmetic.h"
 #include "../../shared/ptrdiff.h"
 #include "./device/kernels/array_format.h"
+#include "enum_printer.h"
 #include "logging.h"
 #include <numeric>
 #include <optional>

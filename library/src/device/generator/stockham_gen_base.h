@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -41,37 +41,46 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     StockhamKernel(const StockhamGeneratorSpecs& specs)
         : StockhamGeneratorSpecs(specs)
     {
-        auto bytes_per_batch = length * BYTES_PER_ELEMENT;
-
-        if(half_lds)
-            bytes_per_batch /= 2;
-
-        if(threads_per_transform == 0)
+        // RTC-ing kernels for tuning always goes this way
+        if(wgs_is_derived)
         {
-            threads_per_transform = 1;
-            for(unsigned int t = 2; t < length; ++t)
+            transforms_per_block = workgroup_size / threads_per_transform;
+        }
+        else
+        {
+            auto bytes_per_batch = length * BYTES_PER_ELEMENT;
+
+            if(half_lds)
+                bytes_per_batch /= 2;
+
+            if(threads_per_transform == 0)
             {
-                if(t > workgroup_size)
-                    continue;
-                if(length % t == 0)
+                threads_per_transform = 1;
+                for(unsigned int t = 2; t < length; ++t)
                 {
-                    if(std::all_of(factors.begin(), factors.end(), [=](unsigned int f) {
-                           return (length / t) % f == 0;
-                       }))
-                        threads_per_transform = t;
+                    if(t > workgroup_size)
+                        continue;
+                    if(length % t == 0)
+                    {
+                        if(std::all_of(factors.begin(), factors.end(), [=](unsigned int f) {
+                               return (length / t) % f == 0;
+                           }))
+                            threads_per_transform = t;
+                    }
                 }
             }
+
+            transforms_per_block = LDS_BYTE_LIMIT / bytes_per_batch;
+            while(threads_per_transform * transforms_per_block > workgroup_size)
+                --transforms_per_block;
+            if(!factors2d.empty())
+                transforms_per_block = std::min(transforms_per_block, length2d);
+
+            workgroup_size = threads_per_transform * transforms_per_block;
         }
 
-        transforms_per_block = LDS_BYTE_LIMIT / bytes_per_batch;
-        while(threads_per_transform * transforms_per_block > workgroup_size)
-            --transforms_per_block;
-        if(!factors2d.empty())
-            transforms_per_block = std::min(transforms_per_block, length2d);
-
-        workgroup_size = threads_per_transform * transforms_per_block;
-        nregisters     = compute_nregisters(length, factors, threads_per_transform);
-        R.size         = Expression{nregisters};
+        nregisters = compute_nregisters(length, factors, threads_per_transform);
+        R.size     = Expression{nregisters};
     }
     virtual ~StockhamKernel(){};
 

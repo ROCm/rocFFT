@@ -36,6 +36,7 @@ function display_help()
     echo "    [-d|--dependencies] install build dependencies"
     echo "    [-c|--clients] build library clients too (combines with -i & -d)"
     echo "    [-g|--debug] -DCMAKE_BUILD_TYPE=Debug (default is =Release)"
+    echo "    [-t|--tuner] --DROCFFT_BUILD_OFFLINE_TUNER=ON (default is =Off)"
     echo "    [-r]--relocatable] create a package to support relocatable ROCm"
     #echo "    [--cuda] build library for cuda backend"
     echo "    [--hip-clang] build library for amdgpu backend using hip-clang"
@@ -45,6 +46,8 @@ function display_help()
     echo "    [--gen-group-num] Specify the group numbers of generated kernel files"
     echo "    [--manual-small] Additional small sizes list to generate, ='A[,B,C,..]', default is empty "
     echo "    [--manual-large] Additional large sizes list to generate, ='A[,B,C,..]', default is empty "
+    echo "    [--solmap-folder] Specify the folder (abs-path) of solution-map that would be built into library, "
+    echo "                      default is [repo-folder]/solution_map/"
     echo "    [--address-sanitizer] build with address sanitizer enabled"
     echo "    [--rm-legacy-include-dir] Remove legacy include dir Packaging added for file/folder reorg backward compatibility."
 }
@@ -268,6 +271,7 @@ install_dependencies=false
 install_prefix=rocfft-install
 build_clients=false
 build_release=true
+build_tuner=false
 build_relocatable=false
 build_hip_clang=true
 pattern_arg=false
@@ -277,6 +281,7 @@ manual_small_arg=false
 manual_large_arg=false
 build_address_sanitizer=false
 build_freorg_bkwdcomp=true
+solmap_data_folder=false
 
 # #################################################
 # Parameter parsing
@@ -285,7 +290,7 @@ build_freorg_bkwdcomp=true
 # check if we have a modern version of getopt that can handle whitespace and long parameters
 getopt -T
 if [[ $? -eq 4 ]]; then
-    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgr' --long 'help,install,clients,dependencies,debug,hip-clang,prefix:,relocatable,gen-pattern:,gen-precision:,gen-group-num:,manual-small:,manual-large:,address-sanitizer, rm-legacy-include-dir' --options hicgdr -- "$@")
+    GETOPT_PARSE=$(getopt --name "${0}" -o 'hidcgrt' --long 'help,install,clients,dependencies,debug,tuner,hip-clang,prefix:,relocatable,gen-pattern:,gen-precision:,gen-group-num:,manual-small:,manual-large:,solmap-folder:,address-sanitizer, rm-legacy-include-dir' --options hicgdrt -- "$@")
 else
     echo "Need a new version of getopt"
     exit 1
@@ -319,6 +324,9 @@ while true; do
         -g|--debug)
             build_release=false
             shift ;;
+        -t|--tuner)
+            build_tuner=true
+            shift ;;
         --hip-clang)
             build_hip_clang=true
             shift ;;
@@ -351,6 +359,10 @@ while true; do
         --manual-large)
             # echo $2
             manual_large_arg=${2}
+            shift 2 ;;
+        --solmap-folder)
+            # echo $2
+            solmap_data_folder=${2}
             shift 2 ;;
         --) shift ; break ;;
         *)  echo "Unexpected command line parameter received; aborting";
@@ -457,6 +469,13 @@ if [[ "${manual_large_arg}" != false ]]; then
     cmake_common_options="${cmake_common_options} -DGENERATOR_MANUAL_LARGE_SIZE=${manual_large_arg}"
 fi
 
+if [[ "${build_tuner}" != false ]]; then
+    cmake_common_options="${cmake_common_options} -DROCFFT_BUILD_OFFLINE_TUNER=ON"
+fi
+
+if [[ "${solmap_data_folder}" != false ]]; then
+    cmake_common_options="${cmake_common_options} -DSOLUTION_MAP_DATABASE_FOLDER=${solmap_data_folder}"
+fi
 
 # build type
 if [[ "${build_release}" == true ]]; then

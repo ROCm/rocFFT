@@ -6,6 +6,8 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Added
 - Implemented half-precision transforms, which can be requested by passing rocfft_precision_half to rocfft_plan_create.
+- Implemented a hierarchical solution map which saves how to decompose a problem and the kernels to be used.
+- Implemented a first version of offline-tuner to support tuning kernels for C2C/Z2Z problems.
 
 ### Changed
 - Replaced std::complex with hipComplex data types for data generator.

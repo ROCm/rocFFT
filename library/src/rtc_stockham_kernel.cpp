@@ -32,8 +32,8 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                                                               const std::string& gpu_arch,
                                                               bool               enable_callbacks)
 {
-    RTCGenerator   generator;
-    function_pool& pool = function_pool::get_function_pool();
+    RTCStockhamGenerator generator;
+    function_pool&       pool = function_pool::get_function_pool();
 
     std::optional<StockhamGeneratorSpecs> specs;
     std::optional<StockhamGeneratorSpecs> specs2d;
@@ -63,6 +63,8 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
 
     std::optional<FFTKernel> kernel;
 
+    bool is_pre_compiled = false;
+
     // find function pool entry so we can construct specs for the generator
     // NB: make sure all SBRC-type node have the correct trans_type value
     FMKey key;
@@ -85,7 +87,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
         // can't use a precompiled kernel in that case.
         if(kernel->device_function && !enable_scaling && !node.largeTwdBatchIsTransformCount)
         {
-            return generator;
+            is_pre_compiled = true;
         }
 
         std::vector<unsigned int> factors;
@@ -108,7 +110,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
         // already precompiled?
         if(kernel->device_function && !enable_scaling)
         {
-            return generator;
+            is_pre_compiled = true;
         }
 
         std::vector<unsigned int> factors1d;
@@ -149,6 +151,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     }
     default:
     {
+        // no supported scheme, not the correct type
         return generator;
     }
     }
@@ -161,6 +164,11 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     if(kernel && kernel->aot_rtc)
         static_dim = 0;
     specs->static_dim = static_dim;
+
+    // mark wgs as derived already so generator won't change it again
+    specs->wgs_is_derived = true;
+    if(specs2d)
+        specs2d->wgs_is_derived = true;
 
     bool unit_stride = node.inStride.front() == 1 && node.outStride.front() == 1;
 
@@ -184,6 +192,10 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                                         enable_callbacks,
                                         node.IsScalingEnabled());
     };
+
+    // if is pre-compiled, we assign the name-function only
+    if(is_pre_compiled)
+        return generator;
 
     generator.generate_src = [=, &node](const std::string& kernel_name) {
         return stockham_rtc(*specs,

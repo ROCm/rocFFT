@@ -35,9 +35,13 @@ static std::regex regEx("[^:;,\"\\{\\}\\[\\s]+", std::regex_constants::optimize)
 
 static const char* def_solution_map_path = "rocfft_solution_map.dat";
 
+const char* solution_map::KERNEL_TOKEN_BUILTIN_KERNEL   = "kernel_token_builtin_kernel";
+const char* solution_map::LEAFNODE_TOKEN_BUILTIN_KERNEL = "leafnode_token_builtin_kernel";
+
 static std::map<SolutionNodeType, std::string> SolutionNodeTypetoStrMap()
 {
-    std::map<SolutionNodeType, std::string> SNTtoStr = {{SOL_INTERNAL_NODE, "SOL_INTERNAL_NODE"},
+    std::map<SolutionNodeType, std::string> SNTtoStr = {{SOL_DUMMY, "SOL_DUMMY"},
+                                                        {SOL_INTERNAL_NODE, "SOL_INTERNAL_NODE"},
                                                         {SOL_LEAF_NODE, "SOL_LEAF_NODE"},
                                                         {SOL_KERNEL_ONLY, "SOL_KERNEL_ONLY"},
                                                         {SOL_BUILTIN_KERNEL, "SOL_BUILTIN_KERNEL"}};
@@ -117,11 +121,11 @@ struct ToString<SolutionNode>
     {
         std::string str = "{";
         str += FieldDescriptor<std::string>().describe("sol_node_type",
-                                                       PrintSolutionNodeType(value.sol_node_type))
-               + ",";
+                                                       PrintSolutionNodeType(value.sol_node_type));
 
         if(value.sol_node_type != SOL_BUILTIN_KERNEL)
         {
+            str += ",";
             if(value.sol_node_type == SOL_KERNEL_ONLY)
             {
                 str += FieldDescriptor<FMKey>().describe("kernel_key", value.kernel_key);
@@ -196,9 +200,22 @@ struct FromString<ProblemKey>
     }
 };
 
+// private version called by constructor
+size_t solution_map::add_solution_private(const ProblemKey& probKey, const SolutionNode& solution)
+{
+    // no this key, emplace one new vector
+    if(primary_sol_map.count(probKey) == 0)
+        primary_sol_map.emplace(probKey, SolutionNodeVec());
+
+    auto& sol_vec = primary_sol_map.at(probKey);
+    sol_vec.push_back(solution);
+    return sol_vec.size() - 1;
+}
+
 bool solution_map::SolutionNodesAreEqual(const SolutionNode& lhs,
                                          const SolutionNode& rhs,
-                                         const std::string&  arch)
+                                         const std::string&  arch,
+                                         bool                primary_map)
 {
     // NB:
     // std::tie couldn't compare the .size() so we compare .size() outside std::tie
@@ -216,9 +233,11 @@ bool solution_map::SolutionNodesAreEqual(const SolutionNode& lhs,
         auto lhs_child_key = ProblemKey(arch, lhs_child_ptr.child_token);
         auto rhs_child_key = ProblemKey(arch, rhs_child_ptr.child_token);
 
-        if(SolutionNodesAreEqual(get_solution_node(lhs_child_key, lhs_child_ptr.child_option),
-                                 get_solution_node(rhs_child_key, rhs_child_ptr.child_option),
-                                 arch)
+        if(SolutionNodesAreEqual(
+               get_solution_node(lhs_child_key, lhs_child_ptr.child_option, primary_map),
+               get_solution_node(rhs_child_key, rhs_child_ptr.child_option, primary_map),
+               arch,
+               primary_map)
            == false)
             return false;
     }
@@ -232,20 +251,32 @@ void solution_map::setup()
     // default is false for now
     if(!rocfft_getenv("ROCFFT_READ_SOL_MAP_ENABLE").empty())
     {
-        // read data from any_arch
-        auto sol_map_input = get_solution_map_path();
-        read_solution_map_data(sol_map_input);
+        // if we have speicified an explicit file-path, then read from it,
+        std::string explict_read_path_str = rocfft_getenv("ROCFFT_READ_EXPLICIT_SOL_MAP_FILE");
+        if(!explict_read_path_str.empty())
+        {
+            fs::path read_from_path(explict_read_path_str.c_str());
+            read_solution_map_data(read_from_path);
+        }
+        // otherwise we read with a default file name arch_rocfft_solution_map.dat
+        // under the folder set in envvar ROCFFT_SOLUTION_MAP_FOLDER
+        else
+        {
+            // read data from any_arch
+            auto sol_map_input = get_solution_map_path();
+            read_solution_map_data(sol_map_input);
 
-        // read data from current arch
-        auto deviceProp = get_curr_device_prop();
-        sol_map_input   = get_solution_map_path(get_arch_name(deviceProp));
-        read_solution_map_data(sol_map_input);
+            // read data from current arch
+            auto deviceProp = get_curr_device_prop();
+            sol_map_input   = get_solution_map_path(get_arch_name(deviceProp));
+            read_solution_map_data(sol_map_input);
+        }
     }
 }
 
-bool solution_map::has_solution_node(const ProblemKey& probKey, size_t option_id)
+bool solution_map::has_solution_node(const ProblemKey& probKey, size_t option_id, bool primary_map)
 {
-    ProbSolMap& dst_map = solution_nodes;
+    ProbSolMap& dst_map = (primary_map) ? primary_sol_map : temp_working_map;
 
     // no this key
     if(dst_map.count(probKey) == 0)
@@ -256,71 +287,109 @@ bool solution_map::has_solution_node(const ProblemKey& probKey, size_t option_id
     return solutions.size() > option_id;
 }
 
-SolutionNode& solution_map::get_solution_node(const ProblemKey& probKey, size_t option_id)
+SolutionNode&
+    solution_map::get_solution_node(const ProblemKey& probKey, size_t option_id, bool primary_map)
 {
     // be sure we have checked has_solution_node();
-    ProbSolMap& dst_map = solution_nodes;
+    if(!has_solution_node(probKey, option_id, primary_map))
+        throw std::runtime_error(
+            "get_solution_node failed. the solution_node doesn't exist: ProbKey=(" + probKey.arch
+            + "," + probKey.probToken + "), option_id=" + std::to_string(option_id));
+
+    ProbSolMap& dst_map = (primary_map) ? primary_sol_map : temp_working_map;
 
     SolutionNodeVec& solutions = dst_map.at(probKey);
     return solutions[option_id];
 }
 
-FMKey& solution_map::get_solution_kernel(const ProblemKey& probKey, size_t option_id)
+FMKey&
+    solution_map::get_solution_kernel(const ProblemKey& probKey, size_t option_id, bool primary_map)
 {
     // be sure we have checked has_solution_node();
-    ProbSolMap& dst_map = solution_nodes;
+    ProbSolMap& dst_map = (primary_map) ? primary_sol_map : temp_working_map;
 
     SolutionNodeVec& solutions = dst_map.at(probKey);
     return solutions[option_id].kernel_key;
 }
 
-// add a solution of a problem to the map, should be called by a benchmarker
-bool solution_map::add_solution(const ProblemKey&               probKey,
-                                TreeNode*                       currentNode,
-                                const std::vector<SolutionPtr>& children,
-                                bool                            check_dup)
+// setup a solution of a problem and insert to the map, should be called by a benchmarker
+size_t solution_map::add_solution(const ProblemKey&               probKey,
+                                  TreeNode*                       currentNode,
+                                  const std::vector<SolutionPtr>& children,
+                                  bool                            isRootProb,
+                                  bool                            check_dup,
+                                  bool                            primary_map)
 {
     SolutionNode solution;
     solution.using_scheme  = currentNode->scheme;
     solution.sol_node_type = (currentNode->nodeType == NT_LEAF) ? SOL_LEAF_NODE : SOL_INTERNAL_NODE;
     solution.solution_childnodes = children;
 
-    return add_solution(probKey, solution, check_dup);
+    return add_solution(probKey, solution, isRootProb, check_dup, primary_map);
 }
 
-// add a solution of a problem to the map, should be called by a benchmarker
-bool solution_map::add_solution(const ProblemKey& probKey, const FMKey& kernel_key, bool check_dup)
+// setup a solution of a problem and insert to the map, should be called by a benchmarker
+size_t solution_map::add_solution(const ProblemKey& probKey,
+                                  const FMKey&      kernel_key,
+                                  bool              check_dup,
+                                  bool              primary_map)
 {
     SolutionNode solution;
-    solution.using_scheme  = std::get<2>(kernel_key);
-    solution.sol_node_type = SOL_KERNEL_ONLY;
+    solution.using_scheme  = (kernel_key == EmptyFMKey) ? CS_NONE : std::get<2>(kernel_key);
+    solution.sol_node_type = (kernel_key == EmptyFMKey) ? SOL_BUILTIN_KERNEL : SOL_KERNEL_ONLY;
     solution.kernel_key    = kernel_key;
 
-    return add_solution(probKey, solution, check_dup);
+    return add_solution(probKey, solution, false, check_dup, primary_map);
 }
 
 // directly insert a solution of a problem to the map, should be called by a benchmarker
 size_t solution_map::add_solution(const ProblemKey&   probKey,
                                   const SolutionNode& solution,
-                                  bool                check_dup)
+                                  bool                isRootProb,
+                                  bool                check_dup,
+                                  bool                primary_map)
 {
-    ProbSolMap& dst_map = solution_nodes;
+    ProbSolMap& dst_map = (primary_map) ? primary_sol_map : temp_working_map;
+
+    // CS_KERNEL_STOCKHAM could be a problem scheme but also a kernel.
+    bool is_problem_scheme = ComputeSchemeIsAProblem(solution.using_scheme)
+                             && (solution.sol_node_type != SOL_KERNEL_ONLY);
 
     // no this key, emplace one new vector
     if(dst_map.count(probKey) == 0)
+    {
         dst_map.emplace(probKey, SolutionNodeVec());
+
+        // if this is a solution for a problem (not kernel or non-problem)
+        // then we insert a dummy one in the front, which is reserved for root-problem
+        if(is_problem_scheme)
+            dst_map.at(probKey).push_back(SolutionNode::DummySolutionNode());
+    }
 
     auto& sol_vec = dst_map.at(probKey);
 
     // append solution to the same key
-    if(check_dup)
+    // Root-solution never checks duplication since it will always be the first element
+    // So adding a root-solution = simply overwrite the first one
+    if(isRootProb)
     {
-        const std::string& arch = probKey.arch;
-        for(size_t option_id = 0; option_id < sol_vec.size(); ++option_id)
+        // just a double-check
+        assert(is_problem_scheme && (sol_vec.size() > 0));
+        sol_vec[0] = solution;
+        return 0;
+    }
+    else if(check_dup)
+    {
+        // if the solution is not a problem-solution (i.e. kernel solution or non-problem)
+        // then there is no a "dummy solution" (or exclusive root-solution) in the vector,
+        // so we still start from 0, otherwise, start from option 1.
+        const std::string& arch            = probKey.arch;
+        size_t             check_option_id = (is_problem_scheme) ? 1 : 0;
+        for(; check_option_id < sol_vec.size(); ++check_option_id)
         {
             // find an existing solution that is identical, then don't insert, simply return that option
-            if(SolutionNodesAreEqual(solution, sol_vec[option_id], arch))
-                return option_id;
+            if(SolutionNodesAreEqual(solution, sol_vec[check_option_id], arch, primary_map))
+                return check_option_id;
         }
     }
 
@@ -332,7 +401,7 @@ size_t solution_map::add_solution(const ProblemKey&   probKey,
 }
 
 // read the map from input stream
-bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path)
+bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path, bool primary_map)
 {
     if(LOG_TRACE_ENABLED())
         (*LogSingleton::GetInstance().GetTraceOS())
@@ -355,6 +424,8 @@ bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path)
     if(solution_map_text.back() == ']')
         solution_map_text.resize(solution_map_text.size() - 1);
 
+    ProbSolMap& dst_map = (primary_map) ? primary_sol_map : temp_working_map;
+
     std::sregex_token_iterator tokens{solution_map_text.begin(), solution_map_text.end(), regEx, 0};
     std::sregex_token_iterator endIt;
     for(; tokens != endIt; ++tokens)
@@ -363,33 +434,134 @@ bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path)
         std::vector<SolutionNode> solutionVec;
         FieldParser<ProblemKey>().parse("Problem", probKey, tokens);
         VectorFieldParser<SolutionNode>().parse("Solutions", solutionVec, tokens);
-        solution_nodes.emplace(probKey, solutionVec);
+        dst_map.emplace(probKey, solutionVec);
     }
     return true;
 }
 
 // write the map to output stream
 bool solution_map::write_solution_map_data(const fs::path& sol_map_out_path,
-                                           const fs::path& node_pool_out_path)
+                                           bool            sort,
+                                           bool            primary_map)
 {
+    if(LOG_TUNING_ENABLED())
+        (*LogSingleton::GetInstance().GetTuningOS())
+            << "writing solution map data to: " << sol_map_out_path.c_str() << std::endl;
+
+    std::ofstream outfile;
+    outfile.open(sol_map_out_path.c_str(), (std::ios::out | std::ios::trunc));
+    if(!outfile.is_open())
+        throw std::runtime_error("Write solution map failed. Cannot open/create output file: "
+                                 + std::string(sol_map_out_path));
+
     std::stringstream ss;
-    std::string       COMMA = "";
+    ProbSolMap&       writing_map = (primary_map) ? primary_sol_map : temp_working_map;
+
+    std::string COMMA = "";
     ss << "[" << std::endl;
 
     std::string blanks(15, ' ');
-    for(auto& [key, value] : solution_nodes)
+    if(sort)
     {
-        ss << COMMA;
-        ss << "{" << FieldDescriptor<ProblemKey>().describe("Problem", key) << "," << std::endl
-           << "  "
-           << VectorFieldDescriptor<SolutionNode>().describe("Solutions", value, true, blanks)
-           << "}" << std::endl;
+        std::vector<std::pair<ProblemKey, SolutionNodeVec>> sortVec;
+        for(auto& [key, value] : writing_map)
+            sortVec.push_back(std::make_pair(key, value));
 
-        if(COMMA.size() == 0)
-            COMMA = ",";
+        // sort !
+        std::sort(sortVec.begin(), sortVec.end(), ProbSolCmp);
+
+        for(auto& [key, value] : sortVec)
+        {
+            ss << COMMA;
+            ss << "{" << FieldDescriptor<ProblemKey>().describe("Problem", key) << "," << std::endl
+               << "  "
+               << VectorFieldDescriptor<SolutionNode>().describe("Solutions", value, true, blanks)
+               << "}" << std::endl;
+
+            if(COMMA.size() == 0)
+                COMMA = ",";
+        }
     }
+    else
+    {
+        for(auto& [key, value] : writing_map)
+        {
+            ss << COMMA;
+            ss << "{" << FieldDescriptor<ProblemKey>().describe("Problem", key) << "," << std::endl
+               << "  "
+               << VectorFieldDescriptor<SolutionNode>().describe("Solutions", value, true, blanks)
+               << "}" << std::endl;
+
+            if(COMMA.size() == 0)
+                COMMA = ",";
+        }
+    }
+
     ss << "]" << std::endl;
 
-    std::cout << ss.str();
+    outfile << ss.str();
+    outfile.close();
+
+    return true;
+}
+
+bool solution_map::merge_solutions_from_file(const fs::path&                src_file,
+                                             const std::vector<ProblemKey>& root_probs)
+{
+    bool check_dup       = true;
+    bool read_to_primary = false;
+    if(read_solution_map_data(src_file, read_to_primary) == false)
+        return false;
+
+    // An important note is that we can't use SolutionNode& (alias) for the second arg,
+    // since a node may be shared with others (e.g. RTRT, where 2 Rs shared the same one)
+    // This Recur-Add-Solution is to add a sub-tree from mapA to mapB, so what we are doing
+    // here is not just moving but also updating the "option_id" of a node's child (children
+    // are also moved from mapA to mapB). If we pass by reference and update the option_id,
+    // Then we also change the data of an "un-moved" node (in mapA). So using call by copy
+    // is safer here.
+    auto RecursivelyAddSolution = [&](const ProblemKey& key,
+                                      SolutionNode      solution,
+                                      bool              isRoot,
+                                      bool              from_primary,
+                                      bool              to_primary,
+                                      auto&&            RecursivelyAddSolution) -> size_t {
+        std::string archName = key.arch;
+        for(auto& child : solution.solution_childnodes)
+        {
+            ProblemKey childKey(archName, child.child_token);
+
+            // get the child solution object from current solution map (using existing child_option)
+            auto& childSol = get_solution_node(childKey, child.child_option, from_primary);
+
+            // since we are add solution to another solution map , so we have to update the child option
+            child.child_option = RecursivelyAddSolution(
+                childKey, childSol, false, from_primary, to_primary, RecursivelyAddSolution);
+        }
+        return add_solution(key, solution, isRoot, check_dup, to_primary);
+    };
+
+    // for each root-problem, adding the whole solution-tree. from one map to another map
+    for(auto& rootProbKey : root_probs)
+    {
+        bool isRootProb     = true;
+        bool getFromPrimary = read_to_primary;
+        bool addToPrimary   = !getFromPrimary;
+
+        SolutionNode& sol_node = get_solution_node(rootProbKey, 0, getFromPrimary);
+
+        size_t option_id = RecursivelyAddSolution(rootProbKey,
+                                                  sol_node,
+                                                  isRootProb,
+                                                  getFromPrimary,
+                                                  addToPrimary,
+                                                  RecursivelyAddSolution);
+
+        // we are adding solution for a root-problem, so the root-solution should always be at index 0
+        if(option_id != 0)
+            throw std::runtime_error(
+                "Merge failed. Inserting solution of a root-problem should return an index 0");
+    }
+
     return true;
 }

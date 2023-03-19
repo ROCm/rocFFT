@@ -73,6 +73,14 @@ size_t LeafNode::GetTwiddleTableLength()
     return length[0];
 }
 
+FMKey LeafNode::GetKernelKey() const
+{
+    if(!externalKernel)
+        return EmptyFMKey;
+
+    return TreeNode::GetKernelKey();
+}
+
 void LeafNode::GetKernelFactors()
 {
     FMKey key     = GetKernelKey();
@@ -88,11 +96,14 @@ bool LeafNode::KernelCheck(std::vector<FMKey>& kernel_keys)
         // we can increase the reilability of solution map.
         if(!kernel_keys.empty())
         {
-            assert(kernel_keys.front() == EmptyFMKey);
-            kernel_keys.erase(kernel_keys.begin());
             if(LOG_TRACE_ENABLED())
                 (*LogSingleton::GetInstance().GetTraceOS())
                     << "solution kernel is an built-in kernel" << std::endl;
+
+            // kernel_key from solution map should be an EmptyFMKey for a built-in kernel
+            if(kernel_keys.front() != EmptyFMKey)
+                return false;
+            kernel_keys.erase(kernel_keys.begin());
         }
         return true;
     }
@@ -148,7 +159,7 @@ bool LeafNode::KernelCheck(std::vector<FMKey>& kernel_keys)
 void LeafNode::SanityCheck(SchemeTree* solution_scheme, std::vector<FMKey>& kernels_keys)
 {
     if(!KernelCheck(kernels_keys))
-        throw std::runtime_error("Kernel not found or mismatches node");
+        throw std::runtime_error("Kernel not found or mismatches node (solution map issue)");
 
     TreeNode::SanityCheck(solution_scheme, kernels_keys);
 }

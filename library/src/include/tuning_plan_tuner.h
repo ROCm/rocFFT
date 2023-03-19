@@ -18,28 +18,14 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "rocfft.h"
+#ifndef PLAN_TUNER_H
+#define PLAN_TUNER_H
 
-// declare things that RTC needs to link a standalone executable
-// without the rest of rocFFT
-int log_trace_fd    = -1;
-int log_bench_fd    = -1;
-int log_profile_fd  = -1;
-int log_plan_fd     = -1;
-int log_kernelio_fd = -1;
-int log_rtc_fd      = -1;
-int log_tuning_fd   = -1;
+#include "tree_node.h"
+#include "tuning_helper.h"
 
-#ifndef ROCFFT_BUILD_OFFLINE_TUNER
-extern "C" rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
-                                            rocfft_result_placement       placement,
-                                            rocfft_transform_type         transform_type,
-                                            rocfft_precision              precision,
-                                            size_t                        dimensions,
-                                            const size_t*                 lengths,
-                                            size_t                        number_of_transforms,
-                                            const rocfft_plan_description description)
-{
-    return rocfft_status_failure;
-}
+// return size_t: the "option_id" of the return node in its sol-vector
+size_t SerializeTree(TreeNode* node, std::string& archName);
+void   EnumerateTrees(ExecPlan& execPlan);
+
 #endif

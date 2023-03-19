@@ -71,7 +71,7 @@ find_package( Boost COMPONENTS program_options REQUIRED)
 
 set( rider_list rocfft-rider dyna-rocfft-rider )
 foreach( rider ${rider_list})
-  
+
   if(${rider} STREQUAL "rocfft-rider")
     add_executable( ${rider} ../../shared/array_validator.cpp rider.cpp rider.h )
   else()
@@ -82,7 +82,7 @@ foreach( rider ${rider_list})
 
   # NB: hip-clang includes omp.h, so we need to specify the location
   # of ROCM_CLANG_ROOT at cmake config time if we are using clang++.
-  
+
   target_include_directories( ${rider}
     PRIVATE
     $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
@@ -100,12 +100,12 @@ foreach( rider ${rider_list})
       Boost::program_options
       )
   else()
-    target_link_libraries( ${rider} 
+    target_link_libraries( ${rider}
       PRIVATE
       ${CMAKE_DL_LIBS}
       hip::device
       hip::hiprand
-      ${Boost_LIBRARIES}      
+      ${Boost_LIBRARIES}
       )
 
     # We need to include both rocfft.h and rocfft-export.h
@@ -136,10 +136,10 @@ foreach( rider ${rider_list})
   endif()
   string( CONCAT RIDER_OUT_DIR "${PROJECT_BINARY_DIR}" ${RIDER_OUT_DIR} )
 
-  set_target_properties(${rider} 
-                        PROPERTIES 
-                        RUNTIME_OUTPUT_DIRECTORY 
+  set_target_properties(${rider}
+                        PROPERTIES
+                        RUNTIME_OUTPUT_DIRECTORY
                         ${RIDER_OUT_DIR} )
-  
+
   rocm_install(TARGETS ${rider} COMPONENT benchmarks)
 endforeach()

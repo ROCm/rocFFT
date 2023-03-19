@@ -111,8 +111,11 @@ struct RTCKernel
     // node if successful.  returns nullptr if there is no matching
     // supported scheme + problem size.  throws runtime_error on
     // error.
-    static std::shared_future<std::unique_ptr<RTCKernel>> runtime_compile(
-        const TreeNode& node, const std::string& gpu_arch, bool enable_callbacks = false);
+    static std::shared_future<std::unique_ptr<RTCKernel>>
+        runtime_compile(const TreeNode&    node,
+                        const std::string& gpu_arch,
+                        std::string&       kernel_name,
+                        bool               enable_callbacks = false);
 
     virtual ~RTCKernel()
     {
@@ -124,6 +127,7 @@ struct RTCKernel
     // disallow copies, since we expect this to be managed by smart ptr
     RTCKernel(const RTCKernel&) = delete;
     RTCKernel(RTCKernel&&)      = delete;
+
     void operator=(const RTCKernel&) = delete;
 
     // normal launch from within rocFFT execution plan
@@ -134,6 +138,9 @@ struct RTCKernel
                 dim3           blockDim,
                 unsigned int   lds_bytes,
                 hipStream_t    stream = nullptr);
+
+    // normal launch from within rocFFT execution plan
+    bool get_occupancy(dim3 blockDim, unsigned int lds_bytes, int& occupancy);
 
     // Subclasses implement this - each kernel type has different
     // parameters
@@ -162,10 +169,17 @@ protected:
         kernel_name_gen_t     generate_name;
         kernel_src_gen_t      generate_src;
         rtckernel_construct_t construct_rtckernel;
-        bool                  valid() const
+
+        virtual bool valid() const
         {
             return generate_name && generate_src && construct_rtckernel;
         }
+        // generator is the correct type, but kernel is already compiled
+        virtual bool is_pre_compiled() const
+        {
+            return false;
+        }
+
         // if known at compile time, the grid parameters of the kernel
         // to launch with
         dim3 gridDim;

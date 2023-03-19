@@ -54,7 +54,7 @@ class Timer:
         no_accutest_prob_count = 0
         for prob in generator.generate_problems():
             total_prob_count += 1
-            token, seconds, success = perflib.rider.run(
+            token, seconds, success, __, __ = perflib.rider.run(
                 self.rider,
                 prob.length,
                 direction=prob.direction,

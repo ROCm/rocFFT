@@ -159,6 +159,25 @@ add_custom_command(
   DEPENDS ${kgen_embed_command} ${kgen_embed_files} ${kgen_logic_files}
 )
 
+# location of the generated solutions map cpp
+set( gen_solutions ${CMAKE_BINARY_DIR}/library/src/solutions.cpp )
+set( solship_py ${CMAKE_SOURCE_DIR}/library/src/device/solution-shipping.py )
+
+# default folder of solution maps that will be built in library,
+# user can specify their own arch and folder
+set( sol_gpu_arch ${AMDGPU_TARGETS} )
+if( NOT SOLUTION_MAP_DATABASE_FOLDER )
+  set( SOLUTION_MAP_DATABASE_FOLDER ${CMAKE_SOURCE_DIR}/solution_map )
+endif()
+
+add_custom_command(
+  OUTPUT ${gen_solutions}
+  COMMAND ${PYTHON3_EXE} ${solship_py}
+  --gpu-arch="${sol_gpu_arch}"
+  --data-folder=${SOLUTION_MAP_DATABASE_FOLDER}
+  COMMENT "Put solution map from external text file into library"
+)
+
 # The following is a list of implementation files defining the library
 set( rocfft_source
   auxiliary.cpp
@@ -177,8 +196,10 @@ set( rocfft_source
   fuse_shim.cpp
   assignment_policy.cpp
   node_factory.cpp
+  enum_printer.cpp
   rtc_exports.cpp
-  solution_map.cpp
+  tuning_kernel_tuner.cpp
+  tuning_plan_tuner.cpp
   )
 
 # SQLite 3.36.0 enabled the backup API by default, which we need
@@ -264,6 +285,17 @@ add_library( rocfft-rtc-launch OBJECT
 )
 target_link_libraries( rocfft-rtc-launch PRIVATE rocfft-rtc-cache )
 
+# compilation of solution map object and solutions
+add_library( rocfft-solution-map OBJECT
+  solution_map.cpp
+  solutions.cpp
+)
+
+# compilation of tuning helper object
+add_library( rocfft-tuning-helper OBJECT
+  tuning_helper.cpp
+)
+
 foreach( target
   rocfft-rtc-common
   rocfft-rtc-compile
@@ -271,6 +303,8 @@ foreach( target
   rocfft-rtc-gen
   rocfft-rtc-cache
   rocfft-rtc-launch
+  rocfft-solution-map
+  rocfft-tuning-helper
   )
   target_include_directories( ${target}
     PRIVATE
@@ -306,6 +340,16 @@ add_executable( rocfft_config_search
   rocfft_stub.cpp
 )
 
+if( ROCFFT_BUILD_OFFLINE_TUNER )
+  add_executable( rocfft_offline_tuner
+    ../../shared/array_validator.cpp
+    enum_printer.cpp
+    rocfft_offline_tuner.cpp
+    rocfft_stub.cpp
+  )
+  target_compile_options( rocfft_offline_tuner PRIVATE -DROCFFT_BUILD_OFFLINE_TUNER )
+endif()
+
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
 
 add_library( rocfft
@@ -316,6 +360,9 @@ add_library( roc::rocfft ALIAS rocfft )
 
 if( ROCFFT_RUNTIME_COMPILE )
   target_compile_options( rocfft PRIVATE -DROCFFT_RUNTIME_COMPILE )
+endif()
+if( ROCFFT_BUILD_OFFLINE_TUNER )
+  target_compile_options( rocfft PRIVATE -DROCFFT_BUILD_OFFLINE_TUNER )
 endif()
 
 if( NOT BUILD_SHARED_LIBS )
@@ -337,7 +384,13 @@ endif()
 if(TARGET rocfft-device-3)
   target_link_libraries( rocfft PRIVATE rocfft-device-3 )
 endif()
-foreach( target rocfft rocfft_aot_helper rocfft_config_search )
+
+foreach( target rocfft rocfft_offline_tuner rocfft_aot_helper rocfft_config_search )
+
+  if(( NOT ROCFFT_BUILD_OFFLINE_TUNER ) AND (${target} STREQUAL "rocfft_offline_tuner"))
+    continue()
+  endif()
+
   # RTC uses dladdr to find the RTC helper program
   if( NOT WIN32 )
     target_link_libraries( ${target} PUBLIC -ldl pthread )
@@ -377,6 +430,8 @@ target_link_libraries( rocfft PRIVATE
   generator
   rocfft-function-pool
   rocfft-rtc-launch
+  rocfft-solution-map
+  rocfft-tuning-helper
   )
 target_link_libraries( rocfft_config_search PRIVATE
   ${ROCFFT_HOST_LINK_LIBS}
@@ -388,6 +443,18 @@ target_link_libraries( rocfft_aot_helper PRIVATE
   generator
   rocfft-function-pool
   )
+
+ # build executable rocfft-offline-tuner
+if( ROCFFT_BUILD_OFFLINE_TUNER )
+  target_link_libraries( rocfft_offline_tuner PRIVATE
+    rocfft
+    generator
+    rocfft-function-pool
+    rocfft-rtc-launch
+    rocfft-solution-map
+    rocfft-tuning-helper
+    )
+endif()
 
 # compile kernels into the cache file we ship
 #

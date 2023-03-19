@@ -21,6 +21,7 @@
 #include "compute_scheme.h"
 
 #include <map>
+#include <set>
 
 #define TO_STR2(x) #x
 #define TO_STR(x) TO_STR2(x)
@@ -103,4 +104,63 @@ ComputeScheme StrToComputeScheme(const std::string& str)
 {
     static auto csmap = StrToComputeSchemeMap();
     return csmap.at(str);
+}
+
+// schemes that could be a root problem, not a kernel
+// TODO- It would be better to refactor the ComputeScheme, might be good to define
+// things like PROB_DESC (such as 3D_C2C, LARGE_1D_C2C) , ALGORITHM (STOCKHAM...),
+// DECOMPOSITION (2D_RTRT, 1D_CC, 1D_TRTRT)...
+static const std::set<ComputeScheme>& ProblemScheme()
+{
+    static const std::set<ComputeScheme> ProblemSchemeSet = {(CS_KERNEL_STOCKHAM),
+                                                             (CS_REAL_TRANSFORM_USING_CMPLX),
+                                                             (CS_REAL_TRANSFORM_EVEN),
+                                                             (CS_REAL_2D_EVEN),
+                                                             (CS_REAL_3D_EVEN),
+                                                             (CS_BLUESTEIN),
+                                                             (CS_L1D_TRTRT),
+                                                             (CS_L1D_CC),
+                                                             (CS_L1D_CRT),
+                                                             (CS_2D_RTRT),
+                                                             (CS_2D_RC),
+                                                             (CS_KERNEL_2D_SINGLE),
+                                                             (CS_3D_TRTRTR),
+                                                             (CS_3D_RTRT),
+                                                             (CS_3D_BLOCK_RC),
+                                                             (CS_3D_BLOCK_CR),
+                                                             (CS_3D_RC)};
+
+    return ProblemSchemeSet;
+}
+
+bool ComputeSchemeIsAProblem(ComputeScheme cs)
+{
+    return ProblemScheme().count(cs) != 0;
+}
+
+std::string PrintKernelSchemeAbbr(ComputeScheme cs)
+{
+    switch(cs)
+    {
+    case CS_KERNEL_STOCKHAM:
+        return "sbrr";
+    case CS_KERNEL_STOCKHAM_BLOCK_CC:
+        return "sbcc";
+    case CS_KERNEL_STOCKHAM_BLOCK_CR:
+        return "sbcr";
+    case CS_KERNEL_STOCKHAM_BLOCK_RC:
+        return "sbrc";
+    case CS_KERNEL_2D_SINGLE:
+        return "2d_single";
+    case CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z:
+        return "sbrc_xy_z";
+    case CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY:
+        return "sbrc_z_xy";
+    case CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY:
+        return "sbrc_erc_z_xy";
+    default:
+        throw std::runtime_error("unsupported scheme in PrintKernelSchemeAbbr");
+    }
+
+    return "";
 }

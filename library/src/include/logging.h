@@ -1,5 +1,5 @@
 /******************************************************************************
-* Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+* Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -132,6 +132,7 @@ extern int log_profile_fd;
 extern int log_plan_fd;
 extern int log_kernelio_fd;
 extern int log_rtc_fd;
+extern int log_tuning_fd;
 
 /*! \brief Indicates if layer is active with bitmask*/
 typedef enum rocfft_layer_mode_
@@ -143,6 +144,7 @@ typedef enum rocfft_layer_mode_
     rocfft_layer_mode_log_plan     = 0b0000001000, //  8
     rocfft_layer_mode_log_kernelio = 0b0000010000, // 16
     rocfft_layer_mode_log_rtc      = 0b0000100000, // 32
+    rocfft_layer_mode_log_tuning   = 0b0001000000, // 64
 } rocfft_layer_mode;
 
 class LogSingleton
@@ -213,6 +215,13 @@ public:
         static thread_local rocfft_ostream log_rtc_os(log_rtc_fd);
         return &log_rtc_os;
     }
+    rocfft_ostream* GetTuningOS()
+    {
+        if(log_tuning_fd == -1)
+            return &rocfft_cerr;
+        static thread_local rocfft_ostream log_tuning_os(log_tuning_fd);
+        return &log_tuning_os;
+    }
 };
 
 #define LOG_TRACE_ENABLED() \
@@ -225,6 +234,8 @@ public:
 #define LOG_KERNELIO_ENABLED() \
     (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_kernelio)
 #define LOG_RTC_ENABLED() (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_rtc)
+#define LOG_TUNING_ENABLED() \
+    (LogSingleton::GetInstance().GetLayerMode() & rocfft_layer_mode_log_tuning)
 
 // if profile logging is turned on with
 // (layer_mode & rocfft_layer_mode_log_profile) != 0

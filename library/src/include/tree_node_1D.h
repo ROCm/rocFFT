@@ -119,9 +119,15 @@ protected:
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 
-    void SetDirectRegType();
+    // InitIntrinsicMode is the first step to check if eligible for buffer load/store
+    void InitIntrinsicMode();
 
-    void SetIntrinsicMode();
+    // manually disable the functionality from benchmark result
+    //     the settings are results of an observation, kinda we tune the param in hardcode
+    // NB: When during tuning, we should not do the manual setting things.
+    //     We should just use the exact setting from the specified config
+    void TuneDirectRegType();
+    void TuneIntrinsicMode();
 
 public:
     // we can put codes here to switch-on/off some features at arch-wise
@@ -157,7 +163,7 @@ protected:
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 
-    void SetDirectRegType();
+    void TuneDirectRegType();
 
 public:
     SBRC_TRANSPOSE_TYPE sbrc_transpose_type(unsigned int blockWidth) const override;
@@ -197,9 +203,11 @@ protected:
 
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 
-    void SetDirectRegType();
+    // InitIntrinsicMode is the first step to check if eligible for buffer load/store
+    void InitIntrinsicMode();
 
-    void SetIntrinsicMode();
+    void TuneDirectRegType();
+    void TuneIntrinsicMode();
 
 public:
     // we can put codes here to switch-on/off some features at arch-wise

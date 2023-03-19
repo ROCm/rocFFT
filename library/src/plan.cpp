@@ -25,6 +25,7 @@
 #include "../../shared/precision_type.h"
 #include "../../shared/ptrdiff.h"
 #include "assignment_policy.h"
+#include "enum_printer.h"
 #include "function_pool.h"
 #include "hip/hip_runtime_api.h"
 #include "logging.h"
@@ -34,6 +35,8 @@
 #include "rocfft_ostream.hpp"
 #include "rtc_kernel.h"
 #include "solution_map.h"
+#include "tuning_helper.h"
+#include "tuning_plan_tuner.h"
 
 #include <algorithm>
 #include <assert.h>
@@ -47,8 +50,6 @@
 
 #define TO_STR2(x) #x
 #define TO_STR(x) TO_STR2(x)
-#define ENUMSTR(x) x, TO_STR(x)
-#define STRENUM(x) TO_STR(x), x
 
 // clang-format off
 #define ROCFFT_VERSION_STRING (TO_STR(rocfft_version_major) "." \
@@ -56,128 +57,6 @@
                                TO_STR(rocfft_version_patch) "." \
                                TO_STR(rocfft_version_tweak) )
 // clang-format on
-
-static std::map<rocfft_precision, const char*> PrecisionToStrMap()
-{
-    std::map<rocfft_precision, const char*> PrecisionToStr = {{rocfft_precision_single, "single"},
-                                                              {rocfft_precision_double, "double"},
-                                                              {rocfft_precision_half, "half"}};
-    return PrecisionToStr;
-}
-
-static std::map<std::string, rocfft_precision> StrToPrecisionMap()
-{
-    std::map<std::string, rocfft_precision> StrToPrecision;
-    for(auto i : PrecisionToStrMap())
-        StrToPrecision.emplace(i.second, i.first);
-    return StrToPrecision;
-}
-
-static std::map<SBRC_TRANSPOSE_TYPE, const char*> SBRCTransTypetoStrMap()
-{
-    std::map<SBRC_TRANSPOSE_TYPE, const char*> SBRCTransTypeToStr = {
-        {ENUMSTR(NONE)}, {ENUMSTR(DIAGONAL)}, {ENUMSTR(TILE_ALIGNED)}, {ENUMSTR(TILE_UNALIGNED)}};
-    return SBRCTransTypeToStr;
-}
-
-static std::map<std::string, SBRC_TRANSPOSE_TYPE> StrToSBRCTransTypeMap()
-{
-    std::map<std::string, SBRC_TRANSPOSE_TYPE> StrToSBRCTransType;
-    for(auto i : SBRCTransTypetoStrMap())
-        StrToSBRCTransType.emplace(i.second, i.first);
-    return StrToSBRCTransType;
-}
-
-std::string PrintOperatingBuffer(const OperatingBuffer ob)
-{
-    static const std::map<OperatingBuffer, const char*> BuffertoString
-        = {{ENUMSTR(OB_UNINIT)},
-           {ENUMSTR(OB_USER_IN)},
-           {ENUMSTR(OB_USER_OUT)},
-           {ENUMSTR(OB_TEMP)},
-           {ENUMSTR(OB_TEMP_CMPLX_FOR_REAL)},
-           {ENUMSTR(OB_TEMP_BLUESTEIN)}};
-    return BuffertoString.at(ob);
-}
-
-std::string PrintOperatingBufferCode(const OperatingBuffer ob)
-{
-    static const std::map<OperatingBuffer, const char*> BuffertoString
-        = {{OB_UNINIT, "ERR"},
-           {OB_USER_IN, "A"},
-           {OB_USER_OUT, "B"},
-           {OB_TEMP, "T"},
-           {OB_TEMP_CMPLX_FOR_REAL, "C"},
-           {OB_TEMP_BLUESTEIN, "S"}};
-    return BuffertoString.at(ob);
-}
-
-std::string PrintOptimizeStrategy(const rocfft_optimize_strategy ros)
-{
-    static const std::map<rocfft_optimize_strategy, const char*> StrategytoString
-        = {{rocfft_optimize_min_buffer, "MINIMIZE_BUFFER"},
-           {rocfft_optimize_balance, "BALANCE_BUFFER_FUSION"},
-           {rocfft_optimize_max_fusion, "MAXIMIZE_FUSION"}};
-    return StrategytoString.at(ros);
-}
-
-std::string PrintSBRCTransposeType(const SBRC_TRANSPOSE_TYPE ty)
-{
-    static auto sbrc2strMap = SBRCTransTypetoStrMap();
-    return sbrc2strMap.at(ty);
-}
-
-std::string PrintDirectToFromRegMode(const DirectRegType ty)
-{
-    static const std::map<DirectRegType, const char*> TypetoString
-        = {{ENUMSTR(FORCE_OFF_OR_NOT_SUPPORT)}, {ENUMSTR(TRY_ENABLE_IF_SUPPORT)}};
-    return TypetoString.at(ty);
-}
-
-std::string PrintPrecision(const rocfft_precision pre)
-{
-    static auto precision2strMap = PrecisionToStrMap();
-    return precision2strMap.at(pre);
-}
-
-std::string PrintArrayType(const rocfft_array_type aryType)
-{
-    static const std::map<rocfft_array_type, const char*> aryTypeStr
-        = {{rocfft_array_type_complex_interleaved, "CI"},
-           {rocfft_array_type_complex_planar, "CP"},
-           {rocfft_array_type_real, "R"},
-           {rocfft_array_type_hermitian_interleaved, "HI"},
-           {rocfft_array_type_hermitian_planar, "HP"},
-           {rocfft_array_type_unset, "NA"}};
-    return aryTypeStr.at(aryType);
-}
-std::string PrintPlacement(const rocfft_result_placement placement)
-{
-    static const std::map<rocfft_result_placement, const char*> placementStr
-        = {{rocfft_placement_inplace, "IP"}, {rocfft_placement_notinplace, "OP"}};
-    return placementStr.at(placement);
-}
-std::string PrintEBType(const EmbeddedType ebtype)
-{
-    if(ebtype == EmbeddedType::NONE)
-        return std::string("NONE");
-    else if(ebtype == EmbeddedType::Real2C_POST)
-        return std::string("POST");
-    else
-        return std::string("PRE");
-}
-
-SBRC_TRANSPOSE_TYPE StrToSBRCTransType(const std::string& str)
-{
-    static auto str2sbrcMap = StrToSBRCTransTypeMap();
-    return str2sbrcMap.at(str);
-}
-
-rocfft_precision StrToPrecision(const std::string& str)
-{
-    static auto str2precisionMap = StrToPrecisionMap();
-    return str2precisionMap.at(str);
-}
 
 rocfft_status rocfft_plan_description_set_scale_factor(rocfft_plan_description description,
                                                        const double            scale_factor)
@@ -634,13 +513,19 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
         execPlan.deviceProp     = get_curr_device_prop();
         rootPlanData.deviceProp = execPlan.deviceProp;
 
-        execPlan.rootPlan   = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
-        execPlan.rootScheme = ApplySolution(execPlan);
-        if(execPlan.rootScheme)
+        execPlan.rootPlan = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
+
+        // If we are doing tuning initialzing now, we shouldn't apply any solution,
+        // since we are trying enumerating solutions now
+        if(TuningBenchmarker::GetSingleton().IsInitializingTuning() == false)
         {
-            execPlan.rootPlan = nullptr;
-            execPlan.rootPlan = NodeFactory::CreateExplicitNode(
-                rootPlanData, nullptr, execPlan.rootScheme->curScheme);
+            execPlan.rootScheme = ApplySolution(execPlan);
+            if(execPlan.rootScheme)
+            {
+                execPlan.rootPlan = nullptr;
+                execPlan.rootPlan = NodeFactory::CreateExplicitNode(
+                    rootPlanData, nullptr, execPlan.rootScheme->curScheme);
+            }
         }
 
         std::copy(plan->lengths.begin(),
@@ -666,6 +551,16 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
         // set scaling on the root plan
         execPlan.rootPlan->scale_factor = p->desc.scale_factor;
 
+        // check if we are doing tuning init now. If yes, we just return
+        // since we are not going to do the execution
+        if(TuningBenchmarker::GetSingleton().IsInitializingTuning())
+        {
+            EnumerateTrees(execPlan);
+            TuningBenchmarker::GetSingleton().GetPacket()->init_step = false;
+            TuningBenchmarker::GetSingleton().GetPacket()->is_tuning = true;
+            return rocfft_status_success;
+        }
+
         try
         {
             ProcessNode(execPlan); // TODO: more descriptions are needed
@@ -683,9 +578,17 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
 
         if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
         {
-
             throw std::runtime_error("Unable to create execution plan.");
         }
+
+        // when running each solution during tuning, get the information to packet,
+        // then we can dump the information to a table for analysis
+        if(TuningBenchmarker::GetSingleton().IsProcessingTuning())
+        {
+            if(!GetTuningKernelInfo(execPlan))
+                throw std::runtime_error("Unable to get the solution info.");
+        }
+
         return rocfft_status_success;
     }
     catch(std::exception& e)
@@ -908,6 +811,30 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t le
     return rocfft_status_success;
 }
 
+// Compute the large twd decomposition base
+// 2-Steps:
+//  e.g., ( CeilPo2(10000)+ 1 ) / 2 , returns 7 : (2^7)*(2^7) = 16384 >= 10000
+// 3-Steps:
+//  e.g., ( CeilPo2(10000)+ 2 ) / 3 , returns 5 : (2^5)*(2^5)*(2^5) = 32768 >= 10000
+void get_large_twd_base_steps(size_t large1DLen, bool use3steps, size_t& base, size_t& steps)
+{
+    // use3steps, then 16^3 ~ 64^3, basically enough for 262144
+    // else, base is 8 (2^8 = 256), could be 2-steps 256^2 = 65536, if exceed, then is 256^3, and so on..
+    base = use3steps ? std::min((size_t)6, std::max((size_t)4, (CeilPo2(large1DLen) + 2) / 3)) : 8;
+
+    // but we still want to know the exact steps we will loop
+    steps                  = 0;
+    size_t lenLargeTwdBase = pow(2, base);
+    while(pow(lenLargeTwdBase, steps) < large1DLen)
+        steps++;
+
+    if(base == 8 && steps > 3)
+        throw std::runtime_error(
+            "large-twd-base 8 could be 2,3 steps, but not supported for 4-steps yet");
+    if(base < 8 && steps != 3)
+        throw std::runtime_error("large-twd-base for 4,5,6 must be 3-steps");
+}
+
 void TreeNode::CopyNodeData(const TreeNode& srcNode)
 {
     dimension       = srcNode.dimension;
@@ -1116,32 +1043,6 @@ bool TreeNode::fuse_CS_KERNEL_STK_R2C_TRANSPOSE()
             return true;
     }
     return false;
-}
-
-// Compute the large twd decomposition base
-// 2-Steps:
-//  e.g., ( CeilPo2(10000)+ 1 ) / 2 , returns 7 : (2^7)*(2^7) = 16384 >= 10000
-// 3-Steps:
-//  e.g., ( CeilPo2(10000)+ 2 ) / 3 , returns 5 : (2^5)*(2^5)*(2^5) = 32768 >= 10000
-void TreeNode::set_large_twd_base_steps(size_t largeTWDLength)
-{
-    // if is largeTwd3Steps, then 16^3 ~ 64^3, basically enough for 262144
-    // else, base is 8 (2^8 = 256), could be 2-steps 256^2 = 65536, if exceed, then is 256^3, and so on..
-    largeTwdBase = this->largeTwd3Steps
-                       ? std::min((size_t)6, std::max((size_t)4, (CeilPo2(largeTWDLength) + 2) / 3))
-                       : 8;
-
-    // but we still want to know the exact steps we will loop
-    ltwdSteps              = 0;
-    size_t lenLargeTwdBase = pow(2, largeTwdBase);
-    while(pow(lenLargeTwdBase, ltwdSteps) < largeTWDLength)
-        ltwdSteps++;
-
-    if(largeTwdBase == 8 && ltwdSteps > 3)
-        throw std::runtime_error(
-            "large-twd-base 8 could be 2,3 steps, but not supported for 4-steps yet");
-    if(largeTwdBase < 8 && ltwdSteps != 3)
-        throw std::runtime_error("large-twd-base for 4,5,6 must be 3-steps");
 }
 
 void TreeNode::ApplyFusion()
@@ -1538,8 +1439,26 @@ std::pair<TreeNode*, TreeNode*> ExecPlan::get_load_store_nodes() const
 
 void RuntimeCompilePlan(ExecPlan& execPlan)
 {
-    for(auto& node : execPlan.execSeq)
-        node->compiledKernel = RTCKernel::runtime_compile(*node, execPlan.deviceProp.gcnArchName);
+    std::string kernel_name;
+    bool        is_tuning = TuningBenchmarker::GetSingleton().IsProcessingTuning();
+
+    for(size_t i = 0; i < execPlan.execSeq.size(); ++i)
+    {
+        auto& node = execPlan.execSeq[i];
+
+        node->compiledKernel
+            = RTCKernel::runtime_compile(*node, execPlan.deviceProp.gcnArchName, kernel_name);
+
+        // Log kernel name when tuning
+        if(is_tuning)
+        {
+            TuningBenchmarker::GetSingleton().GetPacket()->kernel_names[i] = kernel_name;
+            if(LOG_TUNING_ENABLED())
+                (*LogSingleton::GetInstance().GetTuningOS())
+                    << "kernel: " << kernel_name << std::endl;
+        }
+    }
+
     TreeNode* load_node             = nullptr;
     TreeNode* store_node            = nullptr;
     std::tie(load_node, store_node) = execPlan.get_load_store_nodes();
@@ -1548,15 +1467,16 @@ void RuntimeCompilePlan(ExecPlan& execPlan)
     bool need_callbacks = !array_type_is_planar(load_node->inArrayType)
                           && !array_type_is_planar(store_node->outArrayType);
 
-    if(need_callbacks)
+    // don't spend time compiling callback
+    if(need_callbacks && !is_tuning)
     {
-        load_node->compiledKernelWithCallbacks
-            = RTCKernel::runtime_compile(*load_node, execPlan.deviceProp.gcnArchName, true);
+        load_node->compiledKernelWithCallbacks = RTCKernel::runtime_compile(
+            *load_node, execPlan.deviceProp.gcnArchName, kernel_name, true);
 
         if(store_node != load_node)
         {
-            store_node->compiledKernelWithCallbacks
-                = RTCKernel::runtime_compile(*store_node, execPlan.deviceProp.gcnArchName, true);
+            store_node->compiledKernelWithCallbacks = RTCKernel::runtime_compile(
+                *store_node, execPlan.deviceProp.gcnArchName, kernel_name, true);
         }
     }
 
@@ -1573,13 +1493,25 @@ void RuntimeCompilePlan(ExecPlan& execPlan)
 }
 
 // Input a node, get the representative prob-token as the key of solution-map
-void GetProblemToken(const TreeNode& probNode, std::string& min_token, std::string& full_token)
+void GetNodeToken(const TreeNode& probNode, std::string& min_token, std::string& full_token)
 {
     // min_token: consider only length, precision, placement, complex/real,
     //             and direction for real-trans (R2C/C2R)
     // full_token: consider batch, dist, stride, offset, direction for complex
     // When searching solution, looking for full-match first, and then min-match
-    std::string token("");
+
+    // if this is a leaf-node TRANSPOSE, call_back or others with external-kernel = false
+    // currently we don't tune it, but still need to put an entry in the map. So we
+    // set a pre-defined token
+    if(probNode.isLeafNode() && probNode.GetKernelKey() == EmptyFMKey)
+    {
+        min_token = full_token = solution_map::LEAFNODE_TOKEN_BUILTIN_KERNEL;
+        return;
+    }
+
+    std::string token = ComputeSchemeIsAProblem(probNode.scheme)
+                            ? ("")
+                            : (PrintKernelSchemeAbbr(probNode.scheme) + "_");
 
     for(size_t i = 0; i < probNode.dimension; ++i)
         token += std::to_string(probNode.length[i]) + "_";
@@ -1619,7 +1551,7 @@ void GenerateProbKeys(const TreeNode& probNode, std::vector<ProblemKey>& possibl
     std::string min_token;
     std::string full_token;
     std::string archName = get_arch_name(probNode.deviceProp);
-    GetProblemToken(probNode, min_token, full_token);
+    GetNodeToken(probNode, min_token, full_token);
 
     for(auto arch : {archName, std::string("any")})
     {
@@ -1641,8 +1573,19 @@ std::unique_ptr<SchemeTree>
     if(!sol_map_single.has_solution_node(problemKey, sol_option))
         return nullptr;
 
-    std::string                 arch     = problemKey.arch;
-    SolutionNode                sol_node = sol_map_single.get_solution_node(problemKey, sol_option);
+    std::string  arch     = problemKey.arch;
+    SolutionNode sol_node = sol_map_single.get_solution_node(problemKey, sol_option);
+
+    // it is a dummy solution.
+    if(sol_node.using_scheme == CS_NONE)
+    {
+        if(LOG_TRACE_ENABLED())
+            (*LogSingleton::GetInstance().GetTraceOS())
+                << "found a dummy root-solution(" << arch << ", " << problemKey.probToken << ")"
+                << std::endl;
+        return nullptr;
+    }
+
     std::unique_ptr<SchemeTree> curScheme
         = std::make_unique<SchemeTree>(SchemeTree(sol_node.using_scheme));
 
@@ -1661,18 +1604,50 @@ std::unique_ptr<SchemeTree>
             if(!childScheme)
                 return nullptr;
 
+            curScheme->numKernels += childScheme->numKernels;
             curScheme->children.emplace_back(std::move(childScheme));
         }
     }
     // SOL_LEAF_NODE
     else if(sol_node.sol_node_type == SOL_LEAF_NODE)
     {
-        // a leaf node should have exactly one child sol-node (SOL_KERNEL_ONLY)
+        // a leaf node should have exactly one child sol-node (SOL_KERNEL_ONLY or SOL_BUILTIN_KERNEL)
         if(sol_node.solution_childnodes.size() != 1)
             return nullptr;
 
-        std::string& kernel_token  = sol_node.solution_childnodes[0].child_token;
-        size_t       kernel_option = sol_node.solution_childnodes[0].child_option;
+        std::string& kernel_token    = sol_node.solution_childnodes[0].child_token;
+        size_t       kernel_option   = sol_node.solution_childnodes[0].child_option;
+        bool         built_in_kernel = (kernel_token == solution_map::KERNEL_TOKEN_BUILTIN_KERNEL);
+
+        // When tuning, we're runing through each bench
+        // so we use the elaborated token (_leafnode_id_phase_id)
+        if(TuningBenchmarker::GetSingleton().IsProcessingTuning() && !built_in_kernel)
+        {
+            auto tuningPacket          = TuningBenchmarker::GetSingleton().GetPacket();
+            int  curr_tuning_node_id   = tuningPacket->tuning_node_id;
+            int  curr_tuning_phase     = tuningPacket->tuning_phase;
+            int  curr_tuning_config_id = tuningPacket->current_ssn;
+
+            // replacing the tuning target kernel_token to the candidate version
+            size_t cur_leaf_node_id = execPlan.solution_kernels.size();
+            kernel_token += "_leafnode_" + std::to_string(cur_leaf_node_id);
+
+            if(cur_leaf_node_id == (size_t)curr_tuning_node_id)
+            {
+                // if this kernel is the one we're tuning, then we set the testing phase and config_id
+                kernel_token += "_phase_" + std::to_string(curr_tuning_phase);
+                kernel_option = curr_tuning_config_id;
+            }
+            else
+            {
+                // if the kernel is not the tuning target: we should fix the kernel to the current winner
+                int curWinnerPhase = tuningPacket->winner_phases[cur_leaf_node_id];
+                int curWinnerID    = tuningPacket->winner_ids[cur_leaf_node_id];
+
+                kernel_token += "_phase_" + std::to_string(curWinnerPhase);
+                kernel_option = curWinnerID;
+            }
+        }
 
         ProblemKey probKey_kernel(arch, kernel_token);
         if(!sol_map_single.has_solution_node(probKey_kernel, kernel_option))
@@ -1681,6 +1656,7 @@ std::unique_ptr<SchemeTree>
         // get the kernel of this leaf node, be sure to pick the right kernel option
         SolutionNode kernel_node = sol_map_single.get_solution_node(probKey_kernel, kernel_option);
         execPlan.solution_kernels.push_back(kernel_node.kernel_key);
+        curScheme->numKernels = 1;
 
         if(LOG_TRACE_ENABLED())
         {
@@ -1702,6 +1678,11 @@ std::unique_ptr<SchemeTree>
         (*LogSingleton::GetInstance().GetTraceOS())
             << "found solution for problemKey(" << problemKey.arch << ", " << problemKey.probToken
             << ") with option: " << sol_option << std::endl;
+    }
+    if(LOG_TUNING_ENABLED())
+    {
+        (*LogSingleton::GetInstance().GetTuningOS())
+            << "[SolToken]: " << problemKey.probToken << std::endl;
     }
 
     return curScheme;

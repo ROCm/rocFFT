@@ -12,10 +12,11 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
         { libraryName ->
             getDependenciesCommand += auxiliary.getLibrary(libraryName, platform.jenkinsLabel, null, false)
         }
-    }            
+    }
 
     String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_RIDER=ON'
     String warningArgs = '-DWERROR=ON'
+    String buildTunerArgs = '-DROCFFT_BUILD_OFFLINE_TUNER=ON'
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DROCFFT_DEVICE_FORCE_RELEASE=ON' : '-DCMAKE_BUILD_TYPE=Release'
     String buildTypeDir = debug ? 'debug' : 'release'
     String staticArg = buildStatic ? '-DBUILD_SHARED_LIBS=off' : ''
@@ -32,7 +33,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
                 set -e
                 mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${hipClangArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${buildTunerArgs} ${hipClangArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
                 make -j\$(nproc)
                 sudo make install
             """
@@ -88,7 +89,7 @@ def runPackageCommand(platform, project, jobName, boolean debug=false)
     def packageHelper = platform.makePackage(platform.jenkinsLabel,"${project.paths.project_build_prefix}/build/${directory}",false)
     platform.runCommand(this, packageHelper[0])
     platform.archiveArtifacts(this, packageHelper[1])
-    
+
     //trim temp files
     def command = """#!/usr/bin/env bash
                      set -ex

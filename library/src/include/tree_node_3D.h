@@ -155,7 +155,7 @@ protected:
         return 0;
     }
 
-    void SetDirectRegType();
+    void TuneDirectRegType();
 
 public:
     bool KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) override;

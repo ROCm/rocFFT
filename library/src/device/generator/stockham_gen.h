@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -58,6 +58,13 @@ struct StockhamGeneratorSpecs
     // statically defined for the kernel
     unsigned int static_dim = 0;
     std::string  scheme;
+
+    // this value indicating if the wgs, tpt are excatly what we want
+    // (i.e. were already derived somewhere)
+    // to tell StockhamKernel not to do its auto-derivation again.
+    // Particularly useful when tuning or running a tuned kernel. (RTC-ing)
+    // We don't want them to be overwritten by StockhamKernel.
+    bool wgs_is_derived = false;
 };
 
 // generate default stockham variants for ahead-of-time compilation

@@ -33,6 +33,7 @@
 #include "plan.h"
 #include "rtc_kernel.h"
 #include "transform.h"
+#include "tuning_helper.h"
 
 #include "kernel_launch.h"
 
@@ -85,6 +86,73 @@ bool PlanPowX(ExecPlan& execPlan)
 
         execPlan.devFnCall.push_back(ptr);
         execPlan.gridParam.push_back(gp);
+    }
+
+    return true;
+}
+
+bool GetTuningKernelInfo(ExecPlan& execPlan)
+{
+    auto tuningPacket = TuningBenchmarker::GetSingleton().GetPacket();
+    if(!tuningPacket)
+        return false;
+
+    for(size_t i = 0; i < execPlan.execSeq.size(); ++i)
+    {
+        RTCKernel*   localCompiledKernel = execPlan.execSeq[i]->compiledKernel.get().get();
+        GridParam    gp                  = execPlan.gridParam[i];
+        FMKey        key                 = execPlan.execSeq[i]->GetKernelKey();
+        auto         lengths             = std::get<0>(key);
+        KernelConfig config              = std::get<4>(key);
+
+        // get occupancy: 0 means it's compiled (AOT)
+        //               -1 means failed on getting occupancy
+        // TODO- get occupancy of non-RTCKernel
+        int occupancy = 0;
+        if(localCompiledKernel)
+        {
+            // if queried occupancy = 0, which is very likely that this kernel
+            // can't be loaded
+            if(!localCompiledKernel->get_occupancy(
+                   {gp.wgs_x, gp.wgs_y, gp.wgs_z}, gp.lds_bytes, occupancy)
+               || occupancy == 0)
+                occupancy = -1;
+        }
+
+        // factors as string, we will output this to CSV file,
+        // and carry this from phase-0 to phase-1
+        std::string factors_str = "[";
+        std::string COMMA       = "";
+        for(auto factor : config.factors)
+        {
+            factors_str += COMMA + std::to_string(factor);
+            COMMA = ", ";
+        }
+        factors_str += "]";
+
+        // utilization info as string, we will output this to CSV file
+        std::stringstream util_ss;
+        util_ss << "[";
+        util_ss.precision(4);
+        float util_rate = 0.0f;
+        for(auto width : config.factors)
+        {
+            float height = static_cast<float>(lengths[0]) / width / config.threads_per_transform[0];
+            util_ss << std::fixed << height << ", ";
+
+            util_rate += height;
+        }
+        util_rate /= config.factors.size();
+        util_ss << std::fixed << util_rate << "]";
+
+        tuningPacket->num_of_blocks[i] = gp.b_x;
+        tuningPacket->lds_bytes[i]     = gp.lds_bytes;
+        tuningPacket->occupancy[i]     = occupancy;
+        tuningPacket->wgs[i]           = config.workgroup_size;
+        tuningPacket->tpt[i]           = config.threads_per_transform[0];
+        tuningPacket->tpb[i]           = config.transforms_per_block;
+        tuningPacket->util_rate[i]     = util_ss.str();
+        tuningPacket->factors_str[i]   = factors_str;
     }
 
     return true;
@@ -404,12 +472,15 @@ void TransformPowX(const ExecPlan&       execPlan,
     assert(execPlan.execSeq.size() == execPlan.devFnCall.size());
     assert(execPlan.execSeq.size() == execPlan.gridParam.size());
 
+    bool processing_tuning = TuningBenchmarker::GetSingleton().IsProcessingTuning();
+    auto tuningPacket      = TuningBenchmarker::GetSingleton().GetPacket();
     // we can log profile information if we're on the null stream,
     // since we will be able to wait for the transform to finish
-    bool            emit_profile_log  = LOG_PROFILE_ENABLED() && !info->rocfft_stream;
-    bool            emit_kernelio_log = LOG_KERNELIO_ENABLED();
-    rocfft_ostream* kernelio_stream   = nullptr;
-    float           max_memory_bw     = 0.0;
+    bool emit_profile_log  = (processing_tuning || LOG_PROFILE_ENABLED()) && !info->rocfft_stream;
+    bool emit_kernelio_log = LOG_KERNELIO_ENABLED();
+
+    rocfft_ostream* kernelio_stream = nullptr;
+    float           max_memory_bw   = 0.0;
     hipEvent_t      start, stop;
     if(emit_profile_log)
     {
@@ -688,6 +759,9 @@ void TransformPowX(const ExecPlan&       execPlan,
                 auto efficiency_pct = 0.0;
                 if(max_memory_bw != 0.0)
                     efficiency_pct = 100.0 * exec_bw / max_memory_bw;
+                if(processing_tuning)
+                    tuningPacket->bw_effs[i] = efficiency_pct;
+
                 log_profile(__func__,
                             "scheme",
                             PrintScheme(execPlan.execSeq[i]->scheme),

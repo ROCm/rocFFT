@@ -476,8 +476,33 @@ std::unique_ptr<TreeNode> NodeFactory::CreateExplicitNode(NodeMetaData& nodeData
                                                           TreeNode*     parent,
                                                           ComputeScheme determined_scheme)
 {
+    // when creating tree from solution map, scheme is L1D but not root
+    // NB:
+    //   Why we need this:
+    //   Ideally, decide-scheme functions don't assign/change any lengths data,
+    //   it should be assigned before. But that is not the case for L1D, when
+    //   deciding L1D scheme, it appends an extra temporary length indicating
+    //   how to "factorize" the large 1D, and then pop in later in "build-tree."
+    //   But when we are creating tree from solution map, we already have the
+    //   determined_scheme; however, if we don't do the decide-node-scheme,
+    //   we lose that factor-length, and the later "pop" casues error. So
+    //   we should still call the decide-node-scheme here as long as we know
+    //   it's a L1D. (But not for the root-node, root-node calls the decide
+    //   function anyway, before we try looking up solutions)
+    if((determined_scheme == CS_L1D_TRTRT || determined_scheme == CS_L1D_CC
+        || determined_scheme == CS_L1D_CRT)
+       && (parent != nullptr))
+    {
+        auto s = DecideNodeScheme(nodeData, parent);
+        if(determined_scheme != s)
+            throw std::runtime_error("solution map error for L1D sub-problem");
+    }
+
+    // createing tree without solution map, must call DecideNodeScheme
     if(determined_scheme == CS_NONE)
         determined_scheme = DecideNodeScheme(nodeData, parent);
+
+    // check if successfully created
     if(determined_scheme == CS_NONE)
         throw std::runtime_error("DecideNodeScheme Failed!: CS_NONE");
 
