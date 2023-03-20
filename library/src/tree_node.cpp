@@ -251,7 +251,14 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
                 gp.lds_bytes /= 2;
         }
     }
-    return;
+
+    // Confirm that the requested LDS bytes will fit into what the
+    // device can provide.  If it can't, we've made a mistake in our
+    // computation somewhere.
+    if(gp.lds_bytes > deviceProp.sharedMemPerBlock)
+        throw std::runtime_error(std::to_string(gp.lds_bytes)
+                                 + " bytes of LDS requested, but device only provides "
+                                 + std::to_string(deviceProp.sharedMemPerBlock));
 }
 
 /*****************************************************

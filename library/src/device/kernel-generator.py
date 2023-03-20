@@ -749,6 +749,10 @@ def generate_kernel(kernel, precisions, stockham_aot):
     # default half_lds to True only for CS_KERNEL_STOCKHAM
     half_lds = getattr(kernel, 'half_lds',
                        kernel.scheme == 'CS_KERNEL_STOCKHAM')
+    # but we don't use LDS for single-radix kernels, so half_lds is meaningless there
+    if len(kernel.factors) == 1:
+        half_lds = False
+
     # for unspecified direct_to_from_reg, default is True only for CS_KERNEL_STOCKHAM and SBCC
     direct_to_from_reg = getattr(kernel, 'direct_to_from_reg', True)
 
