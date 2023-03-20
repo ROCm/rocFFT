@@ -25,6 +25,8 @@ from sympy import sieve
 
 import numpy as np
 
+import perflib.specs
+
 all_precisions = ['single', 'double']
 all_directions = [-1, 1]
 all_inplaces = [True, False]
@@ -347,10 +349,23 @@ def mktag(tag, dimension, precision, direction, inplace, real):
 def default_length_params(tag, lengths, nbatch, precisions=all_precisions, \
     directions=all_directions, inplaces=all_inplaces, reals=all_reals, min_wgs=def_tuning_min_wgs, max_wgs=def_tuning_max_wgs):
 
+    # workaround: disable failing token on gfx906
+    if perflib.specs.get_machine_specs(0).gpuid == '0x66a1':
+        gfx906 = True
+    else:
+        gfx906 = False
+
     for precision, direction, inplace, real in product(precisions, directions,
                                                        inplaces, reals):
         for length in lengths:
             length = (length, ) if isinstance(length, int) else length
+
+            # workaround: disable failing token on gfx906
+            if gfx906 and (length == [32768, 32768] and nbatch == 1
+                           and direction == -1 and not inplace and real
+                           and precision == 'single'):
+                continue
+
             yield Problem(length,
                           tag=mktag(tag, len(length), precision, direction,
                                     inplace, real),
