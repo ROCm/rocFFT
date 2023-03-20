@@ -698,7 +698,7 @@ void SBRCTranspose3DNode::TuneDirectRegType()
         //     {64,dp}, {81,dp}, {100,dp} are bad
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {49, 128}}, {rocfft_precision_double, {64, 81, 100}}};
-        if(exceptions.at(precision).count(length[0]))
+        if(length_excepted(exceptions, precision, length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
     else if(is_device_gcn_arch(deviceProp, "gfx908"))
@@ -709,7 +709,7 @@ void SBRCTranspose3DNode::TuneDirectRegType()
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {81, 100, 128, 192, 200, 512}},
                {rocfft_precision_double, {81, 512}}};
-        if(exceptions.at(precision).count(length[0]))
+        if(length_excepted(exceptions, precision, length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
     else if(is_device_gcn_arch(deviceProp, "gfx90a"))
@@ -720,7 +720,7 @@ void SBRCTranspose3DNode::TuneDirectRegType()
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {49, 64, 81, 125, 128, 192, 200, 512}},
                {rocfft_precision_double, {64, 81, 100, 125}}};
-        if(exceptions.at(precision).count(length[0]))
+        if(length_excepted(exceptions, precision, length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
     // we don't enable the features for others

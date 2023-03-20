@@ -65,7 +65,7 @@ static std::vector<std::vector<size_t>> ooffset_range = {{0, 0}, {1, 1}};
 INSTANTIATE_TEST_SUITE_P(adhoc,
                          accuracy_test,
                          ::testing::ValuesIn(param_generator(adhoc_sizes,
-                                                             precision_range,
+                                                             precision_range_sp_dp,
                                                              batch_range,
                                                              stride_range,
                                                              stride_range,
@@ -78,7 +78,7 @@ INSTANTIATE_TEST_SUITE_P(adhoc,
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_adhoc,
                          accuracy_test,
                          ::testing::ValuesIn(param_generator(adhoc_sizes,
-                                                             precision_range,
+                                                             precision_range_full,
                                                              batch_range,
                                                              stride_range,
                                                              stride_range,
@@ -94,7 +94,7 @@ inline auto param_permissive_iodist()
     lengths.push_back({4});
 
     std::vector<fft_params> params;
-    for(const auto precision : precision_range)
+    for(const auto precision : precision_range_sp_dp)
     {
         for(const auto trans_type : trans_type_range)
         {
@@ -183,7 +183,7 @@ inline auto param_adhoc_stride()
 {
     std::vector<fft_params> params;
 
-    for(const auto precision : precision_range)
+    for(const auto precision : precision_range_full)
     {
         for(const auto& types : generate_types(fft_transform_type_complex_forward,
                                                {fft_placement_inplace, fft_placement_notinplace},

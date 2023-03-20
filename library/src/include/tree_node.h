@@ -137,6 +137,18 @@ static bool is_cube_size(const std::vector<size_t>& length)
     return length.size() == 3 && length[0] == length[1] && length[1] == length[2];
 }
 
+// Given a map of precision-length exceptions, check whether the
+// length is present.  Assume half-precision has the same exceptions
+// as single-precision.
+static bool length_excepted(const std::map<rocfft_precision, std::set<size_t>>& exceptions,
+                            rocfft_precision                                    precision,
+                            size_t                                              length)
+{
+    if(precision == rocfft_precision_half)
+        precision = rocfft_precision_single;
+    return exceptions.at(precision).count(length);
+}
+
 void get_large_twd_base_steps(size_t large1DLen, bool use3steps, size_t& base, size_t& steps);
 
 struct SchemeTree

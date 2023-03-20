@@ -314,7 +314,7 @@ bool NodeFactory::NonPow2LengthSupported(rocfft_precision precision, size_t leng
             {104,  108,  180,  224,  225,  432,  450,  810,  2401,  2430,  2700,  2880,   3125,
              3200, 3240, 3375, 3456, 3600, 3645, 4913, 6561, 11200, 53248, 57344, 106496, 114688}}};
 
-    if(length_exceptions.at(precision).count(length))
+    if(length_excepted(length_exceptions, precision, length))
         return false;
 
     // Look for regular Stockham kernels support
@@ -814,7 +814,8 @@ ComputeScheme NodeFactory::Decide3DScheme(NodeMetaData& nodeData)
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {84, 112, 168}},
                {rocfft_precision_double, {84, 108, 112, 168}}};
-        if(childScheme == CS_2D_RC && exceptions.at(nodeData.precision).count(nodeData.length[1])
+        if(childScheme == CS_2D_RC
+           && length_excepted(exceptions, nodeData.precision, nodeData.length[1])
            && nodeData.rootIsC2C)
         {
             return CS_3D_TRTRTR;

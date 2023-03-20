@@ -99,7 +99,7 @@ INSTANTIATE_TEST_SUITE_P(random_complex_1d,
                          random_params,
                          ::testing::Combine(::testing::Range(0, n_random_tests),
                                             ::testing::ValuesIn({1}),
-                                            ::testing::ValuesIn(precision_range),
+                                            ::testing::ValuesIn(precision_range_sp_dp),
                                             ::testing::ValuesIn(place_range),
                                             ::testing::ValuesIn(trans_type_range_complex)));
 
@@ -107,7 +107,7 @@ INSTANTIATE_TEST_SUITE_P(random_complex_2d,
                          random_params,
                          ::testing::Combine(::testing::Range(0, n_random_tests),
                                             ::testing::ValuesIn({2}),
-                                            ::testing::ValuesIn(precision_range),
+                                            ::testing::ValuesIn(precision_range_sp_dp),
                                             ::testing::ValuesIn(place_range),
                                             ::testing::ValuesIn(trans_type_range_complex)));
 
@@ -115,7 +115,7 @@ INSTANTIATE_TEST_SUITE_P(random_complex_3d,
                          random_params,
                          ::testing::Combine(::testing::Range(0, n_random_tests),
                                             ::testing::ValuesIn({3}),
-                                            ::testing::ValuesIn(precision_range),
+                                            ::testing::ValuesIn(precision_range_sp_dp),
                                             ::testing::ValuesIn(place_range),
                                             ::testing::ValuesIn(trans_type_range_complex)));
 
@@ -123,7 +123,7 @@ INSTANTIATE_TEST_SUITE_P(random_real_1d,
                          random_params,
                          ::testing::Combine(::testing::Range(0, n_random_tests),
                                             ::testing::ValuesIn({1}),
-                                            ::testing::ValuesIn(precision_range),
+                                            ::testing::ValuesIn(precision_range_sp_dp),
                                             ::testing::ValuesIn({fft_placement_notinplace}),
                                             ::testing::ValuesIn(trans_type_range_real)));
 
@@ -131,7 +131,7 @@ INSTANTIATE_TEST_SUITE_P(random_real_2d,
                          random_params,
                          ::testing::Combine(::testing::Range(0, n_random_tests),
                                             ::testing::ValuesIn({2}),
-                                            ::testing::ValuesIn(precision_range),
+                                            ::testing::ValuesIn(precision_range_sp_dp),
                                             ::testing::ValuesIn({fft_placement_notinplace}),
                                             ::testing::ValuesIn(trans_type_range_real)));
 
@@ -139,6 +139,6 @@ INSTANTIATE_TEST_SUITE_P(random_real_3d,
                          random_params,
                          ::testing::Combine(::testing::Range(0, n_random_tests),
                                             ::testing::ValuesIn({3}),
-                                            ::testing::ValuesIn(precision_range),
+                                            ::testing::ValuesIn(precision_range_sp_dp),
                                             ::testing::ValuesIn({fft_placement_notinplace}),
                                             ::testing::ValuesIn(trans_type_range_real)));

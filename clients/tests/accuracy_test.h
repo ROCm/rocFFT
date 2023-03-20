@@ -210,8 +210,11 @@ public:
 
 const static std::vector<size_t> batch_range = {2, 1};
 
-const static std::vector<fft_precision> precision_range
+const static std::vector<fft_precision> precision_range_full
+    = {fft_precision_double, fft_precision_single, fft_precision_half};
+const static std::vector<fft_precision> precision_range_sp_dp
     = {fft_precision_double, fft_precision_single};
+
 const static std::vector<fft_result_placement> place_range
     = {fft_placement_inplace, fft_placement_notinplace};
 const static std::vector<fft_transform_type> trans_type_range
@@ -1176,9 +1179,23 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
 
             if(params.precision != last_cpu_fft_data.precision)
             {
-                // Tests should be ordered so we do double first, then float.
-                if(last_cpu_fft_data.precision == fft_precision_double)
+                // Tests should be ordered so we do wider first, then narrower.
+                switch(params.precision)
                 {
+                case fft_precision_double:
+                    std::cerr
+                        << "test ordering is incorrect: double precision follows a narrower one"
+                        << std::endl;
+                    abort();
+                    break;
+                case fft_precision_single:
+                    if(last_cpu_fft_data.precision != fft_precision_double)
+                    {
+                        std::cerr
+                            << "test ordering is incorrect: float precision follows a narrower one"
+                            << std::endl;
+                        abort();
+                    }
                     // convert the input/output to single-precision
                     convert_cpu_output_precision = std::async(std::launch::async, [&]() {
                         narrow_precision_inplace<double, float>(cpu_output.front());
@@ -1186,16 +1203,36 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                     convert_cpu_input_precision  = std::async(std::launch::async, [&]() {
                         narrow_precision_inplace<double, float>(cpu_input.front());
                     });
-                    last_cpu_fft_data.precision  = fft_precision_single;
+                    break;
+                case fft_precision_half:
+                    // convert to half precision
+                    if(last_cpu_fft_data.precision == fft_precision_double)
+                    {
+                        convert_cpu_output_precision = std::async(std::launch::async, [&]() {
+                            narrow_precision_inplace<double, _Float16>(cpu_output.front());
+                        });
+                        convert_cpu_input_precision  = std::async(std::launch::async, [&]() {
+                            narrow_precision_inplace<double, _Float16>(cpu_input.front());
+                        });
+                    }
+                    else if(last_cpu_fft_data.precision == fft_precision_single)
+                    {
+                        convert_cpu_output_precision = std::async(std::launch::async, [&]() {
+                            narrow_precision_inplace<float, _Float16>(cpu_output.front());
+                        });
+                        convert_cpu_input_precision  = std::async(std::launch::async, [&]() {
+                            narrow_precision_inplace<float, _Float16>(cpu_input.front());
+                        });
+                    }
+                    else
+                    {
+                        std::cerr << "unhandled previous precision, cannot convert to half"
+                                  << std::endl;
+                        abort();
+                    }
+                    break;
                 }
-                else
-                {
-                    // Somehow we've done float first, then double?
-                    // Tests are ordered wrong, and we don't want to
-                    // lose precision
-                    std::cerr << "Can't do float first then double: aborting." << std::endl;
-                    abort();
-                }
+                last_cpu_fft_data.precision = params.precision;
             }
         }
         // If the last result has a smaller batch than the new

@@ -57,7 +57,7 @@ inline auto param_checkstride()
     {
         for(const auto& s : sizes)
         {
-            for(const auto precision : precision_range)
+            for(const auto precision : precision_range_sp_dp)
             {
                 for(const auto& types :
                     generate_types(trans_type, {fft_placement_notinplace}, true))

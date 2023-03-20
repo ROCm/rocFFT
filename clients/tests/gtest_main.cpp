@@ -277,9 +277,9 @@ int main(int argc, char* argv[])
         ("osize", po::value<std::vector<size_t>>(&manual_params.osize)->multitoken(),
          "Logical size of output.")
         ("R", po::value<size_t>(&ramgb)->default_value((start_memory.total_bytes + ONE_GiB - 1) / ONE_GiB), "Ram limit in GiB for tests.")
-        ("half_epsilon",  po::value<double>(&single_epsilon)->default_value(0.0))
+        ("half_epsilon",  po::value<double>(&half_epsilon)->default_value(9.77e-4))
         ("single_epsilon",  po::value<double>(&single_epsilon)->default_value(3.75e-5))
-	("double_epsilon",  po::value<double>(&double_epsilon)->default_value(1e-15))
+        ("double_epsilon",  po::value<double>(&double_epsilon)->default_value(1e-15))
         ("wise,w", "use FFTW wisdom")
         ("wisdomfile,W",
          po::value<std::string>(&fftw_wisdom_filename)->default_value("wisdom3.txt"),
@@ -310,8 +310,8 @@ int main(int argc, char* argv[])
 
     verbose = vm["verbose"].as<int>();
 
-    std::cout << "single epsilon: " << single_epsilon << "\tdouble epsilon: " << double_epsilon
-              << std::endl;
+    std::cout << "half epsilon: " << half_epsilon << "\tsingle epsilon: " << single_epsilon
+              << "\tdouble epsilon: " << double_epsilon << std::endl;
 
     if(!vm.count("seed"))
     {

@@ -837,7 +837,7 @@ void SBCCNode::TuneDirectRegType()
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {125, 192, 216, 224, 240, 243}},
                {rocfft_precision_double, {224, 343}}};
-        if(exceptions.at(precision).count(length[0]))
+        if(length_excepted(exceptions, precision, length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
     else if(is_device_gcn_arch(deviceProp, "gfx90a"))
@@ -848,7 +848,7 @@ void SBCCNode::TuneDirectRegType()
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {125, 192, 216, 200, 224, 240}},
                {rocfft_precision_double, {125, 224, 243}}};
-        if(exceptions.at(precision).count(length[0]))
+        if(length_excepted(exceptions, precision, length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
 }
@@ -908,7 +908,7 @@ void SBCCNode::TuneIntrinsicMode()
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {96, 125, 192, 256, 343}},
                {rocfft_precision_double, {192, 240, 256, 343}}};
-        if(exceptions.at(precision).count(length[0]))
+        if(length_excepted(exceptions, precision, length[0]))
             intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
     }
     // 3. exception cases on 908. Based on benchmark results
@@ -918,7 +918,7 @@ void SBCCNode::TuneIntrinsicMode()
         // {104,sp/dp}, {192,dp}, {240,dp}, {289,sp}
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {104, 289}}, {rocfft_precision_double, {104, 192, 240}}};
-        if(exceptions.at(precision).count(length[0]))
+        if(length_excepted(exceptions, precision, length[0]))
             intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
     }
 }
@@ -1002,7 +1002,7 @@ void SBRCNode::TuneDirectRegType()
         // {49,sp}, {128,sp}, {64,dp}, {81,dp}, {100,dp}
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {49, 128}}, {rocfft_precision_double, {64, 81, 100}}};
-        if(exceptions.at(precision).count(length[0]))
+        if(length_excepted(exceptions, precision, length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
     else if(is_device_gcn_arch(deviceProp, "gfx908"))
@@ -1012,7 +1012,7 @@ void SBRCNode::TuneDirectRegType()
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {81, 100, 128, 192, 200, 512}},
                {rocfft_precision_double, {125, 128}}};
-        if(exceptions.at(precision).count(length[0]))
+        if(length_excepted(exceptions, precision, length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
     else if(is_device_gcn_arch(deviceProp, "gfx90a"))
@@ -1022,7 +1022,7 @@ void SBRCNode::TuneDirectRegType()
         std::map<rocfft_precision, std::set<size_t>> exceptions
             = {{rocfft_precision_single, {49, 81, 100, 125, 200, 512}},
                {rocfft_precision_double, {64, 81, 100, 125}}};
-        if(exceptions.at(precision).count(length[0]))
+        if(length_excepted(exceptions, precision, length[0]))
             dir2regMode = FORCE_OFF_OR_NOT_SUPPORT;
     }
     // we don't enable the features for others
