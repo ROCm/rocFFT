@@ -217,7 +217,7 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
     auto key = GetKernelKey();
 
     // common: sum up the value;
-    gp.lds_bytes = (lds + lds_padding * bwd) * complex_type_size(precision);
+    gp.lds_bytes = lds * complex_type_size(precision);
     if(scheme == CS_KERNEL_STOCKHAM && ebtype == EmbeddedType::NONE)
     {
         if(function_pool::has_function(key))
