@@ -21,6 +21,11 @@
 #ifndef DATA_GEN_H
 #define DATA_GEN_H
 
+// rocRAND can generate warnings if inline asm is not available for
+// some architectures.  data generation isn't performance-critical,
+// so just disable inline asm to prevent the warnings.
+#define ROCRAND_DISABLE_INLINE_ASM
+
 #include "../shared/arithmetic.h"
 #include "../shared/gpubuf.h"
 #include "../shared/rocfft_complex.h"
