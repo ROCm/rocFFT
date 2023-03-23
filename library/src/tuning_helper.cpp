@@ -390,7 +390,7 @@ void TuningBenchmarker::ExportWinnerToSolutions()
     // sort=true, primary_map=false
     binding_solution_map->write_solution_map_data(result_path, true, false);
 
-    packet->output_solution_map_path = result_path;
+    packet->output_solution_map_path = result_path.string();
 }
 
 void TuningBenchmarker::GetOutputSolutionMapPath(std::string& out_path)

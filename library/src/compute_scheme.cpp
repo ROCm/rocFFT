@@ -22,6 +22,7 @@
 
 #include <map>
 #include <set>
+#include <stdexcept>
 
 #define TO_STR2(x) #x
 #define TO_STR(x) TO_STR2(x)

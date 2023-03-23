@@ -452,7 +452,7 @@ bool solution_map::write_solution_map_data(const fs::path& sol_map_out_path,
     outfile.open(sol_map_out_path.c_str(), (std::ios::out | std::ios::trunc));
     if(!outfile.is_open())
         throw std::runtime_error("Write solution map failed. Cannot open/create output file: "
-                                 + std::string(sol_map_out_path));
+                                 + sol_map_out_path.string());
 
     std::stringstream ss;
     ProbSolMap&       writing_map = (primary_map) ? primary_sol_map : temp_working_map;
