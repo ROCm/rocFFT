@@ -773,8 +773,8 @@ void RealCmplxTransZ_XYNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridPara
     fnPtr       = kernel.device_function;
     bwd         = kernel.transforms_per_block;
     wgs         = kernel.workgroup_size;
-    lds         = length[0] * bwd;
     lds_padding = 1;
+    lds         = (length[0] + lds_padding) * bwd;
     gp.b_x      = DivRoundingUp(length[1], bwd) * length[2] * batch;
     gp.wgs_x    = wgs;
 }
