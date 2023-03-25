@@ -239,8 +239,7 @@ static void compare_data(const std::vector<rocfft_complex<float>>& original_host
     // Compare data we got to the original.
     // We're running 2 transforms (forward+inverse), so we
     // should tolerate 2x the error of a single transform.
-    std::vector<std::pair<size_t, size_t>> linf_failures;
-    const double                           MAX_TRANSFORM_ERROR = 2 * type_epsilon<float>();
+    const double MAX_TRANSFORM_ERROR = 2 * type_epsilon<float>();
 
     auto input_norm
         = norm_complex(reinterpret_cast<const rocfft_complex<float>*>(original_host_data.data()),
@@ -259,7 +258,7 @@ static void compare_data(const std::vector<rocfft_complex<float>>& original_host
         original_host_data.size(),
         1,
         modified_host_data.size(),
-        linf_failures,
+        nullptr,
         MAX_TRANSFORM_ERROR,
         {0},
         {0});

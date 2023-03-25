@@ -2184,7 +2184,7 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
                                          const size_t                            idist,
                                          const Tint3&                            ostride,
                                          const size_t                            odist,
-                                         std::vector<std::pair<size_t, size_t>>& linf_failures,
+                                         std::vector<std::pair<size_t, size_t>>* linf_failures,
                                          const double                            linf_cutoff,
                                          const std::vector<size_t>&              ioffset,
                                          const std::vector<size_t>&              ooffset,
@@ -2193,7 +2193,8 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
     double linf = 0.0;
     double l2   = 0.0;
 
-    std::mutex linf_failure_lock;
+    std::mutex                             linf_failure_lock;
+    std::vector<std::pair<size_t, size_t>> linf_failures_private;
 
     const bool idx_equals_odx = istride == ostride && idist == odist;
     size_t     idx_base       = 0;
@@ -2202,7 +2203,7 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
 #ifdef BUILD_CLIENTS_TESTS_OPENMP
-#pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
+#pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size()) private(linf_failures_private)
 #endif
         for(size_t part = 0; part < partitions.size(); ++part)
         {
@@ -2222,9 +2223,8 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
-                    linf_failure_lock.lock();
-                    linf_failures.push_back(fval);
-                    linf_failure_lock.unlock();
+                    if(linf_failures)
+                        linf_failures_private.push_back(fval);
                 }
                 cur_l2 += rdiff * rdiff;
 
@@ -2235,15 +2235,23 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
-                    linf_failure_lock.lock();
-                    linf_failures.push_back(fval);
-                    linf_failure_lock.unlock();
+                    if(linf_failures)
+                        linf_failures_private.push_back(fval);
                 }
                 cur_l2 += idiff * idiff;
 
             } while(increment_rowmajor(index, length));
             linf = std::max(linf, cur_linf);
             l2 += cur_l2;
+
+            if(linf_failures)
+            {
+                linf_failure_lock.lock();
+                std::copy(linf_failures_private.begin(),
+                          linf_failures_private.end(),
+                          std::back_inserter(*linf_failures));
+                linf_failure_lock.unlock();
+            }
         }
     }
     return {.l_2 = sqrt(l2), .l_inf = linf};
@@ -2261,7 +2269,7 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
                                       const size_t                            idist,
                                       const Tint3&                            ostride,
                                       const size_t                            odist,
-                                      std::vector<std::pair<size_t, size_t>>& linf_failures,
+                                      std::vector<std::pair<size_t, size_t>>* linf_failures,
                                       const double                            linf_cutoff,
                                       const std::vector<size_t>&              ioffset,
                                       const std::vector<size_t>&              ooffset,
@@ -2270,7 +2278,8 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
     double linf = 0.0;
     double l2   = 0.0;
 
-    std::mutex linf_failure_lock;
+    std::mutex                             linf_failure_lock;
+    std::vector<std::pair<size_t, size_t>> linf_failures_private;
 
     const bool idx_equals_odx = istride == ostride && idist == odist;
     size_t     idx_base       = 0;
@@ -2279,7 +2288,7 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
 #ifdef BUILD_CLIENTS_TESTS_OPENMP
-#pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
+#pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size()) private(linf_failures_private)
 #endif
         for(size_t part = 0; part < partitions.size(); ++part)
         {
@@ -2298,15 +2307,23 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
-                    linf_failure_lock.lock();
-                    linf_failures.push_back(fval);
-                    linf_failure_lock.unlock();
+                    if(linf_failures)
+                        linf_failures_private.push_back(fval);
                 }
                 cur_l2 += diff * diff;
 
             } while(increment_rowmajor(index, length));
             linf = std::max(linf, cur_linf);
             l2 += cur_l2;
+
+            if(linf_failures)
+            {
+                linf_failure_lock.lock();
+                std::copy(linf_failures_private.begin(),
+                          linf_failures_private.end(),
+                          std::back_inserter(*linf_failures));
+                linf_failure_lock.unlock();
+            }
         }
     }
     return {.l_2 = sqrt(l2), .l_inf = linf};
@@ -2325,7 +2342,7 @@ inline VectorNorms distance_1to2(const rocfft_complex<Tval>*             input,
                                  const size_t                            idist,
                                  const T3&                               ostride,
                                  const size_t                            odist,
-                                 std::vector<std::pair<size_t, size_t>>& linf_failures,
+                                 std::vector<std::pair<size_t, size_t>>* linf_failures,
                                  const double                            linf_cutoff,
                                  const std::vector<size_t>&              ioffset,
                                  const std::vector<size_t>&              ooffset,
@@ -2334,7 +2351,8 @@ inline VectorNorms distance_1to2(const rocfft_complex<Tval>*             input,
     double linf = 0.0;
     double l2   = 0.0;
 
-    std::mutex linf_failure_lock;
+    std::mutex                             linf_failure_lock;
+    std::vector<std::pair<size_t, size_t>> linf_failures_private;
 
     const bool idx_equals_odx = istride == ostride && idist == odist;
     size_t     idx_base       = 0;
@@ -2343,7 +2361,7 @@ inline VectorNorms distance_1to2(const rocfft_complex<Tval>*             input,
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
 #ifdef BUILD_CLIENTS_TESTS_OPENMP
-#pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
+#pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size()) private(linf_failures_private)
 #endif
         for(size_t part = 0; part < partitions.size(); ++part)
         {
@@ -2362,9 +2380,8 @@ inline VectorNorms distance_1to2(const rocfft_complex<Tval>*             input,
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
-                    linf_failure_lock.lock();
-                    linf_failures.push_back(fval);
-                    linf_failure_lock.unlock();
+                    if(linf_failures)
+                        linf_failures_private.push_back(fval);
                 }
                 cur_l2 += rdiff * rdiff;
 
@@ -2375,15 +2392,23 @@ inline VectorNorms distance_1to2(const rocfft_complex<Tval>*             input,
                 if(cur_linf > linf_cutoff)
                 {
                     std::pair<size_t, size_t> fval(b, idx);
-                    linf_failure_lock.lock();
-                    linf_failures.push_back(fval);
-                    linf_failure_lock.unlock();
+                    if(linf_failures)
+                        linf_failures_private.push_back(fval);
                 }
                 cur_l2 += idiff * idiff;
 
             } while(increment_rowmajor(index, length));
             linf = std::max(linf, cur_linf);
             l2 += cur_l2;
+
+            if(linf_failures)
+            {
+                linf_failure_lock.lock();
+                std::copy(linf_failures_private.begin(),
+                          linf_failures_private.end(),
+                          std::back_inserter(*linf_failures));
+                linf_failure_lock.unlock();
+            }
         }
     }
     return {.l_2 = sqrt(l2), .l_inf = linf};
@@ -2407,7 +2432,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                             const fft_array_type                               otype,
                             const Tint3&                                       ostride,
                             const size_t                                       odist,
-                            std::vector<std::pair<size_t, size_t>>&            linf_failures,
+                            std::vector<std::pair<size_t, size_t>>*            linf_failures,
                             const double                                       linf_cutoff,
                             const std::vector<size_t>&                         ioffset,
                             const std::vector<size_t>&                         ooffset,
@@ -2676,7 +2701,7 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
                             const fft_array_type                               otype,
                             const std::vector<Tint3>&                          ostride,
                             const size_t                                       odist,
-                            std::vector<std::pair<size_t, size_t>>&            linf_failures,
+                            std::vector<std::pair<size_t, size_t>>*            linf_failures,
                             const double                                       linf_cutoff,
                             const std::vector<size_t>&                         ioffset,
                             const std::vector<size_t>&                         ooffset,

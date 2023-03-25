@@ -293,8 +293,6 @@ struct Test_Callback
     void validate_test(const std::vector<Tout>& host_mem_out,
                        const std::vector<Tout>& host_mem_out_no_cb)
     {
-        std::vector<std::pair<size_t, size_t>> linf_failures;
-
         auto diff = distance_1to1_complex(
             reinterpret_cast<const rocfft_complex<Tbound>*>(host_mem_out.data()),
             reinterpret_cast<const rocfft_complex<Tbound>*>(host_mem_out_no_cb.data()),
@@ -304,7 +302,7 @@ struct Test_Callback
             host_mem_out.size(),
             1,
             host_mem_out_no_cb.size(),
-            linf_failures,
+            nullptr,
             type_epsilon<Tbound>(),
             {0},
             {0});

@@ -957,8 +957,10 @@ inline void compare_round_trip_inverse(Tparams&           params,
     });
 
     // compare GPU inverse output to CPU forward input
-    std::vector<std::pair<size_t, size_t>> linf_failures;
-    const double                           linf_cutoff
+    std::unique_ptr<std::vector<std::pair<size_t, size_t>>> linf_failures;
+    if(verbose > 1)
+        linf_failures = std::make_unique<std::vector<std::pair<size_t, size_t>>>();
+    const double linf_cutoff
         = type_epsilon(params.precision) * cpu_input_norm.l_inf * log(total_length);
 
     VectorNorms diff = distance(cpu_input,
@@ -972,7 +974,7 @@ inline void compare_round_trip_inverse(Tparams&           params,
                                 params.otype,
                                 params.ostride,
                                 params.odist,
-                                linf_failures,
+                                linf_failures.get(),
                                 linf_cutoff,
                                 {0},
                                 params.ooffset,
@@ -983,8 +985,8 @@ inline void compare_round_trip_inverse(Tparams&           params,
         std::cout << "GPU output Linf norm: " << gpu_norm.get().l_inf << "\n";
         std::cout << "GPU output L2 norm:   " << gpu_norm.get().l_2 << "\n";
         std::cout << "GPU linf norm failures:";
-        std::sort(linf_failures.begin(), linf_failures.end());
-        for(const auto& i : linf_failures)
+        std::sort(linf_failures->begin(), linf_failures->end());
+        for(const auto& i : *linf_failures)
         {
             std::cout << " (" << i.first << "," << i.second << ")";
         }
@@ -1537,9 +1539,11 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                                               static_cast<size_t>(1),
                                               std::multiplies<size_t>());
 
-    std::vector<std::pair<size_t, size_t>> linf_failures;
-    double                                 linf_cutoff;
-    VectorNorms                            diff;
+    std::unique_ptr<std::vector<std::pair<size_t, size_t>>> linf_failures;
+    if(verbose > 1)
+        linf_failures = std::make_unique<std::vector<std::pair<size_t, size_t>>>();
+    double      linf_cutoff;
+    VectorNorms diff;
 
     std::shared_future<void> compare_output = std::async(std::launch::async, [&]() {
         cpu_fft.get();
@@ -1556,7 +1560,7 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                         params.otype,
                         params.ostride,
                         params.odist,
-                        linf_failures,
+                        linf_failures.get(),
                         linf_cutoff,
                         {0},
                         params.ooffset);
@@ -1598,8 +1602,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         std::cout << "GPU output Linf norm: " << gpu_norm.get().l_inf << "\n";
         std::cout << "GPU output L2 norm:   " << gpu_norm.get().l_2 << "\n";
         std::cout << "GPU linf norm failures:";
-        std::sort(linf_failures.begin(), linf_failures.end());
-        for(const auto& i : linf_failures)
+        std::sort(linf_failures->begin(), linf_failures->end());
+        for(const auto& i : *linf_failures)
         {
             std::cout << " (" << i.first << "," << i.second << ")";
         }
