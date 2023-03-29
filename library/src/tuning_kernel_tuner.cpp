@@ -388,6 +388,13 @@ std::set<KernelConfig> SupportedKernelConfigs(
                     {
                         for(bool half_lds : {true, false})
                         {
+                            if(half_lds && is_sbcr)
+                            {
+                                PrintRejectionMsg("reject: half_lds has bug in sbcr\n",
+                                                  print_reject);
+                                continue;
+                            }
+
                             for(bool use_ltwd_3steps : {true, false})
                             {
                                 // skip ltwd_3steps if not needed

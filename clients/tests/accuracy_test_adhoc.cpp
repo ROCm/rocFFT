@@ -52,6 +52,9 @@ std::vector<std::vector<size_t>> adhoc_sizes = {
 
     // TILE_UNALIGNED type of SBRC 3D ERC
     {98, 98, 98},
+
+    // 3D_BLOCK_CR
+    {336, 336, 56},
 };
 
 const static std::vector<std::vector<size_t>> stride_range = {{1}};
