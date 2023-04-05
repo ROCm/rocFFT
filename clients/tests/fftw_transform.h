@@ -22,9 +22,15 @@
 #ifndef FFTWTRANSFORM_H
 #define FFTWTRANSFORM_H
 
+#include "../../shared/arithmetic.h"
 #include "test_params.h"
 #include <fftw3.h>
 #include <vector>
+
+#ifndef WIN32
+#include <stdlib.h>
+#include <sys/mman.h>
+#endif
 
 // Allocator / deallocator for FFTW arrays.
 template <typename Tdata>
@@ -40,11 +46,34 @@ struct fftwAllocator
 
     Tdata* allocate(size_t n)
     {
-        return (Tdata*)fftw_malloc(sizeof(Tdata) * n);
+        size_t alloc_size = sizeof(Tdata) * n;
+#ifdef WIN32
+        auto ptr = fftw_malloc(alloc_size);
+#else
+        // On Linux, ask for hugepages to reduce TLB pressure and
+        // improve performance.  Allocations need to be aligned to
+        // the hugepage size, and rounded up to the next whole
+        // hugepage.
+        static const size_t TWO_MiB = 2 * 1024 * 1024;
+        void*               ptr     = nullptr;
+        if(alloc_size >= TWO_MiB)
+        {
+            size_t rounded_size = DivRoundingUp(alloc_size, TWO_MiB) * TWO_MiB;
+            ptr                 = aligned_alloc(TWO_MiB, rounded_size);
+            madvise(ptr, rounded_size, MADV_HUGEPAGE);
+        }
+        else
+            ptr = malloc(alloc_size);
+#endif
+        return static_cast<Tdata*>(ptr);
     }
     void deallocate(Tdata* data, size_t n)
     {
+#ifdef WIN32
         fftw_free(data);
+#else
+        free(data);
+#endif
     }
 };
 
