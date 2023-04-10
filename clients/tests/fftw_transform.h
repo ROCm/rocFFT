@@ -22,74 +22,9 @@
 #ifndef FFTWTRANSFORM_H
 #define FFTWTRANSFORM_H
 
-#include "../../shared/arithmetic.h"
 #include "test_params.h"
 #include <fftw3.h>
 #include <vector>
-
-#ifndef WIN32
-#include <stdlib.h>
-#include <sys/mman.h>
-#endif
-
-// Allocator / deallocator for FFTW arrays.
-template <typename Tdata>
-struct fftwAllocator
-{
-    using value_type = Tdata;
-
-    fftwAllocator() = default;
-    template <class U>
-    fftwAllocator(const fftwAllocator<U>&)
-    {
-    }
-
-    Tdata* allocate(size_t n)
-    {
-        size_t alloc_size = sizeof(Tdata) * n;
-#ifdef WIN32
-        auto ptr = fftw_malloc(alloc_size);
-#else
-        // On Linux, ask for hugepages to reduce TLB pressure and
-        // improve performance.  Allocations need to be aligned to
-        // the hugepage size, and rounded up to the next whole
-        // hugepage.
-        static const size_t TWO_MiB = 2 * 1024 * 1024;
-        void*               ptr     = nullptr;
-        if(alloc_size >= TWO_MiB)
-        {
-            size_t rounded_size = DivRoundingUp(alloc_size, TWO_MiB) * TWO_MiB;
-            ptr                 = aligned_alloc(TWO_MiB, rounded_size);
-            madvise(ptr, rounded_size, MADV_HUGEPAGE);
-        }
-        else
-            ptr = malloc(alloc_size);
-#endif
-        return static_cast<Tdata*>(ptr);
-    }
-    void deallocate(Tdata* data, size_t n)
-    {
-#ifdef WIN32
-        fftw_free(data);
-#else
-        free(data);
-#endif
-    }
-};
-
-template <typename Tdata1, typename Tdata2>
-inline bool operator==(const fftwAllocator<Tdata1>&, const fftwAllocator<Tdata2>&)
-{
-    return true;
-}
-
-template <typename Tdata1, typename Tdata2>
-inline bool operator!=(const fftwAllocator<Tdata1>& a, const fftwAllocator<Tdata2>& b)
-{
-    return !(a == b);
-}
-
-typedef std::vector<std::vector<char, fftwAllocator<char>>> fftw_data_t;
 
 // Function to return maximum error for float and double types.
 //
@@ -153,10 +88,9 @@ struct fftw_trait<double>
 // buffer.  Note that the input buffer is already sized like it's a
 // single-precision buffer (but only half of it is filled), because
 // we allocate a single-precision buffer for FFTW to plan with.
-static std::vector<char, fftwAllocator<char>>
-    half_to_single_copy(const std::vector<char, fftwAllocator<char>>& in)
+static hostbuf half_to_single_copy(const hostbuf& in)
 {
-    auto out      = in;
+    auto out      = in.copy();
     auto in_begin = reinterpret_cast<const _Float16*>(in.data());
     std::copy_n(in_begin, in.size() / sizeof(_Float16) / 2, reinterpret_cast<float*>(out.data()));
     return out;
@@ -164,7 +98,7 @@ static std::vector<char, fftwAllocator<char>>
 
 // converts a wider precision buffer to a narrower precision, in-place
 template <typename TfloatIn, typename TfloatOut>
-void narrow_precision_inplace(std::vector<char, fftwAllocator<char>>& in)
+void narrow_precision_inplace(hostbuf& in)
 {
     // ensure we're actually shrinking the data
     static_assert(sizeof(TfloatIn) > sizeof(TfloatOut));
@@ -175,7 +109,7 @@ void narrow_precision_inplace(std::vector<char, fftwAllocator<char>>& in)
     in.resize(in.size() / (sizeof(TfloatIn) / sizeof(TfloatOut)));
 }
 
-static void single_to_half_inplace(std::vector<char, fftwAllocator<char>>& in)
+static void single_to_half_inplace(hostbuf& in)
 {
     narrow_precision_inplace<float, _Float16>(in);
 }
@@ -326,13 +260,13 @@ inline typename fftw_trait<double>::fftw_plan_type
 // Template wrappers for FFTW c2c executors:
 template <typename Tfloat>
 inline void fftw_plan_execute_c2c(typename fftw_trait<Tfloat>::fftw_plan_type plan,
-                                  fftw_data_t&                                in,
-                                  fftw_data_t&                                out);
+                                  std::vector<hostbuf>&                       in,
+                                  std::vector<hostbuf>&                       out);
 
 template <>
 inline void fftw_plan_execute_c2c<_Float16>(typename fftw_trait<_Float16>::fftw_plan_type plan,
-                                            fftw_data_t&                                  in,
-                                            fftw_data_t&                                  out)
+                                            std::vector<hostbuf>&                         in,
+                                            std::vector<hostbuf>&                         out)
 {
     // since FFTW does not natively support half precision, convert
     // input to single, execute, then convert output back to half
@@ -345,8 +279,8 @@ inline void fftw_plan_execute_c2c<_Float16>(typename fftw_trait<_Float16>::fftw_
 
 template <>
 inline void fftw_plan_execute_c2c<float>(typename fftw_trait<float>::fftw_plan_type plan,
-                                         fftw_data_t&                               in,
-                                         fftw_data_t&                               out)
+                                         std::vector<hostbuf>&                      in,
+                                         std::vector<hostbuf>&                      out)
 {
     fftwf_execute_dft(plan,
                       reinterpret_cast<fftwf_complex*>(in.front().data()),
@@ -355,8 +289,8 @@ inline void fftw_plan_execute_c2c<float>(typename fftw_trait<float>::fftw_plan_t
 
 template <>
 inline void fftw_plan_execute_c2c<double>(typename fftw_trait<double>::fftw_plan_type plan,
-                                          fftw_data_t&                                in,
-                                          fftw_data_t&                                out)
+                                          std::vector<hostbuf>&                       in,
+                                          std::vector<hostbuf>&                       out)
 {
     fftw_execute_dft(plan,
                      reinterpret_cast<fftw_complex*>(in.front().data()),
@@ -414,12 +348,12 @@ inline typename fftw_trait<double>::fftw_plan_type
 // Template wrappers for FFTW r2c executors:
 template <typename Tfloat>
 inline void fftw_plan_execute_r2c(typename fftw_trait<Tfloat>::fftw_plan_type plan,
-                                  fftw_data_t&                                in,
-                                  fftw_data_t&                                out);
+                                  std::vector<hostbuf>&                       in,
+                                  std::vector<hostbuf>&                       out);
 template <>
 inline void fftw_plan_execute_r2c<_Float16>(typename fftw_trait<float>::fftw_plan_type plan,
-                                            fftw_data_t&                               in,
-                                            fftw_data_t&                               out)
+                                            std::vector<hostbuf>&                      in,
+                                            std::vector<hostbuf>&                      out)
 {
     // since FFTW does not natively support half precision, convert
     // input to single, execute, then convert output back to half
@@ -431,8 +365,8 @@ inline void fftw_plan_execute_r2c<_Float16>(typename fftw_trait<float>::fftw_pla
 }
 template <>
 inline void fftw_plan_execute_r2c<float>(typename fftw_trait<float>::fftw_plan_type plan,
-                                         fftw_data_t&                               in,
-                                         fftw_data_t&                               out)
+                                         std::vector<hostbuf>&                      in,
+                                         std::vector<hostbuf>&                      out)
 {
     fftwf_execute_dft_r2c(plan,
                           reinterpret_cast<float*>(in.front().data()),
@@ -440,8 +374,8 @@ inline void fftw_plan_execute_r2c<float>(typename fftw_trait<float>::fftw_plan_t
 }
 template <>
 inline void fftw_plan_execute_r2c<double>(typename fftw_trait<double>::fftw_plan_type plan,
-                                          fftw_data_t&                                in,
-                                          fftw_data_t&                                out)
+                                          std::vector<hostbuf>&                       in,
+                                          std::vector<hostbuf>&                       out)
 {
     fftw_execute_dft_r2c(plan,
                          reinterpret_cast<double*>(in.front().data()),
@@ -499,12 +433,12 @@ inline typename fftw_trait<double>::fftw_plan_type
 // Template wrappers for FFTW c2r executors:
 template <typename Tfloat>
 inline void fftw_plan_execute_c2r(typename fftw_trait<Tfloat>::fftw_plan_type plan,
-                                  fftw_data_t&                                in,
-                                  fftw_data_t&                                out);
+                                  std::vector<hostbuf>&                       in,
+                                  std::vector<hostbuf>&                       out);
 template <>
 inline void fftw_plan_execute_c2r<_Float16>(typename fftw_trait<float>::fftw_plan_type plan,
-                                            fftw_data_t&                               in,
-                                            fftw_data_t&                               out)
+                                            std::vector<hostbuf>&                      in,
+                                            std::vector<hostbuf>&                      out)
 {
     // since FFTW does not natively support half precision, convert
     // input to single, execute, then convert output back to half
@@ -516,8 +450,8 @@ inline void fftw_plan_execute_c2r<_Float16>(typename fftw_trait<float>::fftw_pla
 }
 template <>
 inline void fftw_plan_execute_c2r<float>(typename fftw_trait<float>::fftw_plan_type plan,
-                                         fftw_data_t&                               in,
-                                         fftw_data_t&                               out)
+                                         std::vector<hostbuf>&                      in,
+                                         std::vector<hostbuf>&                      out)
 {
     fftwf_execute_dft_c2r(plan,
                           reinterpret_cast<fftwf_complex*>(in.front().data()),
@@ -525,8 +459,8 @@ inline void fftw_plan_execute_c2r<float>(typename fftw_trait<float>::fftw_plan_t
 }
 template <>
 inline void fftw_plan_execute_c2r<double>(typename fftw_trait<double>::fftw_plan_type plan,
-                                          fftw_data_t&                                in,
-                                          fftw_data_t&                                out)
+                                          std::vector<hostbuf>&                       in,
+                                          std::vector<hostbuf>&                       out)
 {
     fftw_execute_dft_c2r(plan,
                          reinterpret_cast<fftw_complex*>(in.front().data()),

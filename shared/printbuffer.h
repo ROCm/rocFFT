@@ -21,6 +21,7 @@
 #ifndef PRINTBUFFER_H
 #define PRINTBUFFER_H
 
+#include "hostbuf.h"
 #include "increment.h"
 #include <algorithm>
 #include <vector>
@@ -67,18 +68,14 @@ class buffer_printer
 {
     // The scalar versions might be part of a planar format.
 public:
-    template <typename Tallocator,
-              typename Tint1,
-              typename Tint2,
-              typename Tsize,
-              typename Tstream = std::ostream>
-    static void print_buffer(const std::vector<std::vector<char, Tallocator>>& buf,
-                             const std::vector<Tint1>&                         length,
-                             const std::vector<Tint2>&                         stride,
-                             const Tsize                                       nbatch,
-                             const Tsize                                       dist,
-                             const std::vector<size_t>&                        offset,
-                             Tstream&                                          stream = std::cout)
+    template <typename Tint1, typename Tint2, typename Tsize, typename Tstream = std::ostream>
+    static void print_buffer(const std::vector<hostbuf>& buf,
+                             const std::vector<Tint1>&   length,
+                             const std::vector<Tint2>&   stride,
+                             const Tsize                 nbatch,
+                             const Tsize                 dist,
+                             const std::vector<size_t>&  offset,
+                             Tstream&                    stream = std::cout)
     {
         for(const auto& vec : buf)
         {
@@ -91,11 +88,11 @@ public:
                         stream);
         }
     };
-    template <typename Tallocator, typename Tstream = std::ostream>
-    static void print_buffer_flat(const std::vector<std::vector<char, Tallocator>>& buf,
-                                  const std::vector<size_t>&                        size,
-                                  const std::vector<size_t>&                        offset,
-                                  Tstream& stream = std::cout)
+    template <typename Tstream = std::ostream>
+    static void print_buffer_flat(const std::vector<hostbuf>& buf,
+                                  const std::vector<size_t>&  size,
+                                  const std::vector<size_t>&  offset,
+                                  Tstream&                    stream = std::cout)
     {
         for(const auto& vec : buf)
         {

@@ -1,4 +1,4 @@
-// Copyright (C) 2020 - 2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -1246,9 +1246,8 @@ public:
         }
     }
 
-    template <typename Tallocator, typename Tstream = std::ostream>
-    void print_ibuffer(const std::vector<std::vector<char, Tallocator>>& buf,
-                       Tstream&                                          stream = std::cout) const
+    template <typename Tstream = std::ostream>
+    void print_ibuffer(const std::vector<hostbuf>& buf, Tstream& stream = std::cout) const
     {
         switch(itype)
         {
@@ -1310,9 +1309,8 @@ public:
         }
     }
 
-    template <typename Tallocator, typename Tstream = std::ostream>
-    void print_obuffer(const std::vector<std::vector<char, Tallocator>>& buf,
-                       Tstream&                                          stream = std::cout) const
+    template <typename Tstream = std::ostream>
+    void print_obuffer(const std::vector<hostbuf>& buf, Tstream& stream = std::cout) const
     {
         switch(otype)
         {
@@ -1373,8 +1371,7 @@ public:
         }
     }
 
-    template <typename Tallocator>
-    void print_ibuffer_flat(const std::vector<std::vector<char, Tallocator>>& buf) const
+    void print_ibuffer_flat(const std::vector<hostbuf>& buf) const
     {
         switch(itype)
         {
@@ -1434,8 +1431,7 @@ public:
         }
     }
 
-    template <typename Tallocator>
-    void print_obuffer_flat(const std::vector<std::vector<char, Tallocator>>& buf) const
+    void print_obuffer_flat(const std::vector<hostbuf>& buf) const
     {
         switch(otype)
         {
@@ -1879,24 +1875,20 @@ inline void copy_buffers_1to2(const rocfft_complex<Tval>* input,
 // Copy data of dimensions length with strides istride and length idist between batches to
 // a buffer with strides ostride and length odist between batches.  The input type given
 // by itype, and the output type is given by otype.
-template <typename Tallocator1,
-          typename Tallocator2,
-          typename Tint1,
-          typename Tint2,
-          typename Tint3>
-inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& input,
-                         std::vector<std::vector<char, Tallocator2>>&       output,
-                         const Tint1&                                       length,
-                         const size_t                                       nbatch,
-                         const fft_precision                                precision,
-                         const fft_array_type                               itype,
-                         const Tint2&                                       istride,
-                         const size_t                                       idist,
-                         const fft_array_type                               otype,
-                         const Tint3&                                       ostride,
-                         const size_t                                       odist,
-                         const std::vector<size_t>&                         ioffset,
-                         const std::vector<size_t>&                         ooffset)
+template <typename Tint1, typename Tint2, typename Tint3>
+inline void copy_buffers(const std::vector<hostbuf>& input,
+                         std::vector<hostbuf>&       output,
+                         const Tint1&                length,
+                         const size_t                nbatch,
+                         const fft_precision         precision,
+                         const fft_array_type        itype,
+                         const Tint2&                istride,
+                         const size_t                idist,
+                         const fft_array_type        otype,
+                         const Tint3&                ostride,
+                         const size_t                odist,
+                         const std::vector<size_t>&  ioffset,
+                         const std::vector<size_t>&  ooffset)
 {
     if(itype == otype)
     {
@@ -2098,24 +2090,20 @@ inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& inpu
 }
 
 // unroll arbitrary-dimension copy_buffers into specializations for 1-, 2-, 3-dimensions
-template <typename Tallocator1,
-          typename Tallocator2,
-          typename Tint1,
-          typename Tint2,
-          typename Tint3>
-inline void copy_buffers(const std::vector<std::vector<char, Tallocator1>>& input,
-                         std::vector<std::vector<char, Tallocator2>>&       output,
-                         const std::vector<Tint1>&                          length,
-                         const size_t                                       nbatch,
-                         const fft_precision                                precision,
-                         const fft_array_type                               itype,
-                         const std::vector<Tint2>&                          istride,
-                         const size_t                                       idist,
-                         const fft_array_type                               otype,
-                         const std::vector<Tint3>&                          ostride,
-                         const size_t                                       odist,
-                         const std::vector<size_t>&                         ioffset,
-                         const std::vector<size_t>&                         ooffset)
+template <typename Tint1, typename Tint2, typename Tint3>
+inline void copy_buffers(const std::vector<hostbuf>& input,
+                         std::vector<hostbuf>&       output,
+                         const std::vector<Tint1>&   length,
+                         const size_t                nbatch,
+                         const fft_precision         precision,
+                         const fft_array_type        itype,
+                         const std::vector<Tint2>&   istride,
+                         const size_t                idist,
+                         const fft_array_type        otype,
+                         const std::vector<Tint3>&   ostride,
+                         const size_t                odist,
+                         const std::vector<size_t>&  ioffset,
+                         const std::vector<size_t>&  ooffset)
 {
     switch(length.size())
     {
@@ -2416,27 +2404,23 @@ inline VectorNorms distance_1to2(const rocfft_complex<Tval>*             input,
 
 // Compute the L-inifnity and L-2 distance between two buffers of dimension length and
 // with types given by itype, otype, and precision.
-template <typename Tallocator1,
-          typename Tallocator2,
-          typename Tint1,
-          typename Tint2,
-          typename Tint3>
-inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& input,
-                            const std::vector<std::vector<char, Tallocator2>>& output,
-                            const Tint1&                                       length,
-                            const size_t                                       nbatch,
-                            const fft_precision                                precision,
-                            const fft_array_type                               itype,
-                            const Tint2&                                       istride,
-                            const size_t                                       idist,
-                            const fft_array_type                               otype,
-                            const Tint3&                                       ostride,
-                            const size_t                                       odist,
-                            std::vector<std::pair<size_t, size_t>>*            linf_failures,
-                            const double                                       linf_cutoff,
-                            const std::vector<size_t>&                         ioffset,
-                            const std::vector<size_t>&                         ooffset,
-                            const double                                       output_scalar = 1.0)
+template <typename Tint1, typename Tint2, typename Tint3>
+inline VectorNorms distance(const std::vector<hostbuf>&             input,
+                            const std::vector<hostbuf>&             output,
+                            const Tint1&                            length,
+                            const size_t                            nbatch,
+                            const fft_precision                     precision,
+                            const fft_array_type                    itype,
+                            const Tint2&                            istride,
+                            const size_t                            idist,
+                            const fft_array_type                    otype,
+                            const Tint3&                            ostride,
+                            const size_t                            odist,
+                            std::vector<std::pair<size_t, size_t>>* linf_failures,
+                            const double                            linf_cutoff,
+                            const std::vector<size_t>&              ioffset,
+                            const std::vector<size_t>&              ooffset,
+                            const double                            output_scalar = 1.0)
 {
     VectorNorms dist;
 
@@ -2685,27 +2669,23 @@ inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& i
 }
 
 // Unroll arbitrary-dimension distance into specializations for 1-, 2-, 3-dimensions
-template <typename Tallocator1,
-          typename Tallocator2,
-          typename Tint1,
-          typename Tint2,
-          typename Tint3>
-inline VectorNorms distance(const std::vector<std::vector<char, Tallocator1>>& input,
-                            const std::vector<std::vector<char, Tallocator2>>& output,
-                            const std::vector<Tint1>&                          length,
-                            const size_t                                       nbatch,
-                            const fft_precision                                precision,
-                            const fft_array_type                               itype,
-                            const std::vector<Tint2>&                          istride,
-                            const size_t                                       idist,
-                            const fft_array_type                               otype,
-                            const std::vector<Tint3>&                          ostride,
-                            const size_t                                       odist,
-                            std::vector<std::pair<size_t, size_t>>*            linf_failures,
-                            const double                                       linf_cutoff,
-                            const std::vector<size_t>&                         ioffset,
-                            const std::vector<size_t>&                         ooffset,
-                            const double                                       output_scalar = 1.0)
+template <typename Tint1, typename Tint2, typename Tint3>
+inline VectorNorms distance(const std::vector<hostbuf>&             input,
+                            const std::vector<hostbuf>&             output,
+                            const std::vector<Tint1>&               length,
+                            const size_t                            nbatch,
+                            const fft_precision                     precision,
+                            const fft_array_type                    itype,
+                            const std::vector<Tint2>&               istride,
+                            const size_t                            idist,
+                            const fft_array_type                    otype,
+                            const std::vector<Tint3>&               ostride,
+                            const size_t                            odist,
+                            std::vector<std::pair<size_t, size_t>>* linf_failures,
+                            const double                            linf_cutoff,
+                            const std::vector<size_t>&              ioffset,
+                            const std::vector<size_t>&              ooffset,
+                            const double                            output_scalar = 1.0)
 {
     switch(length.size())
     {
@@ -2854,15 +2834,15 @@ inline VectorNorms norm_real(const Tfloat*              input,
 
 // Compute the L-infinity and L-2 norm of abuffer with strides istride and
 // length idist.  Data format is given by precision and itype.
-template <typename Tallocator1, typename T1, typename T2>
-inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input,
-                        const T1&                                          length,
-                        const size_t                                       nbatch,
-                        const fft_precision                                precision,
-                        const fft_array_type                               itype,
-                        const T2&                                          istride,
-                        const size_t                                       idist,
-                        const std::vector<size_t>&                         offset)
+template <typename T1, typename T2>
+inline VectorNorms norm(const std::vector<hostbuf>& input,
+                        const T1&                   length,
+                        const size_t                nbatch,
+                        const fft_precision         precision,
+                        const fft_array_type        itype,
+                        const T2&                   istride,
+                        const size_t                idist,
+                        const std::vector<size_t>&  offset)
 {
     VectorNorms norm;
 
@@ -2945,15 +2925,15 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
 }
 
 // Unroll arbitrary-dimension norm into specializations for 1-, 2-, 3-dimensions
-template <typename Tallocator1, typename T1, typename T2>
-inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input,
-                        const std::vector<T1>&                             length,
-                        const size_t                                       nbatch,
-                        const fft_precision                                precision,
-                        const fft_array_type                               type,
-                        const std::vector<T2>&                             stride,
-                        const size_t                                       dist,
-                        const std::vector<size_t>&                         offset)
+template <typename T1, typename T2>
+inline VectorNorms norm(const std::vector<hostbuf>& input,
+                        const std::vector<T1>&      length,
+                        const size_t                nbatch,
+                        const fft_precision         precision,
+                        const fft_array_type        type,
+                        const std::vector<T2>&      stride,
+                        const size_t                dist,
+                        const std::vector<size_t>&  offset)
 {
     switch(length.size())
     {
@@ -2984,14 +2964,14 @@ inline VectorNorms norm(const std::vector<std::vector<char, Tallocator1>>& input
 
 // Given a data type and precision, the distance between batches, and
 // the batch size, allocate the required host buffer(s).
-template <typename Allocator = std::allocator<char>>
-inline std::vector<std::vector<char, Allocator>> allocate_host_buffer(
-    const fft_precision precision, const fft_array_type type, const std::vector<size_t>& size)
+static std::vector<hostbuf> allocate_host_buffer(const fft_precision        precision,
+                                                 const fft_array_type       type,
+                                                 const std::vector<size_t>& size)
 {
-    std::vector<std::vector<char, Allocator>> buffers(size.size());
+    std::vector<hostbuf> buffers(size.size());
     for(unsigned int i = 0; i < size.size(); ++i)
     {
-        buffers[i].resize(size[i] * var_size<size_t>(precision, type));
+        buffers[i].alloc(size[i] * var_size<size_t>(precision, type));
     }
     return buffers;
 }

@@ -256,14 +256,14 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
     auto stride_rm = stride_cm;
     std::reverse(length_rm.begin(), length_rm.end());
     std::reverse(stride_rm.begin(), stride_rm.end());
-    std::vector<std::vector<char>> bufvec;
-    std::vector<size_t>            print_offset(2, offset);
+    std::vector<hostbuf> bufvec;
+    std::vector<size_t>  print_offset(2, offset);
     if(array_type_is_planar(type))
     {
         // separate the real/imag data, so printbuffer will print them separately
         bufvec.resize(2);
-        bufvec.front().resize(size_bytes / 2);
-        bufvec.back().resize(size_bytes / 2);
+        bufvec.front().alloc(size_bytes / 2);
+        bufvec.back().alloc(size_bytes / 2);
         if(hipMemcpy(bufvec.front().data(), buffer[0], size_bytes / 2, hipMemcpyDeviceToHost)
            != hipSuccess)
             throw std::runtime_error("hipMemcpy failure");
@@ -296,7 +296,7 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
     else
     {
         bufvec.resize(1);
-        bufvec.front().resize(size_bytes);
+        bufvec.front().alloc(size_bytes);
         if(hipMemcpy(bufvec.front().data(), buffer[0], size_bytes, hipMemcpyDeviceToHost)
            != hipSuccess)
             throw std::runtime_error("hipMemcpy failure");

@@ -56,8 +56,8 @@ struct last_cpu_fft_cache
     fft_precision       precision      = fft_precision_single;
 
     // FFTW input/output
-    fftw_data_t cpu_input;
-    fftw_data_t cpu_output;
+    std::vector<hostbuf> cpu_input;
+    std::vector<hostbuf> cpu_output;
 };
 extern last_cpu_fft_cache last_cpu_fft_data;
 
@@ -599,8 +599,8 @@ struct callback_test_data
 void* get_load_callback_host(fft_array_type itype,
                              fft_precision  precision,
                              bool           round_trip_inverse);
-void  apply_load_callback(const fft_params& params, fftw_data_t& input);
-void  apply_store_callback(const fft_params& params, fftw_data_t& output);
+void  apply_load_callback(const fft_params& params, std::vector<hostbuf>& input);
+void  apply_store_callback(const fft_params& params, std::vector<hostbuf>& output);
 void* get_store_callback_host(fft_array_type otype,
                               fft_precision  precision,
                               bool           round_trip_inverse);
@@ -612,7 +612,7 @@ static auto allocate_cpu_fft_buffer(const fft_precision        precision,
     // FFTW does not support half-precision, so we do single instead.
     // So if we need to do a half-precision FFTW transform, allocate
     // enough buffer for single-precision instead.
-    return allocate_host_buffer<fftwAllocator<char>>(
+    return allocate_host_buffer(
         precision == fft_precision_half ? fft_precision_single : precision, type, size);
 }
 
@@ -620,8 +620,8 @@ template <typename Tfloat>
 inline void execute_cpu_fft(fft_params&                                  params,
                             fft_params&                                  contiguous_params,
                             typename fftw_trait<Tfloat>::fftw_plan_type& cpu_plan,
-                            fftw_data_t&                                 cpu_input,
-                            fftw_data_t&                                 cpu_output)
+                            std::vector<hostbuf>&                        cpu_input,
+                            std::vector<hostbuf>&                        cpu_output)
 {
     // CPU output might not be allocated already for us, if FFTW never
     // needed an output buffer during planning
@@ -631,12 +631,16 @@ inline void execute_cpu_fft(fft_params&                                  params,
 
     // If this is either C2R or callbacks are enabled, the
     // input will be modified.  So we need to modify the copy instead.
-    fftw_data_t  cpu_input_copy;
-    fftw_data_t* input_ptr = &cpu_input;
+    std::vector<hostbuf>  cpu_input_copy(cpu_input.size());
+    std::vector<hostbuf>* input_ptr = &cpu_input;
     if(params.run_callbacks || contiguous_params.transform_type == fft_transform_type_real_inverse)
     {
-        cpu_input_copy = cpu_input;
-        input_ptr      = &cpu_input_copy;
+        for(size_t i = 0; i < cpu_input.size(); ++i)
+        {
+            cpu_input_copy[i] = cpu_input[i].copy();
+        }
+
+        input_ptr = &cpu_input_copy;
     }
 
     // run FFTW (which may destroy CPU input)
@@ -652,11 +656,11 @@ inline void execute_cpu_fft(fft_params&                                  params,
 
 // execute the GPU transform
 template <class Tparams>
-inline void execute_gpu_fft(Tparams&            params,
-                            std::vector<void*>& pibuffer,
-                            std::vector<void*>& pobuffer,
-                            fftw_data_t&        gpu_output,
-                            bool                round_trip_inverse = false)
+inline void execute_gpu_fft(Tparams&              params,
+                            std::vector<void*>&   pibuffer,
+                            std::vector<void*>&   pobuffer,
+                            std::vector<hostbuf>& gpu_output,
+                            bool                  round_trip_inverse = false)
 {
     gpubuf_t<callback_test_data> load_cb_data_dev;
     gpubuf_t<callback_test_data> store_cb_data_dev;
@@ -722,7 +726,8 @@ inline void execute_gpu_fft(Tparams&            params,
     ASSERT_TRUE(!gpu_output.empty()) << "no output buffers";
     for(unsigned int idx = 0; idx < gpu_output.size(); ++idx)
     {
-        ASSERT_TRUE(!gpu_output[idx].empty()) << "output buffer index " << idx << " is empty";
+        ASSERT_TRUE(gpu_output[idx].data() != nullptr)
+            << "output buffer index " << idx << " is empty";
         auto hip_status = hipMemcpy(gpu_output[idx].data(),
                                     pobuffer.at(idx),
                                     gpu_output[idx].size(),
@@ -742,24 +747,28 @@ inline void execute_gpu_fft(Tparams&            params,
 }
 
 template <typename Tfloat>
-static void assert_init_value(const fftw_data_t& output, const size_t idx, const Tfloat orig_value);
+static void assert_init_value(const std::vector<hostbuf>& output,
+                              const size_t                idx,
+                              const Tfloat                orig_value);
 
 template <>
-void assert_init_value(const fftw_data_t& output, const size_t idx, const float orig_value)
+void assert_init_value(const std::vector<hostbuf>& output, const size_t idx, const float orig_value)
 {
     float actual_value = reinterpret_cast<const float*>(output.front().data())[idx];
     ASSERT_EQ(actual_value, orig_value) << "index " << idx;
 }
 
 template <>
-void assert_init_value(const fftw_data_t& output, const size_t idx, const double orig_value)
+void assert_init_value(const std::vector<hostbuf>& output,
+                       const size_t                idx,
+                       const double                orig_value)
 {
     double actual_value = reinterpret_cast<const double*>(output.front().data())[idx];
     ASSERT_EQ(actual_value, orig_value) << "index " << idx;
 }
 
 template <>
-void assert_init_value(const fftw_data_t&          output,
+void assert_init_value(const std::vector<hostbuf>& output,
                        const size_t                idx,
                        const rocfft_complex<float> orig_value)
 {
@@ -783,7 +792,7 @@ void assert_init_value(const fftw_data_t&          output,
 }
 
 template <>
-void assert_init_value(const fftw_data_t&           output,
+void assert_init_value(const std::vector<hostbuf>&  output,
                        const size_t                 idx,
                        const rocfft_complex<double> orig_value)
 {
@@ -808,11 +817,11 @@ void assert_init_value(const fftw_data_t&           output,
 
 static const int OUTPUT_INIT_PATTERN = 0xcd;
 template <class Tfloat>
-void check_single_output_stride(const fftw_data_t&         output,
-                                const size_t               offset,
-                                const std::vector<size_t>& length,
-                                const std::vector<size_t>& stride,
-                                const size_t               i)
+void check_single_output_stride(const std::vector<hostbuf>& output,
+                                const size_t                offset,
+                                const std::vector<size_t>&  length,
+                                const std::vector<size_t>&  stride,
+                                const size_t                i)
 {
     Tfloat orig;
     memset(static_cast<void*>(&orig), OUTPUT_INIT_PATTERN, sizeof(Tfloat));
@@ -848,7 +857,7 @@ void check_single_output_stride(const fftw_data_t&         output,
 }
 
 template <class Tparams>
-void check_output_strides(const fftw_data_t& output, Tparams& params)
+void check_output_strides(const std::vector<hostbuf>& output, Tparams& params)
 {
     // treat batch+dist like highest length+stride, if batch > 1
     std::vector<size_t> length;
@@ -881,11 +890,11 @@ void check_output_strides(const fftw_data_t& output, Tparams& params)
 
 // run rocFFT inverse transform
 template <class Tparams>
-inline void run_round_trip_inverse(Tparams&             params,
-                                   std::vector<gpubuf>& obuffer,
-                                   std::vector<void*>&  pibuffer,
-                                   std::vector<void*>&  pobuffer,
-                                   fftw_data_t&         gpu_output)
+inline void run_round_trip_inverse(Tparams&              params,
+                                   std::vector<gpubuf>&  obuffer,
+                                   std::vector<void*>&   pibuffer,
+                                   std::vector<void*>&   pobuffer,
+                                   std::vector<hostbuf>& gpu_output)
 {
     params.validate();
 
@@ -932,12 +941,12 @@ inline void run_round_trip_inverse(Tparams&             params,
 
 // compare rocFFT inverse transform with forward transform input
 template <class Tparams>
-inline void compare_round_trip_inverse(Tparams&           params,
-                                       fft_params&        contiguous_params,
-                                       fftw_data_t&       gpu_output,
-                                       fftw_data_t&       cpu_input,
-                                       const VectorNorms& cpu_input_norm,
-                                       size_t             total_length)
+inline void compare_round_trip_inverse(Tparams&              params,
+                                       fft_params&           contiguous_params,
+                                       std::vector<hostbuf>& gpu_output,
+                                       std::vector<hostbuf>& cpu_input,
+                                       const VectorNorms&    cpu_input_norm,
+                                       size_t                total_length)
 {
     if(params.check_output_strides)
     {
@@ -1163,8 +1172,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     // Check cache first - nbatch is a >= comparison because we compute
     // the largest batch size and cache it.  Smaller batch runs can
     // compare against the larger data.
-    fftw_data_t              cpu_input;
-    fftw_data_t              cpu_output;
+    std::vector<hostbuf>     cpu_input;
+    std::vector<hostbuf>     cpu_output;
     std::shared_future<void> convert_cpu_output_precision;
     std::shared_future<void> convert_cpu_input_precision;
     bool                     run_fftw = true;
@@ -1293,8 +1302,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         }
     }
 
-    fftw_data_t gpu_input_data = allocate_host_buffer<fftwAllocator<char>>(
-        params.precision, params.itype, ibuffer_sizes_elems);
+    std::vector<hostbuf> gpu_input_data
+        = allocate_host_buffer(params.precision, params.itype, ibuffer_sizes_elems);
 
     // allocate and populate the input buffer (cpu/gpu)
     if(run_fftw)
@@ -1350,7 +1359,7 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             convert_cpu_input_precision.get();
 
         // gets a pre-computed gpu input buffer from the cpu cache
-        fftw_data_t* gpu_input = &cpu_input;
+        std::vector<hostbuf>* gpu_input = &cpu_input;
 
         if(params.itype != contiguous_params.itype || params.istride != contiguous_params.istride
            || params.idist != contiguous_params.idist || params.isize != contiguous_params.isize)
@@ -1506,8 +1515,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     // execute GPU transform
     //
     // limited scope for local variables
-    fftw_data_t gpu_output
-        = allocate_host_buffer<fftwAllocator<char>>(params.precision, params.otype, params.osize);
+    std::vector<hostbuf> gpu_output
+        = allocate_host_buffer(params.precision, params.otype, params.osize);
 
     execute_gpu_fft(params, pibuffer, pobuffer, gpu_output);
     params.free();

@@ -107,17 +107,17 @@ static typename fftw_trait<Tfloat>::fftw_plan_type
 
 // construct an FFTW plan, given rocFFT parameters.  output is
 // required if planning with wisdom.
-template <typename Tfloat, typename Tallocator>
+template <typename Tfloat>
 static typename fftw_trait<Tfloat>::fftw_plan_type
-    fftw_plan_via_rocfft(const std::vector<size_t>&                  length,
-                         const std::vector<size_t>&                  istride,
-                         const std::vector<size_t>&                  ostride,
-                         const size_t                                nbatch,
-                         const size_t                                idist,
-                         const size_t                                odist,
-                         const fft_transform_type                    transformType,
-                         std::vector<std::vector<char, Tallocator>>& input,
-                         std::vector<std::vector<char, Tallocator>>& output)
+    fftw_plan_via_rocfft(const std::vector<size_t>& length,
+                         const std::vector<size_t>& istride,
+                         const std::vector<size_t>& ostride,
+                         const size_t               nbatch,
+                         const size_t               idist,
+                         const size_t               odist,
+                         const fft_transform_type   transformType,
+                         std::vector<hostbuf>&      input,
+                         std::vector<hostbuf>&      output)
 {
     // Dimension configuration:
     std::vector<fftw_iodim64> dims(length.size());
@@ -145,8 +145,8 @@ static typename fftw_trait<Tfloat>::fftw_plan_type
 template <typename Tfloat>
 void fftw_run(fft_transform_type                          transformType,
               typename fftw_trait<Tfloat>::fftw_plan_type cpu_plan,
-              fftw_data_t&                                cpu_in,
-              fftw_data_t&                                cpu_out)
+              std::vector<hostbuf>&                       cpu_in,
+              std::vector<hostbuf>&                       cpu_out)
 {
     switch(transformType)
     {
