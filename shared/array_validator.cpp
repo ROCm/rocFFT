@@ -180,14 +180,14 @@ bool valid_length_stride_3d(const std::vector<size_t>& l,
 
     // If the 2D faces are valid, check an axis vs a face for collisions:
     bool invalid = false;
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for
 #endif
     for(int idx = 0; idx < 3; ++idx)
     {
         if(!valid_length_stride_1d_multi(idx, l, s, verbose))
         {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp cancel for
 #endif
             invalid = true;
@@ -219,14 +219,14 @@ bool valid_length_stride_4d(const std::vector<size_t>& l,
 
     bool invalid = false;
     // Check that 1D vs 3D faces are valid:
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for
 #endif
     for(int idx0 = 0; idx0 < 4; ++idx0)
     {
         if(!valid_length_stride_1d_multi(idx0, l, s, verbose))
         {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp cancel for
 #endif
             invalid = true;
@@ -257,7 +257,7 @@ bool valid_length_stride_4d(const std::vector<size_t>& l,
     } while(std::next_permutation(v.begin(), v.end()));
 
     // Then loop over all of the permutations.
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for
 #endif
     for(size_t iperm = 0; iperm < perms.size(); ++iperm)
@@ -310,7 +310,7 @@ bool valid_length_stride_4d(const std::vector<size_t>& l,
 
         if(!valid_length_stride_multi_multi(l0, s0, l1, s1))
         {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp cancel for
 #endif
             invalid = true;
@@ -387,7 +387,7 @@ bool valid_length_stride_generald(const std::vector<size_t> l,
 
         bool invalid = false;
         // Then loop over all of the permutations.
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for
 #endif
         for(size_t iperm = 0; iperm < perms.size(); ++iperm)
@@ -441,7 +441,7 @@ bool valid_length_stride_generald(const std::vector<size_t> l,
 
             if(!valid_length_stride_multi_multi(l0, s0, l1, s1))
             {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp cancel for
 #endif
                 invalid = true;

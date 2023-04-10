@@ -27,7 +27,7 @@
 #include <mutex>
 #include <numeric>
 #include <sstream>
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #include <omp.h>
 #endif
 #include <random>
@@ -1600,7 +1600,7 @@ std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits
 template <typename T1>
 static size_t compute_partition_count(T1 length)
 {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
     // we seem to get contention from too many threads, which slows
     // things down.  particularly noticeable with mix_3D tests
     static const size_t MAX_PARTITIONS = 8;
@@ -1775,7 +1775,7 @@ inline void copy_buffers_1to1(const Tval*                input,
     auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for num_threads(partitions.size())
 #endif
         for(size_t part = 0; part < partitions.size(); ++part)
@@ -1814,7 +1814,7 @@ inline void copy_buffers_2to1(const Tval*                input0,
     auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for num_threads(partitions.size())
 #endif
         for(size_t part = 0; part < partitions.size(); ++part)
@@ -1854,7 +1854,7 @@ inline void copy_buffers_1to2(const rocfft_complex<Tval>* input,
     auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for num_threads(partitions.size())
 #endif
         for(size_t part = 0; part < partitions.size(); ++part)
@@ -2190,7 +2190,7 @@ inline VectorNorms distance_1to1_complex(const Tcomplex*                        
     auto       partitions     = partition_colmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size()) private(linf_failures_private)
 #endif
         for(size_t part = 0; part < partitions.size(); ++part)
@@ -2275,7 +2275,7 @@ inline VectorNorms distance_1to1_real(const Tfloat*                           in
     auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size()) private(linf_failures_private)
 #endif
         for(size_t part = 0; part < partitions.size(); ++part)
@@ -2348,7 +2348,7 @@ inline VectorNorms distance_1to2(const rocfft_complex<Tval>*             input,
     auto       partitions     = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist, odx_base += odist)
     {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size()) private(linf_failures_private)
 #endif
         for(size_t part = 0; part < partitions.size(); ++part)
@@ -2762,7 +2762,7 @@ inline VectorNorms norm_complex(const Tcomplex*            input,
     auto   partitions = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist)
     {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
 #endif
         for(size_t part = 0; part < partitions.size(); ++part)
@@ -2808,7 +2808,7 @@ inline VectorNorms norm_real(const Tfloat*              input,
     auto   partitions = partition_rowmajor(whole_length);
     for(size_t b = 0; b < nbatch; b++, idx_base += idist)
     {
-#ifdef BUILD_CLIENTS_TESTS_OPENMP
+#ifdef _OPENMP
 #pragma omp parallel for reduction(max : linf) reduction(+ : l2) num_threads(partitions.size())
 #endif
         for(size_t part = 0; part < partitions.size(); ++part)
