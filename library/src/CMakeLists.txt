@@ -261,6 +261,9 @@ add_library( rocfft-rtc-compile OBJECT
 add_library( rocfft-rtc-subprocess OBJECT
   rtc_subprocess.cpp
 )
+target_compile_definitions( rocfft-rtc-subprocess PRIVATE
+  -DROCFFT_VERSION=${VERSION_STRING}
+)
 # generation of kernel source
 add_library( rocfft-rtc-gen OBJECT
   rtc_bluestein_gen.cpp
