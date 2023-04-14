@@ -35,6 +35,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "../shared/arithmetic.h"
 #include "../shared/array_validator.h"
 #include "../shared/data_gen.h"
 #include "../shared/printbuffer.h"
@@ -2668,18 +2669,36 @@ inline VectorNorms distance(const std::vector<hostbuf>&             input,
     return dist;
 }
 
+// check if the specified length + stride/dist is contiguous
+template <typename Tint1, typename Tint2>
+bool is_contiguous_rowmajor(const std::vector<Tint1>& length,
+                            const std::vector<Tint2>& stride,
+                            size_t                    dist)
+{
+    size_t expected_stride = 1;
+    auto   stride_it       = stride.rbegin();
+    auto   length_it       = length.rbegin();
+    for(; stride_it != stride.rend() && length_it != length.rend(); ++stride_it, ++length_it)
+    {
+        if(*stride_it != expected_stride)
+            return false;
+        expected_stride *= *length_it;
+    }
+    return expected_stride == dist;
+}
+
 // Unroll arbitrary-dimension distance into specializations for 1-, 2-, 3-dimensions
 template <typename Tint1, typename Tint2, typename Tint3>
 inline VectorNorms distance(const std::vector<hostbuf>&             input,
                             const std::vector<hostbuf>&             output,
-                            const std::vector<Tint1>&               length,
-                            const size_t                            nbatch,
+                            std::vector<Tint1>                      length,
+                            size_t                                  nbatch,
                             const fft_precision                     precision,
                             const fft_array_type                    itype,
-                            const std::vector<Tint2>&               istride,
+                            std::vector<Tint2>                      istride,
                             const size_t                            idist,
                             const fft_array_type                    otype,
-                            const std::vector<Tint3>&               ostride,
+                            std::vector<Tint3>                      ostride,
                             const size_t                            odist,
                             std::vector<std::pair<size_t, size_t>>* linf_failures,
                             const double                            linf_cutoff,
@@ -2687,6 +2706,18 @@ inline VectorNorms distance(const std::vector<hostbuf>&             input,
                             const std::vector<size_t>&              ooffset,
                             const double                            output_scalar = 1.0)
 {
+    // If istride and ostride are both contiguous, collapse them down
+    // to one dimension.  Index calculation is simpler (and faster)
+    // in the 1D case.
+    if(is_contiguous_rowmajor(length, istride, idist)
+       && is_contiguous_rowmajor(length, ostride, odist))
+    {
+        length  = {product(length.begin(), length.end()) * nbatch};
+        istride = {static_cast<Tint2>(1)};
+        ostride = {static_cast<Tint3>(1)};
+        nbatch  = 1;
+    }
+
     switch(length.size())
     {
     case 1:
@@ -2927,14 +2958,23 @@ inline VectorNorms norm(const std::vector<hostbuf>& input,
 // Unroll arbitrary-dimension norm into specializations for 1-, 2-, 3-dimensions
 template <typename T1, typename T2>
 inline VectorNorms norm(const std::vector<hostbuf>& input,
-                        const std::vector<T1>&      length,
-                        const size_t                nbatch,
+                        std::vector<T1>             length,
+                        size_t                      nbatch,
                         const fft_precision         precision,
                         const fft_array_type        type,
-                        const std::vector<T2>&      stride,
+                        std::vector<T2>             stride,
                         const size_t                dist,
                         const std::vector<size_t>&  offset)
 {
+    // If stride is contiguous, collapse it down to one dimension.
+    // Index calculation is simpler (and faster) in the 1D case.
+    if(is_contiguous_rowmajor(length, stride, dist))
+    {
+        length = {product(length.begin(), length.end()) * nbatch};
+        stride = {static_cast<T2>(1)};
+        nbatch = 1;
+    }
+
     switch(length.size())
     {
     case 1:
