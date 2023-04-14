@@ -1187,7 +1187,8 @@ void AssignmentPolicy::PadPlan(ExecPlan& execPlan)
             // middle of that.
             for(const auto& u : users)
             {
-                if(u.op == TempBufOp::BufWrite && u.length.size() == 1)
+                if(u.op == TempBufOp::BufWrite && u.node.parent
+                   && u.length.size() > u.node.parent->length.size())
                     return;
             }
 
