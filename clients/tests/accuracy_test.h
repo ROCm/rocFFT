@@ -103,12 +103,10 @@ inline size_t needed_ram_buffers(const fft_params& params, const int verbose)
     }
 
     needed_ram *= params.nbatch;
-    needed_ram += start_memory.free_bytes - get_system_memory().free_bytes;
 
     if(verbose)
     {
-        std::cout << "required host memory for buffers (GiB): " << needed_ram / ONE_GiB
-                  << std::endl;
+        std::cout << "required host memory for buffers (GiB): " << needed_ram / ONE_GiB << "\n";
     }
 
     return needed_ram;
