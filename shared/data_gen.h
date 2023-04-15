@@ -33,9 +33,11 @@
 #include <hip/hip_runtime_api.h>
 #include <hiprand/hiprand.h>
 #include <hiprand/hiprand_kernel.h>
+#include <limits>
 #include <vector>
 
-static const unsigned int DATA_GEN_THREADS = 32;
+static const unsigned int DATA_GEN_THREADS    = 32;
+static const unsigned int DATA_GEN_GRID_X_MAX = 64;
 
 template <typename T>
 struct input_val_1D
@@ -194,7 +196,9 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                                      const Tint             istride,
                                      rocfft_complex<Treal>* data)
 {
-    auto const i = threadIdx.x + blockIdx.x * blockDim.x;
+    auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
+                   + blockIdx.y * DATA_GEN_GRID_X_MAX * DATA_GEN_THREADS;
+    static_assert(sizeof(i) >= sizeof(isize));
     if(i < isize)
     {
         auto i_length = get_length(i, whole_length);
@@ -222,7 +226,9 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                                 Treal*     real_data,
                                 Treal*     imag_data)
 {
-    auto const i = threadIdx.x + blockIdx.x * blockDim.x;
+    auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
+                   + blockIdx.y * DATA_GEN_GRID_X_MAX * DATA_GEN_THREADS;
+    static_assert(sizeof(i) >= sizeof(isize));
     if(i < isize)
     {
         auto i_length = get_length(i, whole_length);
@@ -249,7 +255,9 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                               const Tint istride,
                               Treal*     data)
 {
-    auto const i = threadIdx.x + blockIdx.x * blockDim.x;
+    auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
+                   + blockIdx.y * DATA_GEN_GRID_X_MAX * DATA_GEN_THREADS;
+    static_assert(sizeof(i) >= sizeof(isize));
     if(i < isize)
     {
         auto i_length = get_length(i, whole_length);
@@ -289,7 +297,8 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                                             const size_t nbatch,
                                             const bool   Nxeven)
 {
-    auto idx = blockIdx.x * blockDim.x + threadIdx.x;
+    auto idx = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    static_assert(sizeof(idx) == sizeof(size_t));
 
     if(idx < nbatch)
     {
@@ -317,7 +326,8 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                                        const size_t nbatch,
                                        const bool   Nxeven)
 {
-    auto idx = blockIdx.x * blockDim.x + threadIdx.x;
+    auto idx = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    static_assert(sizeof(idx) == sizeof(size_t));
 
     if(idx < nbatch)
     {
@@ -350,8 +360,10 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
                                             const bool   Nxeven,
                                             const bool   Nyeven)
 {
-    auto       idx = blockIdx.y * blockDim.y + threadIdx.y;
-    const auto idy = blockIdx.x * blockDim.x + threadIdx.x;
+    auto       idx = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+    const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    static_assert(sizeof(idx) == sizeof(size_t));
+    static_assert(sizeof(idy) == sizeof(size_t));
 
     if(idy < (Ny / 2 + 1) && idx < nbatch)
     {
@@ -413,8 +425,10 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
                                        const bool   Nxeven,
                                        const bool   Nyeven)
 {
-    auto       idx = blockIdx.y * blockDim.y + threadIdx.y;
-    const auto idy = blockIdx.x * blockDim.x + threadIdx.x;
+    auto       idx = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+    const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    static_assert(sizeof(idx) == sizeof(size_t));
+    static_assert(sizeof(idy) == sizeof(size_t));
 
     if(idy < (Ny / 2 + 1) && idx < nbatch)
     {
@@ -485,9 +499,12 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DAT
                                             const bool   Nyeven,
                                             const bool   Nzeven)
 {
-    const auto idy = blockIdx.x * blockDim.x + threadIdx.x;
-    const auto idz = blockIdx.y * blockDim.y + threadIdx.y;
-    auto       idx = blockIdx.z * blockDim.z + threadIdx.z;
+    const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    const auto idz = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+    auto       idx = static_cast<size_t>(blockIdx.z) * blockDim.z + threadIdx.z;
+    static_assert(sizeof(idx) == sizeof(size_t));
+    static_assert(sizeof(idy) == sizeof(size_t));
+    static_assert(sizeof(idz) == sizeof(size_t));
 
     if(idy < Ny && idz < Nz && idx < nbatch)
     {
@@ -629,9 +646,12 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DAT
                                        const bool   Nyeven,
                                        const bool   Nzeven)
 {
-    const auto idy = blockIdx.x * blockDim.x + threadIdx.x;
-    const auto idz = blockIdx.y * blockDim.y + threadIdx.y;
-    auto       idx = blockIdx.z * blockDim.z + threadIdx.z;
+    const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
+    const auto idz = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
+    auto       idx = static_cast<size_t>(blockIdx.z) * blockDim.z + threadIdx.z;
+    static_assert(sizeof(idx) == sizeof(size_t));
+    static_assert(sizeof(idy) == sizeof(size_t));
+    static_assert(sizeof(idz) == sizeof(size_t));
 
     if(idy < Ny && idz < Nz && idx < nbatch)
     {
@@ -757,6 +777,22 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DAT
     }
 }
 
+// get grid dimensions for data gen kernel
+static dim3 generate_data_gridDim(const size_t isize)
+{
+    auto blockSize = DATA_GEN_THREADS;
+    // total number of blocks needed in the grid
+    auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
+
+    // Total work items per dimension in the grid is counted in
+    // uint32_t.  Since each thread initializes one element, very
+    // large amounts of data will overflow this total size if we do
+    // all this work in one grid dimension, causing launch failure.
+    auto gridDim_x = std::min<unsigned int>(DATA_GEN_GRID_X_MAX, numBlocks_setup);
+    auto gridDim_y = DivRoundingUp<unsigned int>(numBlocks_setup, DATA_GEN_GRID_X_MAX);
+    return {gridDim_x, gridDim_y};
+}
+
 template <typename Tint, typename Treal>
 inline void generate_interleaved_data(const Tint&            whole_length,
                                       const size_t           idist,
@@ -764,17 +800,14 @@ inline void generate_interleaved_data(const Tint&            whole_length,
                                       const Tint&            istride,
                                       rocfft_complex<Treal>* input_data)
 {
-    auto blockSize       = DATA_GEN_THREADS;
-    auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
-
     auto input_length = get_input_val(whole_length);
     auto zero_length  = make_zero_length(input_length);
     auto input_stride = get_input_val(istride);
 
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(generate_interleaved_data_kernel<decltype(input_length), Treal>),
-        dim3(numBlocks_setup),
-        dim3(blockSize),
+        generate_data_gridDim(isize),
+        dim3(DATA_GEN_THREADS),
         0, // sharedMemBytes
         0, // stream
         input_length,
@@ -783,6 +816,10 @@ inline void generate_interleaved_data(const Tint&            whole_length,
         isize,
         input_stride,
         input_data);
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("generate_interleaved_data_kernel launch failure: "
+                                 + std::string(hipGetErrorName(err)));
 }
 
 template <typename Tint, typename Treal>
@@ -793,16 +830,13 @@ inline void generate_planar_data(const Tint&  whole_length,
                                  Treal*       real_data,
                                  Treal*       imag_data)
 {
-    auto blockSize       = DATA_GEN_THREADS;
-    auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
-
     auto input_length = get_input_val(whole_length);
     auto zero_length  = make_zero_length(input_length);
     auto input_stride = get_input_val(istride);
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(generate_planar_data_kernel<decltype(input_length), Treal>),
-                       dim3(numBlocks_setup),
-                       dim3(blockSize),
+                       generate_data_gridDim(isize),
+                       dim3(DATA_GEN_THREADS),
                        0, // sharedMemBytes
                        0, // stream
                        input_length,
@@ -812,6 +846,10 @@ inline void generate_planar_data(const Tint&  whole_length,
                        input_stride,
                        real_data,
                        imag_data);
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("generate_planar_data_kernel launch failure: "
+                                 + std::string(hipGetErrorName(err)));
 }
 
 template <typename Tint, typename Treal>
@@ -821,16 +859,13 @@ inline void generate_real_data(const Tint&  whole_length,
                                const Tint&  istride,
                                Treal*       input_data)
 {
-    auto blockSize       = DATA_GEN_THREADS;
-    auto numBlocks_setup = DivRoundingUp<size_t>(isize, blockSize);
-
     auto input_length = get_input_val(whole_length);
     auto zero_length  = make_zero_length(input_length);
     auto input_stride = get_input_val(istride);
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(generate_real_data_kernel<decltype(input_length), Treal>),
-                       dim3(numBlocks_setup),
-                       dim3(blockSize),
+                       generate_data_gridDim(isize),
+                       dim3(DATA_GEN_THREADS),
                        0, // sharedMemBytes
                        0, // stream
                        input_length,
@@ -839,6 +874,10 @@ inline void generate_real_data(const Tint&  whole_length,
                        isize,
                        input_stride,
                        input_data);
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("generate_real_data_kernel launch failure: "
+                                 + std::string(hipGetErrorName(err)));
 }
 
 template <typename Tcomplex>
@@ -924,6 +963,10 @@ void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& length,
     default:
         throw std::runtime_error("Invalid dimension for impose_hermitian_symmetry");
     }
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("impose_hermitian_symmetry_interleaved launch failure: "
+                                 + std::string(hipGetErrorName(err)));
 }
 
 template <typename Tfloat>
@@ -1013,6 +1056,10 @@ void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
     default:
         throw std::runtime_error("Invalid dimension for impose_hermitian_symmetry");
     }
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("impose_hermitian_symmetry_planar launch failure: "
+                                 + std::string(hipGetErrorName(err)));
 }
 
 #endif // DATA_GEN_H
