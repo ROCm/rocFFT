@@ -100,18 +100,14 @@ Enumerations
 
 This section provides all the enumerations used.
 
-.. doxygenenum:: rocfft_status_e
+.. doxygenenum:: rocfft_status
 
-.. doxygenenum:: rocfft_transform_type_e
+.. doxygenenum:: rocfft_transform_type
 
-.. doxygenenum:: rocfft_precision_e
+.. doxygenenum:: rocfft_precision
 
-.. doxygenenum:: rocfft_result_placement_e
+.. doxygenenum:: rocfft_result_placement
 
-.. doxygenenum:: rocfft_array_type_e
+.. doxygenenum:: rocfft_array_type
 
 .. comment doxygenenum:: rocfft_execution_mode
-
-
-
-
