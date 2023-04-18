@@ -65,7 +65,7 @@ void run_1D_hermitian_test(size_t length)
         val.y = dis(gen);
     }
 
-    if(verbose)
+    if(verbose > 2)
     {
         std::cout << "non-Hermitian input:";
         for(const auto& val : h_input)
@@ -96,7 +96,7 @@ void run_1D_hermitian_test(size_t length)
 
     ASSERT_TRUE(hipDeviceSynchronize() == hipSuccess);
 
-    if(verbose)
+    if(verbose > 2)
     {
         std::cout << "output:";
         for(const auto& val : h_output)
@@ -116,7 +116,7 @@ void run_1D_hermitian_test(size_t length)
     {
         h_input1.back().y = 0.0;
     }
-    if(verbose)
+    if(verbose > 2)
     {
         std::cout << "Hermitian input:";
         for(const auto& val : h_input1)
@@ -144,7 +144,7 @@ void run_1D_hermitian_test(size_t length)
     ASSERT_TRUE(hipMemcpy(h_output1.data(), obuf.data(), obuf.size(), hipMemcpyDeviceToHost)
                 == hipSuccess);
 
-    if(verbose)
+    if(verbose > 2)
     {
         std::cout << "output:";
         for(const auto& val : h_output1)

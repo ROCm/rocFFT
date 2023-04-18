@@ -25,6 +25,34 @@
 #include "../shared/gpubuf.h"
 #include "rocfft.h"
 
+// Return the string of the rocfft_status code
+static std::string rocfft_status_to_string(const rocfft_status ret)
+{
+    switch(ret)
+    {
+    case rocfft_status_success:
+        return "rocfft_status_success";
+    case rocfft_status_failure:
+        return "rocfft_status_failure";
+    case rocfft_status_invalid_arg_value:
+        return "rocfft_status_invalid_arg_value";
+    case rocfft_status_invalid_dimensions:
+        return "rocfft_status_invalid_dimensions";
+    case rocfft_status_invalid_array_type:
+        return "rocfft_status_invalid_array_type";
+    case rocfft_status_invalid_strides:
+        return "rocfft_status_invalid_strides";
+    case rocfft_status_invalid_distance:
+        return "rocfft_status_invalid_distance";
+    case rocfft_status_invalid_offset:
+        return "rocfft_status_invalid_offset";
+    case rocfft_status_invalid_work_buffer:
+        return "rocfft_status_invalid_work_buffer";
+    default:
+        throw std::runtime_error("unknown rocfft_status");
+    }
+}
+
 inline fft_status fft_status_from_rocfftparams(const rocfft_status val)
 {
     switch(val)

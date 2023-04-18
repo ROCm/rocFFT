@@ -56,8 +56,16 @@ size_t random_seed;
 // Transform parameters for manual test:
 fft_params manual_params;
 
-// Ram limitation for tests (GiB):
+// Host memory limitation for tests (GiB):
 size_t ramgb;
+
+// Device memory limitation for tests (GiB):
+size_t vramgb;
+
+// Allow skipping tests if there is a runtime error
+bool skip_runtime_fails;
+// But count the number of failures
+int n_hip_failures = 0;
 
 // Manually specified precision cutoffs:
 double half_epsilon;
@@ -102,7 +110,7 @@ system_memory start_memory = get_system_memory();
 
 void precompile_test_kernels(const std::string& precompile_file)
 {
-    std::cout << "precompiling test kernels..." << std::endl;
+    std::cout << "precompiling test kernels...\n";
     WorkQueue<std::string> tokenQueue;
 
     std::vector<std::string> tokens;
@@ -143,7 +151,7 @@ void precompile_test_kernels(const std::string& precompile_file)
     std::mt19937       dist(dev());
     std::shuffle(tokens.begin(), tokens.end(), dist);
     auto precompile_begin = std::chrono::steady_clock::now();
-    std::cout << "precompiling " << tokens.size() << " FFT plans..." << std::endl;
+    std::cout << "precompiling " << tokens.size() << " FFT plans...\n";
 
     for(auto&& t : tokens)
         tokenQueue.push(std::move(t));
@@ -194,7 +202,7 @@ void precompile_test_kernels(const std::string& precompile_file)
     auto                                      precompile_end = std::chrono::steady_clock::now();
     std::chrono::duration<double, std::milli> precompile_ms  = precompile_end - precompile_begin;
     std::cout << "done precompiling FFT plans in " << static_cast<size_t>(precompile_ms.count())
-              << " ms" << std::endl;
+              << " ms\n";
 }
 
 int main(int argc, char* argv[])
@@ -239,6 +247,8 @@ int main(int argc, char* argv[])
         ("help,h", "produces this help message")
         ("verbose,v",  po::value<int>()->default_value(0),
         "print out detailed information for the tests.")
+        ("skip_runtime_fails",  po::value<bool>(&skip_runtime_fails)->default_value(true),
+        "Skip the test if there is a runtime failure.")
         ("version", "Print queryable version information from the rocfft library and exit")
         ("transformType,t", po::value<fft_transform_type>(&manual_params.transform_type)
          ->default_value(fft_transform_type_complex_forward),
@@ -248,7 +258,8 @@ int main(int argc, char* argv[])
         ("callback", "Inject load/store callbacks")
         ("checkstride", "Check that data is not written outside of output strides")
         ("double", "Double precision transform (deprecated: use --precision double)")
-        ("precision", po::value<fft_precision>(&manual_params.precision), "Transform precision: single (default), double, half")
+        ("precision", po::value<fft_precision>(&manual_params.precision),
+         "Transform precision: single (default), double, half")
         ( "itype", po::value<fft_array_type>(&manual_params.itype)
           ->default_value(fft_array_type_unset),
           "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
@@ -277,6 +288,7 @@ int main(int argc, char* argv[])
         ("osize", po::value<std::vector<size_t>>(&manual_params.osize)->multitoken(),
          "Logical size of output.")
         ("R", po::value<size_t>(&ramgb)->default_value((start_memory.total_bytes + ONE_GiB - 1) / ONE_GiB), "Ram limit in GiB for tests.")
+        ("V", po::value<size_t>(&vramgb)->default_value(0), "vram limit in GiB for tests.")
         ("half_epsilon",  po::value<double>(&half_epsilon)->default_value(9.77e-4))
         ("single_epsilon",  po::value<double>(&single_epsilon)->default_value(3.75e-5))
         ("double_epsilon",  po::value<double>(&double_epsilon)->default_value(1e-15))
@@ -284,10 +296,14 @@ int main(int argc, char* argv[])
         ("wisdomfile,W",
          po::value<std::string>(&fftw_wisdom_filename)->default_value("wisdom3.txt"),
          "FFTW3 wisdom filename")
-        ("scalefactor", po::value<double>(&manual_params.scale_factor), "Scale factor to apply to output.")
-        ("token", po::value<std::string>(&test_token)->default_value(""), "Test token name for manual test")
-        ("precompile",  po::value<std::string>(&precompile_file), "Precompile kernels to a file for all test cases before running tests")
-        ("seed", po::value<size_t>(&random_seed), "Random seed; if unset, use an actual random seed.");
+        ("scalefactor", po::value<double>(&manual_params.scale_factor),
+         "Scale factor to apply to output.")
+        ("token", po::value<std::string>(&test_token)->default_value(""),
+         "Test token name for manual test")
+        ("precompile",  po::value<std::string>(&precompile_file),
+         "Precompile kernels to a file for all test cases before running tests")
+        ("seed", po::value<size_t>(&random_seed),
+         "Random seed; if unset, use an actual random seed.");
     // clang-format on
 
     po::variables_map vm;
@@ -296,7 +312,7 @@ int main(int argc, char* argv[])
 
     if(vm.count("help"))
     {
-        std::cout << opdesc << std::endl;
+        std::cout << opdesc << "\n";
         return 0;
     }
 
@@ -304,21 +320,21 @@ int main(int argc, char* argv[])
     {
         char v[256];
         rocfft_get_version_string(v, 256);
-        std::cout << "version " << v << std::endl;
+        std::cout << "version " << v << "\n";
         return EXIT_SUCCESS;
     }
 
     verbose = vm["verbose"].as<int>();
 
     std::cout << "half epsilon: " << half_epsilon << "\tsingle epsilon: " << single_epsilon
-              << "\tdouble epsilon: " << double_epsilon << std::endl;
+              << "\tdouble epsilon: " << double_epsilon << "\n";
 
     if(!vm.count("seed"))
     {
         std::random_device dev;
         random_seed = dev();
     }
-    std::cout << "Random seed: " << random_seed << std::endl;
+    std::cout << "Random seed: " << random_seed << "\n";
 
     if(vm.count("wise"))
     {
@@ -340,7 +356,7 @@ int main(int argc, char* argv[])
     rocfft_setup();
     char v[256];
     rocfft_get_version_string(v, 256);
-    std::cout << "rocFFT version: " << v << std::endl;
+    std::cout << "rocFFT version: " << v << "\n";
 
 #ifdef FFTW_MULTITHREAD
     fftw_init_threads();
@@ -397,7 +413,7 @@ int main(int argc, char* argv[])
 
     if(test_token != "")
     {
-        std::cout << "Reading fft params from token:\n" << test_token << std::endl;
+        std::cout << "Reading fft params from token:\n" << test_token << "\n";
 
         try
         {
@@ -405,7 +421,7 @@ int main(int argc, char* argv[])
         }
         catch(...)
         {
-            std::cout << "Unable to parse token." << std::endl;
+            std::cout << "Unable to parse token.\n";
             return 1;
         }
     }
@@ -463,13 +479,14 @@ int main(int argc, char* argv[])
 
     rocfft_cleanup();
 
-    std::cout << "Random seed: " << random_seed << std::endl;
-    std::cout << "half precision max l-inf epsilon: " << max_linf_eps_half << std::endl;
-    std::cout << "half precision max l2 epsilon:     " << max_l2_eps_half << std::endl;
-    std::cout << "single precision max l-inf epsilon: " << max_linf_eps_single << std::endl;
-    std::cout << "single precision max l2 epsilon:     " << max_l2_eps_single << std::endl;
-    std::cout << "double precision max l-inf epsilon: " << max_linf_eps_double << std::endl;
-    std::cout << "double precision max l2 epsilon:     " << max_l2_eps_double << std::endl;
+    std::cout << "Random seed: " << random_seed << "\n";
+    std::cout << "half precision max l-inf epsilon: " << max_linf_eps_half << "\n";
+    std::cout << "half precision max l2 epsilon:     " << max_l2_eps_half << "\n";
+    std::cout << "single precision max l-inf epsilon: " << max_linf_eps_single << "\n";
+    std::cout << "single precision max l2 epsilon:     " << max_l2_eps_single << "\n";
+    std::cout << "double precision max l-inf epsilon: " << max_linf_eps_double << "\n";
+    std::cout << "double precision max l2 epsilon:     " << max_l2_eps_double << "\n";
+    std::cout << "Number of runtime issues: " << n_hip_failures << "\n";
 
     return retval;
 }
@@ -480,9 +497,9 @@ TEST(manual, vs_fftw) // MANUAL TESTS HERE
     manual_params.validate();
 
     std::cout << "Manual test:"
-              << "\n\t" << manual_params.str("\n\t") << std::endl;
+              << "\n\t" << manual_params.str("\n\t") << "\n";
 
-    std::cout << "Token: " << manual_params.token() << std::endl;
+    std::cout << "Token: " << manual_params.token() << "\n";
 
     if(!manual_params.valid(verbose + 2))
     {

@@ -29,9 +29,11 @@
 extern int    verbose;
 extern size_t random_seed;
 extern size_t ramgb;
+extern size_t vramgb;
 extern double half_epsilon;
 extern double single_epsilon;
 extern double double_epsilon;
+extern bool   skip_runtime_fails;
 
 extern double max_linf_eps_double;
 extern double max_l2_eps_double;
@@ -39,5 +41,7 @@ extern double max_linf_eps_single;
 extern double max_l2_eps_single;
 extern double max_linf_eps_half;
 extern double max_l2_eps_half;
+
+extern int n_hip_failures;
 
 #endif

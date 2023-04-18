@@ -30,6 +30,7 @@
 #include <string>
 #include <vector>
 
+#include "../../shared/enum_to_string.h"
 #include "../../shared/fft_params.h"
 #include "../../shared/gpubuf.h"
 #include "fftw_transform.h"
@@ -40,6 +41,11 @@ extern int    verbose;
 extern size_t ramgb;
 
 static const size_t ONE_GiB = 1 << 30;
+
+inline size_t bytes_to_GiB(const size_t bytes)
+{
+    return bytes == 0 ? 0 : (bytes - 1 + ONE_GiB) / ONE_GiB;
+}
 
 typedef std::tuple<fft_transform_type, fft_result_placement, fft_array_type, fft_array_type>
     type_place_io_t;
@@ -106,7 +112,7 @@ inline size_t needed_ram_buffers(const fft_params& params, const int verbose)
 
     if(verbose)
     {
-        std::cout << "required host memory for buffers (GiB): " << needed_ram / ONE_GiB << "\n";
+        std::cout << "required host memory for buffers (GiB): " << bytes_to_GiB(needed_ram) << "\n";
     }
 
     return needed_ram;
@@ -186,7 +192,7 @@ inline size_t needed_ram_fftw(const fft_params&                                 
 
     if(verbose)
     {
-        std::cout << "required host memory for FFTW (GiB): " << needed_ram / ONE_GiB << std::endl;
+        std::cout << "required host memory for FFTW (GiB): " << bytes_to_GiB(needed_ram) << "\n";
     }
 
     return needed_ram;
@@ -425,7 +431,6 @@ inline auto param_generator_base(const std::vector<fft_transform_type>&   type_r
             // something to be passed to generate_lengths
             if(lengths.empty() || lengths.size() > 3)
             {
-                assert(false);
                 continue;
             }
             {
@@ -680,12 +685,37 @@ inline void execute_gpu_fft(Tparams&              params,
 
         load_cb_data_host.base = pibuffer.front();
 
-        ASSERT_TRUE(hipSuccess == load_cb_data_dev.alloc(sizeof(callback_test_data)));
-        ASSERT_TRUE(hipSuccess
-                    == hipMemcpy(load_cb_data_dev.data(),
-                                 &load_cb_data_host,
-                                 sizeof(callback_test_data),
-                                 hipMemcpyHostToDevice));
+        auto hip_status = hipSuccess;
+
+        hip_status = load_cb_data_dev.alloc(sizeof(callback_test_data));
+        if(hip_status != hipSuccess)
+        {
+            ++n_hip_failures;
+            if(skip_runtime_fails)
+            {
+                GTEST_SKIP();
+            }
+            else
+            {
+                GTEST_FAIL();
+            }
+        }
+        hip_status = hipMemcpy(load_cb_data_dev.data(),
+                               &load_cb_data_host,
+                               sizeof(callback_test_data),
+                               hipMemcpyHostToDevice);
+        if(hip_status != hipSuccess)
+        {
+            ++n_hip_failures;
+            if(skip_runtime_fails)
+            {
+                GTEST_SKIP();
+            }
+            else
+            {
+                GTEST_FAIL();
+            }
+        }
 
         void* store_cb_host
             = get_store_callback_host(params.otype, params.precision, round_trip_inverse);
@@ -703,12 +733,37 @@ inline void execute_gpu_fft(Tparams&              params,
 
         store_cb_data_host.base = pobuffer.front();
 
-        ASSERT_TRUE(hipSuccess == store_cb_data_dev.alloc(sizeof(callback_test_data)));
-        ASSERT_TRUE(hipSuccess
-                    == hipMemcpy(store_cb_data_dev.data(),
-                                 &store_cb_data_host,
-                                 sizeof(callback_test_data),
-                                 hipMemcpyHostToDevice));
+        hip_status = store_cb_data_dev.alloc(sizeof(callback_test_data));
+        if(hip_status != hipSuccess)
+        {
+            ++n_hip_failures;
+            if(skip_runtime_fails)
+            {
+                GTEST_SKIP();
+            }
+            else
+            {
+                GTEST_FAIL();
+            }
+        }
+
+        hip_status = hipMemcpy(store_cb_data_dev.data(),
+                               &store_cb_data_host,
+                               sizeof(callback_test_data),
+                               hipMemcpyHostToDevice);
+        if(hip_status != hipSuccess)
+        {
+            ++n_hip_failures;
+            if(skip_runtime_fails)
+            {
+                GTEST_SKIP();
+            }
+            else
+            {
+                GTEST_FAIL();
+            }
+        }
+
         auto fft_status = params.set_callbacks(
             load_cb_host, load_cb_data_dev.data(), store_cb_host, store_cb_data_dev.data());
         if(fft_status != fft_status_success)
@@ -730,7 +785,18 @@ inline void execute_gpu_fft(Tparams&              params,
                                     pobuffer.at(idx),
                                     gpu_output[idx].size(),
                                     hipMemcpyDeviceToHost);
-        ASSERT_EQ(hip_status, hipSuccess) << "hipMemcpy failure";
+        if(hip_status != hipSuccess)
+        {
+            ++n_hip_failures;
+            if(skip_runtime_fails)
+            {
+                GTEST_SKIP() << "hipMemcpy failure";
+            }
+            else
+            {
+                GTEST_FAIL() << "hipMemcpy failure";
+            }
+        }
     }
     if(verbose > 2)
     {
@@ -901,15 +967,26 @@ inline void run_round_trip_inverse(Tparams&              params,
 
     // Create FFT plan - this will also allocate work buffer, but will throw a
     // specific exception if that step fails
+    auto plan_status = fft_status_success;
     try
     {
-        ASSERT_EQ(params.create_plan(), fft_status_success);
+        plan_status = params.create_plan();
     }
     catch(fft_params::work_buffer_alloc_failure& e)
     {
-        GTEST_SKIP() << "Problem size with work buffer ("
-                     << params.vram_footprint() + params.workbuffersize << ") too large for device";
+        std::stringstream ss;
+        ss << "Failed to allocate work buffer (size: " << params.workbuffersize << ")";
+        ++n_hip_failures;
+        if(skip_runtime_fails)
+        {
+            GTEST_SKIP() << ss.str();
+        }
+        else
+        {
+            GTEST_FAIL() << ss.str();
+        }
     }
+    ASSERT_EQ(plan_status, fft_status_success) << "round trip inverse plan creation failed";
 
     auto obuffer_sizes = params.obuffer_sizes();
 
@@ -925,7 +1002,18 @@ inline void run_round_trip_inverse(Tparams&              params,
             {
                 auto hip_status
                     = hipMemset(obuffer[i].data(), OUTPUT_INIT_PATTERN, obuffer_sizes[i]);
-                ASSERT_EQ(hip_status, hipSuccess) << "hipMemset failure";
+                if(hip_status != hipSuccess)
+                {
+                    ++n_hip_failures;
+                    if(skip_runtime_fails)
+                    {
+                        GTEST_SKIP() << "hipMemset failure";
+                    }
+                    else
+                    {
+                        GTEST_FAIL() << "hipMemset failure";
+                    }
+                }
             }
         }
     }
@@ -1055,26 +1143,54 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
 
     if(ramgb > 0 && needed_ram > ramgb * ONE_GiB)
     {
-        if(verbose)
-        {
-            std::cout << "Problem exceeds memory limit; skipped [rocfft_transform]." << std::endl;
-        }
-        GTEST_SKIP();
-        return;
+        GTEST_SKIP() << "needed_ramgb: " << bytes_to_GiB(needed_ram) << ", ramgb limit: " << ramgb
+                     << ".\n";
     }
 
     auto ibuffer_sizes = params.ibuffer_sizes();
     auto obuffer_sizes = params.obuffer_sizes();
+
+    size_t vram_avail = 0;
+
+    if(vramgb == 0)
+    {
+        // Check free and total available memory:
+        size_t free       = 0;
+        size_t total      = 0;
+        auto   hip_status = hipMemGetInfo(&free, &total);
+        if(hip_status != hipSuccess || total == 0)
+        {
+            ++n_hip_failures;
+            std::stringstream ss;
+            if(total == 0)
+                ss << "hipMemGetInfo claims there there isn't any vram";
+            else
+                ss << "hipMemGetInfo failure with error " << hip_status;
+            if(skip_runtime_fails)
+            {
+                GTEST_SKIP() << ss.str();
+            }
+            else
+            {
+                GTEST_FAIL() << ss.str();
+            }
+        }
+        vram_avail = total;
+    }
+    else
+    {
+        vram_avail = vramgb * ONE_GiB;
+    }
 
     // First try a quick estimation of vram footprint, to speed up skipping tests
     // that are too large to fit in the gpu (no plan created with the rocFFT backend)
     const auto raw_vram_footprint
         = params.fft_params_vram_footprint() + twiddle_table_vram_footprint(params);
 
-    if(!vram_fits_problem(raw_vram_footprint))
+    if(!vram_fits_problem(raw_vram_footprint, vram_avail))
     {
-        GTEST_SKIP() << "Raw problem size (" << raw_vram_footprint
-                     << ") raw data too large for device";
+        GTEST_SKIP() << "Raw problem size (" << bytes_to_GiB(raw_vram_footprint)
+                     << " GiB) raw data too large for device";
     }
 
     if(verbose > 2)
@@ -1086,41 +1202,40 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     // accurate calculation that actually creates the plan and
     // take into account the work buffer size
     const auto vram_footprint = params.vram_footprint();
-    if(!vram_fits_problem(vram_footprint))
+    if(!vram_fits_problem(vram_footprint, vram_avail))
     {
         if(verbose)
         {
             std::cout << "Problem raw data won't fit on device; skipped." << std::endl;
         }
-        GTEST_SKIP() << "Problem size (" << vram_footprint << ") raw data too large for device";
+        GTEST_SKIP() << "Problem size (" << bytes_to_GiB(vram_footprint)
+                     << " GiB) raw data too large for device";
     }
 
     // Create FFT plan - this will also allocate work buffer, but
     // will throw a specific exception if that step fails
+    auto plan_status = fft_status_success;
     try
     {
-        ASSERT_EQ(params.create_plan(), fft_status_success);
+        plan_status = params.create_plan();
     }
     catch(fft_params::work_buffer_alloc_failure& e)
     {
-        GTEST_SKIP() << "Problem size with work buffer (" << vram_footprint + params.workbuffersize
-                     << ") too large for device";
+        ++n_hip_failures;
+        std::stringstream ss;
+        ss << "Work buffer allocation failed with size: " << params.workbuffersize;
+        if(skip_runtime_fails)
+        {
+            GTEST_SKIP() << ss.str();
+        }
+        else
+        {
+            GTEST_FAIL() << ss.str();
+        }
     }
+    ASSERT_EQ(plan_status, fft_status_success) << "plan creation failed";
 
-    // Recheck whether the raw data fits on the device, now that the
-    // work buffer has been allocated (if required).
-    if(verbose > 1)
-    {
-        size_t     free   = 0;
-        size_t     total  = 0;
-        hipError_t retval = hipMemGetInfo(&free, &total);
-        ASSERT_EQ(retval, hipSuccess) << "hipMemGetInfo failed with error " << retval;
-        std::cout << "data footprint: " << vram_footprint << " (" << (double)vram_footprint
-                  << ") workbuffer: " << params.workbuffersize << " ("
-                  << (double)params.workbuffersize << ") free: " << free << " (" << (double)free
-                  << ") total: " << total << " (" << (double)total << ")\n";
-    }
-    if(!vram_fits_problem(vram_footprint))
+    if(!vram_fits_problem(vram_footprint, vram_avail))
     {
         if(verbose)
         {
@@ -1157,8 +1272,22 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     for(unsigned int i = 0; i < ibuffer.size(); ++i)
     {
         auto hip_status = ibuffer[i].alloc(ibuffer_sizes[i]);
-        ASSERT_EQ(hip_status, hipSuccess) << "hipMalloc failure for input buffer " << i << " size "
-                                          << ibuffer_sizes[i] << " " << params.str();
+        if(hip_status != hipSuccess)
+        {
+            std::stringstream ss;
+            ss << "hipMalloc failure for input buffer " << i << " size " << ibuffer_sizes[i] << "("
+               << bytes_to_GiB(ibuffer_sizes[i]) << " GiB)"
+               << " with code " << hipError_to_string(hip_status);
+            ++n_hip_failures;
+            if(skip_runtime_fails)
+            {
+                GTEST_SKIP() << ss.str();
+            }
+            else
+            {
+                GTEST_FAIL() << ss.str();
+            }
+        }
         pibuffer[i] = ibuffer[i].data();
     }
 
@@ -1320,7 +1449,18 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                                             ibuffer[idx].data(),
                                             ibuffer_sizes[idx],
                                             hipMemcpyDeviceToHost);
-                ASSERT_EQ(hip_status, hipSuccess) << "hipMemcpy failure with error " << hip_status;
+                if(hip_status != hipSuccess)
+                {
+                    ++n_hip_failures;
+                    if(skip_runtime_fails)
+                    {
+                        GTEST_SKIP() << "hipMemcpy failure with error " << hip_status;
+                    }
+                    else
+                    {
+                        GTEST_FAIL() << "hipMemcpy failure with error " << hip_status;
+                    }
+                }
             }
 
             copy_buffers(gpu_input_data,
@@ -1346,7 +1486,18 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                                             ibuffer[idx].data(),
                                             ibuffer_sizes[idx],
                                             hipMemcpyDeviceToHost);
-                ASSERT_EQ(hip_status, hipSuccess) << "hipMemcpy failure with error " << hip_status;
+                if(hip_status != hipSuccess)
+                {
+                    ++n_hip_failures;
+                    if(skip_runtime_fails)
+                    {
+                        GTEST_SKIP() << "hipMemcpy failure with error " << hip_status;
+                    }
+                    else
+                    {
+                        GTEST_FAIL() << "hipMemcpy failure with error " << hip_status;
+                    }
+                }
             }
         }
     }
@@ -1385,7 +1536,19 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                                         gpu_input->at(idx).data(),
                                         ibuffer_sizes[idx],
                                         hipMemcpyHostToDevice);
-            ASSERT_EQ(hip_status, hipSuccess) << "hipMemcpy failure with error " << hip_status;
+
+            if(hip_status != hipSuccess)
+            {
+                ++n_hip_failures;
+                if(skip_runtime_fails)
+                {
+                    GTEST_SKIP() << "hipMemcpy failure with error " << hip_status;
+                }
+                else
+                {
+                    GTEST_FAIL() << "hipMemcpy failure with error " << hip_status;
+                }
+            }
         }
     }
 
@@ -1436,25 +1599,20 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             auto hip_status = obuffer_data[i].alloc(obuffer_sizes[i]);
             if(hip_status != hipSuccess)
             {
-                // Try and figure out why hip malloc failed.
-                size_t     free   = 0;
-                size_t     total  = 0;
-                hipError_t retval = hipMemGetInfo(&free, &total);
-                EXPECT_EQ(retval, hipSuccess) << "hipMemGetInfo failed with error " << retval;
-                if(retval == hipSuccess)
+                ++n_hip_failures;
+                std::stringstream ss;
+                ss << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i]
+                   << "(" << bytes_to_GiB(obuffer_sizes[i]) << " GiB)"
+                   << " with code " << hipError_to_string(hip_status);
+                if(skip_runtime_fails)
                 {
-                    std::cerr << "free vram: " << free << " (" << (double)free
-                              << ") total vram: " << total << " (" << (double)total << ")"
-                              << std::endl;
-                    if(free > obuffer_sizes[i])
-                    {
-                        std::cerr << "The system reports that there is enough space." << std::endl;
-                    }
+                    GTEST_SKIP() << ss.str();
+                }
+                else
+                {
+                    GTEST_FAIL() << ss.str();
                 }
             }
-            ASSERT_EQ(hip_status, hipSuccess)
-                << "hipMalloc failure for output buffer " << i << " size " << obuffer_sizes[i]
-                << " (" << static_cast<double>(obuffer_sizes[i]) << ") " << params.str();
 
             // If we're validating output strides, init the
             // output buffer to a known pattern and we can check
@@ -1464,7 +1622,18 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             {
                 hip_status
                     = hipMemset(obuffer_data[i].data(), OUTPUT_INIT_PATTERN, obuffer_sizes[i]);
-                ASSERT_EQ(hip_status, hipSuccess) << "hipMemset failure";
+                if(hip_status != hipSuccess)
+                {
+                    ++n_hip_failures;
+                    if(skip_runtime_fails)
+                    {
+                        GTEST_SKIP() << "hipMemset failure with error " << hip_status;
+                    }
+                    else
+                    {
+                        GTEST_FAIL() << "hipMemset failure with error " << hip_status;
+                    }
+                }
             }
         }
     }

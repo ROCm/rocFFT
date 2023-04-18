@@ -3017,26 +3017,12 @@ static std::vector<hostbuf> allocate_host_buffer(const fft_precision        prec
 }
 
 // Check if the required buffers fit in the device vram.
-inline bool vram_fits_problem(const size_t prob_size, int deviceId = 0)
+inline bool vram_fits_problem(const size_t prob_size, const size_t vram_avail, int deviceId = 0)
 {
     // We keep a small margin of error for fitting the problem into vram:
-    const size_t extra = 1 << 20;
+    const size_t extra = 1 << 27;
 
-    // Check free and total available memory:
-    size_t free   = 0;
-    size_t total  = 0;
-    auto   retval = hipMemGetInfo(&free, &total);
-
-    if(retval != hipSuccess)
-        throw std::runtime_error("Failure in hipMemGetInfo");
-
-    if(total < prob_size + extra)
-        return false;
-
-    if(free < prob_size + extra)
-        return false;
-
-    return true;
+    return vram_avail > prob_size + extra;
 }
 
 // Computes the twiddle table VRAM footprint for r2c/c2r transforms.
