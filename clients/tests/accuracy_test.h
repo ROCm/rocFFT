@@ -1380,9 +1380,12 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         // might never have tried to generate the bigger batch first.
         // So just fall through and redo the CPU FFT.
     }
-    // Clear cache explicitly so that even if we didn't get a hit,
-    // we're not uselessly holding on to cached cpu input/output
-    last_cpu_fft_data = last_cpu_fft_cache();
+    else
+    {
+        // Clear cache explicitly so that even if we didn't get a hit,
+        // we're not uselessly holding on to cached cpu input/output
+        last_cpu_fft_data = last_cpu_fft_cache();
+    }
 
     // Allocate CPU input
     if(run_fftw)
@@ -1742,12 +1745,26 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                         params.ooffset);
     });
 
+    // Update the cache if this current transform is different from
+    // what's stored.  But if this transform only has a smaller batch
+    // than what's cached, we can still keep the cache around since
+    // the input/output we already have is still valid.
+    const bool update_last_cpu_fft_data
+        = last_cpu_fft_data.length != params.length
+          || last_cpu_fft_data.transform_type != params.transform_type
+          || last_cpu_fft_data.run_callbacks != params.run_callbacks
+          || last_cpu_fft_data.precision != params.precision
+          || params.nbatch > last_cpu_fft_data.nbatch;
+
     // store cpu output in cache
-    last_cpu_fft_data.length         = params.length;
-    last_cpu_fft_data.nbatch         = params.nbatch;
-    last_cpu_fft_data.transform_type = params.transform_type;
-    last_cpu_fft_data.run_callbacks  = params.run_callbacks;
-    last_cpu_fft_data.precision      = params.precision;
+    if(update_last_cpu_fft_data)
+    {
+        last_cpu_fft_data.length         = params.length;
+        last_cpu_fft_data.nbatch         = params.nbatch;
+        last_cpu_fft_data.transform_type = params.transform_type;
+        last_cpu_fft_data.run_callbacks  = params.run_callbacks;
+        last_cpu_fft_data.precision      = params.precision;
+    }
 
     compare_output.get();
 

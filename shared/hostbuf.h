@@ -116,18 +116,13 @@ public:
         return copy;
     }
 
-    // Resize method
-    void resize(size_t size)
+    // shrink the buffer to fit the new size
+    void shrink(size_t new_size)
     {
-        void* resize_buf;
-#ifdef WIN32
-        resize_buf = _aligned_malloc(size, 64);
-#else
-        resize_buf = aligned_alloc(64, size);
-#endif
-        memcpy(resize_buf, buf, size);
-        free();
-        buf = resize_buf;
+        if(new_size > bsize)
+            throw std::runtime_error("can't shrink hostbuf to larger size");
+        // just pretend the buffer is now that size
+        bsize = new_size;
     }
 
     // equality/bool tests

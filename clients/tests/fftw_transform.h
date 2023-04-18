@@ -106,7 +106,7 @@ void narrow_precision_inplace(hostbuf& in)
     auto readPtr  = reinterpret_cast<const TfloatIn*>(in.data());
     auto writePtr = reinterpret_cast<TfloatOut*>(in.data());
     std::copy_n(readPtr, in.size() / sizeof(TfloatIn), writePtr);
-    in.resize(in.size() / (sizeof(TfloatIn) / sizeof(TfloatOut)));
+    in.shrink(in.size() / (sizeof(TfloatIn) / sizeof(TfloatOut)));
 }
 
 static void single_to_half_inplace(hostbuf& in)
