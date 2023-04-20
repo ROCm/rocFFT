@@ -1093,9 +1093,11 @@ public:
 
             if((transform_type == fft_transform_type_complex_forward
                 || transform_type == fft_transform_type_complex_inverse)
-               && (idist != odist))
+               && (idist != odist) && nbatch > 1)
             {
-                // In-place transforms require identical distance
+                // In-place transforms require identical distance, if
+                // batch > 1.  If batch is 1 then dist is ignored and
+                // the FFT should still work.
                 if(verbose)
                 {
                     std::cout << "idist:" << idist << " odist:" << odist

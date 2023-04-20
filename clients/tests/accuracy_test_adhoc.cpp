@@ -91,6 +91,9 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_adhoc,
                                                              true)),
                          accuracy_test::TestName);
 
+// Test that dist is ignored for batch-1 transforms.  Normally,
+// in-place transforms require same dist, but for batch-1 dist isn't
+// used for anything and differing dist should be allowed.
 inline auto param_permissive_iodist()
 {
     std::vector<std::vector<size_t>> lengths = adhoc_sizes;
@@ -103,6 +106,8 @@ inline auto param_permissive_iodist()
         {
             for(const auto& types : generate_types(trans_type, place_range, true))
             {
+                if(std::get<1>(types) != fft_placement_inplace)
+                    continue;
                 for(const auto& len : lengths)
                 {
                     fft_params param;
@@ -170,9 +175,9 @@ inline auto param_adhoc_colmajor()
         if(param.transform_type == fft_transform_type_real_forward
            || param.transform_type == fft_transform_type_real_inverse)
             ++start_dim;
-        std::reverse(param.length.begin() + start_dim, param.length.end());
-        std::reverse(param.istride.begin() + start_dim, param.istride.end());
-        std::reverse(param.ostride.begin() + start_dim, param.ostride.end());
+        std::reverse(param.length.rbegin() + start_dim, param.length.rend());
+        std::reverse(param.istride.rbegin() + start_dim, param.istride.rend());
+        std::reverse(param.ostride.rbegin() + start_dim, param.ostride.rend());
     });
     return params;
 }
