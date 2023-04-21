@@ -37,7 +37,7 @@
 #include <vector>
 
 static const unsigned int DATA_GEN_THREADS    = 32;
-static const unsigned int DATA_GEN_GRID_X_MAX = 64;
+static const unsigned int DATA_GEN_GRID_Y_MAX = 64;
 
 template <typename T>
 struct input_val_1D
@@ -197,7 +197,7 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                                      rocfft_complex<Treal>* data)
 {
     auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
-                   + blockIdx.y * DATA_GEN_GRID_X_MAX * DATA_GEN_THREADS;
+                   + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
     static_assert(sizeof(i) >= sizeof(isize));
     if(i < isize)
     {
@@ -227,7 +227,7 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                                 Treal*     imag_data)
 {
     auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
-                   + blockIdx.y * DATA_GEN_GRID_X_MAX * DATA_GEN_THREADS;
+                   + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
     static_assert(sizeof(i) >= sizeof(isize));
     if(i < isize)
     {
@@ -256,7 +256,7 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                               Treal*     data)
 {
     auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
-                   + blockIdx.y * DATA_GEN_GRID_X_MAX * DATA_GEN_THREADS;
+                   + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
     static_assert(sizeof(i) >= sizeof(isize));
     if(i < isize)
     {
@@ -788,8 +788,11 @@ static dim3 generate_data_gridDim(const size_t isize)
     // uint32_t.  Since each thread initializes one element, very
     // large amounts of data will overflow this total size if we do
     // all this work in one grid dimension, causing launch failure.
-    auto gridDim_x = std::min<unsigned int>(DATA_GEN_GRID_X_MAX, numBlocks_setup);
-    auto gridDim_y = DivRoundingUp<unsigned int>(numBlocks_setup, DATA_GEN_GRID_X_MAX);
+    //
+    // CUDA also generally allows for effectively unlimited grid X
+    // dim, but Y and Z are more limited.
+    auto gridDim_y = std::min<unsigned int>(DATA_GEN_GRID_Y_MAX, numBlocks_setup);
+    auto gridDim_x = DivRoundingUp<unsigned int>(numBlocks_setup, DATA_GEN_GRID_Y_MAX);
     return {gridDim_x, gridDim_y};
 }
 
