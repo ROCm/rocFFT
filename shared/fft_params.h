@@ -1231,6 +1231,14 @@ public:
         std::reverse(std::begin(ostride_cm), std::end(ostride_cm));
         return ostride_cm;
     }
+    bool is_planar() const
+    {
+        if(itype == fft_array_type_complex_planar || itype == fft_array_type_hermitian_planar)
+            return true;
+        if(otype == fft_array_type_complex_planar || otype == fft_array_type_hermitian_planar)
+            return true;
+        return false;
+    }
 
     // Given a data type and dimensions, fill the buffer, imposing Hermitian symmetry if necessary.
     inline void compute_input(std::vector<gpubuf>& input)

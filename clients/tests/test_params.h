@@ -27,9 +27,13 @@
 #include <stdexcept>
 
 extern int    verbose;
-extern size_t random_seed;
 extern size_t ramgb;
 extern size_t vramgb;
+
+extern size_t random_seed;
+extern double planar_prob;
+extern double callback_prob;
+
 extern double half_epsilon;
 extern double single_epsilon;
 extern double double_epsilon;

@@ -25,6 +25,7 @@
 
 #include <algorithm>
 #include <boost/scope_exit.hpp>
+#include <functional>
 #include <future>
 #include <iterator>
 #include <string>
@@ -482,6 +483,47 @@ inline auto param_generator_base(const std::vector<fft_transform_type>&   type_r
                                                 }
                                             }
                                             param.validate();
+
+                                            // Keeping the random number generator here
+                                            // allows one to run the same tests for a given
+                                            // random seed; ie the test suite is repeatable.
+                                            std::hash<std::string>           hasher;
+                                            std::ranlux24_base               gen(random_seed
+                                                                   + hasher(param.token()));
+                                            std::uniform_real_distribution<> dis(0.0, 1.0);
+
+                                            if(param.is_planar())
+                                            {
+                                                const double roll = dis(gen);
+                                                if(roll > planar_prob)
+                                                {
+                                                    if(verbose > 4)
+                                                    {
+                                                        std::cout << "Planar transform skipped "
+                                                                     "(planar_prob: "
+                                                                  << planar_prob << " > " << roll
+                                                                  << ")\n";
+                                                    }
+                                                    continue;
+                                                }
+                                            }
+                                            if(run_callbacks)
+                                            {
+                                                const double roll = dis(gen);
+                                                if(roll > callback_prob)
+                                                {
+
+                                                    if(verbose > 4)
+                                                    {
+                                                        std::cout << "Callback transform skipped "
+                                                                     "(planar_prob: "
+                                                                  << planar_prob << " > " << roll
+                                                                  << ")\n";
+                                                    }
+                                                    continue;
+                                                }
+                                            }
+
                                             if(param.valid(0))
                                             {
                                                 params.push_back(param);

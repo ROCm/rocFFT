@@ -52,6 +52,10 @@ int verbose;
 
 // User-defined random seed
 size_t random_seed;
+// Probability of running individual planar FFTs
+double planar_prob;
+// Probability of running individual callback FFTs
+double callback_prob;
 
 // Transform parameters for manual test:
 fft_params manual_params;
@@ -207,20 +211,7 @@ void precompile_test_kernels(const std::string& precompile_file)
 
 int main(int argc, char* argv[])
 {
-    // NB: If we initialize gtest first, then it removes all of its own command-line
-    // arguments and sets argc and argv correctly; no need to jump through hoops for
-    // boost::program_options.
-    ::testing::InitGoogleTest(&argc, argv);
-
-    // Filename for fftw and fftwf wisdom.
-    std::string fftw_wisdom_filename;
-
-    // Token string to fully specify fft params for the manual test.
-    std::string test_token;
-
-    // Filename for precompiled kernels to be written to
-    std::string precompile_file;
-
+    // We would like to parse a few arguments before initiating gtest.
     po::options_description opdesc(
         "\n"
         "rocFFT Runtime Test command line options\n"
@@ -240,13 +231,43 @@ int main(int argc, char* argv[])
         "      HP - hermitian planar\n"
         "\n"
         "Usage");
+    // clang-format off
+    opdesc.add_options()
+        ("verbose,v",
+         po::value<int>()->default_value(0),
+         "print out detailed information for the tests.")
+        ("seed", po::value<size_t>(&random_seed),
+         "Random seed; if unset, use an actual random seed.")
+        ("planar_prob", po::value<double>(&planar_prob)->default_value(0.1),
+        "Probability of running individual planar transforms")
+        ("callback_prob", po::value<double>(&callback_prob)->default_value(0.1),
+         "Probability of running individual callback transforms");
+    // clang-format on
+    po::variables_map vm;
+    po::store(po::command_line_parser(argc, argv).options(opdesc).allow_unregistered().run(), vm);
+    po::notify(vm);
+
+    verbose = vm["verbose"].as<int>();
+
+    // NB: If we initialize gtest first, then it removes all of its own command-line
+    // arguments and sets argc and argv correctly; no need to jump through hoops for
+    // boost::program_options.
+    ::testing::InitGoogleTest(&argc, argv);
+
+    // Filename for fftw and fftwf wisdom.
+    std::string fftw_wisdom_filename;
+
+    // Token string to fully specify fft params for the manual test.
+    std::string test_token;
+
+    // Filename for precompiled kernels to be written to
+    std::string precompile_file;
+
     // Declare the supported options.
     // clang-format doesn't handle boost program options very well:
     // clang-format off
     opdesc.add_options()
         ("help,h", "produces this help message")
-        ("verbose,v",  po::value<int>()->default_value(0),
-        "print out detailed information for the tests.")
         ("skip_runtime_fails",  po::value<bool>(&skip_runtime_fails)->default_value(true),
         "Skip the test if there is a runtime failure.")
         ("version", "Print queryable version information from the rocfft library and exit")
@@ -296,17 +317,11 @@ int main(int argc, char* argv[])
         ("wisdomfile,W",
          po::value<std::string>(&fftw_wisdom_filename)->default_value("wisdom3.txt"),
          "FFTW3 wisdom filename")
-        ("scalefactor", po::value<double>(&manual_params.scale_factor),
-         "Scale factor to apply to output.")
-        ("token", po::value<std::string>(&test_token)->default_value(""),
-         "Test token name for manual test")
-        ("precompile",  po::value<std::string>(&precompile_file),
-         "Precompile kernels to a file for all test cases before running tests")
-        ("seed", po::value<size_t>(&random_seed),
-         "Random seed; if unset, use an actual random seed.");
+        ("scalefactor", po::value<double>(&manual_params.scale_factor), "Scale factor to apply to output.")
+        ("token", po::value<std::string>(&test_token)->default_value(""), "Test token name for manual test")
+        ("precompile",  po::value<std::string>(&precompile_file), "Precompile kernels to a file for all test cases before running tests");
     // clang-format on
 
-    po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, opdesc), vm);
     po::notify(vm);
 
@@ -323,8 +338,6 @@ int main(int argc, char* argv[])
         std::cout << "version " << v << "\n";
         return EXIT_SUCCESS;
     }
-
-    verbose = vm["verbose"].as<int>();
 
     std::cout << "half epsilon: " << half_epsilon << "\tsingle epsilon: " << single_epsilon
               << "\tdouble epsilon: " << double_epsilon << "\n";
