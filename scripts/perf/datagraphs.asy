@@ -37,6 +37,10 @@ string ylabel = "Time (ms)";
 string primaryaxis = "time";
 string secondaryaxis = "speedup";
 
+bool dobars = true;
+bool dolegend = true;
+real Ncut = inf;
+
 usersetting();
 
 if(primaryaxis == "gflops") {
@@ -78,6 +82,16 @@ for(int n = 0; n < datapoints.length; ++n) {
     datapoints_to_xyvallowhigh(datapoints[n], xyval[n], ylowhigh[n]);
 }
 
+
+if(Ncut < inf) {
+    for(int n = 0; n < datapoints.length; ++n) {
+        while(xyval[n][xyval[n].length - 1].x > Ncut) {
+            xyval[n].pop();
+            ylowhigh[n].pop();
+        }
+    }
+}
+
 //write(xyval);
 //write(ylowhigh);
 
@@ -104,20 +118,24 @@ for(int n = 0; n < xyval.length; ++n)
     string legend = myleg ? legends[n] : texify(testlist[n]);
     marker mark = marker(scale(0.5mm) * unitcircle, Draw(graphpen + solid));
 
-    // Compute the error bars:
-    pair[] dp; // high
-    pair[] dm; // low
-    for(int i = 0; i < xyval[n].length; ++i) {
-        dp.push((0, -xyval[n][i].y + ylowhigh[n][i].y));
-        dm.push((0, -xyval[n][i].y + ylowhigh[n][i].x));
+    if(dobars) {
+        // Compute the error bars:
+        pair[] dp; // high
+        pair[] dm; // low
+        for(int i = 0; i < xyval[n].length; ++i) {
+            dp.push((0, -xyval[n][i].y + ylowhigh[n][i].y));
+            dm.push((0, -xyval[n][i].y + ylowhigh[n][i].x));
+        }
+        //write(dp);
+        //write(dm);
+        errorbars(xyval[n], dp, dm, graphpen);
     }
-    //write(dp);
-    //write(dm);
-    errorbars(xyval[n], dp, dm, graphpen);
     
     // Actualy plot things:
     draw(graph(xyval[n]), graphpen, legend, mark);
+    
 }
+
 
 xaxis(xlabel, BottomTop, LeftTicks);
 
@@ -127,8 +145,10 @@ yaxis(ylabel, (secondary_filenames != "") ? Left : LeftRight,RightTicks);
 //                                ? 60*plain.E + 40 *plain.N
 //                                 : 20*plain.E)  );
 //attach(legend(),point(plain.S), N);
-attach(legend(), point(S), 50*S);
-
+if(dolegend) {
+    attach(legend(), point(S), 50*S);
+}
+    
 if(secondary_filenames != "")
 {
   write("secondary_filenames: ", secondary_filenames);
@@ -189,7 +209,8 @@ if(secondary_filenames != "")
 
 	    
             yaxis(pic, secondaryaxis, Right, black, LeftTicks);
-	    attach(legend(pic), point(plain.E), 60*plain.E - 40 *plain.N  );
+            if(dolegend)
+                attach(legend(pic), point(plain.E), 60*plain.E - 40 *plain.N  );
             //attach(legend(pic), point(plain.S), 120*S);
         });
     add(secondarypic);

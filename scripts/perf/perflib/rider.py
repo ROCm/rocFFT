@@ -38,7 +38,8 @@ def run(rider,
         device=None,
         libraries=None,
         verbose=False,
-        timeout=300):
+        timeout=300,
+        sequence=None):
     """Run rocFFT rider and return execution times."""
     cmd = [pathlib.Path(rider).resolve()]
 
@@ -50,6 +51,10 @@ def run(rider,
     if libraries is not None:
         for library in libraries:
             cmd += ['--lib', pathlib.Path(library).resolve()]
+        if len(libraries) > 1:
+            # only use different randomizations if using dyna-rider
+            if sequence is not None:
+                cmd += ['--sequence', str(sequence)]
 
     cmd += ['-N', ntrial]
     cmd += ['-b', nbatch]

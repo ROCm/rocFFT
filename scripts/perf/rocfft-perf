@@ -153,51 +153,112 @@ def update(attr, dst, src):
 #
 
 
-def command_moods(arguments):
-    """Find significant (Moods) regressions."""
+def command_test(arguments):
+    """Test for regressions."""
+
+    # FIXME: rename and replace above comment
     
-    path = Path(arguments.output)
-
     sig = arguments.significance
+    outdirs = [Path(x) for x in arguments.runs]
+    verbose = arguments.verbose
 
-    import pandas
+    significance = arguments.significance
+    bonferroni = arguments.bonferroni
+    
+    all_runs = perflib.utils.read_runs(outdirs, verbose)
+    
+    if len(all_runs) != 2:
+        print("Error: one must provide exactly two runs for statistical comparison")
+        sys.exit(1)
+
+    import numpy
+    import scipy.stats
 
     ncompare = 0
-    df_failures = pandas.DataFrame()
+    slower = []
+    faster = []
+
+    runs = perflib.utils.by_dat(all_runs)
+    refdir, testdir = outdirs
+
     
-    sdats = sorted(list(path.glob('*.sdat')))
-    for sdat in sdats:
-        df = pandas.read_csv(sdat, delimiter='\t', comment='#')
-        ncompare += len(df.index)
-        if df_failures.empty:
-            df_failures = pandas.DataFrame(columns = df.columns)
-        df_failures = pandas.concat([df_failures, df.loc[(df['speedup_pval'] < sig)
-                                                         & (df['speedup'] < 1)]],
-                                    ignore_index = True, axis = 0 )
+    # In order to do the Bonferroni correction, We need to adjust the
+    # significance threshold based on the number of tests, so count
+    # them first.
+    for dat_name, dat_runs in runs.items():
+        refdat = dat_runs[refdir]
+        testdat = dat_runs[testdir]
+        for token, sample in refdat.get_samples():
+            if token not in testdat.samples:
+                continue
+            ncompare += 1
+    if bonferroni and ncompare > 0:
+        significance /= ncompare
+            
+    for dat_name, dat_runs in runs.items():
+        refdat = dat_runs[refdir]
+        testdat = dat_runs[testdir]
+        for token, sample in refdat.get_samples():
+            if token not in testdat.samples:
+                continue
 
-    if len(df_failures.index) > 0:
-        print("Regressions:")
-        print("token\tspeedup\tsignificance")
-    for index, row in df_failures.iterrows():
-        print(row['token'],
-              '\t', '{0:.4e}'.format(1-row['speedup']),
-              '\t', '{0:.3f}'.format(row['speedup_pval']))
+            #print(token)
+            Avals = refdat.samples[token].times
+            Bvals = testdat.samples[token].times
 
-    print()
-    print(len(df_failures.index), "regressions in", ncompare, "tests using significance",
-          arguments.significance)
-        
-    return 0 if df_failures.empty else 1
+            pval = -1
+            if arguments.method == 'moods':
+                _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
+                if pval < significance:
+                    if statistics.median(Avals) > statistics.median(Bvals):
+                        faster.append(token)
+                    else:
+                        slower.append(token)
+            elif arguments.method == 'ttest':
+                _, pval = scipy.stats.ttest_ind(Avals, Bvals)
+                if pval < significance:
+                    if numpy.mean(Avals) > numpy.mean(Bvals):
+                        faster.append(token)
+                    else:
+                        slower.append(token)
+            elif  arguments.method == 'mwu':
+                _, pval = scipy.stats.mannwhitneyu(Avals, Bvals)
+                if pval < significance:
+                    if statistics.median(Avals) > statistics.median(Bvals):
+                        faster.append(token)
+                    else:
+                        slower.append(token)                
+            else:
+                print("unsupported statistical method")
+                sys.exit(1)
 
+    if verbose:
+        print("faster:", faster)
+        print("slower:", slower)
 
-def generate_mdat(dat):
-    confidence = [['token', 'median_sample', 'median_low', 'median_high']]
+    print("nh0:", ncompare - (len(faster) + len(slower)))
+    print("nh1:", len(faster) + len(slower))
+    
+    print("ncompare:", ncompare)
+    print("faster:", len(faster))
+    print("slower:", len(slower))
+
+    return len(slower) > 0
+    
+
+def generate_mdat(dat, measure, confidence):
+    import numpy
+    vals = [['token', 'median_sample', 'median_low', 'median_high']]
     for token, sample in dat.get_samples():
-        median = statistics.median(sample.times)
-        low, high = perflib.analysis.confidence_interval(sample.times)
-        confidence.append([sample.label, median, low, high])
+        if measure == "median":
+            median = statistics.median(sample.times)
+        elif measure == "mean":
+            median = numpy.mean(sample.times)
+        low, high = perflib.analysis.confidence_interval(sample.times,
+                                                         measure=measure, confidence=confidence)
+        vals.append([sample.label, median, low, high])
     path = dat.path.with_suffix('.mdat')
-    perflib.utils.write_tsv(path, confidence, meta=dat.meta, overwrite=True)
+    perflib.utils.write_tsv(path, vals, meta=dat.meta, overwrite=True)
 
 
 def generate_pts_dat(dat):
@@ -296,6 +357,8 @@ def command_post(arguments):
     docdir = arguments.output
     verbose = arguments.verbose
 
+    import itertools
+    
     if verbose:
         print("docdir:", docdir)
         print("outdirs:", outdirs)
@@ -307,7 +370,10 @@ def command_post(arguments):
     # median confidence intervals
     for run in all_runs:
         with Pool(None) as p:
-            p.map(generate_mdat, run.dats.values())
+            p.starmap(generate_mdat,
+                      itertools.product(run.dats.values(),
+                                        [arguments.measure],
+                                        [arguments.confidence]))
             p.map(generate_pts_dat, run.dats.values())
 
     # speedup and pvals
@@ -315,7 +381,7 @@ def command_post(arguments):
         docdir = Path(docdir)
         docdir.mkdir(parents=True, exist_ok=True)
 
-        import scipy.stats
+        import scipy.stats, numpy
 
         runs = perflib.utils.by_dat(all_runs)
         refdir, *otherdirs = outdirs
@@ -335,11 +401,23 @@ def command_post(arguments):
                     sample = refdat.samples[token]
                     Avals = refdat.samples[token].times
                     Bvals = otherdat.samples[token].times
-                    speedup = statistics.median(Avals) / statistics.median(
-                        Bvals)
+                    if arguments.measure == "median":
+                        speedup = statistics.median(Avals) / statistics.median(Bvals)
+                    elif arguments.measure == "mean":
+                        speedup = numpy.mean(Avals) / numpy.mean(Bvals)
                     low, high = perflib.analysis.ratio_confidence_interval(
                         Avals, Bvals)
-                    _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
+                    pval = -1
+                    if arguments.method == 'moods':
+                        _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
+                    elif arguments.method == 'ttest':
+                        _, pval = scipy.stats.ttest_ind(Avals, Bvals)
+                    elif  arguments.method == 'mwu':
+                        _, pval = scipy.stats.mannwhitneyu(Avals, Bvals)
+                    else:
+                        print("unsupported statistical method")
+                        sys.exit(1)
+                        
                     speedups.append([sample.token, speedup, low, high, pval])
                 path = docdir / (str(otherdat.path.parent.name) + '-over-' +
                                  str(refdat.path.parent.name) + '-' +
@@ -350,7 +428,10 @@ def command_post(arguments):
                                         overwrite=True)
 
 
-def command_generate(runs=None, label=None, output=None, significance=None, type='pdf', **kwargs):
+        
+                
+def command_generate(runs=None, label=None, output=None, significance=None, bonferroni=None,
+                     type='pdf', **kwargs):
     """Generate PDF/HTML/DOCX from run results."""
 
     import perflib.pdf
@@ -370,6 +451,8 @@ def command_generate(runs=None, label=None, output=None, significance=None, type
         label = [outdir.stem for outdir in outdirs]
     reference = perflib.utils.read_run(outdirs[0])
 
+    import pandas
+    ncompare = 0
     figures = []
     for datname in perflib.utils.list_runs(outdirs[0]):
         tag = datname.stem
@@ -382,17 +465,33 @@ def command_generate(runs=None, label=None, output=None, significance=None, type
             tag, docdir, outdirs)
         figure = Figure(tag, title, caption, docdir, label, primary, secondary,
                         figtype)
-        figure.make()
+        for p in figure.secondary:
+            df = pandas.read_csv(p, sep="\t", comment='#')
+            ncompare += len(df.index)
         figures.append(figure)
+
+    print("ncompare:", ncompare)
+    if bonferroni and ncompare > 0:
+        significance /= ncompare
+    
+    for figure in figures:
+        figure.make(significance)
+        
+    if type == 'pdf':
+        pool = Pool(None)
+        for figure in figures:
+            pool.map_async(Figure.runasy, [figure])
+        pool.close()
+        pool.join()
 
     if type == 'pdf':
         perflib.pdf.make_tex(figures, docdir, outdirs, label, significance)
     if type == 'html':
         title = f"Performance report: {perflib.utils.cjoin(outdirs)}"
-        perflib.html.make_html(figures, title, docdir, outdirs)
+        perflib.html.make_html(figures, title, docdir, outdirs, significance)
     if type == 'docx':
         import perflib.docx
-        perflib.docx.make_docx(figures, docdir, outdirs)
+        perflib.docx.make_docx(figures, docdir, outdirs, significance)
 
 
 def command_run(arguments):
@@ -453,7 +552,7 @@ def command_run(arguments):
     timer = perflib.timer.GroupedTimer()
     for attr in [
             'device', 'rider', 'accutest', 'lib', 'out', 'device', 'ntrial',
-            'verbose', 'timeout'
+            'verbose', 'timeout', 'sequence'
     ]:
         update(attr, timer, arguments)
 
@@ -686,13 +785,22 @@ def command_bweff(arguments):
     logging.info("output: " + str(out))
     meta = {'title': "median values"}
     for key in medians:
-        records = [
-            key[0],  # token
-            key[1],  # index
-            key[2],  # scheme
-            statistics.median(medians[key][0]),  # duration_ms
-            statistics.median(medians[key][1])  # bw_efficiency_pct
-        ]
+        if arguments.mesaure == "median":
+            records = [
+                key[0],  # token
+                key[1],  # index
+                key[2],  # scheme
+                statistics.median(medians[key][0]),  # duration_ms
+                statistics.median(medians[key][1])  # bw_efficiency_pct
+            ]
+        elif arguments.mesaure == "mean":
+            records = [
+                key[0],  # token
+                key[1],  # index
+                key[2],  # scheme
+                numpy.mean(medians[key][0]),  # duration_ms
+                numpy.mean(medians[key][1])  # bw_efficiency_pct
+            ]
         perflib.utils.write_tsv(out, [records], meta=meta)
 
 
@@ -717,20 +825,50 @@ def main():
     pdf_parser   = subparsers.add_parser('pdf', help='generate pdf plots')
     html_parser  = subparsers.add_parser('html', help='generate html plots')
     docx_parser  = subparsers.add_parser('docx', help='generate docx plots')
-    moods_parser = subparsers.add_parser('moods', help='perform moods test')
+    test_parser = subparsers.add_parser('test', help='test for regressions')
 
     
-    for p in [post_parser, pdf_parser, html_parser, docx_parser, moods_parser]:
-        p.add_argument('output', type=str)
     for p in [post_parser, pdf_parser, html_parser, docx_parser]:
+        p.add_argument('output', type=str)
+    for p in [post_parser, pdf_parser, html_parser, docx_parser, test_parser]:
         p.add_argument('runs', type=str, nargs='+')
+
+    for p in [post_parser]:
+        p.add_argument('--confidence',
+                       type=str,
+                       choices=["bootstrap", "stdev"],
+                       help="method for generating confidence interval",
+                       default="bootstrap")
         
-    for p in [pdf_parser, html_parser, docx_parser, moods_parser]:
+    for p in [post_parser, pdf_parser, test_parser]:
+        p.add_argument('--method',
+                       type=str,
+                       choices=["moods", "ttest", "mwu"],
+                       help="statistical method",
+                       default="moods")
+    for p in [post_parser, pdf_parser, html_parser, docx_parser, test_parser]:
+        p.add_argument('--measure',
+                       type=str,
+                       choices=["mean", "median"],
+                       help="measure of central tendancy: median or mean",
+                       default="median")
+    for p in [pdf_parser, html_parser, docx_parser, test_parser]:
         p.add_argument('--significance',
                        type=float,
                        help='moods significance threshold',
                        default=0.001)
-        
+        p.add_argument('--bonferroni',
+                       action='store_true',
+                       help='Apply Bonferroni significance correction')
+        p.add_argument('--no-bonferroni', dest='bonferroni',
+                       action='store_false')
+        p.set_defaults(bonferroni=True)
+        # Python 3.9+ method:
+        # p.add_argument('--bonferroni',
+        #                help='Apply Bonferroni significance correction',
+        #                type=bool,
+        #                action=argparse.BooleanOptionalAction,
+        #                default=True)
     for p in [pdf_parser, html_parser, docx_parser]:
         p.add_argument('-l',
                        '--label',
@@ -825,13 +963,18 @@ def main():
                             '--ntrial',
                             type=int,
                             help='number of trials',
-                            default=10)
+                            default=20)
     run_parser.add_argument(
         '-T',
         '--timeout',
         type=int,
         help='test timeout in seconds (0 disables timeout)',
         default=600)
+    run_parser.add_argument(
+        '--sequence',
+        type=int,
+        help='dyna-rider test sequence',
+        default=0)
     run_parser.add_argument('-f',
                             '--precision',
                             type=str,
@@ -942,8 +1085,8 @@ def main():
     if arguments.command == 'post':
         command_post(arguments)
         
-    if arguments.command == 'moods':
-        sys.exit(command_moods(arguments))
+    if arguments.command == 'test':
+        sys.exit(command_test(arguments))
 
     if arguments.command == 'pdf':
         command_generate(type='pdf', **vars(arguments))

@@ -22,6 +22,7 @@
 // This allows one to randomize the execution order for better a better experimental setup
 // which produces fewer type 1 errors where one incorrectly rejects the null hypothesis.
 
+#include <algorithm>
 #include <hip/hip_runtime_api.h>
 #include <iostream>
 #include <math.h>
@@ -339,8 +340,11 @@ int main(int argc, char* argv[])
     // hip Device number for running tests:
     int deviceId{};
 
-    // Number of performance trial samples
+    // Number of performance trial samples:
     int ntrial{};
+
+    // Test sequence choice:
+    int test_sequence{};
 
     // Vector of test target libraries
     std::vector<std::string> libs;
@@ -361,6 +365,8 @@ int main(int argc, char* argv[])
         ("device", po::value<int>(&deviceId)->default_value(0), "Select a specific device id")
         ("verbose", po::value<int>(&verbose)->default_value(0), "Control output verbosity")
         ("ntrial,N", po::value<int>(&ntrial)->default_value(1), "Trial size for the problem")
+        ("sequence", po::value<int>(&test_sequence)->default_value(0),
+         "Test sequence: random(0), alternating(1) sequential(2)")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
         ("double", "Double precision transform (deprecated: use --precision double)")
         ("precision", po::value<fft_precision>(&params.precision), "Transform precision: single (default), double, half")
@@ -394,7 +400,7 @@ int main(int argc, char* argv[])
         ("ioffset", po::value<std::vector<size_t>>(&params.ioffset)->multitoken(), "Input offsets.")
         ("ooffset", po::value<std::vector<size_t>>(&params.ooffset)->multitoken(), "Output offsets.")
         ("scalefactor", po::value<double>(&params.scale_factor), "Scale factor to apply to output.")
-        ("token", po::value<std::string>(&token));;
+        ("token", po::value<std::string>(&token));
     // clang-format on
 
     po::variables_map vm;
@@ -677,19 +683,62 @@ int main(int argc, char* argv[])
     // Execution times for loaded libraries:
     std::vector<std::vector<double>> time(libs.size());
 
+    std::vector<int> testcase(ntrial * libs.size());
+    switch(test_sequence)
+    {
+    case 0:
+    {
+        // Random order:
+        for(int itrial = 0; itrial < ntrial; ++itrial)
+        {
+            for(size_t ilib = 0; ilib < libs.size(); ++ilib)
+            {
+                testcase[libs.size() * itrial + ilib] = ilib;
+            }
+        }
+
+        std::random_device rd;
+        std::mt19937       g(rd());
+        std::shuffle(testcase.begin(), testcase.end(), g);
+        break;
+    }
+    case 1:
+        // Alternating order:
+        for(int itrial = 0; itrial < ntrial; ++itrial)
+        {
+            for(size_t ilib = 0; ilib < libs.size(); ++ilib)
+            {
+                testcase[libs.size() * itrial + ilib] = ilib;
+            }
+        }
+        break;
+    case 2:
+        // Sequential order:
+        for(int itrial = 0; itrial < ntrial; ++itrial)
+        {
+            for(size_t ilib = 0; ilib < libs.size(); ++ilib)
+            {
+                testcase[ilib * ntrial + itrial] = ilib;
+            }
+        }
+
+        break;
+    default:
+        throw std::runtime_error("Invalid test sequence choice.");
+    }
+
+    std::cout << "test case:";
+    for(const auto i : testcase)
+        std::cout << " " << i;
+    std::cout << "\n";
+
     // Run the FFTs from the different libraries in random order until they all have at
     // least ntrial times.
     std::vector<int> ndone(libs.size());
     std::fill(ndone.begin(), ndone.end(), 0);
-    while(!std::all_of(ndone.begin(), ndone.end(), [&ntrial](int i) { return (i >= ntrial); }))
+    for(size_t itest = 0; itest < testcase.size(); ++itest)
     {
-        const int idx = rand() % ndone.size();
-        ndone[idx]++;
-
-        // We can optionally require that all runs have exactly ntrial, but it may be more
-        // iid to just let things run:
-        // if(ndone[idx] > ntrial)
-        //     continue;
+        const int idx = testcase[itest];
 
         params.compute_input(ibuffer);
 

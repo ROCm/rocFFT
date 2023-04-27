@@ -27,7 +27,7 @@ scale(Linear, Linear);
 
 string filename;
 
-int nbinmult = 0;
+int nbinmult = 2;
 
 usersetting();
 
@@ -38,18 +38,31 @@ if(filename == "") {
 file fin = input(filename).line();
 real[] a = fin;
 
+int N = nbinmult * bins(a);
 
-int N = bins(a);
-
-histogram(a, min(0,min(a)), max(0, max(a)), N, normalize=false, low=0, lightred, black, bars=true);
+histogram(a,
+          min(0,min(a)),
+          max(0, max(a)),
+          N,
+          normalize=false,
+          low=0,
+          lightred,
+          black,
+          bars=true);
 
 xequals(0.0);
 
 //label((min(a), 0), string(min(a), 3), 1.5S);
 //label((max(a), 0), string(max(a), 3), 1.5S);
 
-xaxis("Speedup \%", BottomTop, LeftTicks);
-yaxis("Number of Transforms", LeftRight, RightTicks(trailingzero));
+real Step = 0.0;
+if(max(a) - min(a) < 4) {
+    real order = ceil(log(max(a) - min(a))/log(10));
+    Step = 0.5 * 10**(order-1);
+}
+
+xaxis("Speedup \%", BottomTop, LeftTicks(Step=Step));
+yaxis("Number of Transforms", LeftRight, RightTicks);
 
 
 //add(legend(),point(E),20E);

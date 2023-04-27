@@ -46,7 +46,7 @@ def speedup_colors(speedup):
     return ret
 
 
-def significance_colors(significance, threshold=0.05):
+def significance_colors(significance, threshold):
     ret = []
     for s in significance:
         if s < threshold:
@@ -121,7 +121,7 @@ def token_to_size_description(tokens):
 
 class HTMLFigure(BaseFigure):
 
-    def make(self):
+    def make(self, sig_threshold):
         from plotly import graph_objs as go
         data_frames = to_data_frames(self.primary, self.secondary)
         for df in data_frames:
@@ -225,7 +225,8 @@ class HTMLFigure(BaseFigure):
                 values.append(
                     ["{:.4f}".format(x) for x in data_frames[i].speedup_pval])
                 fill_colors.append(
-                    significance_colors(data_frames[i].speedup_pval))
+                    significance_colors(data_frames[i].speedup_pval,
+                                        sig_threshold))
 
         table = go.Figure(data=[
             go.Table(
@@ -245,7 +246,7 @@ class HTMLFigure(BaseFigure):
         self.table = table
 
 
-def make_html(figures, title, docdir, outdirs):
+def make_html(figures, title, docdir, outdirs, significance):
     # TODO: this needs to read the output from the post-processing;
     # graphing and post-processing should be separate.
 

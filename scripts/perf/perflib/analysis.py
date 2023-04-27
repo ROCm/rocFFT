@@ -29,17 +29,31 @@ from dataclasses import dataclass
 from typing import List
 
 
-def confidence_interval(vals, alpha=0.95, nboot=2000):
+def confidence_interval(vals, measure, confidence, alpha=0.95, nboot=2000):
     """Compute the alpha-confidence interval for the given values using boot-strap resampling."""
-    medians = []
-    for iboot in range(nboot):
-        resample = []
-        for i in range(len(vals)):
-            resample.append(vals[random.randrange(len(vals))])
-        medians.append(np.median(resample))
-    medians = sorted(medians)
-    low = medians[int(np.floor(nboot * 0.5 * (1.0 - alpha)))]
-    high = medians[int(np.ceil(nboot * (1.0 - 0.5 * (1.0 - alpha))))]
+    if confidence == "bootstrap":
+        medians = []
+        for iboot in range(nboot):
+            resample = []
+            for i in range(len(vals)):
+                resample.append(vals[random.randrange(len(vals))])
+            if measure == "median":
+                medians.append(np.median(resample))
+            elif measure == "mean":
+                medians.append(np.mean(resample))
+        medians = sorted(medians)
+        low = medians[int(np.floor(nboot * 0.5 * (1.0 - alpha)))]
+        high = medians[int(np.ceil(nboot * (1.0 - 0.5 * (1.0 - alpha))))]
+    elif confidence == "stdev":
+        mean = np.mean(vals)
+        stdev = np.mean(vals)
+        # NB: assumes alpha \approx 95
+        low = mean - 2 * stdev
+        high = mean + 2 * stdev
+    else:
+        print("invalid value for confidence:", confidence)
+        import sys
+        sys.exit(1)
     return low, high
 
 
@@ -64,6 +78,7 @@ class MoodsResult:
 def moods(reference: Run, others: List[Run]):
     """Perform Moods analysis..."""
     import scipy.stats
+    import numpy
     pvals = {}
     for rname, rdat in reference.dats.items():
         for other in others:
@@ -71,9 +86,24 @@ def moods(reference: Run, others: List[Run]):
             for length in rdat.samples.keys():
                 s1 = rdat.samples[length].times
                 s2 = odat.samples[length].times
-                m1 = statistics.median(s1)
-                m2 = statistics.median(s2)
-                _, p, _, _ = scipy.stats.median_test(s1, s2)
+
+                if arguments.method == 'median':
+                    m1 = statistics.median(s1)
+                    m2 = statistics.median(s2)
+                elif arguments.mesaure == "mean":
+                    m1 = numpy.mean(s1)
+                    m2 = numpy.mean(s2)
+
+                if arguments.method == 'moods':
+                    _, pval, _, _ = scipy.stats.median_test(s1, s2)
+                elif arguments.method == 'ttest':
+                    _, pval = scipy.stats.ttest_ind(s1, s2)
+                elif arguments.method == 'mwu':
+                    _, pval = scipy.stats.mannwhitneyu(s1, s2)
+                else:
+                    print("unsupported statistical method")
+                    sys.exit(1)
+
                 pvals[other.path.name, rname,
-                      length] = MoodsResult(p, [m1, m2])
+                      length] = MoodsResult(pval, [m1, m2])
     return pvals

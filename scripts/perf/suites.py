@@ -649,6 +649,27 @@ def batched_1d_small_r2c():
                                      reals=[True])
 
 
+def batch_const_count():
+    # batch * length = 2^25 ... 2^30
+    for direction in [-1, 1]:
+        for precision in all_precisions:
+            for exp in [25, 26, 27, 28, 29, 30]:
+                for place in all_inplaces:
+                    for lexp in range(4, exp + 1):
+                        length = 2**lexp
+                        batch = 2**(exp - lexp)
+
+                        yield Problem([length],
+                                      tag=mktag("footprint2exp" + str(exp), 1,
+                                                precision, direction, False,
+                                                False),
+                                      nbatch=batch,
+                                      direction=direction,
+                                      inplace=place,
+                                      real=False,
+                                      precision=precision)
+
+
 def benchmarks():
     """Benchmarks: XXX"""
 

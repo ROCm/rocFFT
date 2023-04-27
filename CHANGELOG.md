@@ -13,6 +13,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Replaced std::complex with hipComplex data types for data generator.
 - FFT plan dimensions are now sorted to be row-major internally where possible, which produces better plans if the dimensions were accidentally specified in a different order (column-major, for example).
 - Added --precision argument to benchmark/test clients.  --double is still accepted but is deprecated as a method to request a double-precision transform.
+- Improved performance test suite statistical framework.
 
 ### Fixed
 - Fixed over-allocation of LDS in some real-complex kernels, which was resulting in kernel launch failure.

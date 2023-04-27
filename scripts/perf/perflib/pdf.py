@@ -75,12 +75,11 @@ class PDFFigure(BaseFigure):
             secondary = [x.resolve() for x in self.secondary]
             asycmd.extend(['-u', f'secondary_filenames="{cjoin(secondary)}"'])
 
-        self.filename = (Path(self.docdir) / (self.tag + '.pdf')).resolve()
         asycmd.extend(['-o', self.filename])
 
         return [str(x) for x in asycmd]
 
-    def make(self):
+    def runasy(self):
         asycommand = self.asycmd()
         logging.info('ASY: ' + sjoin(asycommand))
 
@@ -113,6 +112,9 @@ class PDFFigure(BaseFigure):
 
             print(cout)
             print(cerr)
+
+    def make(self, significance):
+        self.filename = (Path(self.docdir) / (self.tag + '.pdf')).resolve()
 
 
 gflopstext = '''\
@@ -194,6 +196,10 @@ def make_tex(figs, docdir, outdirs, label, significance, secondtype=None):
     df_all_bad = pandas.DataFrame()
 
     ncompare = 0
+    for idx, fig in enumerate(figs):
+        for p in fig.secondary:
+            df = pandas.read_csv(p, sep="\t", comment='#')
+            ncompare += len(df.index)
 
     # We need a list of speedups to compute the geometric mean via
     # sicpy.stats; the naive calculation suffers from issues with
@@ -219,8 +225,6 @@ def make_tex(figs, docdir, outdirs, label, significance, secondtype=None):
             for row in df.itertuples(index=False):
                 speedups.append(row.speedup)
 
-            ncompare += len(df.index)
-
             # Significant results:
             df_sig = df.loc[df['speedup_pval'] <= significance]
 
@@ -242,6 +246,10 @@ def make_tex(figs, docdir, outdirs, label, significance, secondtype=None):
                         row.token)
                     figtex += "$" + "\\times{}".join(str(x)
                                                      for x in length) + "$"
+
+                    if np.prod(batch) > 1:
+                        figtex += " by $" + "\\times{}".join(
+                            str(x) for x in batch) + "$"
 
                     speedup = '{0:.3f}'.format((row.speedup - 1) * 100)
                     pval = '{0:.3f}'.format(row.speedup_pval)
@@ -282,7 +290,6 @@ def make_tex(figs, docdir, outdirs, label, significance, secondtype=None):
     nspeedup = len(df_all_good.index)
     nslowdown = len(df_all_bad.index)
 
-    print("ncompare:", ncompare)
     print(
         "nspeedup  (" + label[1] + " is faster): " +
         " " * max(len(label[0]) - len(label[1]), 0), nspeedup)
@@ -358,6 +365,33 @@ def make_tex(figs, docdir, outdirs, label, significance, secondtype=None):
     tex += "\\clearpage\n"
 
     tex += figtex
+
+    if nspeedup > 0:
+        tex += "\\clearpage\n"
+        tex += "tokens for improved performance\n"
+        tex += "\\begin{tiny}"
+        tex += "\\begin{verbatim}"
+        for row in df_all_good.itertuples(index=False):
+            #print(row.token)
+
+            tex += str(row.token) + "\n"
+            #tex += "\\small\\texttt{" + str(row.token).replace("_", "\\_") + "}\n"
+            #tex += str(row.token).replace("_", "\\_") + "\n"
+        tex += "\\end{verbatim}"
+        tex += "\\end{tiny}"
+
+    if nslowdown > 0:
+        print("There were", nslowdown, "regressions.  The tokens are:")
+        tex += "\\clearpage\n"
+        tex += "tokens for regressed performance\n"
+        tex += "\\begin{tiny}"
+        tex += "\\begin{verbatim}"
+        for row in df_all_bad.itertuples(index=False):
+            print(row.token)
+            tex += str(row.token) + "\n"
+            #tex += "\\small\\texttt{" + str(row.token).replace("_", "\\_") + "}\n"
+        tex += "\\end{verbatim}"
+        tex += "\\end{tiny}"
 
     tex += "\n\\end{document}\n"
 
