@@ -50,7 +50,7 @@ else()
   endif()
 endif()
 
-set( package_targets rocfft rocfft_rtc_helper )
+set( package_targets rocfft )
 target_include_directories( rocfft_rtc_helper
   PRIVATE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
@@ -522,19 +522,31 @@ rocm_install_targets(
   ${CMAKE_BINARY_DIR}/include
   )
 
-# kernel cache needs to go next to the library - Linux puts shared
+# kernel cache is architecture-dependent data for the library, placed
+# in a rocFFT subdirectory next to the library.  Linux puts shared
 # objects in lib, Windows puts DLLs in bin
 if(WIN32)
-  set(ROCFFT_KERNEL_CACHE_INSTALL_DIR ${CMAKE_INSTALL_BINDIR})
+  set(ROCFFT_KERNEL_CACHE_INSTALL_DIR ${CMAKE_INSTALL_BINDIR}/rocfft)
 else()
-  set(ROCFFT_KERNEL_CACHE_INSTALL_DIR ${ROCM_INSTALL_LIBDIR})
+  set(ROCFFT_KERNEL_CACHE_INSTALL_DIR ${ROCM_INSTALL_LIBDIR}/rocfft)
 endif()
 rocm_install(FILES ${ROCFFT_KERNEL_CACHE_PATH}
   DESTINATION "${ROCFFT_KERNEL_CACHE_INSTALL_DIR}"
   COMPONENT runtime
 )
 
-#         PERMISSIONS OWNER_EXECUTE OWNER_WRITE OWNER_READ GROUP_EXECUTE GROUP_READ WORLD_EXECUTE WORLD_READ
+# rtc helper is an internal library executable on Linux, placed in a
+# rocFFT subdirectory of the library directory.  On Windows it goes
+# into bin next to the library, to simplify finding DLLs.
+if(WIN32)
+  set(ROCFFT_RTC_HELPER_INSTALL_DIR ${CMAKE_INSTALL_BINDIR})
+else()
+  set(ROCFFT_RTC_HELPER_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/rocfft )
+endif()
+rocm_install(PROGRAMS $<TARGET_FILE:rocfft_rtc_helper>
+  DESTINATION "${ROCFFT_RTC_HELPER_INSTALL_DIR}"
+  COMPONENT runtime
+)
 
 rocm_export_targets(
   TARGETS roc::rocfft

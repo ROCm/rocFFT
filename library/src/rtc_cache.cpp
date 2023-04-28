@@ -44,21 +44,29 @@ static const char* default_cache_filename = "rocfft_kernel_cache.db";
 // in-process instead of making everything go to subprocess.
 static std::mutex compile_lock;
 
-// Get path to system RTC cache - returns empty if no suitable path
-// can be found
-static fs::path rtccache_db_sys_path()
+// Get paths to system RTC cache, in decreasing order of preference.
+static std::vector<fs::path> rtccache_db_sys_paths()
 {
     // if env var is set, use that directly
-    auto env_path = rocfft_getenv("ROCFFT_RTC_SYS_CACHE_PATH");
+    std::vector<fs::path> paths;
+    auto                  env_path = rocfft_getenv("ROCFFT_RTC_SYS_CACHE_PATH");
+
     if(!env_path.empty())
-        return env_path;
-    auto lib_path = get_library_path();
-    if(!lib_path.empty())
     {
-        fs::path library_parent_path = lib_path.parent_path();
-        return library_parent_path / default_cache_filename;
+        paths.push_back(env_path);
     }
-    return {};
+    else
+    {
+        auto lib_path = get_library_path();
+        if(!lib_path.empty())
+        {
+            // try next to the library, and in rocfft subdir
+            fs::path library_parent_path = lib_path.parent_path();
+            paths.push_back(library_parent_path / default_cache_filename);
+            paths.push_back(library_parent_path / "rocfft" / default_cache_filename);
+        }
+    }
+    return paths;
 }
 
 // Get list of candidate paths to RTC user cache DB, in decreasing
@@ -132,9 +140,13 @@ sqlite3_ptr RTCCache::connect_db(const fs::path& path, bool readonly)
 
 RTCCache::RTCCache()
 {
-    auto sys_path = rtccache_db_sys_path();
-    if(!sys_path.empty())
-        db_sys = connect_db(sys_path, true);
+    auto sys_paths = rtccache_db_sys_paths();
+    for(const auto& p : sys_paths)
+    {
+        db_sys = connect_db(p, true);
+        if(db_sys)
+            break;
+    }
 
     auto paths = rtccache_db_user_paths();
     for(const auto& p : paths)

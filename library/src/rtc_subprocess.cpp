@@ -74,12 +74,8 @@ static fs::path find_rtc_helper()
         helper_dirs.push_back(library_parent_path);
 
         // try in a versioned library subdirectory
-        fs::path subdir_path = library_path.parent_path() / "rocfft" / ROCFFT_VERSION_STRING;
+        fs::path subdir_path = library_parent_path / "rocfft" / ROCFFT_VERSION_STRING;
         helper_dirs.push_back(subdir_path);
-
-        // try bin dir, one dir up from library
-        fs::path bin_path = library_parent_path.parent_path() / "bin";
-        helper_dirs.push_back(bin_path);
 
         // look for helper in the candidate directories
         for(const auto& dir : helper_dirs)

@@ -2,6 +2,13 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
+## (Unreleased) rocFFT 1.0.24
+
+### Changed
+
+- Moved rocfft_rtc_helper executable to lib/rocFFT directory on Linux.
+- Moved library kernel cache to lib/rocFFT directory.
+
 ## (Unreleased) rocFFT 1.0.23
 
 ### Added
