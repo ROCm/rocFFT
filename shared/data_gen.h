@@ -370,7 +370,7 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
         idx *= dist;
 
         auto pos  = idx + idy * ystride;
-        auto cpos = idx + ((Ny - idy) % Ny) * ystride;
+        auto cpos = idx + (idy == 0 ? 0 : (Ny - idy)) * ystride;
 
         auto val = x[pos];
 
@@ -435,7 +435,7 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
         idx *= dist;
 
         auto pos  = idx + idy * ystride;
-        auto cpos = idx + ((Ny - idy) % Ny) * ystride;
+        auto cpos = idx + (idy == 0 ? 0 : (Ny - idy)) * ystride;
 
         auto valreal = xreal[pos];
         auto valimag = ximag[pos];
@@ -510,8 +510,9 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DAT
     {
         idx *= dist;
 
-        auto pos  = idx + idy * ystride + idz * zstride;
-        auto cpos = idx + ((Ny - idy) % Ny) * ystride + ((Nz - idz) % Nz) * zstride;
+        auto pos = idx + idy * ystride + idz * zstride;
+        auto cpos
+            = idx + (idy == 0 ? 0 : (Ny - idy)) * ystride + (idz == 0 ? 0 : (Nz - idz)) * zstride;
 
         // Origin
         if(idy == 0 && idz == 0)
@@ -657,8 +658,9 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DAT
     {
         idx *= dist;
 
-        auto pos  = idx + idy * ystride + idz * zstride;
-        auto cpos = idx + ((Ny - idy) % Ny) * ystride + ((Nz - idz) % Nz) * zstride;
+        auto pos = idx + idy * ystride + idz * zstride;
+        auto cpos
+            = idx + (idy == 0 ? 0 : (Ny - idy)) * ystride + (idz == 0 ? 0 : (Nz - idz)) * zstride;
 
         // Origin
         if(idy == 0 && idz == 0)
