@@ -254,6 +254,7 @@ def command_tuning(arguments):
         if success:
             single_merging_meta['problem'] = prob
             single_merging_meta['outfile'] = outfile
+            single_merging_meta['token'] = token
             merging_metadata.append(deepcopy(single_merging_meta))
 
     del os.environ['ROCFFT_RTC_CACHE_PATH']
@@ -275,6 +276,45 @@ def command_tuning(arguments):
     # this file will be used in merging
     merging_metadata_file = open(workspace / 'merging_meta_data.json', 'w')
     json.dump(merging_metadata, merging_metadata_file)
+
+
+def validate(validator, testing_meta_data):
+
+    for single_meta in testing_meta_data:
+        prob = single_meta['problem']
+        new_single_solution_file = Path(single_meta['outfile'])
+        print("\nAccuracy test for the new solution {}...".format(
+            new_single_solution_file))
+
+        # check the solution map file
+        if not new_single_solution_file.exists():
+            print("\tNot valid solution map file found! Abort")
+            continue
+
+        # set the explicit solution map filepath for running test
+        os.environ['ROCFFT_READ_EXPLICIT_SOL_MAP_FILE'] = str(
+            new_single_solution_file)
+
+        # use token, change batch to at least 10
+        # since we are running validation, not perf
+        token = str(single_meta['token'])
+        if prob['nbatch'] < 10:
+            old_batch_str = '_batch_' + str(prob['nbatch']) + '_'
+            new_batch_str = '_batch_10_'
+            token = token.replace(old_batch_str, new_batch_str)
+
+        # run rocfft-test
+        single_meta['Valid'] = perflib.tuner.accuracy_test(
+            validator,
+            prob['length'],
+            direction=prob['direction'],
+            real=prob['real'],
+            inplace=prob['inplace'],
+            precision=str(prob['precision']),
+            nbatch=max(prob['nbatch'], 10),
+            token=token)
+
+        del os.environ['ROCFFT_READ_EXPLICIT_SOL_MAP_FILE']
 
 
 def output_merge_file(solution_merger, old_sol_filepath, insertions,
@@ -341,28 +381,40 @@ def command_merging(arguments):
     reference_sol_folder = Path(arguments.ref_sol_folder)
     reference_file = reference_sol_folder / sol_map_filename
 
-    # check if everything is setup well...
-    print("The local AMDGPU is {}".format(prefix))
-
-    print("\nThe reference solution map file is {}...".format(reference_file))
-    if not reference_file.exists():
-        print("\tNot valid reference solution map file found! " \
-            "Will compare with the default plan/kernels in rocFFT\n")
-
-    RunRecord = {}
+    # check if everything is well...
+    print("\nThe local AMDGPU is {}".format(prefix))
 
     os.environ['ROCFFT_LAYER'] = '64'
 
     # we disable the build-in solution library,
     os.environ['ROCFFT_USE_EMPTY_SOL_MAP'] = '1'
 
+    # Do validation first to make it more robust:
+    #   Our kernels might still have un-discovered bugs so we need to do that.
+    #   Finding incorrect kernels also helps us improving kernels.
+    print("\n###############################################")
+    print("First, run validation to skip wrong solutions..")
+    print("###############################################")
+    validate(arguments.validator, merging_meta_data)
+
+    RunRecord = {}
+
     # First Run - reference
     os.environ['ROCFFT_READ_SOL_MAP_FROM_FOLDER'] = str(reference_sol_folder)
 
-    print("###################################")
+    print("\n###################################")
     print("First run with reference solution..")
     print("###################################\n")
+    print(
+        "The reference solution map file is {}...\n\n".format(reference_file))
+    if not reference_file.exists():
+        print("\tNot valid reference solution map file found! " \
+            "Will compare with the default plan/kernels in rocFFT\n")
+
     for single_meta in merging_meta_data:
+        if not single_meta['Valid']:
+            continue
+
         prob = single_meta['problem']
         token, times, success, solToken, matchType = perflib.rider.run(
             arguments.rider,
@@ -378,7 +430,8 @@ def command_merging(arguments):
         times_str = ' '.join(str(t) for t in times)
         print("\ntoken: " + token)
         print("found root solution with key: " + solToken)
-        print("times: " + times_str)
+        print("times: " + times_str + '\n')
+        print('---------------------------------------------------\n')
         times = flatten(times)
 
         RunRecord[token] = {
@@ -388,20 +441,23 @@ def command_merging(arguments):
         }
 
     # Second Run - load new solution map from "ROCFFT_READ_EXPLICIT_SOL_MAP_FILE"
-
-    print("\n\n\n###################################")
+    print("\n###################################")
     print("Second run with new solution map...")
     print("###################################\n")
     for single_meta in merging_meta_data:
+        if not single_meta['Valid']:
+            continue
+
         # get the <problem, out_solution_path> information
         prob = single_meta['problem']
         new_single_solution_file = Path(single_meta['outfile'])
         # check the solution map file
-        print("\nThe testing solution map file is {}...".format(
+        print("The testing solution map file is {}...\n".format(
             new_single_solution_file))
         if not new_single_solution_file.exists():
             print("\tNot valid solution map file found! Abort")
             continue
+
         # set the explicit solution map filepath
         os.environ['ROCFFT_READ_EXPLICIT_SOL_MAP_FILE'] = str(
             new_single_solution_file)
@@ -419,7 +475,8 @@ def command_merging(arguments):
         times_str = ' '.join(str(t) for t in times)
         print("\ntoken: " + token)
         print("found root solution with key: " + solToken)
-        print("times: " + times_str)
+        print("times: " + times_str + '\n')
+        print('---------------------------------------------------\n')
         times = flatten(times)
 
         RunRecord[token].update({
@@ -443,18 +500,27 @@ def command_merging(arguments):
 
     del os.environ['ROCFFT_USE_EMPTY_SOL_MAP']
     del os.environ['ROCFFT_READ_SOL_MAP_FROM_FOLDER']
-    del os.environ['ROCFFT_READ_EXPLICIT_SOL_MAP_FILE']
+    if 'ROCFFT_READ_EXPLICIT_SOL_MAP_FILE' in os.environ:
+        del os.environ['ROCFFT_READ_EXPLICIT_SOL_MAP_FILE']
 
     NewSolutionsToInsert = []
     InsertionInfo = {}
 
     # Analysis Summary
     print('\n==================\n[Merge Summaries]\n==================')
+    for single_meta in merging_meta_data:
+        if not single_meta['Valid']:
+            print('\n===================================================')
+            print("The solution in {}:".format(single_meta['outfile']))
+            print("\tFailed the accuracy test. Please be aware of this")
+            continue
+
     for token, result in RunRecord.items():
         # the problem is not contained in our new solution map, don't waste time comparing
         # but it's possible RefSolToken is "" which means we didn't have the solution before
         if result['NewSolToken'] == "":
             continue
+
         speed_up = result['SpeedUp']
         signficance = result['Significance']
         confident: bool = signficance <= 0.05
@@ -522,8 +588,13 @@ def main():
 
     parser.add_argument('--rider',
                         type=str,
-                        help='rider executable path, used when merging',
+                        help='rocfft-rider executable path, used when merging',
                         default='./build/release/clients/staging/rocfft-rider')
+
+    parser.add_argument('--validator',
+                        type=str,
+                        help='rocfft-test executable path, used when merging',
+                        default='./build/release/clients/staging/rocfft-test')
 
     #################
     # TUNING COMMAND

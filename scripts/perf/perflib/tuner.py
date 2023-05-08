@@ -120,6 +120,79 @@ def run(tuner,
     return token, outFileName, msg, success
 
 
+def accuracy_test(validator,
+                  length,
+                  direction=-1,
+                  real=False,
+                  inplace=True,
+                  precision='single',
+                  nbatch=1,
+                  token=None):
+    """Run rocFFT test."""
+    cmd = [pathlib.Path(validator).resolve()]
+
+    cmd += ['--gtest_filter=man*']
+
+    # use token if we have it
+    if token != None:
+        cmd += ['--token', token]
+    # else, specify each arg
+    else:
+        if isinstance(length, int):
+            cmd += ['--length', length]
+        else:
+            cmd += ['--length'] + list(length)
+
+        cmd += ['-b', nbatch]
+        if not inplace:
+            cmd += ['-o']
+        if precision == 'half':
+            cmd += ['--precision', 'half']
+        elif precision == 'single':
+            cmd += ['--precision', 'single']
+        elif precision == 'double':
+            cmd += ['--precision', 'double']
+
+        if real:
+            if direction == -1:
+                cmd += ['-t', 2, '--itype', 2, '--otype', 3]
+            if direction == 1:
+                cmd += ['-t', 3, '--itype', 3, '--otype', 2]
+        else:
+            if direction == -1:
+                cmd += ['-t', 0]
+            if direction == 1:
+                cmd += ['-t', 1]
+
+    cmd = [str(x) for x in cmd]
+    logging.info('accuracy testing: ' + ' '.join(cmd))
+    print('accuracy testing: ' + ' '.join(cmd))
+
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    try:
+        proc.wait(timeout=None)
+    except subprocess.TimeoutExpired:
+        logging.info("killed")
+        proc.kill()
+
+    passToken = "[  PASSED  ] 1 test"
+    passed = False
+
+    for line in proc.stdout:
+        line = line.decode('utf-8').rstrip('\n')
+        if line.startswith(passToken):
+            print(line)
+            passed = True
+            break
+
+    success = (proc.returncode == 0) and passed
+
+    if not success:
+        print('[  FAILED  ]: ' + ' '.join(cmd))
+
+    return success
+
+
 def merge(merger,
           base_file_path,
           new_files,
