@@ -241,7 +241,8 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
                 gp.lds_bytes /= 2;
         }
     }
-    if((scheme == CS_KERNEL_STOCKHAM_BLOCK_CC || scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
+    // SBCC support half-lds conditionally
+    if((scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
        && (dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT) && (ebtype == EmbeddedType::NONE))
     {
         if(function_pool::has_function(key))
@@ -251,6 +252,8 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
                 gp.lds_bytes /= 2;
         }
     }
+    // NB:
+    //   SBCR / SBRC are not able to use half-lds due to both of them can't satisfy dir-to/from-registers at them same time.
 
     // Confirm that the requested LDS bytes will fit into what the
     // device can provide.  If it can't, we've made a mistake in our

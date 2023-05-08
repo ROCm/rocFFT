@@ -35,6 +35,7 @@ static std::regex regEx("[^:;,\"\\{\\}\\[\\s]+", std::regex_constants::optimize)
 
 static const char* def_solution_map_path = "rocfft_solution_map.dat";
 
+const int   solution_map::VERSION                       = 1;
 const char* solution_map::KERNEL_TOKEN_BUILTIN_KERNEL   = "kernel_token_builtin_kernel";
 const char* solution_map::LEAFNODE_TOKEN_BUILTIN_KERNEL = "leafnode_token_builtin_kernel";
 
@@ -68,20 +69,11 @@ SolutionNodeType StrToSolutionNodeType(const std::string& str)
     return str2SNT.at(str);
 }
 
-static fs::path get_solution_map_path(const std::string& arch = "any")
+static fs::path get_solution_map_path(const std::string& read_folder,
+                                      const std::string& arch = "any")
 {
-    // if folder of data is set, find file in that folder,
-    // else search in the library folder
-    std::string folder_str = rocfft_getenv("ROCFFT_SOLUTION_MAP_FOLDER");
-    fs::path    folder_path(folder_str.c_str());
-    if(folder_str.empty())
-    {
-        auto lib_path = get_library_path();
-        if(lib_path.empty())
-            return {};
-
-        folder_path = lib_path.parent_path();
-    }
+    // find file in that folder,
+    fs::path folder_path(read_folder.c_str());
 
     // search the file with the arch prefix
     std::string prefix(arch + "_");
@@ -200,6 +192,35 @@ struct FromString<ProblemKey>
     }
 };
 
+template <>
+struct ToString<SolMapEntry>
+{
+    std::string print(const SolMapEntry& value) const
+    {
+        static const std::string blanks(14, ' ');
+
+        std::string str = "\n{";
+        str += FieldDescriptor<ProblemKey>().describe("Problem", value.first) + ",\n ";
+        str += VectorFieldDescriptor<SolutionNode>().describe(
+            "Solutions", value.second, true, blanks);
+        str += "}";
+        return str;
+    }
+};
+
+template <>
+struct FromString<SolMapEntry>
+{
+    void Get(SolMapEntry& ret, std::sregex_token_iterator& current) const
+    {
+        FieldParser<ProblemKey>().parse("Problem", ret.first, current);
+        VectorFieldParser<SolutionNode>().parse("Solutions", ret.second, current);
+    }
+};
+
+//////////////////////
+// Private Functions
+//////////////////////
 // private version called by constructor
 size_t solution_map::add_solution_private(const ProblemKey& probKey, const SolutionNode& solution)
 {
@@ -245,32 +266,85 @@ bool solution_map::SolutionNodesAreEqual(const SolutionNode& lhs,
     return true;
 }
 
+bool solution_map::remove_solution_bottom_up(SolutionNodeVec& nodeVec,
+                                             SolutionNode&    node,
+                                             size_t           pos)
+{
+    node.to_be_removed = true;
+
+    // this node is going to be removed, so the following elements change position.
+    // We need to update their parent_sol_ptr 's option_id
+    size_t i = pos + 1;
+    for(; i < nodeVec.size(); ++i)
+    {
+        auto& ref_ptrs = nodeVec[i].parent_sol_ptrs;
+        for(auto& ptr : ref_ptrs)
+            ptr->child_option -= 1;
+    }
+
+    // remove node and its parent solution nodes
+    for(auto& parent : node.parent_sol_nodes)
+    {
+        SolutionNodeVec& vec = *(parent->self_vec);
+        auto             it  = std::find(vec.begin(), vec.end(), *parent);
+        size_t           idx = it - vec.begin();
+        // recursion
+        remove_solution_bottom_up(vec, *parent, idx);
+    }
+
+    return true;
+}
+
+void solution_map::generate_link_info()
+{
+    for(auto& [key, value] : primary_sol_map)
+    {
+        SolutionNodeVec& solNodeVec = value;
+        for(SolutionNode& node : solNodeVec)
+        {
+            // update the self_vec
+            node.self_vec = &solNodeVec;
+
+            for(auto& child_node_ptr : node.solution_childnodes)
+            {
+                ProblemKey    pKey(key.arch, child_node_ptr.child_token);
+                SolutionNode& child = get_solution_node(pKey, child_node_ptr.child_option);
+
+                // update children's parent infos
+                child.parent_sol_nodes.push_back(&node);
+                child.parent_sol_ptrs.push_back(&child_node_ptr);
+            }
+        }
+    }
+}
+
+//////////////////////
+// Public Functions
+//////////////////////
 void solution_map::setup()
 {
-    // set ROCFFT_READ_SOL_MAP_ENABLE to enable solution map reading
-    // default is false for now
-    if(!rocfft_getenv("ROCFFT_READ_SOL_MAP_ENABLE").empty())
+    // if we have speicified an explicit file-path, then read from it,
+    std::string explict_read_path_str = rocfft_getenv("ROCFFT_READ_EXPLICIT_SOL_MAP_FILE");
+    if(!explict_read_path_str.empty())
     {
-        // if we have speicified an explicit file-path, then read from it,
-        std::string explict_read_path_str = rocfft_getenv("ROCFFT_READ_EXPLICIT_SOL_MAP_FILE");
-        if(!explict_read_path_str.empty())
-        {
-            fs::path read_from_path(explict_read_path_str.c_str());
-            read_solution_map_data(read_from_path);
-        }
-        // otherwise we read with a default file name arch_rocfft_solution_map.dat
-        // under the folder set in envvar ROCFFT_SOLUTION_MAP_FOLDER
-        else
-        {
-            // read data from any_arch
-            auto sol_map_input = get_solution_map_path();
-            read_solution_map_data(sol_map_input);
+        fs::path read_from_path(explict_read_path_str.c_str());
+        read_solution_map_data(read_from_path);
+        return;
+    }
 
-            // read data from current arch
-            auto deviceProp = get_curr_device_prop();
-            sol_map_input   = get_solution_map_path(get_arch_name(deviceProp));
-            read_solution_map_data(sol_map_input);
-        }
+    // set ROCFFT_READ_SOL_MAP_FROM_FOLDER to enable reading solution map text files in runtime
+    // default is empty
+    std::string read_folder_str = rocfft_getenv("ROCFFT_READ_SOL_MAP_FROM_FOLDER");
+    if(!read_folder_str.empty())
+    {
+        // read data from any_arch
+        auto sol_map_input = get_solution_map_path(read_folder_str);
+        read_solution_map_data(sol_map_input);
+
+        // read data from current arch
+        auto deviceProp = get_curr_device_prop();
+        sol_map_input   = get_solution_map_path(read_folder_str, get_arch_name(deviceProp));
+        read_solution_map_data(sol_map_input);
     }
 }
 
@@ -400,6 +474,34 @@ size_t solution_map::add_solution(const ProblemKey&   probKey,
     return sol_vec.size() - 1;
 }
 
+// parse the format version of the input file, call by converter
+bool solution_map::get_solution_map_version(const fs::path& sol_map_in_path)
+{
+    if(LOG_TRACE_ENABLED())
+        (*LogSingleton::GetInstance().GetTraceOS())
+            << "reading solution map data from: " << sol_map_in_path.c_str() << std::endl;
+
+    if(fs::exists(sol_map_in_path))
+    {
+        std::ifstream in_file(sol_map_in_path.c_str());
+        std::string   line;
+
+        while(std::getline(in_file, line))
+        {
+            std::size_t found = line.find("Version");
+            if(found != std::string::npos)
+            {
+                std::sregex_token_iterator tokens{line.begin(), line.end(), regEx, 0};
+                FieldParser<int>().parse("Version", self_version, tokens);
+                break;
+            }
+        }
+        return true;
+    }
+
+    return false;
+}
+
 // read the map from input stream
 bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path, bool primary_map)
 {
@@ -414,9 +516,8 @@ bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path, bool 
         std::ifstream in_file(sol_map_in_path.c_str());
         std::string   line;
 
-        while(in_file.good())
+        while(std::getline(in_file, line))
         {
-            std::getline(in_file, line);
             solution_map_text += line;
         }
     }
@@ -428,14 +529,58 @@ bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path, bool 
 
     std::sregex_token_iterator tokens{solution_map_text.begin(), solution_map_text.end(), regEx, 0};
     std::sregex_token_iterator endIt;
-    for(; tokens != endIt; ++tokens)
+    if(tokens == endIt)
     {
-        ProblemKey                probKey;
-        std::vector<SolutionNode> solutionVec;
-        FieldParser<ProblemKey>().parse("Problem", probKey, tokens);
-        VectorFieldParser<SolutionNode>().parse("Solutions", solutionVec, tokens);
-        dst_map.emplace(probKey, solutionVec);
+        if(LOG_TRACE_ENABLED())
+            (*LogSingleton::GetInstance().GetTraceOS())
+                << "\tfile not found or file is empty" << std::endl;
+        return false;
     }
+
+    // should be latest version as long as it's not called by converter
+    if(assume_latest_ver)
+    {
+        try
+        {
+            FieldParser<int>().parse("Version", self_version, tokens);
+            if(self_version != solution_map::VERSION)
+                throw std::runtime_error("format version of the input file is not the latest, "
+                                         "please execute the solution map converter first.");
+
+            // always do the latest version reading here
+            std::vector<SolMapEntry> entry_vec;
+            VectorFieldParser<SolMapEntry>().parse("Data", entry_vec, tokens);
+            for(auto& entry : entry_vec)
+                dst_map.emplace(entry.first, entry.second);
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << std::endl;
+            return false;
+        }
+
+        return true;
+    }
+
+    /* only converter reaches here, and the self_version was already parsed outside.
+       we always put the latest reading in (assume_latest_ver) block, and move old reading below*/
+
+    // reading the oldest format: no version number, i.e, is 0
+    if(self_version == 0)
+    {
+        for(; tokens != endIt; ++tokens)
+        {
+            ProblemKey                probKey;
+            std::vector<SolutionNode> solutionVec;
+            FieldParser<ProblemKey>().parse("Problem", probKey, tokens);
+            VectorFieldParser<SolutionNode>().parse("Solutions", solutionVec, tokens);
+            dst_map.emplace(probKey, solutionVec);
+        }
+    }
+    // handling other version in the future
+    // else if() { ... }
+    // else if() { ... }
+
     return true;
 }
 
@@ -457,47 +602,19 @@ bool solution_map::write_solution_map_data(const fs::path& sol_map_out_path,
     std::stringstream ss;
     ProbSolMap&       writing_map = (primary_map) ? primary_sol_map : temp_working_map;
 
-    std::string COMMA = "";
-    ss << "[" << std::endl;
+    std::vector<SolMapEntry> entry_vec;
+    for(auto& [key, value] : writing_map)
+        entry_vec.push_back(std::make_pair(key, value));
 
-    std::string blanks(15, ' ');
+    // sort !
     if(sort)
-    {
-        std::vector<std::pair<ProblemKey, SolutionNodeVec>> sortVec;
-        for(auto& [key, value] : writing_map)
-            sortVec.push_back(std::make_pair(key, value));
+        std::sort(entry_vec.begin(), entry_vec.end(), ProbSolCmp);
 
-        // sort !
-        std::sort(sortVec.begin(), sortVec.end(), ProbSolCmp);
-
-        for(auto& [key, value] : sortVec)
-        {
-            ss << COMMA;
-            ss << "{" << FieldDescriptor<ProblemKey>().describe("Problem", key) << "," << std::endl
-               << "  "
-               << VectorFieldDescriptor<SolutionNode>().describe("Solutions", value, true, blanks)
-               << "}" << std::endl;
-
-            if(COMMA.size() == 0)
-                COMMA = ",";
-        }
-    }
-    else
-    {
-        for(auto& [key, value] : writing_map)
-        {
-            ss << COMMA;
-            ss << "{" << FieldDescriptor<ProblemKey>().describe("Problem", key) << "," << std::endl
-               << "  "
-               << VectorFieldDescriptor<SolutionNode>().describe("Solutions", value, true, blanks)
-               << "}" << std::endl;
-
-            if(COMMA.size() == 0)
-                COMMA = ",";
-        }
-    }
-
-    ss << "]" << std::endl;
+    // write version at the beginning
+    ss << "{";
+    ss << FieldDescriptor<int>().describe("Version", solution_map::VERSION) << "," << std::endl;
+    ss << VectorFieldDescriptor<SolMapEntry>().describe("Data", entry_vec) << std::endl;
+    ss << "}";
 
     outfile << ss.str();
     outfile.close();
@@ -561,6 +678,117 @@ bool solution_map::merge_solutions_from_file(const fs::path&                src_
         if(option_id != 0)
             throw std::runtime_error(
                 "Merge failed. Inserting solution of a root-problem should return an index 0");
+    }
+
+    return true;
+}
+
+//////////////////////
+// Version Converter
+//////////////////////
+bool SolutionMapConverter::remove_invalid_half_lds()
+{
+    static const std::set<ComputeScheme> no_half_lds
+        = {CS_KERNEL_STOCKHAM_BLOCK_CR,
+           CS_KERNEL_STOCKHAM_BLOCK_RC,
+           CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z,
+           CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY,
+           CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY};
+
+    auto& sol_map = solution_map::get_solution_map();
+
+    // generate the parent's info for back reference
+    sol_map.generate_link_info();
+
+    // mark those nodes need removing
+    for(auto& [key, value] : sol_map.primary_sol_map)
+    {
+        SolutionNodeVec& solNodeVec = value;
+        for(size_t i = 0; i < solNodeVec.size(); ++i)
+        {
+            SolutionNode& node = solNodeVec[i];
+            if(node.sol_node_type == SOL_KERNEL_ONLY)
+            {
+                ComputeScheme scheme = std::get<2>(node.kernel_key);
+                KernelConfig& config = std::get<4>(node.kernel_key);
+                if(config.half_lds && no_half_lds.count(scheme))
+                {
+                    sol_map.remove_solution_bottom_up(solNodeVec, node, i);
+                }
+            }
+            else
+            {
+                break;
+            }
+        }
+    }
+
+    // erase nodes, and check if any entry need removing
+    std::set<ProblemKey> to_be_removed_keys;
+    for(auto& [key, value] : sol_map.primary_sol_map)
+    {
+        SolutionNodeVec& solNodeVec = value;
+        for(size_t i = 0; i < solNodeVec.size(); ++i)
+        {
+            SolutionNode& node = solNodeVec[i];
+            if(node.to_be_removed)
+            {
+                solNodeVec.erase(solNodeVec.begin() + i);
+                --i; // stay at the same position after removing this element
+            }
+        }
+        if(solNodeVec.empty())
+            to_be_removed_keys.insert(key);
+    }
+
+    // remove entries with zero-length sol-node-vec
+    for(const auto& key : to_be_removed_keys)
+        sol_map.primary_sol_map.erase(key);
+
+    return true;
+}
+
+bool SolutionMapConverter::VersionCheckAndConvert(const std::string& in_map_path,
+                                                  const std::string& out_map_path)
+{
+    auto& sol_map = solution_map::get_solution_map();
+
+    try
+    {
+        // don't assert latest version, so that we can read any version in read_solution_map_data()
+        sol_map.assume_latest_ver = false;
+
+        // parse the version individually first
+        if(sol_map.get_solution_map_version(in_map_path) == false)
+            return false;
+
+        // the read function should be able to read the file according to the parsed self_version
+        if(sol_map.read_solution_map_data(in_map_path) == false)
+            return false;
+
+        bool has_conversion = sol_map.self_version != solution_map::VERSION;
+
+        // ---------
+        // some actions that convert the current data to the latest one
+        if(sol_map.self_version == 0)
+            remove_invalid_half_lds();
+
+        // other actions that need to make it fitting latest version
+        // ---------
+
+        if(has_conversion)
+        {
+            std::cout << "successfully converted solution map from version(" << sol_map.self_version
+                      << ") to latest version(" << solution_map::VERSION << ").\n";
+            return sol_map.write_solution_map_data(out_map_path);
+        }
+        else
+            std::cout << "solution map is already at the latest version.\n";
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << std::endl;
+        return false;
     }
 
     return true;

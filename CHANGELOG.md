@@ -4,6 +4,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## (Unreleased) rocFFT 1.0.24
 
+### Added
+- Implemented a solution map version converter and finish the first conversion from ver.0 to ver.1. Where version 1 removes some incorrect kernels (sbrc/sbcr using half_lds)
+
 ### Changed
 
 - Moved rocfft_rtc_helper executable to lib/rocFFT directory on Linux.

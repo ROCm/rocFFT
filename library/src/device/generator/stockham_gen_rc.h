@@ -89,7 +89,8 @@ struct StockhamKernelRC : public StockhamKernel
 
     StatementList set_lds_is_real() override
     {
-        return {Declaration{lds_is_real, Literal{half_lds ? "true" : "false"}}};
+        // SBRC can't support half-lds
+        return {Declaration{lds_is_real, Literal{"false"}}};
     }
 
     StatementList store_global_generator(unsigned int h,

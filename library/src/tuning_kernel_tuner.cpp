@@ -296,8 +296,13 @@ std::set<std::vector<size_t>>
     return ret;
 }
 
-std::set<KernelConfig> SupportedKernelConfigs(
-    size_t length, size_t node_id, bool is_single, bool is_sbcc, bool is_sbcr, size_t large1D)
+std::set<KernelConfig> SupportedKernelConfigs(size_t length,
+                                              size_t node_id,
+                                              bool   is_single,
+                                              bool   is_sbcc,
+                                              bool   is_sbrc,
+                                              bool   is_sbcr,
+                                              size_t large1D)
 {
     std::set<KernelConfig> configs;
 
@@ -388,9 +393,9 @@ std::set<KernelConfig> SupportedKernelConfigs(
                     {
                         for(bool half_lds : {true, false})
                         {
-                            if(half_lds && is_sbcr)
+                            if(half_lds && (is_sbcr || is_sbrc))
                             {
-                                PrintRejectionMsg("reject: half_lds has bug in sbcr\n",
+                                PrintRejectionMsg("reject: only sbrr and sbcc support half-lds\n",
                                                   print_reject);
                                 continue;
                             }
@@ -591,6 +596,7 @@ void EnumerateKernelConfigs(const ExecPlan& execPlan)
         size_t len       = execPlan.execSeq[node_id]->length[0];
         bool   is_single = (execPlan.rootPlan->precision == rocfft_precision_single);
         bool   is_sbcc   = (execPlan.execSeq[node_id]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC);
+        bool   is_sbrc   = (execPlan.execSeq[node_id]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC);
         bool   is_sbcr   = (execPlan.execSeq[node_id]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CR);
         size_t large1D   = execPlan.execSeq[node_id]->large1D;
         auto   base_key  = execPlan.execSeq[node_id]->GetKernelKey();
@@ -622,7 +628,7 @@ void EnumerateKernelConfigs(const ExecPlan& execPlan)
 
         // enumerate !
         auto kernel_configs
-            = SupportedKernelConfigs(len, node_id, is_single, is_sbcc, is_sbcr, large1D);
+            = SupportedKernelConfigs(len, node_id, is_single, is_sbcc, is_sbrc, is_sbcr, large1D);
         for(const auto& config : kernel_configs)
         {
             // NB:

@@ -224,8 +224,18 @@ def generate_solutions(archs, folder):
 
     # get solutions part
     for file in target_files:
-        solution_map_data = open(file, 'r')
-        all_solutions = json.load(solution_map_data)
+        solution_map_file = open(file, 'r')
+        solution_map_data = json.load(solution_map_file)
+
+        # handle version
+        version = 'no version num'
+        if 'Version' in solution_map_data:
+            version = solution_map_data['Version']
+            all_solutions = solution_map_data['Data']
+        else:
+            all_solutions = solution_map_data
+
+        print('-- format version=' + str(version))
 
         for entry_dict in all_solutions:
 

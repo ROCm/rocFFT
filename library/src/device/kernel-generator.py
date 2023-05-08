@@ -647,7 +647,9 @@ def list_large_kernels():
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 
-    # SBRC
+    # for SBRC, if direct_to_from_reg is True, we do store-from-reg, but will not do load-to-reg
+    #           And since SBRC is is dir-from-lds but NOT dir-to-reg, the global load part requires full LDS
+    #           So, SBRC is able to use half-lds.
     sbrc_kernels = [
         NS(length=17,  factors=[17], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=256, threads_per_transform=1, runtime_compile=True),
         NS(length=49,  factors=[7, 7], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=196, threads_per_transform=7), # block_width=28
@@ -673,6 +675,9 @@ def list_large_kernels():
         NS(length=1331, factors=[11, 11, 11], scheme='CS_KERNEL_STOCKHAM_BLOCK_RC', workgroup_size=256, threads_per_transform=121, runtime_compile=True),
     ]
 
+    for k in sbrc_kernels:
+        k.half_lds = False
+
     # NB:
     # Technically, we could have SBCR kernels the same amount as SBCC.
     #
@@ -682,8 +687,8 @@ def list_large_kernels():
     #
 
     # for SBCR, if direct_to_from_reg is True, we do load-to-reg, but will not do store-from-reg
-    # TODO- tune on ROCm 5.2, SBCR 56 shows no improvement while it has on ROCm 5.0
-    #       Need to be aware of any compiler optimization / regression
+    #           And since sbcr is dir-to-reg BUT NOT dir-from-reg, the global store part requires full LDS
+    #           So, we can't satifly half_lds in SBCR !
     sbcr_kernels = [
         NS(length=56,  factors=[7, 8], direct_to_from_reg=False),
         NS(length=100, factors=[10, 10], workgroup_size=100),
@@ -694,11 +699,10 @@ def list_large_kernels():
     block_width = 16
     for k in sbcr_kernels:
         k.scheme = 'CS_KERNEL_STOCKHAM_BLOCK_CR'
+        k.half_lds = False
         if not hasattr(k, 'workgroup_size'):
             k.workgroup_size = block_width * \
                 functools.reduce(mul, k.factors, 1) // min(k.factors)
-        if hasattr(k, 'half_lds') and k.half_lds is True:
-            k.workgroup_size = min(1024, k.workgroup_size * 2)
         if not hasattr(k, 'length'):
             k.length = functools.reduce(lambda a, b: a * b, k.factors)
 

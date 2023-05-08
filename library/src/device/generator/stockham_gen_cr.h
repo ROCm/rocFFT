@@ -63,6 +63,12 @@ struct StockhamKernelCR : public StockhamKernel
                     Declaration{lds_linear, Literal{"true"}}};
     }
 
+    StatementList set_lds_is_real() override
+    {
+        // SBCR can't support half-lds
+        return {Declaration{lds_is_real, Literal{"false"}}};
+    }
+
     StatementList load_global_generator(unsigned int h,
                                         unsigned int hr,
                                         unsigned int width,

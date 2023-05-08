@@ -351,6 +351,13 @@ if( ROCFFT_BUILD_OFFLINE_TUNER )
     rocfft_stub.cpp
   )
   target_compile_options( rocfft_offline_tuner PRIVATE -DROCFFT_BUILD_OFFLINE_TUNER )
+
+  add_executable( rocfft_solmap_convert
+    enum_printer.cpp
+    rocfft_solmap_convert.cpp
+    rocfft_stub.cpp
+  )
+  target_compile_options( rocfft_solmap_convert PRIVATE -DROCFFT_BUILD_OFFLINE_TUNER )
 endif()
 
 prepend_path( ".." rocfft_headers_public relative_rocfft_headers_public )
@@ -388,9 +395,9 @@ if(TARGET rocfft-device-3)
   target_link_libraries( rocfft PRIVATE rocfft-device-3 )
 endif()
 
-foreach( target rocfft rocfft_offline_tuner rocfft_aot_helper rocfft_config_search )
+foreach( target rocfft rocfft_offline_tuner rocfft_solmap_convert rocfft_aot_helper rocfft_config_search )
 
-  if(( NOT ROCFFT_BUILD_OFFLINE_TUNER ) AND (${target} STREQUAL "rocfft_offline_tuner"))
+  if(( NOT ROCFFT_BUILD_OFFLINE_TUNER ) AND ((${target} STREQUAL "rocfft_offline_tuner") OR (${target} STREQUAL "rocfft_solmap_convert")))
     continue()
   endif()
 
@@ -450,6 +457,14 @@ target_link_libraries( rocfft_aot_helper PRIVATE
  # build executable rocfft-offline-tuner
 if( ROCFFT_BUILD_OFFLINE_TUNER )
   target_link_libraries( rocfft_offline_tuner PRIVATE
+    rocfft
+    generator
+    rocfft-function-pool
+    rocfft-rtc-launch
+    rocfft-solution-map
+    rocfft-tuning-helper
+    )
+  target_link_libraries( rocfft_solmap_convert PRIVATE
     rocfft
     generator
     rocfft-function-pool

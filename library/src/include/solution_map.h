@@ -99,6 +99,11 @@ struct SolutionPtr
 {
     std::string child_token  = "";
     size_t      child_option = 0;
+
+    bool operator==(const SolutionPtr& rhs) const
+    {
+        return std::tie(child_token, child_option) == std::tie(rhs.child_token, rhs.child_option);
+    }
 };
 
 // Implementing the ToString / FromString (data_descriptor.h)
@@ -108,6 +113,12 @@ struct ToString<SolutionPtr>;
 
 template <>
 struct FromString<SolutionPtr>;
+
+struct SolutionNode;
+
+using SolutionNodeVec = std::vector<SolutionNode>;
+
+using ProbSolMap = std::unordered_map<ProblemKey, SolutionNodeVec, ProbKeyHash>;
 
 struct SolutionNode
 {
@@ -120,14 +131,33 @@ struct SolutionNode
     SolutionNode()                    = default;
     SolutionNode(const SolutionNode&) = default;
 
-    SolutionNode& operator=(const SolutionNode&) = default;
-
     static SolutionNode DummySolutionNode()
     {
         static SolutionNode dummy;
         dummy.sol_node_type = SOL_DUMMY;
         return dummy;
     }
+
+    SolutionNode& operator=(const SolutionNode&) = default;
+
+    bool operator==(const SolutionNode& rhs) const
+    {
+        return std::tie(sol_node_type, using_scheme, kernel_key, solution_childnodes)
+               == std::tie(
+                   rhs.sol_node_type, rhs.using_scheme, rhs.kernel_key, rhs.solution_childnodes);
+    }
+
+    // NB:
+    //  The following are only assigned when calling "remove solution"
+    //  in normal case, we don't assign anything to them
+    //  if a node is deleted, then its parent_sol_node should be deleted
+    std::vector<SolutionNode*> parent_sol_nodes;
+    //  if a node is changing its position, then its parent_sol_ptr should update it option_id
+    std::vector<SolutionPtr*> parent_sol_ptrs;
+    //  use to find the SolutionNodeVec containing itself
+    SolutionNodeVec* self_vec;
+    // flag indicating this to be removed, we assign marks first and remove them all at once
+    bool to_be_removed = false;
 };
 
 template <>
@@ -136,12 +166,15 @@ struct ToString<SolutionNode>;
 template <>
 struct FromString<SolutionNode>;
 
-using SolutionNodeVec = std::vector<SolutionNode>;
+using SolMapEntry = std::pair<ProblemKey, SolutionNodeVec>;
 
-using ProbSolMap = std::unordered_map<ProblemKey, SolutionNodeVec, ProbKeyHash>;
+template <>
+struct ToString<SolMapEntry>;
 
-inline bool ProbSolCmp(const std::pair<ProblemKey, SolutionNodeVec>& lhs,
-                       const std::pair<ProblemKey, SolutionNodeVec>& rhs)
+template <>
+struct FromString<SolMapEntry>;
+
+inline bool ProbSolCmp(const SolMapEntry& lhs, const SolMapEntry& rhs)
 {
     // 1st, compare the node type and schemes (from value)
     const auto& last_node_lhs = lhs.second.back();
@@ -163,6 +196,11 @@ inline bool ProbSolCmp(const std::pair<ProblemKey, SolutionNodeVec>& lhs,
 
 class solution_map
 {
+    friend class SolutionMapConverter;
+
+    bool assume_latest_ver = true;
+
+    int        self_version = 0;
     ProbSolMap primary_sol_map;
     ProbSolMap temp_working_map;
 
@@ -179,7 +217,14 @@ private:
                                const std::string&  arch,
                                bool                primary_map);
 
+    bool remove_solution_bottom_up(SolutionNodeVec& nodeVec, SolutionNode& node, size_t pos);
+
+    void generate_link_info();
+
 public:
+    // the latest version number of solution-map's format
+    static const int VERSION;
+
     // a default kernel-token for any built-in kernel
     static const char* KERNEL_TOKEN_BUILTIN_KERNEL;
 
@@ -239,6 +284,9 @@ public:
                         bool                check_dup,
                         bool                primary_map = true);
 
+    // parse the format version of the input file
+    bool get_solution_map_version(const fs::path& sol_map_in_path);
+
     // read the map from input stream
     bool read_solution_map_data(const fs::path& sol_map_in_path, bool primary_map = true);
 
@@ -251,6 +299,20 @@ public:
     // merge solutions from src_file to primary map
     bool merge_solutions_from_file(const fs::path&                src_file,
                                    const std::vector<ProblemKey>& root_probs);
+};
+
+class SolutionMapConverter
+{
+private:
+    // ver.0 -> ver.1: remove unused and invalid/incorrect kernels
+    //               : caused by using un-supported half_lds in sbrc/sbcr kernels
+    bool remove_invalid_half_lds();
+
+public:
+    SolutionMapConverter()  = default;
+    ~SolutionMapConverter() = default;
+
+    bool VersionCheckAndConvert(const std::string& in_map_path, const std::string& out_map_path);
 };
 
 #endif // SOLUTION_MAP_H

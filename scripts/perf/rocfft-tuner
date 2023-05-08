@@ -89,7 +89,10 @@ import tempfile
 import re
 import collections
 import json
+import pathlib
 
+from os import listdir
+from os.path import isfile, join
 from copy import deepcopy
 from pathlib import Path
 
@@ -352,11 +355,9 @@ def command_merging(arguments):
 
     # we disable the build-in solution library,
     os.environ['ROCFFT_USE_EMPTY_SOL_MAP'] = '1'
-    # since we want to compare two solution_map json data
-    os.environ['ROCFFT_READ_SOL_MAP_ENABLE'] = '1'
 
     # First Run - reference
-    os.environ['ROCFFT_SOLUTION_MAP_FOLDER'] = str(reference_sol_folder)
+    os.environ['ROCFFT_READ_SOL_MAP_FROM_FOLDER'] = str(reference_sol_folder)
 
     print("###################################")
     print("First run with reference solution..")
@@ -441,8 +442,7 @@ def command_merging(arguments):
         result['Significance'] = pval
 
     del os.environ['ROCFFT_USE_EMPTY_SOL_MAP']
-    del os.environ['ROCFFT_READ_SOL_MAP_ENABLE']
-    del os.environ['ROCFFT_SOLUTION_MAP_FOLDER']
+    del os.environ['ROCFFT_READ_SOL_MAP_FROM_FOLDER']
     del os.environ['ROCFFT_READ_EXPLICIT_SOL_MAP_FILE']
 
     NewSolutionsToInsert = []
