@@ -96,7 +96,7 @@ def runTestCommand (platform, project, boolean debug=false)
             this,
             """
             cd ${project.paths.build_prefix}
-            git clone https://github.com/ROCmSoftwarePlatform/rocPTS.git -b release/rocpts-rel-1.0.0
+            git clone https://github.com/ROCmSoftwarePlatform/rocPTS.git -b release/rocpts-rel-1.1.0
             cd rocPTS
             python3 -m pip install build
             python3 -m build
@@ -117,7 +117,7 @@ def runTestCommand (platform, project, boolean debug=false)
     mkdir -p \${benchmark_folder}/all_change \${benchmark_folder}/all_ref
     cp -uf ./*_change/* \${benchmark_folder}/all_change
     cp -uf ./*_ref/* \${benchmark_folder}/all_ref
-    python3 ./record_pts.py --dataset-path \$PWD/\${benchmark_folder} --reference-dataset all_ref --new-dataset all_change -v 5.4 -l pts_rocfft_benchmark_data-v1.0.0
+    python3 ./record_pts.py --dataset-path \$PWD/\${benchmark_folder} --reference-dataset all_ref --new-dataset all_change -v 5.5 -l pts_rocfft_benchmark_data-v1.0.0
     """
     withCredentials([usernamePassword(credentialsId: 'PTS_API_ID_KEY_PROD', usernameVariable: 'PTS_API_ID', passwordVariable: 'PTS_API_KEY')])
     {
