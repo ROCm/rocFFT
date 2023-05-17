@@ -43,7 +43,7 @@ from operator import mul
 
 from generator import (ArgumentList, BaseNode, Call, CommentBlock, Function,
                        Include, LineBreak, Map, StatementList, Variable,
-                       Assign, name_args, write, clang_format_file)
+                       Assign, name_args, write)
 
 from collections import namedtuple
 
@@ -81,13 +81,6 @@ def cjoin(xs):
 #
 # Helpers
 #
-
-
-def flatten(lst):
-    """Flatten a list of lists to a list."""
-    return sum(lst, [])
-
-
 def unique(kernels):
     """Merge kernel lists without duplicated meta.length; ignore later ones."""
     r, s = list(), set()
@@ -768,16 +761,15 @@ def generate_kernel(kernel, precisions, stockham_aot):
     args.append(kernel.scheme)
     args.append(filename)
 
-    proc = subprocess.Popen(args=args, stderr=subprocess.PIPE)
+    proc = subprocess.Popen(args=args)
     ret_code = proc.wait()
     if (ret_code != 0):
-        print(proc.stderr.read().decode('ascii'))
         sys.exit(f"Error executing " + stockham_aot)
 
     kernel_metadata_file = open(kernel_file_name(kernel) + '.json', 'r')
     launchers = json.load(kernel_metadata_file)
 
-    clang_format_file(filename)
+    # don't format generated source files since they aren't currently used
 
     cpu_functions = []
     data = Variable('data_p', 'const void *')
@@ -843,52 +835,12 @@ def generate_kernels(kernels, precisions, stockham_aot):
 
     A list of CPU functions is returned.
     """
-    import concurrent.futures
-    import queue
 
-    # push all the work to a queue
-    q_in = queue.Queue()
+    ret = []
     for k in kernels:
-        q_in.put(k)
+        ret += generate_kernel(k, precisions, stockham_aot)
 
-    # queue for outputs
-    q_out = queue.Queue()
-
-    def threadfunc():
-        nonlocal q_in
-        nonlocal q_out
-        nonlocal precisions
-        nonlocal stockham_aot
-        try:
-            while not q_in.empty():
-                k = q_in.get()
-                q_out.put(generate_kernel(k, precisions, stockham_aot))
-        except queue.Empty:
-            pass
-
-    # by default, start up worker threads.  disable this if you want
-    # to use pdb to debug
-    use_threads = True
-
-    if use_threads:
-        with concurrent.futures.ThreadPoolExecutor() as executor:
-            results = []
-            for i in range(os.cpu_count()):
-                results.append(executor.submit(threadfunc))
-            for result in results:
-                result.result()
-    else:
-        threadfunc()
-
-    # iterate over the queue
-    def queue_iter(q_out):
-        try:
-            while not q_out.empty():
-                yield q_out.get()
-        except queue.Empty:
-            pass
-
-    return flatten(queue_iter(q_out))
+    return ret
 
 
 def cli():
