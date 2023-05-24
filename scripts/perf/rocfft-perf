@@ -157,16 +157,16 @@ def command_test(arguments):
     """Test for regressions."""
 
     # FIXME: rename and replace above comment
-    
+
     sig = arguments.significance
     outdirs = [Path(x) for x in arguments.runs]
     verbose = arguments.verbose
 
     significance = arguments.significance
     bonferroni = arguments.bonferroni
-    
+
     all_runs = perflib.utils.read_runs(outdirs, verbose)
-    
+
     if len(all_runs) != 2:
         print("Error: one must provide exactly two runs for statistical comparison")
         sys.exit(1)
@@ -181,7 +181,7 @@ def command_test(arguments):
     runs = perflib.utils.by_dat(all_runs)
     refdir, testdir = outdirs
 
-    
+
     # In order to do the Bonferroni correction, We need to adjust the
     # significance threshold based on the number of tests, so count
     # them first.
@@ -194,7 +194,7 @@ def command_test(arguments):
             ncompare += 1
     if bonferroni and ncompare > 0:
         significance /= ncompare
-            
+
     for dat_name, dat_runs in runs.items():
         refdat = dat_runs[refdir]
         testdat = dat_runs[testdir]
@@ -227,7 +227,7 @@ def command_test(arguments):
                     if statistics.median(Avals) > statistics.median(Bvals):
                         faster.append(token)
                     else:
-                        slower.append(token)                
+                        slower.append(token)
             else:
                 print("unsupported statistical method")
                 sys.exit(1)
@@ -238,13 +238,13 @@ def command_test(arguments):
 
     print("nh0:", ncompare - (len(faster) + len(slower)))
     print("nh1:", len(faster) + len(slower))
-    
+
     print("ncompare:", ncompare)
     print("faster:", len(faster))
     print("slower:", len(slower))
 
     return len(slower) > 0
-    
+
 
 def generate_mdat(dat, measure, confidence):
     import numpy
@@ -358,11 +358,11 @@ def command_post(arguments):
     verbose = arguments.verbose
 
     import itertools
-    
+
     if verbose:
         print("docdir:", docdir)
         print("outdirs:", outdirs)
-    
+
     outdirs = [Path(x) for x in outdirs]
 
     all_runs = perflib.utils.read_runs(outdirs, verbose)
@@ -417,7 +417,7 @@ def command_post(arguments):
                     else:
                         print("unsupported statistical method")
                         sys.exit(1)
-                        
+
                     speedups.append([sample.token, speedup, low, high, pval])
                 path = docdir / (str(otherdat.path.parent.name) + '-over-' +
                                  str(refdat.path.parent.name) + '-' +
@@ -428,8 +428,8 @@ def command_post(arguments):
                                         overwrite=True)
 
 
-        
-                
+
+
 def command_generate(runs=None, label=None, output=None, significance=None, bonferroni=None,
                      type='pdf', **kwargs):
     """Generate PDF/HTML/DOCX from run results."""
@@ -473,10 +473,10 @@ def command_generate(runs=None, label=None, output=None, significance=None, bonf
     print("ncompare:", ncompare)
     if bonferroni and ncompare > 0:
         significance /= ncompare
-    
+
     for figure in figures:
         figure.make(significance)
-        
+
     if type == 'pdf':
         pool = Pool(None)
         for figure in figures:
@@ -565,7 +565,7 @@ def command_run(arguments):
     failed_tokens = timer.run_cases(filtered(generator))
 
     print()
-    
+
     logging.info("failed tokens: " + "\n".join(failed_tokens))
     print("failed tokens:\n" + "\n".join(failed_tokens))
 
@@ -658,14 +658,12 @@ def command_autoperf(arguments):
     # post-process results
     arguments.runs = [build1, build2]
     arguments.output = output
+    arguments.label=[reference_label, label]
     command_post(arguments)
 
     # generate report
     for report_type in format:
-        command_generate(runs=[build1, build2],
-                         label=[reference_label, label],
-                         output=output,
-                         type=report_type)
+        command_generate(type=report_type, **vars(arguments))
 
 
 def command_bweff(arguments):
@@ -814,7 +812,7 @@ def main():
         prog='rocfft-perf',
         epilog="For a detailed usage overview, run: %(prog)s overview")
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
-   
+
     subparsers = parser.add_subparsers(dest='command')
 
     subparsers.add_parser('overview', help='print a general usage overview')
@@ -826,33 +824,36 @@ def main():
     html_parser  = subparsers.add_parser('html', help='generate html plots')
     docx_parser  = subparsers.add_parser('docx', help='generate docx plots')
     test_parser = subparsers.add_parser('test', help='test for regressions')
+    autoperf_parser = subparsers.add_parser(
+        'autoperf',
+        help='clone, build, run, post, and plot two rocFFT commits')
 
-    
+
     for p in [post_parser, pdf_parser, html_parser, docx_parser]:
         p.add_argument('output', type=str)
     for p in [post_parser, pdf_parser, html_parser, docx_parser, test_parser]:
         p.add_argument('runs', type=str, nargs='+')
 
-    for p in [post_parser]:
+    for p in [post_parser, autoperf_parser]:
         p.add_argument('--confidence',
                        type=str,
                        choices=["bootstrap", "stdev"],
                        help="method for generating confidence interval",
                        default="bootstrap")
-        
-    for p in [post_parser, pdf_parser, test_parser]:
+
+    for p in [post_parser, pdf_parser, test_parser, autoperf_parser]:
         p.add_argument('--method',
                        type=str,
                        choices=["moods", "ttest", "mwu"],
                        help="statistical method",
                        default="moods")
-    for p in [post_parser, pdf_parser, html_parser, docx_parser, test_parser]:
+    for p in [post_parser, pdf_parser, html_parser, docx_parser, test_parser, autoperf_parser]:
         p.add_argument('--measure',
                        type=str,
                        choices=["mean", "median"],
                        help="measure of central tendancy: median or mean",
                        default="median")
-    for p in [pdf_parser, html_parser, docx_parser, test_parser]:
+    for p in [pdf_parser, html_parser, docx_parser, test_parser, autoperf_parser]:
         p.add_argument('--significance',
                        type=float,
                        help='moods significance threshold',
@@ -985,9 +986,6 @@ def main():
                             type=str,
                             help='accuracy test executable path')
 
-    autoperf_parser = subparsers.add_parser(
-        'autoperf',
-        help='clone, build, run, post, and plot two rocFFT commits')
     autoperf_parser.add_argument('--workdir',
                                  type=str,
                                  help='Working directory',
@@ -1081,10 +1079,10 @@ def main():
 
     if arguments.command == 'run':
         command_run(arguments)
-        
+
     if arguments.command == 'post':
         command_post(arguments)
-        
+
     if arguments.command == 'test':
         sys.exit(command_test(arguments))
 
