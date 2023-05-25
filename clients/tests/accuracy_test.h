@@ -24,7 +24,6 @@
 #define ACCURACY_TEST
 
 #include <algorithm>
-#include <boost/scope_exit.hpp>
 #include <functional>
 #include <future>
 #include <iterator>
@@ -1174,6 +1173,23 @@ inline void compare_round_trip_inverse(Tparams&              params,
         << params.str();
 }
 
+// RAII type to put data into the cache when this object leaves scope
+struct StoreCPUDataToCache
+{
+    StoreCPUDataToCache(std::vector<hostbuf>& cpu_input, std::vector<hostbuf>& cpu_output)
+        : cpu_input(cpu_input)
+        , cpu_output(cpu_output)
+    {
+    }
+    ~StoreCPUDataToCache()
+    {
+        last_cpu_fft_data.cpu_output.swap(cpu_output);
+        last_cpu_fft_data.cpu_input.swap(cpu_input);
+    }
+    std::vector<hostbuf>& cpu_input;
+    std::vector<hostbuf>& cpu_output;
+};
+
 // run CPU + rocFFT transform with the given params and compare
 template <class Tfloat, class Tparams>
 inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
@@ -1341,11 +1357,12 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     // Check cache first - nbatch is a >= comparison because we compute
     // the largest batch size and cache it.  Smaller batch runs can
     // compare against the larger data.
-    std::vector<hostbuf>     cpu_input;
-    std::vector<hostbuf>     cpu_output;
-    std::shared_future<void> convert_cpu_output_precision;
-    std::shared_future<void> convert_cpu_input_precision;
-    bool                     run_fftw = true;
+    std::vector<hostbuf>                 cpu_input;
+    std::vector<hostbuf>                 cpu_output;
+    std::shared_future<void>             convert_cpu_output_precision;
+    std::shared_future<void>             convert_cpu_input_precision;
+    bool                                 run_fftw = true;
+    std::unique_ptr<StoreCPUDataToCache> store_to_cache;
     if(last_cpu_fft_data.length == params.length
        && last_cpu_fft_data.transform_type == params.transform_type
        && last_cpu_fft_data.run_callbacks == params.run_callbacks)
@@ -1356,6 +1373,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             cpu_input.swap(last_cpu_fft_data.cpu_input);
             cpu_output.swap(last_cpu_fft_data.cpu_output);
             run_fftw = false;
+
+            store_to_cache = std::make_unique<StoreCPUDataToCache>(cpu_input, cpu_output);
 
             if(params.precision != last_cpu_fft_data.precision)
             {
@@ -1810,11 +1829,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
 
     compare_output.get();
 
-    BOOST_SCOPE_EXIT_ALL(&)
-    {
-        last_cpu_fft_data.cpu_output.swap(cpu_output);
-        last_cpu_fft_data.cpu_input.swap(cpu_input);
-    };
+    if(!store_to_cache)
+        store_to_cache = std::make_unique<StoreCPUDataToCache>(cpu_input, cpu_output);
 
     Tparams params_inverse;
 
