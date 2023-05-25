@@ -152,7 +152,8 @@ public:
 
     void UpdateCurrBenchResult(double ms, double gflops);
 
-    void FindWinnerForCurrNode(int&         winner_phase,
+    void FindWinnerForCurrNode(double&      curr_best_msec,
+                               int&         winner_phase,
                                int&         winner_config_id,
                                std::string& winner_kernel_name);
 

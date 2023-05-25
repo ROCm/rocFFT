@@ -37,7 +37,7 @@ def run(tuner,
         ntrial=1,
         device=None,
         verbose=False,
-        timeout=0):
+        timeout=10):
     """Run rocFFT tuner and return best solution"""
     cmd = [pathlib.Path(tuner).resolve()]
 
@@ -75,8 +75,6 @@ def run(tuner,
     if verbose:
         print('tunning: ' + ' '.join(cmd))
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-
     tokenToken = "Token: "
     outFileToken = "[OUTPUT_FILE]: "
     resultToken = "[Result]: "
@@ -84,27 +82,7 @@ def run(tuner,
     outFileName = ""
     msg = "[Solution]:\n"
 
-    curPos = 0
-    running = True
-    while running:
-        try:
-            # wait a very short time to make a exception just for updating the cout
-            proc.wait(0.5)
-            running = False
-        except:
-            # we still set it running to keep looping
-            running = True
-            for line in proc.stdout:
-                line = line.decode('utf-8').rstrip('\n')
-                print(line)
-                if line.startswith(tokenToken):
-                    token = line[len(tokenToken):]
-                elif line.startswith(outFileToken):
-                    outFileName = line[len(outFileToken):]
-                elif line.startswith(resultToken):
-                    msg += line[len(resultToken):] + '\n'
-
-    # last message
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     for line in proc.stdout:
         line = line.decode('utf-8').rstrip('\n')
         print(line)
@@ -115,6 +93,11 @@ def run(tuner,
         elif line.startswith(resultToken):
             msg += line[len(resultToken):] + '\n'
 
+    try:
+        proc.wait(timeout=None if timeout == 0 else timeout)
+    except subprocess.TimeoutExpired:
+        logging.info("timeout expired. killed. Please check the process.")
+        proc.kill()
     success = proc.returncode == 0
 
     return token, outFileName, msg, success
@@ -127,7 +110,8 @@ def accuracy_test(validator,
                   inplace=True,
                   precision='single',
                   nbatch=1,
-                  token=None):
+                  token=None,
+                  timeout=10):
     """Run rocFFT test."""
     cmd = [pathlib.Path(validator).resolve()]
 
@@ -168,24 +152,22 @@ def accuracy_test(validator,
     logging.info('accuracy testing: ' + ' '.join(cmd))
     print('accuracy testing: ' + ' '.join(cmd))
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    try:
-        proc.wait(timeout=None)
-    except subprocess.TimeoutExpired:
-        logging.info("killed")
-        proc.kill()
-
     passToken = "[  PASSED  ] 1 test"
     passed = False
 
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     for line in proc.stdout:
         line = line.decode('utf-8').rstrip('\n')
         if line.startswith(passToken):
             print(line)
             passed = True
-            break
 
-    success = (proc.returncode == 0) and passed
+    try:
+        proc.wait(timeout=None if timeout == 0 else timeout)
+    except subprocess.TimeoutExpired:
+        logging.info("timeout expired. killed. Please check the process.")
+        proc.kill()
+    success = proc.returncode == 0
 
     if not success:
         print('[  FAILED  ]: ' + ' '.join(cmd))
@@ -198,7 +180,8 @@ def merge(merger,
           new_files,
           new_probTokens,
           out_file_path,
-          verbose=False):
+          verbose=False,
+          timeout=30):
     """Run rocFFT tuner with command merge"""
 
     cmd = [pathlib.Path(merger).resolve()]
@@ -215,12 +198,15 @@ def merge(merger,
     if verbose:
         print('merging: ' + ' '.join(cmd))
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    # cpp merger simply return code, so no need to capture msg
+    # but since the merger has some recursive operation on tree,
+    # so using wait is still good to prevent any infinity loop bug..
+    proc = subprocess.Popen(cmd)
 
     try:
-        proc.wait(timeout=None)
+        proc.wait(timeout=None if timeout == 0 else timeout)
     except subprocess.TimeoutExpired:
-        logging.info("killed")
+        logging.info("timeout expired. killed. Please check the process.")
         proc.kill()
     success = proc.returncode == 0
 

@@ -218,7 +218,8 @@ void TuningBenchmarker::UpdateCurrBenchResult(double ms, double gflops)
     info.gflops           = gflops;
 }
 
-void TuningBenchmarker::FindWinnerForCurrNode(int&         winner_phase,
+void TuningBenchmarker::FindWinnerForCurrNode(double&      curr_best_msec,
+                                              int&         winner_phase,
                                               int&         winner_config_id,
                                               std::string& winner_kernel_name)
 {
@@ -248,9 +249,17 @@ void TuningBenchmarker::FindWinnerForCurrNode(int&         winner_phase,
                   bench_infos_vec.end(),
                   [](BenchmarkInfo& a, BenchmarkInfo& b) { return a.gflops > b.gflops; });
 
-        winner_phase       = bench_infos_vec.front().tuning_phase;
-        winner_config_id   = bench_infos_vec.front().SSN;
-        winner_kernel_name = bench_infos_vec.front().kernel_name;
+        // check if the best of this phase is better than previous winner
+        auto& winner_of_this_phase = bench_infos_vec.front();
+        if(winner_of_this_phase.milli_seconds < curr_best_msec)
+        {
+            winner_phase       = winner_of_this_phase.tuning_phase;
+            winner_config_id   = winner_of_this_phase.SSN;
+            winner_kernel_name = winner_of_this_phase.kernel_name;
+
+            // update the best ms up to now
+            curr_best_msec = winner_of_this_phase.milli_seconds;
+        }
     }
 
     packet->winner_phases[curr_tuning_node_id]       = winner_phase;

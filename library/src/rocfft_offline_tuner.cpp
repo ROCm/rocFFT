@@ -21,6 +21,7 @@
 #include <cmath>
 #include <cstddef>
 #include <iostream>
+#include <limits>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -204,7 +205,16 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
     std::vector<int>         winner_ids    = std::vector<int>(num_nodes, 0);
     std::vector<std::string> kernels       = std::vector<std::string>(num_nodes, "");
 
-    static const int TUNING_PHASE = 2;
+    static const int TUNING_PHASE   = 2;
+    double           curr_best_msec = std::numeric_limits<double>().max();
+
+    // calculate this once only
+    const double totsize
+        = std::accumulate(params.length.begin(), params.length.end(), 1, std::multiplies<size_t>());
+    const double k
+        = ((params.itype == fft_array_type_real) || (params.otype == fft_array_type_real)) ? 2.5
+                                                                                           : 5.0;
+    const double opscount = (double)params.nbatch * k * totsize * log(totsize) / log(2.0);
 
     for(int curr_phase = 0; curr_phase < TUNING_PHASE; ++curr_phase)
     {
@@ -280,14 +290,6 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
                 std::cout << " ms" << std::endl;
 
                 std::cout << "Execution gflops:  ";
-                const double totsize = std::accumulate(
-                    params.length.begin(), params.length.end(), 1, std::multiplies<size_t>());
-                const double k = ((params.itype == fft_array_type_real)
-                                  || (params.otype == fft_array_type_real))
-                                     ? 2.5
-                                     : 5.0;
-                const double opscount
-                    = (double)params.nbatch * k * totsize * log(totsize) / log(2.0);
                 for(const auto& i : gpu_time)
                 {
                     double gflops = opscount / (1e6 * i);
@@ -308,7 +310,8 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
                 offline_tuner->UpdateCurrBenchResult(ms_median, gflops_median);
             }
 
-            offline_tuner->FindWinnerForCurrNode(winner_phase, winner_id, winner_name);
+            offline_tuner->FindWinnerForCurrNode(
+                curr_best_msec, winner_phase, winner_id, winner_name);
             std::cout << "\n[UP_TO_PHASE_" << curr_phase << "_RESULT]:" << std::endl;
             std::cout << "\n[BEST_KERNEL]: In Phase: " << winner_phase
                       << ", Config ID: " << winner_id << std::endl;
@@ -348,6 +351,9 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
         std::cout << "[Result]:     best config: " << winner_ids[node_id] << std::endl;
         std::cout << "[Result]:     kernel name: " << kernels[node_id] << std::endl;
     }
+    double best_gflops = opscount / (1e6 * curr_best_msec);
+    std::cout << "[Result]: GPU Time: " << curr_best_msec << std::endl;
+    std::cout << "[Result]: GFLOPS: " << best_gflops << std::endl;
 
     rocfft_cleanup();
 
