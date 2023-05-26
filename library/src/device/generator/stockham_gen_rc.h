@@ -23,10 +23,13 @@
 
 struct StockhamKernelRC : public StockhamKernel
 {
-    explicit StockhamKernelRC(const StockhamGeneratorSpecs& specs)
+    explicit StockhamKernelRC(const StockhamGeneratorSpecs& specs, bool emitGlobalId)
         : StockhamKernel(specs)
+        , emitGlobalId(emitGlobalId)
     {
     }
+
+    bool emitGlobalId = false;
 
     //
     // templates
@@ -108,6 +111,17 @@ struct StockhamKernelRC : public StockhamKernel
             auto tid = Parens{thread + dt + h * threads_per_transform};
             auto idx
                 = Parens{tid / cumheight} * (width * cumheight) + tid % cumheight + w * cumheight;
+
+            if(emitGlobalId)
+            {
+                work += Assign{global_data_id,
+                               global_store_data_offset + tid_hor
+                                   + Parens{Expression{idx}} * lengths[1]};
+                work += Assign{global_transf_id,
+                               global_store_transf_offset + tid_hor
+                                   + Parens{Expression{idx}} * lengths[1]};
+            }
+
             work += StoreGlobal{buf,
                                 offset + tid_hor * stride0
                                     + Parens{Expression{idx}} * stride_store_out,
@@ -130,6 +144,8 @@ struct StockhamKernelRC : public StockhamKernel
 
         Variable plane_id{"plane_id", "unsigned int"};
         Variable tile_serial_in_batch{"tile_serial_in_batch", "unsigned int"};
+        Variable global_stride_in{"global_stride_in", "const size_t"};
+        Variable global_stride_out{"global_stride_out", "const size_t"};
 
         stmts += Declaration{
             len_along_block,
@@ -150,6 +166,17 @@ struct StockhamKernelRC : public StockhamKernel
         stmts += LineBreak{};
         stmts
             += Declaration{num_of_tiles_in_plane, (len_along_block - 1) / transforms_per_block + 1};
+
+        if(emitGlobalId)
+        {
+            stmts += Declaration{global_load_data_offset, 0};
+            stmts += Declaration{global_load_transf_offset, 0};
+            stmts += Declaration{global_store_data_offset, 0};
+            stmts += Declaration{global_store_transf_offset, 0};
+
+            stmts += Declaration{global_data_id, 0};
+            stmts += Declaration{global_transf_id, 0};
+        }
 
         // --------------------------------------------------
         // SBRC_2D
@@ -174,14 +201,40 @@ struct StockhamKernelRC : public StockhamKernel
         offset_2d += Assign{offset_in, tile_index_in_plane * transforms_per_block * stride_load_in};
         offset_2d += Assign{offset_out, tile_index_in_plane * transforms_per_block * stride0_out};
 
-        offset_2d += For{d,
-                         2,
-                         d < dim,
-                         1,
-                         {Assign{num_of_tiles_in_batch, num_of_tiles_in_batch * lengths[d]},
-                          Assign{index_along_d, remaining % lengths[d]},
-                          Assign{remaining, remaining / lengths[d]},
-                          Assign{offset, offset + index_along_d * stride[d]}}};
+        if(emitGlobalId)
+        {
+            stmts += Declaration{Variable{"global_stride_in[3]", "const size_t"},
+                                 Literal{"{global_stride_in_0, global_stride_in_1, global_idist}"}};
+            stmts
+                += Declaration{Variable{"global_stride_out[3]", "const size_t"},
+                               Literal{"{global_stride_out_0, global_stride_out_1, global_odist}"}};
+
+            offset_2d += For{
+                d,
+                2,
+                d < dim,
+                1,
+                {Assign{num_of_tiles_in_batch, num_of_tiles_in_batch * lengths[d]},
+                 Assign{index_along_d, remaining % lengths[d]},
+                 Assign{remaining, remaining / lengths[d]},
+                 Assign{offset, offset + index_along_d * stride[d]},
+                 Assign{global_load_data_offset,
+                        global_load_data_offset + index_along_d * global_stride_in[d - 2]},
+                 Assign{global_store_data_offset,
+                        global_store_data_offset + index_along_d * global_stride_out[d - 2]}}};
+        }
+        else
+        {
+            offset_2d += For{d,
+                             2,
+                             d < dim,
+                             1,
+                             {Assign{num_of_tiles_in_batch, num_of_tiles_in_batch * lengths[d]},
+                              Assign{index_along_d, remaining % lengths[d]},
+                              Assign{remaining, remaining / lengths[d]},
+                              Assign{offset, offset + index_along_d * stride[d]}}};
+        }
+
         //
         // --------------------------------------------------
         // SBRC_3D
@@ -304,6 +357,23 @@ struct StockhamKernelRC : public StockhamKernel
                                     thread_id % transforms_per_block}};
         }
 
+        if(emitGlobalId)
+        {
+            stmts += Assign{global_load_data_offset,
+                            global_load_data_offset
+                                + tile_index_in_plane * transforms_per_block * length
+                                + batch * global_stride_in[2]};
+            stmts += Assign{global_load_transf_offset,
+                            global_load_transf_offset
+                                + tile_index_in_plane * transforms_per_block * length};
+            stmts += Assign{global_store_data_offset,
+                            global_store_data_offset + tile_index_in_plane * transforms_per_block
+                                + batch * global_stride_out[2]};
+            stmts
+                += Assign{global_store_transf_offset,
+                          global_store_transf_offset + tile_index_in_plane * transforms_per_block};
+        }
+
         stmts += Declaration{edge, "false"};
         stmts += Declaration{thread};
         stmts += Declaration{tid_hor};
@@ -365,10 +435,27 @@ struct StockhamKernelRC : public StockhamKernel
                     return ((thread_id + i * workgroup_size) % length) * stride_lds
                            + ((thread_id + i * workgroup_size) / length) * 1;
             };
+            auto offset_tile_tmp = [&](unsigned int i) {
+                if(divisible)
+                    return tid_hor + (thread + i * tid0_inc_step) * length;
+
+                else
+                    return ((thread_id + i * workgroup_size) % length)
+                           + ((thread_id + i * workgroup_size) / length) * length;
+            };
 
             StatementList regular_load;
+
             for(unsigned int i = 0; i < num_load_blocks; ++i)
             {
+                Expression tmp_idx = offset_tile_tmp(i);
+
+                if(emitGlobalId)
+                {
+                    regular_load += Assign{global_data_id, global_load_data_offset + tmp_idx};
+                    regular_load += Assign{global_transf_id, global_load_transf_offset + tmp_idx};
+                }
+
                 Expression buf_idx = offset_tile_rbuf(i);
                 Expression lds_idx = offset_tile_wlds(i);
                 if(direct_to_from_reg)
@@ -377,9 +464,11 @@ struct StockhamKernelRC : public StockhamKernel
             }
 
             StatementList edge_load;
-            Variable      t{"t", "unsigned int"};
+
+            Variable t{"t", "unsigned int"};
             if(divisible)
             {
+                Expression tmp_idx = tid_hor + (thread + t) * length;
                 Expression buf_idx = tid_hor * stride0 + (thread + t) * stride_load_in;
                 Expression lds_idx = tid_hor * 1 + (thread + t) * stride_lds;
                 Expression pred
@@ -390,15 +479,32 @@ struct StockhamKernelRC : public StockhamKernel
                                       tid_hor * 1 + (thread + t) * stride_lds,
                                       tid_hor * stride_lds + (thread + t) * 1};
                 }
-                edge_load
-                    += For{t,
-                           0,
-                           pred,
-                           tid0_inc_step,
-                           {Assign{lds_complex[lds_idx], LoadGlobal{buf, offset_in + buf_idx}}}};
+
+                if(emitGlobalId)
+                {
+                    edge_load += For{
+                        t,
+                        0,
+                        pred,
+                        tid0_inc_step,
+                        {Assign{global_data_id, global_load_data_offset + tmp_idx},
+                         Assign{global_transf_id, global_load_transf_offset + tmp_idx},
+                         Assign{lds_complex[lds_idx], LoadGlobal{buf, offset_in + buf_idx}}}};
+                }
+                else
+                {
+                    edge_load += For{
+                        t,
+                        0,
+                        pred,
+                        tid0_inc_step,
+                        {Assign{lds_complex[lds_idx], LoadGlobal{buf, offset_in + buf_idx}}}};
+                }
             }
             else
             {
+                Expression tmp_idx
+                    = ((thread_id + t) % length) + ((thread_id + t) / length) * length;
                 Expression buf_idx = ((thread_id + t) % length) * stride0
                                      + ((thread_id + t) / length) * stride_load_in;
                 Expression lds_idx
@@ -409,12 +515,27 @@ struct StockhamKernelRC : public StockhamKernel
                         lds_linear,
                         ((thread_id + t) % length) * 1 + ((thread_id + t) / length) * stride_lds,
                         ((thread_id + t) % length) * stride_lds + ((thread_id + t) / length) * 1};
-                edge_load
-                    += For{t,
-                           0,
-                           pred,
-                           workgroup_size,
-                           {Assign{lds_complex[lds_idx], LoadGlobal{buf, offset_in + buf_idx}}}};
+
+                if(emitGlobalId)
+                {
+                    edge_load += For{
+                        t,
+                        0,
+                        pred,
+                        workgroup_size,
+                        {Assign{global_data_id, global_load_data_offset + tmp_idx},
+                         Assign{global_transf_id, global_load_transf_offset + tmp_idx},
+                         Assign{lds_complex[lds_idx], LoadGlobal{buf, offset_in + buf_idx}}}};
+                }
+                else
+                {
+                    edge_load += For{
+                        t,
+                        0,
+                        pred,
+                        workgroup_size,
+                        {Assign{lds_complex[lds_idx], LoadGlobal{buf, offset_in + buf_idx}}}};
+                }
             }
 
             stmts += If{Or{transpose_type != "TILE_UNALIGNED", Not{edge}}, regular_load};
@@ -477,10 +598,27 @@ struct StockhamKernelRC : public StockhamKernel
                     return ((thread_id + i * workgroup_size) % store_block_w) * stride_lds
                            + ((thread_id + i * workgroup_size) / store_block_w) * 1;
             };
+            auto offset_tile_tmp = [&](unsigned int i) {
+                if(divisible)
+                    return tid_hor + (thread + i * tid0_inc_step) * lengths[1];
+                else
+                    return ((thread_id + i * workgroup_size) % store_block_w)
+                           + (thread + i * tid0_inc_step) * lengths[1];
+            };
 
             for(unsigned int i = 0; i < num_store_blocks; ++i)
+            {
+                if(emitGlobalId)
+                {
+                    regular_store
+                        += Assign{global_data_id, global_store_data_offset + offset_tile_tmp(i)};
+                    regular_store += Assign{global_transf_id,
+                                            global_store_transf_offset + offset_tile_tmp(i)};
+                }
+
                 regular_store += StoreGlobal{
                     buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)]};
+            };
 
             // ERC_Z_XY
             auto          i = num_store_blocks;

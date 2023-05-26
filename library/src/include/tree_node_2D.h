@@ -76,7 +76,7 @@ protected:
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 
 public:
-    bool CreateTwiddleTableResource() override;
+    bool CreateDeviceResources() override;
 };
 
 #endif // TREE_NODE_2D_H

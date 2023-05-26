@@ -225,6 +225,9 @@ void build_stockham_function_pool(CompileQueue& queue)
     // scaling Stockham kernels are always built at runtime
     const bool enable_scaling = false;
 
+    // fused Bluestein kernels are also always built at runtime
+    auto fuseBlue = BluesteinFuseType::BFT_NONE;
+
     for(const auto& i : fp.get_map())
     {
         // we only want to compile kernels explicitly marked for AOT RTC
@@ -298,7 +301,8 @@ void build_stockham_function_pool(CompileQueue& queue)
                                                                        intrinsic,
                                                                        sbrc_trans_type,
                                                                        callbacks,
-                                                                       enable_scaling);
+                                                                       enable_scaling,
+                                                                       fuseBlue);
                            std::function<std::string(const std::string&)> generate_src
                                = [=](const std::string& kernel_name) -> std::string {
                                StockhamGeneratorSpecs specs{
@@ -329,7 +333,8 @@ void build_stockham_function_pool(CompileQueue& queue)
                                                    intrinsic,
                                                    sbrc_trans_type,
                                                    callbacks,
-                                                   enable_scaling);
+                                                   enable_scaling,
+                                                   fuseBlue);
                            };
                            queue.push({kernel_name, generate_src});
                        });

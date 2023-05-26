@@ -41,6 +41,11 @@ TreeNode::~TreeNode()
         Repo::ReleaseTwiddle1D(twiddles_large);
         twiddles_large = nullptr;
     }
+    if(chirp)
+    {
+        Repo::ReleaseChirp(chirp);
+        chirp = nullptr;
+    }
 }
 
 NodeMetaData::NodeMetaData(TreeNode* refNode)
@@ -190,8 +195,14 @@ bool LeafNode::CreateDevKernelArgs()
     return (devKernArg != nullptr);
 }
 
-bool LeafNode::CreateTwiddleTableResource()
+bool LeafNode::CreateDeviceResources()
 {
+    if(need_chirp)
+    {
+        std::tie(chirp, chirp_size)
+            = Repo::GetChirp(lengthBlueN, precision, deviceProp.gcnArchName);
+    }
+
     if(need_twd_table)
     {
         if(!twd_no_radices)
@@ -381,16 +392,25 @@ void TreeNode::CollapseContiguousDims()
 
 bool TreeNode::IsBluesteinChirpSetup()
 {
-    // setup nodes must be under a bluestein parent
-    if(parent == nullptr || parent->scheme != CS_BLUESTEIN)
+    // setup nodes must be under a bluestein parent. multi-kernel fused
+    // bluestein is an exception to this rule as the first two chirp + padding
+    // nodes are under an L1D_CC node.
+    if(typeBlue != BT_MULTI_KERNEL_FUSED && (parent == nullptr || parent->scheme != CS_BLUESTEIN))
         return false;
-    // bluestein could either be 3-kernel plan, meaning the first two
-    // are setup kernels, or a 6 kernel plan where only the first is
-    // setup
-    if(parent->childNodes.size() == 3)
+    // bluestein could either be 3-kernel plan (so-called single kernel Bluestein),
+    // meaning the first two are setup kernels, or multi-kernel bluestein (fused or non-fused)
+    // where only the first is setup
+    switch(parent->typeBlue)
+    {
+    case BluesteinType::BT_NONE:
+        return false;
+    case BluesteinType::BT_SINGLE_KERNEL:
         return this == parent->childNodes[0].get() || this == parent->childNodes[1].get();
-    else if(parent->childNodes.size() == 6)
+    case BluesteinType::BT_MULTI_KERNEL:
         return this == parent->childNodes[0].get();
+    case BluesteinType::BT_MULTI_KERNEL_FUSED:
+        return (fuseBlue == BFT_FWD_CHIRP) ? true : false;
+    }
 
     throw std::runtime_error("unexpected bluestein plan shape");
 }

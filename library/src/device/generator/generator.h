@@ -110,6 +110,7 @@ class Ternary;
 // FFT expressions
 
 class LoadGlobal;
+class LoadGlobalPlanar;
 
 class TwiddleMultiply;
 class TwiddleMultiplyConjugate;
@@ -119,6 +120,7 @@ class Parens;
 class CallExpr;
 
 class IntrinsicLoad;
+class IntrinsicLoadPlanar;
 
 using Expression = std::variant<Variable,
                                 Literal,
@@ -146,11 +148,13 @@ using Expression = std::variant<Variable,
                                 PreDecrement,
                                 Ternary,
                                 LoadGlobal,
+                                LoadGlobalPlanar,
                                 TwiddleMultiply,
                                 TwiddleMultiplyConjugate,
                                 Parens,
                                 CallExpr,
-                                IntrinsicLoad>;
+                                IntrinsicLoad,
+                                IntrinsicLoadPlanar>;
 
 class OptionalExpression
 {
@@ -358,6 +362,21 @@ public:
     std::vector<Expression> args;
 };
 
+class LoadGlobalPlanar
+{
+public:
+    static const unsigned int precedence = 18;
+    explicit LoadGlobalPlanar(const std::vector<Expression>& args);
+    LoadGlobalPlanar(LoadGlobalPlanar&&)      = default;
+    LoadGlobalPlanar(const LoadGlobalPlanar&) = default;
+    LoadGlobalPlanar& operator=(LoadGlobalPlanar&&) = default;
+    LoadGlobalPlanar& operator=(const LoadGlobalPlanar&) = default;
+
+    std::string render() const;
+
+    std::vector<Expression> args;
+};
+
 class TwiddleMultiply
 {
 public:
@@ -416,6 +435,21 @@ public:
     IntrinsicLoad(const IntrinsicLoad&) = default;
     IntrinsicLoad& operator=(IntrinsicLoad&&) = default;
     IntrinsicLoad& operator=(const IntrinsicLoad&) = default;
+
+    // data, voffset, soffset, rw
+    std::vector<Expression> args;
+    std::string             render() const;
+};
+
+class IntrinsicLoadPlanar
+{
+public:
+    static const unsigned int precedence = 18;
+    explicit IntrinsicLoadPlanar(const std::vector<Expression>& args);
+    IntrinsicLoadPlanar(IntrinsicLoadPlanar&&)      = default;
+    IntrinsicLoadPlanar(const IntrinsicLoadPlanar&) = default;
+    IntrinsicLoadPlanar& operator=(IntrinsicLoadPlanar&&) = default;
+    IntrinsicLoadPlanar& operator=(const IntrinsicLoadPlanar&) = default;
 
     // data, voffset, soffset, rw
     std::vector<Expression> args;
@@ -574,8 +608,11 @@ static PreDecrement operator--(const Expression& a)
 // Expressions, for some classes.
 
 class Assign;
+class ReturnExpr;
 class Call;
 class CallbackDeclaration;
+class CallbackLoadDeclaration;
+class CallbackStoreDeclaration;
 class Declaration;
 class LDSDeclaration;
 class For;
@@ -588,6 +625,7 @@ class StoreGlobalPlanar;
 class StatementList;
 class Butterfly;
 class IntrinsicStore;
+class IntrinsicStorePlanar;
 class IntrinsicLoadToDest;
 
 struct LineBreak
@@ -644,8 +682,11 @@ struct CommentLines
 };
 
 using Statement = std::variant<Assign,
+                               ReturnExpr,
                                Call,
                                CallbackDeclaration,
+                               CallbackLoadDeclaration,
+                               CallbackStoreDeclaration,
                                CommentLines,
                                Declaration,
                                LDSDeclaration,
@@ -662,6 +703,7 @@ using Statement = std::variant<Assign,
                                SyncThreads,
                                Butterfly,
                                IntrinsicStore,
+                               IntrinsicStorePlanar,
                                IntrinsicLoadToDest>;
 
 class Assign
@@ -762,6 +804,49 @@ public:
     }
 };
 
+class CallbackLoadDeclaration
+{
+public:
+    CallbackLoadDeclaration(const std::string& scalar_type, const std::string& cbtype)
+        : scalar_type(scalar_type)
+        , cbtype(cbtype){};
+    std::string scalar_type;
+    std::string cbtype;
+    std::string render() const
+    {
+        return "auto load_cb = get_load_cb<" + scalar_type + ", " + cbtype + ">(load_cb_fn);";
+    }
+};
+
+class CallbackStoreDeclaration
+{
+public:
+    CallbackStoreDeclaration(const std::string& scalar_type, const std::string& cbtype)
+        : scalar_type(scalar_type)
+        , cbtype(cbtype){};
+    std::string scalar_type;
+    std::string cbtype;
+    std::string render() const
+    {
+        return "auto store_cb = get_store_cb<" + scalar_type + ", " + cbtype + ">(store_cb_fn);";
+    }
+};
+
+class ReturnExpr
+{
+public:
+    ReturnExpr(const Expression& expr)
+        : expr(expr)
+    {
+    }
+
+    Expression expr;
+
+    std::string render() const
+    {
+        return "return " + vrender(expr) + ";";
+    }
+};
 class Call
 {
 public:
@@ -949,6 +1034,52 @@ public:
     std::optional<Expression> scale_factor;
 };
 
+class IntrinsicStorePlanar
+{
+public:
+    IntrinsicStorePlanar(const Expression&                ptrre,
+                         const Expression&                ptrim,
+                         const Expression&                voffset,
+                         const Expression&                soffset,
+                         const Expression&                value,
+                         const Expression&                rw_flag,
+                         const std::optional<Expression>& scale_factor)
+        : ptrre{ptrre}
+        , ptrim{ptrim}
+        , voffset{voffset}
+        , soffset{soffset}
+        , value{value}
+        , rw_flag{rw_flag}
+        , scale_factor{scale_factor}
+    {
+    }
+    std::string render() const
+    {
+        return "store_intrinsic(" + vrender(ptrre) + "," + vrender(voffset) + "," + vrender(soffset)
+               + ","
+               + Literal{"real_type_t<scalar_type>("
+                         + vrender(scale_factor ? (value * scale_factor.value()) : value) + ".x)"}
+                     .render()
+               + "," + vrender(rw_flag)
+               + ");"
+                 "\n"
+                 "store_intrinsic("
+               + vrender(ptrim) + "," + vrender(voffset) + "," + vrender(soffset) + ","
+               + Literal{"real_type_t<scalar_type>("
+                         + vrender(scale_factor ? (value * scale_factor.value()) : value) + ".y)"}
+                     .render()
+               + "," + vrender(rw_flag) + ");";
+    }
+
+    Expression                ptrre;
+    Expression                ptrim;
+    Expression                voffset;
+    Expression                soffset;
+    Expression                value;
+    Expression                rw_flag;
+    std::optional<Expression> scale_factor;
+};
+
 class IntrinsicLoadToDest
 {
 public:
@@ -1019,6 +1150,7 @@ public:
     ArgumentList  arguments;
     TemplateList  templates;
     std::string   qualifier;
+    std::string   return_type   = "void";
     unsigned int  launch_bounds = 0;
 
     explicit Function(const std::string& name)
@@ -1073,16 +1205,21 @@ struct BaseVisitor
     MAKE_VISITOR_OPERATOR(Expression, PreDecrement);
     MAKE_VISITOR_OPERATOR(Expression, Ternary);
     MAKE_VISITOR_OPERATOR(Expression, LoadGlobal);
+    MAKE_VISITOR_OPERATOR(Expression, LoadGlobalPlanar);
     MAKE_VISITOR_OPERATOR(Expression, ComplexMultiply);
     MAKE_VISITOR_OPERATOR(Expression, TwiddleMultiply);
     MAKE_VISITOR_OPERATOR(Expression, TwiddleMultiplyConjugate);
     MAKE_VISITOR_OPERATOR(Expression, Parens);
     MAKE_VISITOR_OPERATOR(Expression, CallExpr);
     MAKE_VISITOR_OPERATOR(Expression, IntrinsicLoad);
+    MAKE_VISITOR_OPERATOR(Expression, IntrinsicLoadPlanar);
 
     MAKE_VISITOR_OPERATOR(StatementList, Assign);
+    MAKE_VISITOR_OPERATOR(StatementList, ReturnExpr);
     MAKE_VISITOR_OPERATOR(StatementList, Call);
     MAKE_VISITOR_OPERATOR(StatementList, CallbackDeclaration);
+    MAKE_VISITOR_OPERATOR(StatementList, CallbackLoadDeclaration);
+    MAKE_VISITOR_OPERATOR(StatementList, CallbackStoreDeclaration);
     MAKE_VISITOR_OPERATOR(StatementList, CommentLines);
     MAKE_VISITOR_OPERATOR(StatementList, Declaration);
     MAKE_VISITOR_OPERATOR(StatementList, LDSDeclaration);
@@ -1099,6 +1236,7 @@ struct BaseVisitor
     MAKE_VISITOR_OPERATOR(StatementList, SyncThreads);
     MAKE_VISITOR_OPERATOR(StatementList, Butterfly);
     MAKE_VISITOR_OPERATOR(StatementList, IntrinsicStore);
+    MAKE_VISITOR_OPERATOR(StatementList, IntrinsicStorePlanar);
     MAKE_VISITOR_OPERATOR(StatementList, IntrinsicLoadToDest);
 
     MAKE_VISITOR_OPERATOR(ArgumentList, ArgumentList);
@@ -1176,18 +1314,23 @@ struct BaseVisitor
     MAKE_EXPR_VISIT(PreDecrement);
 
     MAKE_EXPR_VISIT(LoadGlobal);
+    MAKE_EXPR_VISIT(LoadGlobalPlanar);
 
     MAKE_TRIVIAL_VISIT(Expression, ComplexMultiply);
     MAKE_TRIVIAL_VISIT(Expression, TwiddleMultiply);
     MAKE_TRIVIAL_VISIT(Expression, TwiddleMultiplyConjugate);
 
     MAKE_EXPR_VISIT(IntrinsicLoad);
+    MAKE_EXPR_VISIT(IntrinsicLoadPlanar);
     MAKE_EXPR_VISIT(Parens);
 
     MAKE_EXPR_VISIT(Ternary);
     MAKE_EXPR_VISIT(ComplexLiteral)
 
+    MAKE_TRIVIAL_STATEMENT_VISIT(ReturnExpr)
     MAKE_TRIVIAL_STATEMENT_VISIT(CallbackDeclaration)
+    MAKE_TRIVIAL_STATEMENT_VISIT(CallbackLoadDeclaration)
+    MAKE_TRIVIAL_STATEMENT_VISIT(CallbackStoreDeclaration)
     MAKE_TRIVIAL_STATEMENT_VISIT(LDSDeclaration)
 
     MAKE_TRIVIAL_VISIT(Expression, Literal)
@@ -1310,6 +1453,21 @@ struct BaseVisitor
         return StatementList{IntrinsicStore(ptr, voffset, soffset, value, rw_flag)};
     }
 
+    virtual StatementList visit_IntrinsicStorePlanar(const IntrinsicStorePlanar& x)
+    {
+        auto                      ptrre   = std::visit(*this, x.ptrre);
+        auto                      ptrim   = std::visit(*this, x.ptrim);
+        auto                      voffset = std::visit(*this, x.voffset);
+        auto                      soffset = std::visit(*this, x.soffset);
+        auto                      value   = std::visit(*this, x.value);
+        auto                      rw_flag = std::visit(*this, x.rw_flag);
+        std::optional<Expression> scale_factor;
+        if(x.scale_factor)
+            scale_factor = std::visit(*this, x.scale_factor.value());
+        return StatementList{
+            IntrinsicStorePlanar(ptrre, ptrim, voffset, soffset, value, rw_flag, scale_factor)};
+    }
+
     virtual StatementList visit_StoreGlobalPlanar(const StoreGlobalPlanar& x)
     {
         auto                      realPtr = std::get<Variable>(visit_Variable(x.realPtr));
@@ -1422,7 +1580,7 @@ struct MakePlanarVisitor : public BaseVisitor
                 auto im = ptr;
                 im.name = imname;
 
-                stmts += Assign{x.lhs, ComplexLiteral{re[idx], im[idx]}, x.oper};
+                stmts += Assign{x.lhs, LoadGlobalPlanar({re, im, idx}), x.oper};
                 return stmts;
             }
         }
@@ -1442,10 +1600,8 @@ struct MakePlanarVisitor : public BaseVisitor
                 auto im = ptr;
                 im.name = imname;
 
-                stmts += Assign{x.lhs,
-                                ComplexLiteral{IntrinsicLoad({re, voffset, soffset, rw_flag}),
-                                               IntrinsicLoad({im, voffset, soffset, rw_flag})},
-                                x.oper};
+                stmts += Assign{
+                    x.lhs, IntrinsicLoadPlanar({re, im, voffset, soffset, rw_flag}), x.oper};
                 return stmts;
             }
         }
@@ -1484,26 +1640,9 @@ struct MakePlanarVisitor : public BaseVisitor
             auto im = var;
             im.name = imname;
 
-            StatementList stmts;
-            stmts += Call{
-                "store_intrinsic",
-                {re,
-                 x.voffset,
-                 x.soffset,
-                 Literal{"real_type_t<scalar_type>("
-                         + vrender(x.scale_factor ? (x.scale_factor.value() * x.value) : x.value)
-                         + ".x)"},
-                 x.rw_flag}};
-            stmts += Call{
-                "store_intrinsic",
-                {im,
-                 x.voffset,
-                 x.soffset,
-                 Literal{"real_type_t<scalar_type>("
-                         + vrender(x.scale_factor ? (x.scale_factor.value() * x.value) : x.value)
-                         + ".y)"},
-                 x.rw_flag}};
-            return stmts;
+            auto value = std::get<Variable>(x.value);
+            return {IntrinsicStorePlanar{
+                re, im, x.voffset, x.soffset, value, x.rw_flag, x.scale_factor}};
         }
         return StatementList{x};
     }

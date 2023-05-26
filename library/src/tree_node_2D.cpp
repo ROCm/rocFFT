@@ -110,11 +110,23 @@ void RTRT2DNode::BuildTree_internal(const SchemeVec& child_schemes)
 
 void RTRT2DNode::AssignParams_internal()
 {
+    assert(inStrideBlue.size() == outStrideBlue.size());
+    bool setBlueData = inStrideBlue.size();
+
     auto& row1Plan      = childNodes[0];
     row1Plan->inStride  = inStride;
     row1Plan->iDist     = iDist;
     row1Plan->outStride = outStride;
     row1Plan->oDist     = oDist;
+
+    if(setBlueData)
+    {
+        row1Plan->inStrideBlue  = inStrideBlue;
+        row1Plan->iDistBlue     = iDistBlue;
+        row1Plan->outStrideBlue = outStrideBlue;
+        row1Plan->oDistBlue     = oDistBlue;
+    }
+
     row1Plan->AssignParams();
 
     auto& trans1Plan     = childNodes[1];
@@ -123,10 +135,26 @@ void RTRT2DNode::AssignParams_internal()
     trans1Plan->outStride.push_back(trans1Plan->length[1]);
     trans1Plan->outStride.push_back(1);
     trans1Plan->oDist = trans1Plan->length[0] * trans1Plan->outStride[0];
+
+    if(setBlueData)
+    {
+        trans1Plan->inStrideBlue = row1Plan->outStrideBlue;
+        trans1Plan->iDistBlue    = row1Plan->oDistBlue;
+        trans1Plan->outStrideBlue.push_back(trans1Plan->length[1]);
+        trans1Plan->outStrideBlue.push_back(1);
+        trans1Plan->oDistBlue = trans1Plan->length[0] * trans1Plan->outStrideBlue[0];
+    }
+
     for(size_t index = 2; index < length.size(); index++)
     {
         trans1Plan->outStride.push_back(trans1Plan->oDist);
         trans1Plan->oDist *= length[index];
+
+        if(setBlueData)
+        {
+            trans1Plan->outStrideBlue.push_back(trans1Plan->oDistBlue);
+            trans1Plan->oDistBlue *= length[index];
+        }
     }
 
     auto& row2Plan     = childNodes[2];
@@ -135,6 +163,15 @@ void RTRT2DNode::AssignParams_internal()
     row2Plan->iDist     = trans1Plan->oDist;
     row2Plan->outStride = row2Plan->inStride;
     row2Plan->oDist     = row2Plan->iDist;
+    if(setBlueData)
+    {
+        row2Plan->inStrideBlue = trans1Plan->outStrideBlue;
+        std::swap(row2Plan->inStrideBlue[0], row2Plan->inStrideBlue[1]);
+        row2Plan->iDistBlue     = trans1Plan->oDistBlue;
+        row2Plan->outStrideBlue = row2Plan->inStrideBlue;
+        row2Plan->oDistBlue     = row2Plan->iDistBlue;
+    }
+
     row2Plan->AssignParams();
 
     auto& trans2Plan      = childNodes[3];
@@ -143,6 +180,15 @@ void RTRT2DNode::AssignParams_internal()
     trans2Plan->outStride = outStride;
     std::swap(trans2Plan->outStride[0], trans2Plan->outStride[1]);
     trans2Plan->oDist = oDist;
+
+    if(setBlueData)
+    {
+        trans2Plan->inStrideBlue  = row2Plan->outStrideBlue;
+        trans2Plan->iDistBlue     = row2Plan->oDistBlue;
+        trans2Plan->outStrideBlue = outStrideBlue;
+        std::swap(trans2Plan->outStrideBlue[0], trans2Plan->outStrideBlue[1]);
+        trans2Plan->oDistBlue = oDistBlue;
+    }
 }
 
 /*****************************************************
@@ -214,7 +260,7 @@ void RC2DNode::AssignParams_internal()
 /*****************************************************
  * CS_KERNEL_2D_SINGLE  *
  *****************************************************/
-bool Single2DNode::CreateTwiddleTableResource()
+bool Single2DNode::CreateDeviceResources()
 {
     // create one set of twiddles for each dimension
     std::tie(twiddles, twiddles_size)

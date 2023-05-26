@@ -190,7 +190,8 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                                         node.intrinsicMode,
                                         transpose_type,
                                         enable_callbacks,
-                                        node.IsScalingEnabled());
+                                        node.IsScalingEnabled(),
+                                        node.fuseBlue);
     };
 
     // if is pre-compiled, we assign the name-function only
@@ -217,7 +218,8 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                             node.intrinsicMode,
                             transpose_type,
                             enable_callbacks,
-                            node.IsScalingEnabled());
+                            node.IsScalingEnabled(),
+                            node.fuseBlue);
     };
 
     generator.construct_rtckernel
@@ -266,5 +268,81 @@ RTCKernelArgs RTCKernelStockham::get_launch_args(DeviceCallIn& data)
         if(array_type_is_planar(data.node->outArrayType))
             kargs.append_ptr(data.bufOut[1]);
     }
+    // fused bluestein data (chirp table and lengths)
+    switch(data.node->fuseBlue)
+    {
+    case BFT_NONE:
+        break;
+    case BFT_FWD_CHIRP:
+    case BFT_FWD_CHIRP_MUL:
+        if(data.node->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
+            kargs.append_ptr(data.node->chirp);
+
+        kargs.append_size_t(data.node->lengthBlueN);
+        kargs.append_size_t(data.node->lengthBlue);
+
+        break;
+    case BFT_INV_CHIRP_MUL:
+        if(data.node->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
+            kargs.append_ptr(data.node->chirp);
+
+        kargs.append_size_t(data.node->lengthBlueN);
+        kargs.append_size_t(data.node->lengthBlue);
+
+        break;
+    }
+    // fused bluestein data (strides and dists)
+    if(data.node->fuseBlue != BFT_NONE)
+    {
+        size_t empty_val = 0;
+
+        if(data.node->fuseBlue == BFT_FWD_CHIRP)
+        {
+            kargs.append_size_t(empty_val);
+            kargs.append_size_t(empty_val);
+            kargs.append_size_t(empty_val);
+
+            kargs.append_size_t(empty_val);
+            kargs.append_size_t(empty_val);
+            kargs.append_size_t(empty_val);
+        }
+        else
+        {
+            assert(data.node->inStrideBlue.size() == data.node->outStrideBlue.size());
+            switch(data.node->inStrideBlue.size())
+            {
+            case 2: // 1D FFT
+                kargs.append_size_t(empty_val);
+                kargs.append_size_t(empty_val);
+                kargs.append_size_t(data.node->iDistBlue);
+
+                kargs.append_size_t(empty_val);
+                kargs.append_size_t(empty_val);
+                kargs.append_size_t(data.node->oDistBlue);
+                break;
+            case 3: // 2D FFT
+                kargs.append_size_t(data.node->inStrideBlue[2]);
+                kargs.append_size_t(empty_val);
+                kargs.append_size_t(data.node->iDistBlue);
+
+                kargs.append_size_t(data.node->outStrideBlue[2]);
+                kargs.append_size_t(empty_val);
+                kargs.append_size_t(data.node->oDistBlue);
+                break;
+            case 4: // 3D FFT
+                kargs.append_size_t(data.node->inStrideBlue[2]);
+                kargs.append_size_t(data.node->inStrideBlue[3]);
+                kargs.append_size_t(data.node->iDistBlue);
+
+                kargs.append_size_t(data.node->outStrideBlue[2]);
+                kargs.append_size_t(data.node->outStrideBlue[3]);
+                kargs.append_size_t(data.node->oDistBlue);
+                break;
+            default:
+                throw std::runtime_error("Invalid strides for Bluestein kernel");
+            }
+        }
+    }
+
     return kargs;
 }

@@ -25,13 +25,13 @@
 #include <numeric>
 #include <vector>
 
+#include "chirp.h"
 #include "logging.h"
 #include "node_factory.h"
 #include "plan.h"
 #include "repo.h"
 #include "rocfft.h"
 #include "twiddles.h"
-
 // Implementation of Class Repo
 
 std::mutex        Repo::mtx;
@@ -74,6 +74,42 @@ std::pair<void*, size_t>
 }
 
 template <typename KeyType>
+std::pair<void*, size_t>
+    Repo::GetChirpInternal(KeyType                                             key,
+                           std::map<KeyType, std::pair<gpubuf, unsigned int>>& chirp,
+                           std::map<void*, KeyType>&                           chirp_reverse,
+                           std::function<gpubuf(unsigned int)>                 create_chirp)
+{
+    if(repoDestroyed)
+    {
+        throw std::runtime_error("Repo prematurely destroyed.");
+    }
+
+    // see if the repo has already stored the plan or not
+    if(hipGetDevice(&key.deviceId) != hipSuccess)
+    {
+        throw std::runtime_error("hipGetDevice failed.");
+    }
+
+    auto it = chirp.find(key);
+    if(it != chirp.end())
+    {
+        // already had this length
+        it->second.second += 1;
+        return {it->second.first.data(), it->second.first.size()};
+    }
+
+    // otherwise, need to allocate
+    auto buf = create_chirp(key.deviceId);
+    // if allocation failed, don't update maps
+    if(buf.data() == nullptr)
+        return {nullptr, 0};
+    it = chirp.insert({key, std::make_pair(std::move(buf), 1)}).first;
+    chirp_reverse.insert({it->second.first.data(), key});
+    return {it->second.first.data(), it->second.first.size()};
+}
+
+template <typename KeyType>
 void Repo::ReleaseTwiddlesInternal(void*                                               ptr,
                                    std::map<KeyType, std::pair<gpubuf, unsigned int>>& twiddles,
                                    std::map<void*, KeyType>& twiddles_reverse)
@@ -102,6 +138,35 @@ void Repo::ReleaseTwiddlesInternal(void*                                        
     }
 }
 
+template <typename KeyType>
+void Repo::ReleaseChirpInternal(void*                                               ptr,
+                                std::map<KeyType, std::pair<gpubuf, unsigned int>>& chirp,
+                                std::map<void*, KeyType>&                           chirp_reverse)
+{
+    if(repoDestroyed)
+    {
+        throw std::runtime_error("Repo prematurely destroyed.");
+    }
+
+    auto reverse_it = chirp_reverse.find(ptr);
+    if(reverse_it == chirp_reverse.end())
+        return;
+    auto forward_it = chirp.find(reverse_it->second);
+    if(forward_it == chirp.end())
+    {
+        // orphaned reverse entry?
+        chirp_reverse.erase(reverse_it);
+        return;
+    }
+    forward_it->second.second -= 1;
+    if(forward_it->second.second == 0)
+    {
+        // remove from both maps
+        chirp.erase(forward_it);
+        chirp_reverse.erase(reverse_it);
+    }
+}
+
 std::pair<void*, size_t> Repo::GetTwiddles1D(size_t                     length,
                                              size_t                     length_limit,
                                              rocfft_precision           precision,
@@ -113,7 +178,7 @@ std::pair<void*, size_t> Repo::GetTwiddles1D(size_t                     length,
     std::lock_guard<std::mutex> lck(mtx);
     Repo&                       repo = Repo::GetRepo();
 
-    repo_key_1D_t key{length, length_limit, precision, largeTwdBase, attach_halfN, radices};
+    repo_twd_key_1D_t key{length, length_limit, precision, largeTwdBase, attach_halfN, radices};
     return GetTwiddlesInternal(
         key, repo.twiddles_1D, repo.twiddles_1D_reverse, [&](unsigned int deviceId) {
             return twiddles_create(length,
@@ -135,11 +200,23 @@ std::pair<void*, size_t> Repo::GetTwiddles2D(size_t           length0,
     std::lock_guard<std::mutex> lck(mtx);
     Repo&                       repo = Repo::GetRepo();
 
-    repo_key_2D_t key{length0, length1, precision};
+    repo_twd_key_2D_t key{length0, length1, precision};
     return GetTwiddlesInternal(
         key, repo.twiddles_2D, repo.twiddles_2D_reverse, [&](unsigned int deviceId) {
             return twiddles_create_2D(length0, length1, precision, gpu_arch, deviceId);
         });
+}
+
+std::pair<void*, size_t>
+    Repo::GetChirp(size_t length, rocfft_precision precision, const char* gpu_arch)
+{
+    std::lock_guard<std::mutex> lck(mtx);
+    Repo&                       repo = Repo::GetRepo();
+
+    repo_chirp_key_t key{length, precision};
+    return GetChirpInternal(key, repo.chirp, repo.chirp_reverse, [&](unsigned int deviceId) {
+        return chirp_create(length, precision, gpu_arch, deviceId);
+    });
 }
 
 void Repo::ReleaseTwiddle1D(void* ptr)
@@ -158,13 +235,25 @@ void Repo::ReleaseTwiddle2D(void* ptr)
     return ReleaseTwiddlesInternal(ptr, repo.twiddles_2D, repo.twiddles_2D_reverse);
 }
 
+void Repo::ReleaseChirp(void* ptr)
+{
+    std::lock_guard<std::mutex> lck(mtx);
+
+    Repo& repo = Repo::GetRepo();
+    return ReleaseChirpInternal(ptr, repo.chirp, repo.chirp_reverse);
+}
+
 void Repo::Clear()
 {
     std::lock_guard<std::mutex> lck(mtx);
     if(repoDestroyed)
         return;
     Repo& repo = Repo::GetRepo();
+
     repo.twiddles_1D.clear();
     repo.twiddles_2D.clear();
     twiddle_streams_cleanup();
+
+    repo.chirp.clear();
+    chirp_streams_cleanup();
 }

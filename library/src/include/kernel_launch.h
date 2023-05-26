@@ -28,10 +28,10 @@
 #include "error.h"
 #endif
 #include "../../../shared/array_predicate.h"
+#include "../../../shared/rocfft_hip.h"
 #include "../device/kernels/callback.h"
 #include "kargs.h"
 #include "rocfft.h"
-#include "rocfft_hip.h"
 #include "tree_node.h"
 #include <iostream>
 

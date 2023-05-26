@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,27 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef TRANSFORM_H
-#define TRANSFORM_H
+#include "rtc_chirp_kernel.h"
+#include "device/kernel-generator-embed.h"
+#include "rtc_cache.h"
 
-#include "../../../shared/rocfft_hip.h"
-
-struct rocfft_execution_info_t
+RTCKernelChirp RTCKernelChirp::generate(const std::string& gpu_arch, rocfft_precision precision)
 {
-    void*       workBuffer;
-    size_t      workBufferSize;
-    hipStream_t rocfft_stream = 0; // by default it is stream 0
-    rocfft_execution_info_t()
-        : workBuffer(nullptr)
-        , workBufferSize(0)
-    {
-    }
-    UserCallbacks callbacks;
-};
+    auto kernel_name = chirp_rtc_kernel_name(precision);
 
-void TransformPowX(const ExecPlan&       execPlan,
-                   void*                 in_buffer[],
-                   void*                 out_buffer[],
-                   rocfft_execution_info info);
+    kernel_src_gen_t generator{
+        [=](const std::string& kernel_name) { return chirp_rtc(kernel_name, precision); }};
 
-#endif // TRANSFORM_H
+    auto code = cached_compile(kernel_name, gpu_arch, generator, generator_sum());
+
+    return RTCKernelChirp{kernel_name, code, {}, {}};
+}

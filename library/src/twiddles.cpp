@@ -22,8 +22,9 @@
 
 #include "twiddles.h"
 #include "../../shared/arithmetic.h"
+#include "../../shared/hipstream_wrapper.h"
+#include "../../shared/rocfft_hip.h"
 #include "function_pool.h"
-#include "rocfft_hip.h"
 #include "rtc_cache.h"
 #include "rtc_kernel.h"
 #include "rtc_twiddle_kernel.h"
@@ -33,39 +34,6 @@
 #include <stdexcept>
 #include <string>
 #include <tuple>
-
-// RAII wrapper around hipStream_t
-struct hipStream_wrapper_t
-{
-    hipStream_wrapper_t()
-        : stream(nullptr)
-    {
-    }
-    void alloc()
-    {
-        if(stream == nullptr && hipStreamCreate(&stream) != hipSuccess)
-            throw std::runtime_error("hipStreamCreate failure");
-    }
-    operator hipStream_t()
-    {
-        return stream;
-    }
-    ~hipStream_wrapper_t()
-    {
-        if(stream)
-            (void)hipStreamDestroy(stream);
-    }
-    hipStream_wrapper_t(const hipStream_wrapper_t&) = delete;
-    hipStream_wrapper_t& operator=(const hipStream_wrapper_t&) = delete;
-    hipStream_wrapper_t(hipStream_wrapper_t&& other)
-        : stream(other.stream)
-    {
-        other.stream = nullptr;
-    }
-
-private:
-    hipStream_t stream;
-};
 
 // this vector stores streams for each device id.  index in the
 // vector is device id.  note that this vector needs to be protected

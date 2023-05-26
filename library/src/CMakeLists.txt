@@ -131,6 +131,7 @@ set( kgen_logic_files
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_cr.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rc.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rr.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/bluestein_generator.h     
      ${CMAKE_SOURCE_DIR}/library/src/rtc_compile.cpp
      ${CMAKE_SOURCE_DIR}/library/src/include/rtc_stockham_gen.h
      ${CMAKE_SOURCE_DIR}/library/src/rtc_stockham_gen.cpp
@@ -150,6 +151,10 @@ set( kgen_logic_files
      # twiddle generator code
      ${CMAKE_SOURCE_DIR}/library/src/include/rtc_twiddle_gen.h
      ${CMAKE_SOURCE_DIR}/library/src/rtc_twiddle_gen.cpp
+
+     # chirp generator code
+     ${CMAKE_SOURCE_DIR}/library/src/include/rtc_chirp_gen.h
+     ${CMAKE_SOURCE_DIR}/library/src/rtc_chirp_gen.cpp
 )
 
 add_custom_command(
@@ -185,6 +190,7 @@ set( rocfft_source
   transform.cpp
   repo.cpp
   powX.cpp
+  chirp.cpp
   twiddles.cpp
   kargs.cpp
   tree_node.cpp
@@ -271,6 +277,7 @@ add_library( rocfft-rtc-gen OBJECT
   rtc_stockham_gen.cpp
   rtc_transpose_gen.cpp
   rtc_twiddle_gen.cpp
+  rtc_chirp_gen.cpp
 )
 # caching of generation/compilation
 add_library( rocfft-rtc-cache OBJECT
@@ -285,6 +292,7 @@ add_library( rocfft-rtc-launch OBJECT
   rtc_stockham_kernel.cpp
   rtc_transpose_kernel.cpp
   rtc_twiddle_kernel.cpp
+  rtc_chirp_kernel.cpp
 )
 target_link_libraries( rocfft-rtc-launch PRIVATE rocfft-rtc-cache )
 

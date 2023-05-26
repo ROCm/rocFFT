@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,27 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef TRANSFORM_H
-#define TRANSFORM_H
+#ifndef ROCFFT_RTC_CHIRP_KERNEL_H
+#define ROCFFT_RTC_CHIRP_KERNEL_H
 
-#include "../../../shared/rocfft_hip.h"
+#include "rtc_chirp_gen.h"
+#include "rtc_kernel.h"
 
-struct rocfft_execution_info_t
+struct RTCKernelChirp : public RTCKernel
 {
-    void*       workBuffer;
-    size_t      workBufferSize;
-    hipStream_t rocfft_stream = 0; // by default it is stream 0
-    rocfft_execution_info_t()
-        : workBuffer(nullptr)
-        , workBufferSize(0)
+    // generate chirp kernel from precision
+    static RTCKernelChirp generate(const std::string& gpu_arch, rocfft_precision precision);
+
+    // no DeviceCallIn is available at chirp generation time -
+    // these kernels are launched without it
+    RTCKernelArgs get_launch_args(DeviceCallIn& data) override
+    {
+        return {};
+    }
+
+protected:
+    RTCKernelChirp(const std::string&       kernel_name,
+                   const std::vector<char>& code,
+                   dim3                     gridDim,
+                   dim3                     blockDim)
+        : RTCKernel(kernel_name, code, gridDim, blockDim)
     {
     }
-    UserCallbacks callbacks;
 };
-
-void TransformPowX(const ExecPlan&       execPlan,
-                   void*                 in_buffer[],
-                   void*                 out_buffer[],
-                   rocfft_execution_info info);
-
-#endif // TRANSFORM_H
+#endif // ROCFFT_RTC_CHIRP_KERNEL_H

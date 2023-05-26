@@ -4,6 +4,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## (Unreleased) rocFFT 1.0.24
 
+### Optimizations
+- Improved performance of complex forward/inverse 1D FFTs (2049 <= length <= 131071) that use Bluestein's algorithm.
+
 ### Added
 - Implemented a solution map version converter and finish the first conversion from ver.0 to ver.1. Where version 1 removes some incorrect kernels (sbrc/sbcr using half_lds)
 

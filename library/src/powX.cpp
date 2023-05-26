@@ -47,7 +47,7 @@
 #include "../../shared/printbuffer.h"
 #include "../../shared/ptrdiff.h"
 #include "../../shared/rocfft_complex.h"
-#include "rocfft_hip.h"
+#include "../../shared/rocfft_hip.h"
 
 // This function is called during creation of plan: enqueue the HIP kernels by function
 // pointers. Return true if everything goes well. Any internal device memory allocation
@@ -56,7 +56,7 @@ bool PlanPowX(ExecPlan& execPlan)
 {
     for(const auto& node : execPlan.execSeq)
     {
-        if(node->CreateTwiddleTableResource() == false)
+        if(node->CreateDeviceResources() == false)
             return false;
 
         if(node->CreateDevKernelArgs() == false)

@@ -21,10 +21,10 @@
 *******************************************************************************/
 
 #include "../../shared/environment.h"
+#include "../../shared/rocfft_hip.h"
 #include "logging.h"
 #include "repo.h"
 #include "rocfft.h"
-#include "rocfft_hip.h"
 #include "rocfft_ostream.hpp"
 #include "rtc_cache.h"
 #include "solution_map.h"

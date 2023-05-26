@@ -21,7 +21,7 @@
 *******************************************************************************/
 
 #include "kargs.h"
-#include "rocfft_hip.h"
+#include "../../shared/rocfft_hip.h"
 #include <cassert>
 
 // malloc device buffer; copy host buffer to device buffer

@@ -392,6 +392,120 @@ std::string rocfft_rider_command(rocfft_plan plan)
     return rider.str();
 }
 
+void set_bluestein_strides(const rocfft_plan plan, NodeMetaData& planData)
+{
+    std::array<size_t, 3> inStridesBlue  = {0, 0, 0};
+    std::array<size_t, 3> outStridesBlue = {0, 0, 0};
+    std::array<size_t, 3> lengthsBlue    = {0, 0, 0};
+    size_t                inDistBlue     = 0;
+    size_t                outDistBlue    = 0;
+
+    const auto precision     = plan->precision;
+    const auto transformType = plan->transformType;
+    const auto rank          = plan->rank;
+    const auto lengths       = plan->lengths;
+    const auto placement     = plan->placement;
+    const auto dimension     = planData.dimension;
+
+    assert(rank == dimension);
+
+    lengthsBlue[0] = NodeFactory::SupportedLength(precision, lengths[0])
+                         ? lengths[0]
+                         : NodeFactory::GetBluesteinLength(precision, lengths[0]);
+    for(size_t i = 1; i < dimension; i++)
+        lengthsBlue[i] = lengths[i];
+
+    // =================================
+    // inStrides
+    // =================================
+    inStridesBlue[0] = 1;
+
+    if((transformType == rocfft_transform_type_real_forward)
+       && (placement == rocfft_placement_inplace))
+    {
+        // real-to-complex in-place
+        size_t dist = 2 * (1 + (lengthsBlue[0]) / 2);
+
+        for(size_t i = 1; i < rank; i++)
+        {
+            inStridesBlue[i] = dist;
+            dist *= lengthsBlue[i];
+        }
+
+        inDistBlue = dist;
+    }
+    else if(transformType == rocfft_transform_type_real_inverse)
+    {
+        // complex-to-real
+        size_t dist = 1 + (lengthsBlue[0]) / 2;
+
+        for(size_t i = 1; i < rank; i++)
+        {
+            inStridesBlue[i] = dist;
+            dist *= lengthsBlue[i];
+        }
+
+        inDistBlue = dist;
+    }
+    else
+    {
+        // Set the inStrides to deal with contiguous data
+        for(size_t i = 1; i < rank; i++)
+            inStridesBlue[i] = lengthsBlue[i - 1] * inStridesBlue[i - 1];
+
+        inDistBlue = lengthsBlue[rank - 1] * inStridesBlue[rank - 1];
+    }
+
+    // =================================
+    // outStrides
+    // =================================
+    outStridesBlue[0] = 1;
+
+    if((transformType == rocfft_transform_type_real_forward)
+       && (placement == rocfft_placement_inplace))
+    {
+        // real-to-complex in-place
+        size_t dist = 2 * (1 + (lengthsBlue[0]) / 2);
+
+        for(size_t i = 1; i < rank; i++)
+        {
+            outStridesBlue[i] = dist;
+            dist *= lengthsBlue[i];
+        }
+
+        outDistBlue = dist;
+    }
+    else if(transformType == rocfft_transform_type_real_inverse)
+    {
+        // complex-to-real
+        size_t dist = 1 + (lengthsBlue[0]) / 2;
+
+        for(size_t i = 1; i < rank; i++)
+        {
+            outStridesBlue[i] = dist;
+            dist *= lengthsBlue[i];
+        }
+
+        outDistBlue = dist;
+    }
+    else
+    {
+        // Set the inStrides to deal with contiguous data
+        for(size_t i = 1; i < rank; i++)
+            outStridesBlue[i] = lengthsBlue[i - 1] * outStridesBlue[i - 1];
+
+        outDistBlue = lengthsBlue[rank - 1] * outStridesBlue[rank - 1];
+    }
+
+    for(size_t i = 0; i < dimension; i++)
+    {
+        planData.inStrideBlue.push_back(inStridesBlue[i]);
+        planData.outStrideBlue.push_back(outStridesBlue[i]);
+    }
+    planData.iDistBlue = inDistBlue;
+    planData.oDistBlue = outDistBlue;
+}
+
 rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
                                           const rocfft_result_placement placement,
                                           const rocfft_transform_type   transform_type,
@@ -508,6 +622,8 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
         rootPlanData.outArrayType = plan->desc.outArrayType;
         rootPlanData.rootIsC2C    = (rootPlanData.inArrayType != rocfft_array_type_real)
                                  && (rootPlanData.outArrayType != rocfft_array_type_real);
+
+        set_bluestein_strides(plan, rootPlanData);
 
         ExecPlan& execPlan      = plan->execPlan;
         execPlan.deviceProp     = get_curr_device_prop();
@@ -841,9 +957,13 @@ void TreeNode::CopyNodeData(const TreeNode& srcNode)
     batch           = srcNode.batch;
     length          = srcNode.length;
     inStride        = srcNode.inStride;
+    inStrideBlue    = srcNode.inStrideBlue;
     outStride       = srcNode.outStride;
+    outStrideBlue   = srcNode.outStrideBlue;
     iDist           = srcNode.iDist;
+    iDistBlue       = srcNode.iDistBlue;
     oDist           = srcNode.oDist;
+    oDistBlue       = srcNode.oDistBlue;
     iOffset         = srcNode.iOffset;
     oOffset         = srcNode.oOffset;
     placement       = srcNode.placement;
@@ -860,6 +980,9 @@ void TreeNode::CopyNodeData(const TreeNode& srcNode)
     largeTwd3Steps = srcNode.largeTwd3Steps;
     largeTwdBase   = srcNode.largeTwdBase;
     lengthBlue     = srcNode.lengthBlue;
+    lengthBlueN    = srcNode.lengthBlueN;
+    typeBlue       = srcNode.typeBlue;
+    fuseBlue       = srcNode.fuseBlue;
 
     //
     obIn  = srcNode.obIn;
@@ -878,21 +1001,25 @@ void TreeNode::CopyNodeData(const TreeNode& srcNode)
 
 void TreeNode::CopyNodeData(const NodeMetaData& data)
 {
-    dimension    = data.dimension;
-    batch        = data.batch;
-    length       = data.length;
-    inStride     = data.inStride;
-    outStride    = data.outStride;
-    iDist        = data.iDist;
-    oDist        = data.oDist;
-    iOffset      = data.iOffset;
-    oOffset      = data.oOffset;
-    placement    = data.placement;
-    precision    = data.precision;
-    direction    = data.direction;
-    inArrayType  = data.inArrayType;
-    outArrayType = data.outArrayType;
-    deviceProp   = data.deviceProp;
+    dimension     = data.dimension;
+    batch         = data.batch;
+    length        = data.length;
+    inStride      = data.inStride;
+    inStrideBlue  = data.inStrideBlue;
+    outStride     = data.outStride;
+    outStrideBlue = data.outStrideBlue;
+    iDist         = data.iDist;
+    iDistBlue     = data.iDistBlue;
+    oDist         = data.oDist;
+    oDistBlue     = data.oDistBlue;
+    iOffset       = data.iOffset;
+    oOffset       = data.oOffset;
+    placement     = data.placement;
+    precision     = data.precision;
+    direction     = data.direction;
+    inArrayType   = data.inArrayType;
+    outArrayType  = data.outArrayType;
+    deviceProp    = data.deviceProp;
 }
 
 bool TreeNode::isPlacementAllowed(rocfft_result_placement test_placement) const
@@ -1086,11 +1213,16 @@ void TreeNode::RefreshTree()
                      ->get();
     auto last = childNodes.back().get();
 
-    this->obIn         = first->obIn;
-    this->obOut        = last->obOut;
-    this->placement    = (obIn == obOut) ? rocfft_placement_inplace : rocfft_placement_notinplace;
-    this->inArrayType  = first->inArrayType;
-    this->outArrayType = last->outArrayType;
+    // Skip first node in multi-kernel fused Bluestein
+    // since it is not connected to the buffer chain
+    if(fuseBlue != BFT_FWD_CHIRP)
+    {
+        this->obIn      = first->obIn;
+        this->obOut     = last->obOut;
+        this->placement = (obIn == obOut) ? rocfft_placement_inplace : rocfft_placement_notinplace;
+        this->inArrayType  = first->inArrayType;
+        this->outArrayType = last->outArrayType;
+    }
 }
 
 void TreeNode::AssignParams()
@@ -1101,7 +1233,9 @@ void TreeNode::AssignParams()
     for(auto& child : childNodes)
     {
         child->inStride.clear();
+        child->inStrideBlue.clear();
         child->outStride.clear();
+        child->outStrideBlue.clear();
     }
 
     AssignParams_internal();
@@ -1185,14 +1319,19 @@ void TreeNode::DetermineBufferMemory(size_t& tmpBufSize,
 {
     if(nodeType == NT_LEAF)
     {
-        auto outputPtrDiff = compute_ptrdiff(
-            UseOutputLengthForPadding() ? GetOutputLength() : length, outStride, batch, oDist);
+        auto outputPtrDiff
+            = compute_ptrdiff(UseOutputLengthForPadding() ? GetOutputLength() : length,
+                              (typeBlue == BT_MULTI_KERNEL_FUSED) ? outStrideBlue : outStride,
+                              batch,
+                              (typeBlue == BT_MULTI_KERNEL_FUSED) ? oDistBlue : oDist);
 
         if(scheme == CS_KERNEL_CHIRP)
             chirpSize = std::max(lengthBlue, chirpSize);
 
         if(obOut == OB_TEMP_BLUESTEIN)
-            blueSize = std::max(outputPtrDiff, blueSize);
+            blueSize = std::max(typeBlue == BT_MULTI_KERNEL_FUSED ? outputPtrDiff + lengthBlue
+                                                                  : outputPtrDiff,
+                                blueSize);
 
         if(obOut == OB_TEMP_CMPLX_FOR_REAL)
             cmplxForRealSize = std::max(outputPtrDiff, cmplxForRealSize);
@@ -1237,9 +1376,23 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     for(size_t i = 0; i < inStride.size(); i++)
         os << inStride[i] << " ";
 
+    if(typeBlue == BT_MULTI_KERNEL_FUSED)
+    {
+        os << "\n" << indentStr << "iStridesBlue: ";
+        for(size_t i = 0; i < inStrideBlue.size(); i++)
+            os << inStrideBlue[i] << " ";
+    }
+
     os << "\n" << indentStr << "oStrides: ";
     for(size_t i = 0; i < outStride.size(); i++)
         os << outStride[i] << " ";
+
+    if(typeBlue == BT_MULTI_KERNEL_FUSED)
+    {
+        os << "\n" << indentStr << "oStridesBlue: ";
+        for(size_t i = 0; i < outStrideBlue.size(); i++)
+            os << outStrideBlue[i] << " ";
+    }
 
     if(iOffset)
     {
@@ -1254,8 +1407,18 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
 
     os << "\n" << indentStr;
     os << "iDist: " << iDist;
+    if(typeBlue == BT_MULTI_KERNEL_FUSED)
+    {
+        os << "\n" << indentStr;
+        os << "iDistBlue: " << iDistBlue;
+    }
     os << "\n" << indentStr;
     os << "oDist: " << oDist;
+    if(typeBlue == BT_MULTI_KERNEL_FUSED)
+    {
+        os << "\n" << indentStr;
+        os << "oDistBlue: " << oDistBlue;
+    }
 
     os << "\n" << indentStr;
     os << "direction: " << direction;
@@ -1340,6 +1503,31 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
         }
     }
     std::cout << std::flush;
+}
+
+void TreeNode::RecursiveFindChildNodes(const ComputeScheme&    findScheme,
+                                       std::vector<TreeNode*>& nodes)
+{
+    if(scheme == findScheme)
+        nodes.emplace_back(this);
+
+    for(auto& child : childNodes)
+        child->RecursiveFindChildNodes(findScheme, nodes);
+}
+
+void TreeNode::RecursiveCopyNodeData(const TreeNode& srcNode)
+{
+    CopyNodeData(srcNode);
+
+    if(childNodes.size() != srcNode.childNodes.size())
+        throw std::runtime_error("Invalid copy of source tree data");
+
+    std::size_t i = 0;
+    for(auto& child : childNodes)
+    {
+        child->CopyNodeData(*srcNode.childNodes[i]);
+        ++i;
+    }
 }
 
 void TreeNode::RecursiveRemoveNode(TreeNode* node)

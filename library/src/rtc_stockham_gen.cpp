@@ -25,6 +25,7 @@
 
 using namespace std::placeholders;
 
+#include "device/generator/bluestein_generator.h"
 #include "device/generator/generator.h"
 #include "device/generator/stockham_gen.h"
 #include "device/generator/stockham_gen_base.h"
@@ -56,7 +57,8 @@ std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
                                      IntrinsicAccessType           intrinsicMode,
                                      SBRC_TRANSPOSE_TYPE           transpose_type,
                                      bool                          enable_callbacks,
-                                     bool                          enable_scaling)
+                                     bool                          enable_scaling,
+                                     BluesteinFuseType             fuseBlue)
 {
     std::string kernel_name = "fft_rtc";
 
@@ -158,6 +160,21 @@ std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
         throw std::runtime_error("unsupported scheme in stockham_rtc_kernel_name");
     }
 
+    switch(fuseBlue)
+    {
+    case BFT_NONE:
+        break;
+    case BFT_FWD_CHIRP:
+        kernel_name += "_fwd_chirp";
+        break;
+    case BFT_FWD_CHIRP_MUL:
+        kernel_name += "_fwd_chirp_mul";
+        break;
+    case BFT_INV_CHIRP_MUL:
+        kernel_name += "_inv_chirp_mul";
+        break;
+    }
+
     switch(transpose_type)
     {
     case NONE:
@@ -238,13 +255,18 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          IntrinsicAccessType           intrinsicMode,
                          SBRC_TRANSPOSE_TYPE           transpose_type,
                          bool                          enable_callbacks,
-                         bool                          enable_scaling)
+                         bool                          enable_scaling,
+                         const BluesteinFuseType&      fuseBlue)
 {
     std::unique_ptr<Function> lds2reg, reg2lds, device;
     std::unique_ptr<Function> lds2reg1, reg2lds1, device1;
+    std::unique_ptr<Function> bluestein_load, bluestein_intrinsic_load;
+    std::unique_ptr<Function> bluestein_store, bluestein_intrinsic_store;
     std::unique_ptr<Function> global;
 
     std::vector<unsigned int> all_factors;
+
+    auto fuseBluestein = (fuseBlue != BFT_NONE);
 
     if(scheme == CS_KERNEL_2D_SINGLE)
     {
@@ -276,19 +298,18 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
         if(scheme == CS_KERNEL_STOCKHAM)
             kernel = std::make_unique<StockhamKernelRR>(specs);
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-            kernel = std::make_unique<StockhamKernelCC>(specs, largeTwdBatchIsTransformCount);
+            kernel = std::make_unique<StockhamKernelCC>(
+                specs, largeTwdBatchIsTransformCount, fuseBluestein);
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
             kernel = std::make_unique<StockhamKernelCR>(specs);
         else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
-        {
-            kernel = std::make_unique<StockhamKernelRC>(specs);
-        }
+            kernel = std::make_unique<StockhamKernelRC>(specs, fuseBluestein);
         else if(scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
-            kernel = std::make_unique<StockhamKernelRC>(specs);
+            kernel = std::make_unique<StockhamKernelRC>(specs, false);
         else if(scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)
-            kernel = std::make_unique<StockhamKernelRC>(specs);
+            kernel = std::make_unique<StockhamKernelRC>(specs, false);
         else if(scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
-            kernel = std::make_unique<StockhamKernelRC>(specs);
+            kernel = std::make_unique<StockhamKernelRC>(specs, false);
         else
             throw std::runtime_error("unhandled scheme");
         if(transforms_per_block)
@@ -296,7 +317,25 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
         lds2reg = std::make_unique<Function>(kernel->generate_lds_to_reg_input_function());
         reg2lds = std::make_unique<Function>(kernel->generate_lds_from_reg_output_function());
         device  = std::make_unique<Function>(kernel->generate_device_function());
-        global  = std::make_unique<Function>(kernel->generate_global_function());
+
+        if(fuseBluestein)
+        {
+            auto planar_blue_load = array_type_is_planar(inArrayType);
+            bluestein_load = std::make_unique<Function>(generate_bluestein_device_load_function(
+                scheme, fuseBlue, direction, planar_blue_load, false));
+            bluestein_intrinsic_load
+                = std::make_unique<Function>(generate_bluestein_device_load_function(
+                    scheme, fuseBlue, direction, planar_blue_load, true));
+
+            auto planar_blue_store = array_type_is_planar(outArrayType);
+            bluestein_store = std::make_unique<Function>(generate_bluestein_device_store_function(
+                scheme, fuseBlue, direction, planar_blue_store, false));
+            bluestein_intrinsic_store
+                = std::make_unique<Function>(generate_bluestein_device_store_function(
+                    scheme, fuseBlue, direction, planar_blue_store, true));
+        }
+
+        global = std::make_unique<Function>(kernel->generate_global_function());
 
         // get factors vector
         all_factors = kernel->factors;
@@ -325,6 +364,9 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
             *global = make_planar(*global, "buf");
     }
 
+    if(fuseBluestein)
+        *global = make_bluestein(scheme, fuseBlue, *global);
+
     // start off with includes
     std::string src;
     src += rocfft_complex_h;
@@ -351,6 +393,14 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
         src += reg2lds1->render();
     if(device1)
         src += device1->render();
+    if(bluestein_load)
+        src += bluestein_load->render();
+    if(bluestein_intrinsic_load)
+        src += bluestein_intrinsic_load->render();
+    if(bluestein_store)
+        src += bluestein_store->render();
+    if(bluestein_intrinsic_store)
+        src += bluestein_intrinsic_store->render();
 
     // make_rtc removes templates from global function - add typedefs
     // and constants to replace them

@@ -305,7 +305,7 @@ std::string stockham_variants(const std::string&      filename,
     }
     else if(specs.scheme == "CS_KERNEL_STOCKHAM_BLOCK_CC")
     {
-        StockhamKernelCC kernel(specs, false);
+        StockhamKernelCC kernel(specs, false, false);
         output += append_common_functions(kernel.generate_lds_to_reg_input_function(),
                                           kernel.generate_lds_from_reg_output_function(),
                                           {},
@@ -323,7 +323,7 @@ std::string stockham_variants(const std::string&      filename,
     }
     else if(specs.scheme == "CS_KERNEL_STOCKHAM_BLOCK_RC")
     {
-        StockhamKernelRC kernel(specs);
+        StockhamKernelRC kernel(specs, false);
         output += append_common_functions(kernel.generate_lds_to_reg_input_function(),
                                           kernel.generate_lds_from_reg_output_function(),
                                           {},

@@ -189,6 +189,16 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     // current transform index in a batch
     Variable transform{"transform", "size_t"};
 
+    // data index and offsets (for contiguous read/write)
+    Variable global_data_id{"global_data_id", "size_t"};
+    Variable global_load_data_offset{"global_load_data_offset", "size_t"};
+    Variable global_store_data_offset{"global_store_data_offset", "size_t"};
+
+    // transform index and offsets
+    Variable global_transf_id{"global_transf_id", "size_t"};
+    Variable global_load_transf_offset{"global_load_transf_offset", "size_t"};
+    Variable global_store_transf_offset{"global_store_transf_offset", "size_t"};
+
     // stride between consecutive indexes
     Variable stride0{"stride0", "const size_t"};
 

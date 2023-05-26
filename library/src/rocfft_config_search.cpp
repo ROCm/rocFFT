@@ -169,7 +169,8 @@ std::string test_kernel_src(const std::string&               kernel_name,
                         IntrinsicAccessType::DISABLE_BOTH,
                         SBRC_TRANSPOSE_TYPE::NONE,
                         false,
-                        false);
+                        false,
+                        BluesteinFuseType::BFT_NONE);
 }
 
 // things that we need to remember between kernel launches

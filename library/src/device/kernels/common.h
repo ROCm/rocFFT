@@ -162,6 +162,22 @@ enum IntrinsicAccessType
     ENABLE_BOTH, // turn-on both intrinsic buffer load/store
 };
 
+enum BluesteinType
+{
+    BT_NONE,
+    BT_SINGLE_KERNEL, // implementation for small lengths (that fit in LDS)
+    BT_MULTI_KERNEL, // large lengths
+    BT_MULTI_KERNEL_FUSED, // large lengths with fused intermediate Bluestein operations
+};
+
+enum BluesteinFuseType
+{ // Fused operation types for multi-kernel Bluestein
+    BFT_NONE,
+    BFT_FWD_CHIRP, // fused chirp + padding + forward fft
+    BFT_FWD_CHIRP_MUL, // fused chirp / input Hadamard product + padding + forward fft
+    BFT_INV_CHIRP_MUL, // fused convolution Hadamard product + inverse fft + chirp Hadamard product
+};
+
 template <class T>
 struct real_type;
 

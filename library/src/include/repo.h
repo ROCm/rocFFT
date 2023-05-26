@@ -32,7 +32,7 @@ class Repo
 
     // key structure for 1D twiddles - these are the arguments to
     // twiddle creation
-    struct repo_key_1D_t
+    struct repo_twd_key_1D_t
     {
         // twiddle table length
         size_t           length       = 0;
@@ -46,7 +46,7 @@ class Repo
         // twiddles
         int deviceId = 0;
 
-        bool operator<(const repo_key_1D_t& other) const
+        bool operator<(const repo_twd_key_1D_t& other) const
         {
             if(length != other.length)
                 return length < other.length;
@@ -64,7 +64,7 @@ class Repo
         }
     };
     // key structure for 2D twiddles
-    struct repo_key_2D_t
+    struct repo_twd_key_2D_t
     {
         size_t           length0   = 0;
         size_t           length1   = 0;
@@ -73,12 +73,30 @@ class Repo
         // twiddles
         int deviceId = 0;
 
-        bool operator<(const repo_key_2D_t& other) const
+        bool operator<(const repo_twd_key_2D_t& other) const
         {
             if(length0 != other.length0)
                 return length0 < other.length0;
             if(length1 != other.length1)
                 return length1 < other.length1;
+            if(precision != other.precision)
+                return precision < other.precision;
+            return deviceId < other.deviceId;
+        }
+    };
+    // key structure for chirp table
+    struct repo_chirp_key_t
+    {
+        size_t           length    = 0;
+        rocfft_precision precision = rocfft_precision_single;
+        // buffers are in device memory, so we need per-device
+        // chirps
+        int deviceId = 0;
+
+        bool operator<(const repo_chirp_key_t& other) const
+        {
+            if(length != other.length)
+                return length < other.length;
             if(precision != other.precision)
                 return precision < other.precision;
             return deviceId < other.deviceId;
@@ -91,13 +109,19 @@ class Repo
     // NOTE: some buffers might be more shareable here (e.g. simple
     // 1D might match half of a 2D twiddle, or a simple 1D might be
     // shareable with a same-length attach_halfN buffer)
-    std::map<repo_key_1D_t, std::pair<gpubuf, unsigned int>> twiddles_1D;
-    std::map<repo_key_2D_t, std::pair<gpubuf, unsigned int>> twiddles_2D;
+    std::map<repo_twd_key_1D_t, std::pair<gpubuf, unsigned int>> twiddles_1D;
+    std::map<repo_twd_key_2D_t, std::pair<gpubuf, unsigned int>> twiddles_2D;
+
+    std::map<repo_chirp_key_t, std::pair<gpubuf, unsigned int>> chirp;
+
     // reverse-map the device pointers back to the keys so users can
     // free the pointer they were given
-    std::map<void*, repo_key_1D_t> twiddles_1D_reverse;
-    std::map<void*, repo_key_2D_t> twiddles_2D_reverse;
-    static std::mutex              mtx;
+    std::map<void*, repo_twd_key_1D_t> twiddles_1D_reverse;
+    std::map<void*, repo_twd_key_2D_t> twiddles_2D_reverse;
+
+    std::map<void*, repo_chirp_key_t> chirp_reverse;
+
+    static std::mutex mtx;
 
     // internal helpers to get and free twiddles
     template <typename KeyType>
@@ -110,6 +134,18 @@ class Repo
     static void ReleaseTwiddlesInternal(void* ptr,
                                         std::map<KeyType, std::pair<gpubuf, unsigned int>>&,
                                         std::map<void*, KeyType>&);
+
+    // internal helpers to get and free chirp table
+    template <typename KeyType>
+    static std::pair<void*, size_t>
+        GetChirpInternal(KeyType,
+                         std::map<KeyType, std::pair<gpubuf, unsigned int>>&,
+                         std::map<void*, KeyType>&,
+                         std::function<gpubuf(unsigned int)>);
+    template <typename KeyType>
+    static void ReleaseChirpInternal(void* ptr,
+                                     std::map<KeyType, std::pair<gpubuf, unsigned int>>&,
+                                     std::map<void*, KeyType>&);
 
 public:
     // repo is a singleton, so no copying or assignment
@@ -138,9 +174,12 @@ public:
                                                   size_t           length1,
                                                   rocfft_precision precision,
                                                   const char*      gpu_arch);
-    static void                     ReleaseTwiddle1D(void* ptr);
-    static void                     ReleaseTwiddle2D(void* ptr);
-    // remove cached twiddles
+    static std::pair<void*, size_t>
+                GetChirp(size_t length, rocfft_precision precision, const char* gpu_arch);
+    static void ReleaseTwiddle1D(void* ptr);
+    static void ReleaseTwiddle2D(void* ptr);
+    static void ReleaseChirp(void* ptr);
+    // remove cached twiddles/chirp
     static void Clear();
 
     // Repo is a singleton that should only be destroyed on static

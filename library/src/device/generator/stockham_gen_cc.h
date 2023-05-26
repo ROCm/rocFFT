@@ -24,13 +24,18 @@
 struct StockhamKernelCC : public StockhamKernel
 {
     explicit StockhamKernelCC(const StockhamGeneratorSpecs& specs,
-                              bool                          largeTwdBatchIsTransformCount)
+                              bool                          largeTwdBatchIsTransformCount,
+                              bool                          emitGlobalId)
         : StockhamKernel(specs)
         , largeTwdBatchIsTransformCount(largeTwdBatchIsTransformCount)
+        , emitGlobalId(emitGlobalId)
     {
         large_twiddle_steps.decl_default = 3;
         large_twiddle_base.decl_default  = 8;
     }
+
+    bool largeTwdBatchIsTransformCount = false;
+    bool emitGlobalId                  = false;
 
     //
     // templates
@@ -39,7 +44,6 @@ struct StockhamKernelCC : public StockhamKernel
     Variable apply_large_twiddle{"apply_large_twiddle", "bool"};
     Variable large_twiddle_steps{"large_twiddle_steps", "size_t"};
     Variable large_twiddle_base{"large_twiddle_base", "size_t"};
-    bool     largeTwdBatchIsTransformCount = false;
 
     //
     // arguments
@@ -55,6 +59,9 @@ struct StockhamKernelCC : public StockhamKernel
     Variable in_bound{"in_bound", "bool"};
     Variable thread{"thread", "unsigned int"}; // replacing tid_ver
     Variable tid_hor{"tid_hor", "unsigned int"}; // id along row
+    Variable stride_in{"stride_in", "const size_t", true};
+    Variable stride_out{"stride_out", "const size_t", true};
+    Variable length_M_blue{"length_M_blue", "const size_t"};
 
     // large twiddle support
     Multiply ltwd_entries{Parens{ShiftLeft{1, large_twiddle_base}}, 3};
@@ -101,10 +108,22 @@ struct StockhamKernelCC : public StockhamKernel
         if(hr == 0)
             hr = h;
         StatementList load;
+
         for(unsigned int w = 0; w < width; ++w)
         {
             auto tid = Parens{thread + dt + h * threads_per_transform};
             auto idx = Parens{tid + w * length / width};
+
+            if(emitGlobalId)
+            {
+                load += Assign{global_data_id,
+                               global_load_data_offset + tid_hor
+                                   + Parens{Expression{idx}} * lengths[1]};
+                load += Assign{global_transf_id,
+                               global_load_transf_offset + tid_hor
+                                   + Parens{Expression{idx}} * lengths[1]};
+            }
+
             if(intrinsic)
             {
                 // no need to and with trivial "true"
@@ -145,6 +164,16 @@ struct StockhamKernelCC : public StockhamKernel
             auto idx
                 = Parens{tid / cumheight} * (width * cumheight) + tid % cumheight + w * cumheight;
 
+            if(emitGlobalId)
+            {
+                work += Assign{global_data_id,
+                               global_store_data_offset + tid_hor
+                                   + Parens{Expression{idx}} * lengths[1]};
+                work += Assign{global_transf_id,
+                               global_store_transf_offset + tid_hor
+                                   + Parens{Expression{idx}} * lengths[1]};
+            }
+
             if(intrinsic)
             {
                 // no need to and with trivial "true"
@@ -172,6 +201,8 @@ struct StockhamKernelCC : public StockhamKernel
         Variable index_along_d{"index_along_d", "size_t"};
         Variable remaining{"remaining", "size_t"};
         Variable plength{"plength", "size_t"};
+        Variable global_stride_in{"global_stride_in", "const size_t"};
+        Variable global_stride_out{"global_stride_out", "const size_t"};
 
         StatementList stmts;
         stmts += Declaration{tile_index};
@@ -184,20 +215,55 @@ struct StockhamKernelCC : public StockhamKernel
         stmts += Declaration{plength, 1};
         stmts += Declaration{remaining};
         stmts += Declaration{index_along_d};
+        if(emitGlobalId)
+        {
+            stmts += Declaration{global_load_data_offset, 0};
+            stmts += Declaration{global_load_transf_offset, 0};
+            stmts += Declaration{global_store_data_offset, 0};
+            stmts += Declaration{global_store_transf_offset, 0};
+
+            stmts += Declaration{global_data_id, 0};
+            stmts += Declaration{global_transf_id, 0};
+        }
         stmts += Assign{num_of_tiles, (lengths[1] - 1) / transforms_per_block + 1};
         stmts += Assign{plength, num_of_tiles};
         stmts += Assign{tile_index, block_id % num_of_tiles};
         stmts += Assign{remaining, block_id / num_of_tiles};
         stmts += Assign{offset, tile_index * transforms_per_block * stride[1]};
 
-        stmts += For{d,
-                     2,
-                     d < dim,
-                     1,
-                     {Assign{plength, plength * lengths[d]},
-                      Assign{index_along_d, remaining % lengths[d]},
-                      Assign{remaining, remaining / lengths[d]},
-                      Assign{offset, offset + index_along_d * stride[d]}}};
+        if(emitGlobalId)
+        {
+            stmts += Declaration{Variable{"global_stride_in[3]", "const size_t"},
+                                 Literal{"{global_stride_in_0, global_stride_in_1, global_idist}"}};
+            stmts
+                += Declaration{Variable{"global_stride_out[3]", "const size_t"},
+                               Literal{"{global_stride_out_0, global_stride_out_1, global_odist}"}};
+
+            stmts += For{
+                d,
+                2,
+                d < dim,
+                1,
+                {Assign{plength, plength * lengths[d]},
+                 Assign{index_along_d, remaining % lengths[d]},
+                 Assign{remaining, remaining / lengths[d]},
+                 Assign{offset, offset + index_along_d * stride[d]},
+                 Assign{global_load_data_offset,
+                        global_load_data_offset + index_along_d * global_stride_in[d - 2]},
+                 Assign{global_store_data_offset,
+                        global_store_data_offset + index_along_d * global_stride_out[d - 2]}}};
+        }
+        else
+        {
+            stmts += For{d,
+                         2,
+                         d < dim,
+                         1,
+                         {Assign{plength, plength * lengths[d]},
+                          Assign{index_along_d, remaining % lengths[d]},
+                          Assign{remaining, remaining / lengths[d]},
+                          Assign{offset, offset + index_along_d * stride[d]}}};
+        }
 
         stmts += LineBreak{};
 
@@ -237,6 +303,20 @@ struct StockhamKernelCC : public StockhamKernel
         stmts += Declaration{thread, thread_id / transforms_per_block};
         stmts += Declaration{tid_hor, thread_id % transforms_per_block};
 
+        if(emitGlobalId)
+        {
+            stmts += Assign{global_load_data_offset,
+                            global_load_data_offset + tile_index * transforms_per_block
+                                + batch * global_stride_in[2]};
+            stmts += Assign{global_load_transf_offset,
+                            global_load_transf_offset + tile_index * transforms_per_block};
+            stmts += Assign{global_store_data_offset,
+                            global_store_data_offset + tile_index * transforms_per_block
+                                + batch * global_stride_out[2]};
+            stmts += Assign{global_store_transf_offset,
+                            global_store_transf_offset + tile_index * transforms_per_block};
+        }
+
         return stmts;
     }
 
@@ -259,8 +339,20 @@ struct StockhamKernelCC : public StockhamKernel
             };
 
             for(unsigned int i = 0; i < length / stripmine_h; ++i)
+            {
+                if(emitGlobalId)
+                {
+                    tmp_stmts += Assign{global_data_id,
+                                        global_load_data_offset + tid_hor
+                                            + (thread + i * stripmine_h) * lengths[1]};
+                    tmp_stmts += Assign{global_transf_id,
+                                        global_load_transf_offset + tid_hor
+                                            + (thread + i * stripmine_h) * lengths[1]};
+                }
+
                 tmp_stmts += Assign{lds_complex[offset_tile_wlds(i)],
                                     LoadGlobal{buf, offset + offset_tile_rbuf(i)}};
+            }
 
             stmts += CommentLines{
                 "no intrinsic when load to lds. FIXME- check why use nested branch is better"};
@@ -330,8 +422,20 @@ struct StockhamKernelCC : public StockhamKernel
             };
 
             for(unsigned int i = 0; i < length / stripmine_h; ++i)
+            {
+                if(emitGlobalId)
+                {
+                    tmp_stmts += Assign{global_data_id,
+                                        global_store_data_offset + tid_hor
+                                            + (thread + i * stripmine_h) * lengths[1]};
+                    tmp_stmts += Assign{global_transf_id,
+                                        global_store_transf_offset + tid_hor
+                                            + (thread + i * stripmine_h) * lengths[1]};
+                }
+
                 tmp_stmts += StoreGlobal{
                     buf, offset + offset_tile_wbuf(i), lds_complex[offset_tile_rlds(i)]};
+            }
 
             stmts += CommentLines{
                 "no intrinsic when store from lds. FIXME- check why use nested branch is better"};

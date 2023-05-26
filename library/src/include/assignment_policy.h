@@ -114,12 +114,24 @@ class AssignmentPolicy
 public:
     AssignmentPolicy() = default;
 
-    bool AssignBuffers(ExecPlan& execPlan);
+    void AssignBuffers(ExecPlan& execPlan);
 
     // pad temp buffers in a plan to avoid badly-performing strided accesses
     void PadPlan(ExecPlan& execPlan);
 
 private:
+    // Traverses the root plan tree to find nodes that can be run with the
+    // multi-kernel fused Bluestein algorithm
+    void FindBluesteinFusedNodes(ExecPlan& execPlan, std::vector<TreeNode*>& fusedNodes);
+
+    // Assign chirp buffers in fused multi-kernel Bluestein implementation.
+    // The first node in fused Bluestein is not connected to the rest
+    // of the nodes and, threfore, a separate run of AssignBuffers is need
+    // on the first node.
+    void AssignChirpBuffers(ExecPlan& execPlan);
+
+    void AssignBuffers_internal(ExecPlan& execPlan);
+
     static std::vector<size_t> GetEffectiveNodeOutLen(ExecPlan& execPlan, const TreeNode& node);
 
     // test if rootArrayType == testArrayType,

@@ -36,8 +36,12 @@ protected:
     {
         scheme = CS_BLUESTEIN;
     }
-    void AssignParams_internal() override;
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void          AssignParams_internal() override;
+    void          BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    BluesteinType DecideBlueType();
+
+public:
+    static size_t FindBlue(size_t len, rocfft_precision precision, bool forcePow2);
 };
 
 /*****************************************************

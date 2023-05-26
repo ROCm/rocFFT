@@ -43,7 +43,15 @@ public:
                                                         TreeNode*     parent,
                                                         ComputeScheme determined_scheme = CS_NONE);
 
+    // Checks if there exists native (radix) support for a given length. If
+    // no support exists for the given length, Bluestein algorithm is needed.
+    static bool SupportedLength(rocfft_precision precision, size_t len);
+
+    // Checks if  the non-pow2 length input is supported for a Bluestein compute scheme
     static bool NonPow2LengthSupported(rocfft_precision precision, size_t len);
+
+    // Gets a (potentially non-pow2) length to run Bluestein
+    static size_t GetBluesteinLength(rocfft_precision precision, size_t len);
 
     // Decide scheme from the node meta node
     static ComputeScheme DecideNodeScheme(NodeMetaData& nodeData, TreeNode* parent);

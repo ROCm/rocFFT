@@ -24,6 +24,7 @@
 #include "./device/kernels/array_format.h"
 #include "enum_printer.h"
 #include "logging.h"
+#include "node_factory.h"
 #include <numeric>
 #include <optional>
 #include <set>
@@ -141,7 +142,7 @@ void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
     {
         --nextExecSeqID;
         auto nextNode = execSeq[nextExecSeqID];
-        if(!nextNode->IsBluesteinChirpSetup())
+        if(!nextNode->IsBluesteinChirpSetup() || execPlan.IsChirpPlan)
         {
             parent->Backtracking(execPlan, nextExecSeqID);
             return;
@@ -202,6 +203,16 @@ static bool ValidOutBufferBluestein(TreeNode& node)
     // - they are setting up the chirp buffer
     // - they are the internal steps of multi-kernel bluestein, and
     //   FFT steps may be further decomposed into separate kernels.
+    // - sbrc nodes in multi-kernel fused bluestein that do:
+    //   (1) chirp + padding + forward fft, or
+    //   (2) chirp / input Hadamard product + padding + forward fft
+
+    // First check multi-kernel fused Bluestein implementation
+    if((node.fuseBlue == BFT_FWD_CHIRP || node.fuseBlue == BFT_FWD_CHIRP_MUL)
+       && node.scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
+    {
+        return true;
+    }
 
     // go up the tree, looking for a bluestein parent node
     for(auto n = &node; n != nullptr; n = n->parent)
@@ -249,9 +260,10 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
     // the input side of an in-place R2C transform (which the plan
     // would normally call OB_USER_OUT).
     auto dataFits = [&execPlan](const TreeNode& node, OperatingBuffer buffer) {
-        auto nodeLen = node.GetOutputLength();
-        auto bufLen  = buffer == OB_USER_OUT ? execPlan.rootPlan->GetOutputLength()
-                                             : execPlan.rootPlan->length;
+        auto outLengthBlueN = {node.lengthBlueN};
+        auto nodeLen        = (node.fuseBlue == BFT_NONE) ? node.GetOutputLength() : outLengthBlueN;
+        auto bufLen         = buffer == OB_USER_OUT ? execPlan.rootPlan->GetOutputLength()
+                                                    : execPlan.rootPlan->length;
 
         // if node's output is complex and buffer's format is real,
         // adjust output length to be 2x to make the units of
@@ -322,6 +334,18 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
     {
         test_result = ValidOutBufferBluestein(node);
     }
+    // second node in multi-kernel fused Bluestein must write only to
+    // two specific buffers
+    else if((buffer == OB_USER_OUT || buffer == OB_TEMP_CMPLX_FOR_REAL)
+            && node.fuseBlue == BFT_FWD_CHIRP_MUL)
+    {
+        test_result = false;
+    }
+    // third node in multi-kernel fused Bluestein must not write to OB_TEMP_CMPLX_FOR_REAL
+    else if(buffer == OB_TEMP_CMPLX_FOR_REAL && node.fuseBlue == BFT_INV_CHIRP_MUL)
+    {
+        test_result = false;
+    }
     // if output goes to a temp buffer, that will be dynamically sized
     // to be big enough so it's always ok but if output is in/out, we
     // have to fit into whatever the user gave us
@@ -359,12 +383,14 @@ static void RecursiveTraverse(TreeNode* node, const std::function<void(TreeNode*
 bool AssignmentPolicy::CheckAssignmentValid(ExecPlan& execPlan)
 {
     auto getBufSize = [](TreeNode* node, bool input) {
+        auto lengthBlueN = {node->lengthBlueN};
+        auto outputLen   = node->fuseBlue == BFT_NONE ? node->GetOutputLength() : lengthBlueN;
+
         if(input)
             return compute_ptrdiff(node->length, node->inStride, node->batch, node->iDist);
         else
         {
-            return compute_ptrdiff(node->UseOutputLengthForPadding() ? node->GetOutputLength()
-                                                                     : node->length,
+            return compute_ptrdiff(node->UseOutputLengthForPadding() ? outputLen : node->length,
                                    node->outStride,
                                    node->batch,
                                    node->oDist);
@@ -400,7 +426,6 @@ bool AssignmentPolicy::CheckAssignmentValid(ExecPlan& execPlan)
             {
                 if(outfact * curr->inStride[i] != infact * curr->outStride[i])
                 {
-                    // std::cout << "error in stride assignments, re-assign" << std::endl;
                     return false;
                 }
             }
@@ -434,7 +459,7 @@ void AssignmentPolicy::UpdateWinnerFromValidPaths(ExecPlan& execPlan)
     if(winnerCandidates.empty())
         return;
 
-    // std::cout << "total candidates: " << winnerCandidates.size() << std::endl;
+    //std::cout << "total candidates: " << winnerCandidates.size() << std::endl;
 
     // sort the candidate, front is the best
     std::sort(
@@ -497,7 +522,77 @@ void AssignmentPolicy::UpdateWinnerFromValidPaths(ExecPlan& execPlan)
     return;
 }
 
-bool AssignmentPolicy::AssignBuffers(ExecPlan& execPlan)
+void AssignmentPolicy::FindBluesteinFusedNodes(ExecPlan&               execPlan,
+                                               std::vector<TreeNode*>& fusedNodes)
+{
+    std::vector<TreeNode*> blueNodes;
+    execPlan.rootPlan->RecursiveFindChildNodes(CS_BLUESTEIN, blueNodes);
+    execPlan.rootPlan->AssignParams();
+
+    for(const auto& node : blueNodes)
+        if(node->typeBlue == BT_MULTI_KERNEL_FUSED)
+            fusedNodes.emplace_back(node);
+}
+
+void AssignmentPolicy::AssignChirpBuffers(ExecPlan& execPlan)
+{
+    execPlan.IsChirpPlan = false;
+
+    std::vector<TreeNode*> blueMultiFusedNodes;
+    FindBluesteinFusedNodes(execPlan, blueMultiFusedNodes);
+
+    for(auto& node : blueMultiFusedNodes)
+    {
+        auto& chirpFwdNode            = node->childNodes[0];
+        chirpFwdNode->obIn            = OB_TEMP_BLUESTEIN;
+        chirpFwdNode->inArrayType     = rocfft_array_type_complex_interleaved;
+        chirpFwdNode->obOut           = OB_TEMP_BLUESTEIN;
+        chirpFwdNode->outArrayType    = rocfft_array_type_complex_interleaved;
+        chirpFwdNode->placement       = rocfft_placement_inplace;
+        chirpFwdNode->allowInplace    = true;
+        chirpFwdNode->allowOutofplace = false;
+
+        auto& chirpFwdMulNode            = node->childNodes[1];
+        chirpFwdMulNode->placement       = rocfft_placement_notinplace;
+        chirpFwdMulNode->allowInplace    = true;
+        chirpFwdMulNode->allowOutofplace = true;
+
+        NodeMetaData chirpFwdNodePlan(chirpFwdNode.get());
+        chirpFwdNodePlan.length    = chirpFwdNode->length;
+        chirpFwdNodePlan.dimension = chirpFwdNode->dimension;
+
+        ExecPlan execPlanFwdChirp;
+        execPlanFwdChirp.IsChirpPlan = true;
+        execPlanFwdChirp.rootPlan    = NodeFactory::CreateExplicitNode(chirpFwdNodePlan, nullptr);
+
+        execPlanFwdChirp.rootPlan->RecursiveBuildTree();
+        execPlanFwdChirp.rootPlan->RecursiveCopyNodeData(*chirpFwdNode);
+        execPlanFwdChirp.rootPlan->CollectLeaves(execPlanFwdChirp.execSeq,
+                                                 execPlanFwdChirp.fuseShims);
+
+        execPlanFwdChirp.assignOptStrategy = rocfft_optimize_balance;
+
+        AssignBuffers_internal(execPlanFwdChirp);
+
+        chirpFwdNode->RecursiveCopyNodeData(*execPlanFwdChirp.rootPlan);
+    }
+
+    if(!blueMultiFusedNodes.empty())
+    {
+        execPlan.execSeq.clear();
+        execPlan.fuseShims.clear();
+        execPlan.rootPlan->CollectLeaves(execPlan.execSeq, execPlan.fuseShims);
+    }
+}
+
+void AssignmentPolicy::AssignBuffers(ExecPlan& execPlan)
+{
+    AssignChirpBuffers(execPlan);
+
+    AssignBuffers_internal(execPlan);
+}
+
+void AssignmentPolicy::AssignBuffers_internal(ExecPlan& execPlan)
 {
     int maxFusions      = execPlan.fuseShims.size();
     numCurWinnerFusions = -1; // no winner yet
@@ -535,7 +630,7 @@ bool AssignmentPolicy::AssignBuffers(ExecPlan& execPlan)
 
     // look for nodes that imply presence of other buffers (bluestein)
     RecursiveTraverse(execPlan.rootPlan.get(), [this](TreeNode* n) {
-        if(n->scheme == CS_KERNEL_CHIRP)
+        if(n->scheme == CS_BLUESTEIN)
         {
             availableBuffers.insert(OB_TEMP_BLUESTEIN);
             availableArrayTypes.insert(rocfft_array_type_complex_interleaved);
@@ -553,10 +648,10 @@ bool AssignmentPolicy::AssignBuffers(ExecPlan& execPlan)
     {
         // we already satisfy the strategy, so don't need to go further
         if(execPlan.assignOptStrategy <= rocfft_optimize_min_buffer)
-            return true;
+            return;
         // we already fulfill all possible fusions
         if(numCurWinnerFusions == maxFusions)
-            return true;
+            return;
     }
 
     // if we are here:
@@ -579,10 +674,10 @@ bool AssignmentPolicy::AssignBuffers(ExecPlan& execPlan)
     {
         // we already satisfy the strategy, so don't need to go further
         if(execPlan.assignOptStrategy <= rocfft_optimize_balance)
-            return true;
+            return;
         // we already fulfill all possible fusions
         if(numCurWinnerFusions == maxFusions)
-            return true;
+            return;
     }
 
     // Same as above: if we are here....
@@ -596,11 +691,10 @@ bool AssignmentPolicy::AssignBuffers(ExecPlan& execPlan)
     //   in this ABTC try, winnerCandidates must contain C-buf (mustUseCBuffer=true)
     UpdateWinnerFromValidPaths(execPlan);
     if(numCurWinnerFusions != -1)
-        return true;
+        return;
 
     // else, we can't find any valid buffer assignment !
     throw std::runtime_error("Can't find valid buffer assignment with current buffers.");
-    return false;
 }
 
 void AssignmentPolicy::Enumerate(PlacementTrace*   parent,
@@ -654,20 +748,23 @@ void AssignmentPolicy::Enumerate(PlacementTrace*   parent,
     // auto startBuf  = parent->outBuf;
     // auto startType = parent->oType;
 
-    if(curNode->IsBluesteinChirpSetup())
+    if(!execPlan.IsChirpPlan && curNode->IsBluesteinChirpSetup())
     {
         auto blueNode = curNode;
         // bluestein setup kernels can input/output bluestein buffer only.
         do
         {
-            // chirp setup nodes must use bluestein buffer, not
-            // connected to other nodes, so just set their buffers
-            // directly and don't enumerate them with PlacementTraces
-            blueNode->obIn         = OB_TEMP_BLUESTEIN;
-            blueNode->inArrayType  = rocfft_array_type_complex_interleaved;
-            blueNode->obOut        = OB_TEMP_BLUESTEIN;
-            blueNode->outArrayType = rocfft_array_type_complex_interleaved;
-            blueNode->placement    = rocfft_placement_inplace;
+            if(blueNode->typeBlue != BT_MULTI_KERNEL_FUSED)
+            {
+                // chirp setup nodes must use bluestein buffer, not
+                // connected to other nodes, so just set their buffers
+                // directly and don't enumerate them with PlacementTraces
+                blueNode->obIn         = OB_TEMP_BLUESTEIN;
+                blueNode->inArrayType  = rocfft_array_type_complex_interleaved;
+                blueNode->obOut        = OB_TEMP_BLUESTEIN;
+                blueNode->outArrayType = rocfft_array_type_complex_interleaved;
+                blueNode->placement    = rocfft_placement_inplace;
+            }
 
             ++curSeqID;
             blueNode = execSeq[curSeqID];

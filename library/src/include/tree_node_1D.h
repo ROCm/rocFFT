@@ -92,7 +92,7 @@ protected:
     void SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp) override;
 
 public:
-    bool                CreateTwiddleTableResource() override;
+    bool                CreateDeviceResources() override;
     std::vector<size_t> CollapsibleDims() override;
     bool                UseOutputLengthForPadding() override
     {
@@ -213,7 +213,7 @@ public:
     // we can put codes here to switch-on/off some features at arch-wise
     bool KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) override;
 
-    bool CreateTwiddleTableResource() override;
+    bool CreateDeviceResources() override;
 
     // reads are along columns so they may benefit from padding
     bool PaddingBenefitsInput() override

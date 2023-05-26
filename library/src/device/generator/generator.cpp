@@ -178,6 +178,17 @@ std::string LoadGlobal::render() const
     return "load_cb(" + vrender(args[0]) + "," + vrender(args[1]) + ", load_cb_data, nullptr)";
 }
 
+LoadGlobalPlanar::LoadGlobalPlanar(const std::vector<Expression>& args)
+    : args(args)
+{
+}
+
+std::string LoadGlobalPlanar::render() const
+{
+    return "{" + vrender(args[0]) + "[" + vrender(args[2]) + "]" + "," + vrender(args[1]) + "["
+           + vrender(args[2]) + "]" + "}";
+}
+
 std::string ArgumentList::render_decl() const
 {
     std::string f;
@@ -471,12 +482,26 @@ IntrinsicLoad::IntrinsicLoad(const std::vector<Expression>& args)
 {
 }
 
+IntrinsicLoadPlanar::IntrinsicLoadPlanar(const std::vector<Expression>& args)
+    : args(args)
+{
+}
+
 std::string IntrinsicLoad::render() const
 {
     // intrinsic_load(const T* data, unsigned int voffset, unsigned int soffset,
     // bool rw)
     return "intrinsic_load(" + vrender(args[0]) + "," + vrender(args[1]) + "," + vrender(args[2])
            + "," + vrender(args[3]) + ")";
+}
+
+std::string IntrinsicLoadPlanar::render() const
+{
+    return "{"
+           "intrinsic_load("
+           + vrender(args[0]) + "," + vrender(args[2]) + "," + vrender(args[3]) + ","
+           + vrender(args[4]) + ")" + "," + "intrinsic_load(" + vrender(args[1]) + ","
+           + vrender(args[2]) + "," + vrender(args[3]) + "," + vrender(args[4]) + ")" + "}";
 }
 
 std::string Declaration::render() const
@@ -620,7 +645,7 @@ std::string Function::render() const
     f += qualifier + " ";
     if(launch_bounds)
         f += "__launch_bounds__(" + std::to_string(launch_bounds) + ") ";
-    f += "void " + name;
+    f += return_type + " " + name;
     f += "(" + arguments.render_decl() + ") {\n";
     f += body.render();
     f += "}\n";

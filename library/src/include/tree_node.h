@@ -178,7 +178,9 @@ struct NodeMetaData
     std::vector<size_t>     length;
     std::vector<size_t>     outputLength;
     std::vector<size_t>     inStride, outStride;
+    std::vector<size_t>     inStrideBlue, outStrideBlue;
     size_t                  iDist = 0, oDist = 0;
+    size_t                  iDistBlue = 0, oDistBlue = 0;
     size_t                  iOffset = 0, oOffset = 0;
     int                     direction    = -1;
     rocfft_result_placement placement    = rocfft_placement_inplace;
@@ -304,8 +306,14 @@ public:
     // Stride of the FFT in each dimension
     std::vector<size_t> inStride, outStride;
 
+    // Stride of the fused Bluestein FFT in each dimension
+    std::vector<size_t> inStrideBlue, outStrideBlue;
+
     // Distance between consecutive batch members:
     size_t iDist = 0, oDist = 0;
+
+    // Distance between consecutive batch members in fused Bluestein nodes
+    size_t iDistBlue = 0, oDistBlue = 0;
 
     // Offsets to start of data in buffer:
     size_t iOffset = 0, oOffset = 0;
@@ -367,7 +375,13 @@ public:
     // Length of the FFT for computing zero-padded linear convolutions
     // in Bluestein's algorithm. If Bluestein is required to compute an
     // FFT of length N, then lengthBlue >= 2N - 1.
-    size_t lengthBlue = 0;
+    size_t lengthBlue  = 0;
+    size_t lengthBlueN = 0;
+
+    //
+    BluesteinType     typeBlue   = BluesteinType::BT_NONE;
+    BluesteinFuseType fuseBlue   = BluesteinFuseType::BFT_NONE;
+    bool              need_chirp = false;
 
     // Device pointers:
     // twiddle memory is owned by the repo
@@ -375,6 +389,8 @@ public:
     size_t           twiddles_size       = 0;
     void*            twiddles_large      = nullptr;
     size_t           twiddles_large_size = 0;
+    void*            chirp               = nullptr;
+    size_t           chirp_size          = 0;
     gpubuf_t<size_t> devKernArg;
 
     // callback parameters
@@ -488,6 +504,9 @@ public:
     // logic B - using in-place transposes, todo
     //void RecursiveBuildTreeLogicB();
 
+    void RecursiveFindChildNodes(const ComputeScheme& scheme, std::vector<TreeNode*>& nodes);
+    void RecursiveCopyNodeData(const TreeNode& srcNode);
+
     void RecursiveRemoveNode(TreeNode* node);
 
     // insert a newNode before the node "pos"
@@ -519,7 +538,7 @@ public:
 
     virtual bool KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) = 0;
     virtual bool CreateDevKernelArgs()                                        = 0;
-    virtual bool CreateTwiddleTableResource()                                 = 0;
+    virtual bool CreateDeviceResources()                                      = 0;
     virtual void SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)    = 0;
 
     // for 3D SBRC kernels, decide the transpose type based on the
@@ -570,9 +589,9 @@ protected:
         return false;
     }
 
-    bool CreateTwiddleTableResource() override
+    bool CreateDeviceResources() override
     {
-        throw std::runtime_error("Shouldn't call CreateTwiddleTableResource in a non-LeafNode");
+        throw std::runtime_error("Shouldn't call CreateDeviceResources in a non-LeafNode");
         return false;
     }
 
@@ -631,7 +650,7 @@ public:
     void         SanityCheck(SchemeTree*         solution_scheme = nullptr,
                              std::vector<FMKey>& kernel_keys     = EmptyFMKeyVec) override;
     virtual bool CreateDevKernelArgs() override;
-    bool         CreateTwiddleTableResource() override;
+    bool         CreateDeviceResources() override;
     void         SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) override;
     FMKey        GetKernelKey() const override;
     virtual void GetKernelFactors();
@@ -696,6 +715,12 @@ struct ExecPlan
 
     std::vector<size_t> iLength;
     std::vector<size_t> oLength;
+
+    // Indicates whether this is a standalone chirp plan
+    // in multi-kernel Bluestein implementations (buffers
+    // in the standalone plan are not connected with the
+    // rest of the nodes in the fft plan).
+    bool IsChirpPlan;
 
     // default: starting from ABT, balance buffers and fusions
     // we could allow users to set in the later PR

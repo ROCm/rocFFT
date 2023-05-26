@@ -334,7 +334,12 @@ bool NodeFactory::NonPow2LengthSupported(rocfft_precision precision, size_t leng
     return false;
 }
 
-inline bool SupportedLength(rocfft_precision precision, size_t len)
+size_t NodeFactory::GetBluesteinLength(rocfft_precision precision, size_t len)
+{
+    return BluesteinNode::FindBlue(len, precision, BluesteinSingleNode::SizeFits(len, precision));
+}
+
+bool NodeFactory::SupportedLength(rocfft_precision precision, size_t len)
 {
     // do we have an explicit kernel?
     if(function_pool::has_function(fpkey(len, precision)))

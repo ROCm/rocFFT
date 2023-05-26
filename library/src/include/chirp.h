@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -17,28 +17,17 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+#pragma once
+#if !defined(CHIRP_H)
+#define CHIRP_H
 
-#ifndef TRANSFORM_H
-#define TRANSFORM_H
+#include "../../../shared/gpubuf.h"
+#include "rocfft.h"
+#include <vector>
 
-#include "../../../shared/rocfft_hip.h"
+gpubuf
+    chirp_create(size_t N, rocfft_precision precision, const char* gpu_arch, unsigned int deviceId);
 
-struct rocfft_execution_info_t
-{
-    void*       workBuffer;
-    size_t      workBufferSize;
-    hipStream_t rocfft_stream = 0; // by default it is stream 0
-    rocfft_execution_info_t()
-        : workBuffer(nullptr)
-        , workBufferSize(0)
-    {
-    }
-    UserCallbacks callbacks;
-};
+void chirp_streams_cleanup();
 
-void TransformPowX(const ExecPlan&       execPlan,
-                   void*                 in_buffer[],
-                   void*                 out_buffer[],
-                   rocfft_execution_info info);
-
-#endif // TRANSFORM_H
+#endif // defined( CHIRP_H )

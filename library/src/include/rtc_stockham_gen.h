@@ -48,7 +48,8 @@ std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
                                      IntrinsicAccessType           intrinsicMode,
                                      SBRC_TRANSPOSE_TYPE           transpose_type,
                                      bool                          enable_callbacks,
-                                     bool                          enable_scaling);
+                                     bool                          enable_scaling,
+                                     BluesteinFuseType             fuseBlue);
 
 // generate source for RTC stockham kernel.  transforms_per_block may
 // be nullptr, but if non-null, stockham_rtc stores the number of
@@ -72,6 +73,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          IntrinsicAccessType           intrinsicMode,
                          SBRC_TRANSPOSE_TYPE           transpose_type,
                          bool                          enable_callbacks,
-                         bool                          enable_scaling);
+                         bool                          enable_scaling,
+                         const BluesteinFuseType&      fuseBlue);
 
 #endif
