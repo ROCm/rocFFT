@@ -2,8 +2,6 @@ root: index
 subtrees:
   - numbered: False
     entries:
-    - file: design/codegen
-    - file: design/runtime_compilation
-    - file: design/buffer_assignment
+    - file: design/design
     - file: api
     - file: allapi
