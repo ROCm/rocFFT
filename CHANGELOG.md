@@ -2,7 +2,7 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
-## (Unreleased) rocFFT 1.0.24
+## rocFFT 1.0.24 for ROCm 5.7.0
 
 ### Optimizations
 - Improved performance of complex forward/inverse 1D FFTs (2049 <= length <= 131071) that use Bluestein's algorithm.
@@ -15,7 +15,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - Moved rocfft_rtc_helper executable to lib/rocFFT directory on Linux.
 - Moved library kernel cache to lib/rocFFT directory.
 
-## (Unreleased) rocFFT 1.0.23
+## rocFFT 1.0.23 for ROCm 5.6.0
 
 ### Added
 - Implemented half-precision transforms, which can be requested by passing rocfft_precision_half to rocfft_plan_create.
