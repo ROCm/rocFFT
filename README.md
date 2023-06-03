@@ -97,13 +97,16 @@ python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
 
 ## Examples
 
-Examples may be found in the [clients/samples][5] subdirectory.
+A summary of the latest functionality and workflow to compute an FFT with rocFFT is available [on the ROCm documentation portal][6].
+
+Further examples may be found in the [clients/samples][5] subdirectory.
 
 [1]: https://github.com/RadeonOpenCompute
-[2]: https://rocmdocs.amd.com/en/latest/Installation_Guide/Installation-Guide.html
+[2]: https://rocm.docs.amd.com/en/latest/deploy/linux/install.html
 [3]: https://github.com/ROCm-Developer-Tools/HIP/blob/master/INSTALL.md#hip-clang
 [4]: https://rocfft.readthedocs.io/
 [5]: clients/samples
+[6]: https://rocm.docs.amd.com/projects/rocFFT/en/latest/
 
 ## Contribution Rules
 
