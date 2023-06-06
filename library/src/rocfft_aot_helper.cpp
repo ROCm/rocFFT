@@ -234,10 +234,10 @@ void build_stockham_function_pool(CompileQueue& queue)
         if(!i.second.aot_rtc)
             continue;
 
-        auto length1D = std::get<0>(i.first)[0];
-        // auto length2D            = std::get<0>(i.first)[1];
-        auto                      precision = std::get<1>(i.first);
-        auto                      scheme    = std::get<2>(i.first);
+        auto length1D = i.first.lengths[0];
+        // auto length2D            = i.first.lengths[1];
+        auto                      precision = i.first.precision;
+        auto                      scheme    = i.first.scheme;
         std::vector<unsigned int> factors;
         std::copy(i.second.factors.begin(), i.second.factors.end(), std::back_inserter(factors));
 

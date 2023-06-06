@@ -252,7 +252,7 @@ inline size_t get_explicitly_supported_factor(rocfft_precision precision, size_t
 {
     auto supported_factor = [length, precision = precision](size_t factor) -> bool {
         bool is_factor        = length % factor == 0;
-        bool has_other_kernel = function_pool::has_function(fpkey(length / factor, precision));
+        bool has_other_kernel = function_pool::has_function(FMKey(length / factor, precision));
         return is_factor && has_other_kernel;
     };
     auto factor = search_pool(precision, length, supported_factor);
@@ -318,7 +318,7 @@ bool NodeFactory::NonPow2LengthSupported(rocfft_precision precision, size_t leng
         return false;
 
     // Look for regular Stockham kernels support
-    if(function_pool::has_function(fpkey(length, precision)))
+    if(function_pool::has_function(FMKey(length, precision)))
         return true;
 
     assert(CheckLarge1DMaps());
@@ -342,7 +342,7 @@ size_t NodeFactory::GetBluesteinLength(rocfft_precision precision, size_t len)
 bool NodeFactory::SupportedLength(rocfft_precision precision, size_t len)
 {
     // do we have an explicit kernel?
-    if(function_pool::has_function(fpkey(len, precision)))
+    if(function_pool::has_function(FMKey(len, precision)))
         return true;
 
     // can we factor with using only base radix?
@@ -366,7 +366,7 @@ bool NodeFactory::SupportedLength(rocfft_precision precision, size_t len)
         return true;
 
     // do we have an explicit kernel for the remainder?
-    if(function_pool::has_function(fpkey(p, precision)))
+    if(function_pool::has_function(FMKey(p, precision)))
         return true;
 
     // finally, can we factor this length with combinations of existing kernels?
@@ -594,7 +594,7 @@ ComputeScheme NodeFactory::Decide1DScheme(NodeMetaData& nodeData)
     if(!SupportedLength(nodeData.precision, nodeData.length[0]))
         return CS_BLUESTEIN;
 
-    if(function_pool::has_function(fpkey(nodeData.length[0], nodeData.precision)))
+    if(function_pool::has_function(FMKey(nodeData.length[0], nodeData.precision)))
     {
         return CS_KERNEL_STOCKHAM;
     }
@@ -839,7 +839,7 @@ ComputeScheme NodeFactory::Decide3DScheme(NodeMetaData& nodeData)
 bool NodeFactory::use_CS_2D_SINGLE(NodeMetaData& nodeData)
 {
     if(!function_pool::has_function(
-           fpkey(nodeData.length[0], nodeData.length[1], nodeData.precision, CS_KERNEL_2D_SINGLE)))
+           FMKey(nodeData.length[0], nodeData.length[1], nodeData.precision, CS_KERNEL_2D_SINGLE)))
         return false;
 
     // Get actual LDS size, to check if we can run a 2D_SINGLE
@@ -870,7 +870,7 @@ bool NodeFactory::use_CS_2D_SINGLE(NodeMetaData& nodeData)
     }
 
     auto kernel = function_pool::get_kernel(
-        fpkey(nodeData.length[0], nodeData.length[1], nodeData.precision, CS_KERNEL_2D_SINGLE));
+        FMKey(nodeData.length[0], nodeData.length[1], nodeData.precision, CS_KERNEL_2D_SINGLE));
 
     int ldsUsage = nodeData.length[0] * nodeData.length[1] * kernel.transforms_per_block
                    * complex_type_size(nodeData.precision);
@@ -900,7 +900,7 @@ size_t NodeFactory::count_3D_SBRC_nodes(NodeMetaData& nodeData)
         if(function_pool::has_SBRC_kernel(nodeData.length[i], nodeData.precision))
         {
             // make sure the SBRC kernel on that dimension would be tile-aligned
-            auto kernel = function_pool::get_kernel(fpkey(
+            auto kernel = function_pool::get_kernel(FMKey(
                 nodeData.length[i], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_RC, TILE_ALIGNED));
             if(nodeData.length[(i + 2) % nodeData.length.size()] % kernel.transforms_per_block == 0)
                 ++sbrc_dimensions;
@@ -936,7 +936,7 @@ bool NodeFactory::use_CS_3D_RC(NodeMetaData& nodeData)
     if(childScheme == CS_KERNEL_2D_SINGLE)
         return true;
 
-    auto key = fpkey(nodeData.length[2], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_CC);
+    FMKey key(nodeData.length[2], nodeData.precision, CS_KERNEL_STOCKHAM_BLOCK_CC);
     if(!function_pool::has_function(key))
         return false;
 

@@ -336,7 +336,7 @@ void BLOCKRC3DNode::BuildTree_internal(const SchemeVec& child_schemes)
         if(have_sbrc)
         {
             auto kernel = function_pool::get_kernel(
-                fpkey(cur_length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC, TILE_ALIGNED));
+                FMKey(cur_length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC, TILE_ALIGNED));
 
             size_t otherDim = use_ZXY_sbrc ? cur_length[1] : cur_length[2];
             if(otherDim % kernel.transforms_per_block != 0)
@@ -650,7 +650,7 @@ FMKey SBRCTranspose3DNode::GetKernelKey() const
     if(sbrcTranstype == SBRC_TRANSPOSE_TYPE::NONE)
     {
         // find the base kernel at first
-        FMKey baseKey = fpkey(length[0], precision, scheme, TILE_ALIGNED);
+        FMKey baseKey(length[0], precision, scheme, TILE_ALIGNED);
         // if we have the base kernel, then we set the exact sbrc_trans_type and return the real key
         // if we don't, then we simply return a key with NONE sbrc_trans_type
         // which will make KernelCheck() trigger an exception
@@ -661,7 +661,7 @@ FMKey SBRCTranspose3DNode::GetKernelKey() const
         }
     }
 
-    return fpkey(length[0], precision, scheme, sbrcTranstype);
+    return FMKey(length[0], precision, scheme, sbrcTranstype);
 }
 
 bool SBRCTranspose3DNode::KernelCheck(std::vector<FMKey>& kernel_keys)

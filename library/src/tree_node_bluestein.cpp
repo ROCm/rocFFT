@@ -439,5 +439,5 @@ void BluesteinSingleNode::GetKernelFactors()
         kernelFactors = {8, 8, 8, 8};
     else
         kernelFactors
-            = function_pool::get_kernel(fpkey(lengthBlue, precision, CS_KERNEL_STOCKHAM)).factors;
+            = function_pool::get_kernel(FMKey(lengthBlue, precision, CS_KERNEL_STOCKHAM)).factors;
 }

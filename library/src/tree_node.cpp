@@ -81,7 +81,7 @@ size_t LeafNode::GetTwiddleTableLength()
 FMKey LeafNode::GetKernelKey() const
 {
     if(!externalKernel)
-        return EmptyFMKey;
+        return FMKey::EmptyFMKey();
 
     return TreeNode::GetKernelKey();
 }
@@ -106,7 +106,7 @@ bool LeafNode::KernelCheck(std::vector<FMKey>& kernel_keys)
                     << "solution kernel is an built-in kernel" << std::endl;
 
             // kernel_key from solution map should be an EmptyFMKey for a built-in kernel
-            if(kernel_keys.front() != EmptyFMKey)
+            if(kernel_keys.front() != FMKey::EmptyFMKey())
                 return false;
             kernel_keys.erase(kernel_keys.begin());
         }
@@ -120,11 +120,9 @@ bool LeafNode::KernelCheck(std::vector<FMKey>& kernel_keys)
         kernel_keys.erase(kernel_keys.begin());
 
         // check if the assigned key is consistent with the node information
-        const auto&            key_lengths   = std::get<0>(assignedKey);
-        const rocfft_precision key_precision = std::get<1>(assignedKey);
-        const ComputeScheme    key_scheme    = std::get<2>(assignedKey);
-        if((length[0] != key_lengths[0]) || (dimension == 2 && length[1] != key_lengths[1])
-           || (precision != key_precision) || (scheme != key_scheme))
+        if((length[0] != assignedKey.lengths[0])
+           || (dimension == 2 && length[1] != assignedKey.lengths[1])
+           || (precision != assignedKey.precision) || (scheme != assignedKey.scheme))
         {
             if(LOG_TRACE_ENABLED())
                 (*LogSingleton::GetInstance().GetTraceOS())
@@ -134,7 +132,7 @@ bool LeafNode::KernelCheck(std::vector<FMKey>& kernel_keys)
         else
         {
             // get the sbrc_trans_type from assignedKey (for sbrc)
-            sbrcTranstype = std::get<3>(assignedKey);
+            sbrcTranstype = assignedKey.sbrcTrans;
 
             function_pool::add_new_kernel(assignedKey);
             specified_key = std::make_unique<FMKey>(assignedKey);

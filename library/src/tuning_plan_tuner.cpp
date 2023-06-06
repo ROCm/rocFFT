@@ -61,7 +61,7 @@ size_t SerializeTree(TreeNode* node, std::string& archName)
     {
         auto kernel_key = node->GetKernelKey();
 
-        if(kernel_key == EmptyFMKey)
+        if(kernel_key == FMKey::EmptyFMKey())
             min_token = solution_map::KERNEL_TOKEN_BUILTIN_KERNEL;
         else
             GetKernelToken(kernel_key, min_token);

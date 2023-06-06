@@ -171,11 +171,11 @@ def generate_cpu_function_pool(functions):
         if isinstance(length, (int, str)):
             length = [length, 0]
         populate += Assign(var_kernel, FFTKernel(f))
-        key = Call(name='std::make_tuple',
-                   arguments=ArgumentList(
-                       'std::array<size_t, 2>({' + cjoin(length) + '})',
-                       precisions[precision], scheme, transpose or 'NONE',
-                       'kernel.get_kernel_config()')).inline()
+        key = Call(
+            name='FMKey',
+            arguments=ArgumentList(length[0], length[1], precisions[precision],
+                                   scheme, transpose or 'NONE',
+                                   'kernel.get_kernel_config()')).inline()
         populate += function_map.assert_insert(key, var_kernel)
 
     return StatementList(

@@ -153,7 +153,7 @@ struct FromString<SolutionNode>
             if(ret.sol_node_type == SOL_KERNEL_ONLY)
             {
                 FieldParser<FMKey>().parse("kernel_key", ret.kernel_key, current);
-                ret.using_scheme = std::get<2>(ret.kernel_key);
+                ret.using_scheme = ret.kernel_key.scheme;
             }
             else
             {
@@ -409,9 +409,10 @@ size_t solution_map::add_solution(const ProblemKey& probKey,
                                   bool              primary_map)
 {
     SolutionNode solution;
-    solution.using_scheme  = (kernel_key == EmptyFMKey) ? CS_NONE : std::get<2>(kernel_key);
-    solution.sol_node_type = (kernel_key == EmptyFMKey) ? SOL_BUILTIN_KERNEL : SOL_KERNEL_ONLY;
-    solution.kernel_key    = kernel_key;
+    solution.using_scheme = (kernel_key == FMKey::EmptyFMKey()) ? CS_NONE : kernel_key.scheme;
+    solution.sol_node_type
+        = (kernel_key == FMKey::EmptyFMKey()) ? SOL_BUILTIN_KERNEL : SOL_KERNEL_ONLY;
+    solution.kernel_key = kernel_key;
 
     return add_solution(probKey, solution, false, check_dup, primary_map);
 }
@@ -709,8 +710,8 @@ bool SolutionMapConverter::remove_invalid_half_lds()
             SolutionNode& node = solNodeVec[i];
             if(node.sol_node_type == SOL_KERNEL_ONLY)
             {
-                ComputeScheme scheme = std::get<2>(node.kernel_key);
-                KernelConfig& config = std::get<4>(node.kernel_key);
+                ComputeScheme scheme = node.kernel_key.scheme;
+                KernelConfig& config = node.kernel_key.kernel_config;
                 if(config.half_lds && no_half_lds.count(scheme))
                 {
                     sol_map.remove_solution_bottom_up(solNodeVec, node, i);

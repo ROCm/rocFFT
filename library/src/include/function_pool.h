@@ -31,16 +31,12 @@
 
 inline std::string PrintMissingKernelInfo(const FMKey& key)
 {
-    const auto&               lengthVec = std::get<0>(key);
-    const rocfft_precision    precision = std::get<1>(key);
-    const ComputeScheme       scheme    = std::get<2>(key);
-    const SBRC_TRANSPOSE_TYPE trans     = std::get<3>(key);
-    std::stringstream         msg;
+    std::stringstream msg;
     msg << "Kernel not found: \n"
-        << "\tlength: " << lengthVec[0] << "," << lengthVec[1] << "\n"
-        << "\tprecision: " << precision << "\n"
-        << "\tscheme: " << PrintScheme(scheme) << "\n"
-        << "\tSBRC Transpose type: " << PrintSBRCTransposeType(trans) << std::endl;
+        << "\tlength: " << key.lengths[0] << "," << key.lengths[1] << "\n"
+        << "\tprecision: " << key.precision << "\n"
+        << "\tscheme: " << PrintScheme(key.scheme) << "\n"
+        << "\tSBRC Transpose type: " << PrintSBRCTransposeType(key.sbrcTrans) << std::endl;
 
     return msg.str();
 }
@@ -151,15 +147,11 @@ private:
     // the empty-config key to get the default kernel
     bool insert_default_entry(const FMKey& def_key, const FFTKernel& kernel)
     {
-        const auto&               lengthVec = std::get<0>(def_key);
-        const rocfft_precision    precision = std::get<1>(def_key);
-        const ComputeScheme       scheme    = std::get<2>(def_key);
-        const SBRC_TRANSPOSE_TYPE trans     = std::get<3>(def_key);
-
         // simple_key means the same thing as def_key, but we just remove kernel-config
         // so we don't need to know the exact config when we're lookin' for the default kernel
-        FMKey simple_key = fpkey(
-            lengthVec[0], lengthVec[1], precision, scheme, trans, KernelConfig::EmptyConfig());
+        FMKey simple_key(def_key);
+        simple_key.kernel_config = KernelConfig::EmptyConfig();
+
         def_key_pool.emplace(simple_key, def_key);
 
         // still use the detailed key with config to maintain the function map
@@ -186,11 +178,9 @@ public:
         if(has_function(new_key))
             return true;
 
-        const KernelConfig& config = std::get<4>(new_key);
-        FFTKernel           new_kernel(config);
-
         function_pool& func_pool = get_function_pool();
-        return std::get<1>(func_pool.function_map.emplace(new_key, new_kernel));
+        return std::get<1>(
+            func_pool.function_map.emplace(new_key, FFTKernel(new_key.kernel_config)));
     }
 
     // add an alternative kernel with different kernel config from base FMKey
@@ -201,17 +191,12 @@ public:
         if(!has_function(base_FMKey))
             return false;
 
-        FFTKernel alt_kernel(alt_config);
+        out_FMKey = std::make_unique<FMKey>(base_FMKey);
 
-        const auto&               lengthVec = std::get<0>(base_FMKey);
-        const rocfft_precision    precision = std::get<1>(base_FMKey);
-        const ComputeScheme       scheme    = std::get<2>(base_FMKey);
-        const SBRC_TRANSPOSE_TYPE trans     = std::get<3>(base_FMKey);
-
-        out_FMKey = std::make_unique<FMKey>(lengthVec, precision, scheme, trans, alt_config);
+        out_FMKey->kernel_config = alt_config;
 
         function_pool& func_pool = get_function_pool();
-        return std::get<1>(func_pool.function_map.emplace(*out_FMKey, alt_kernel));
+        return std::get<1>(func_pool.function_map.emplace(*out_FMKey, FFTKernel(alt_config)));
     }
 
     static bool has_function(const FMKey& key)
@@ -237,10 +222,10 @@ public:
         std::vector<size_t>  lengths;
         for(auto const& kv : func_pool.function_map)
         {
-            if(std::get<0>(kv.first)[1] == 0 && std::get<1>(kv.first) == precision
-               && std::get<2>(kv.first) == scheme && std::get<3>(kv.first) == NONE)
+            if(kv.first.lengths[1] == 0 && kv.first.precision == precision
+               && kv.first.scheme == scheme && kv.first.sbrcTrans == NONE)
             {
-                lengths.push_back(std::get<0>(kv.first)[0]);
+                lengths.push_back(kv.first.lengths[0]);
             }
         }
 
@@ -266,19 +251,19 @@ public:
     // helper for common used
     static bool has_SBCC_kernel(size_t length, rocfft_precision precision)
     {
-        return has_function(fpkey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
+        return has_function(FMKey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_CC));
     }
 
     static bool has_SBRC_kernel(size_t              length,
                                 rocfft_precision    precision,
                                 SBRC_TRANSPOSE_TYPE trans_type = TILE_ALIGNED)
     {
-        return has_function(fpkey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_RC, trans_type));
+        return has_function(FMKey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_RC, trans_type));
     }
 
     static bool has_SBCR_kernel(size_t length, rocfft_precision precision)
     {
-        return has_function(fpkey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_CR));
+        return has_function(FMKey(length, precision, CS_KERNEL_STOCKHAM_BLOCK_CR));
     }
 
     const auto& get_map() const

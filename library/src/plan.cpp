@@ -1138,7 +1138,7 @@ bool TreeNode::fuse_CS_KERNEL_TRANSPOSE_Z_XY()
     if(function_pool::has_SBRC_kernel(length[0], precision))
     {
         auto kernel = function_pool::get_kernel(
-            fpkey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC, TILE_ALIGNED));
+            FMKey(length[0], precision, CS_KERNEL_STOCKHAM_BLOCK_RC, TILE_ALIGNED));
         size_t bwd = kernel.transforms_per_block;
         if((length[1] >= bwd) && (length[2] >= bwd) && (length[1] * length[2] % bwd == 0))
             return true;
@@ -1691,7 +1691,7 @@ void GetNodeToken(const TreeNode& probNode, std::string& min_token, std::string&
     // if this is a leaf-node TRANSPOSE, call_back or others with external-kernel = false
     // currently we don't tune it, but still need to put an entry in the map. So we
     // set a pre-defined token
-    if(probNode.isLeafNode() && probNode.GetKernelKey() == EmptyFMKey)
+    if(probNode.isLeafNode() && probNode.GetKernelKey() == FMKey::EmptyFMKey())
     {
         min_token = full_token = solution_map::LEAFNODE_TOKEN_BUILTIN_KERNEL;
         return;

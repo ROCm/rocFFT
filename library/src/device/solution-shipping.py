@@ -104,7 +104,7 @@ class KernelConfig(BaseNode):
 class FMKey(BaseNode):
 
     def __str__(self):
-        k = 'fpkey('
+        k = 'FMKey('
         lengths = self.key['lengths']
         k += str(lengths[0])
         if lengths[1] != 0:
@@ -169,7 +169,8 @@ def generate_solution_map(solutions):
         # Check if it has .kernel_key field
         populate += Assign(
             str(var_solution) + '.kernel_key',
-            FMKey(kernel_key) if kernel_key is not None else 'EmptyFMKey')
+            FMKey(kernel_key)
+            if kernel_key is not None else 'FMKey::EmptyFMKey()')
 
         # SOL_INTERNAL_NODE or SOL_LEAF_NODE or SOL_DUMMY
         if scheme is not None:
@@ -180,7 +181,7 @@ def generate_solution_map(solutions):
         elif kernel_key is not None:
             populate += Assign(
                 str(var_solution) + '.using_scheme',
-                'std::get<2>(' + str(var_solution) + '.kernel_key)')
+                str(var_solution) + '.kernel_key.scheme')
         # SOL_BUILTIN_KERNEL
         else:
             populate += Assign(str(var_solution) + '.using_scheme', 'CS_NONE')

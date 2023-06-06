@@ -59,8 +59,8 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
     // The first R is built recursively with 2D_FFT, leave the check part to themselves
     size_t numTrans = 0;
     // do we have a purpose-built sbcc kernel
-    bool have_sbcc = false;
-    auto sbcc_key  = fpkey(length[sbcc_dim], precision, CS_KERNEL_STOCKHAM_BLOCK_CC);
+    bool  have_sbcc = false;
+    FMKey sbcc_key(length[sbcc_dim], precision, CS_KERNEL_STOCKHAM_BLOCK_CC);
     if(function_pool::has_function(sbcc_key))
     {
         numTrans  = function_pool::get_kernel(sbcc_key).transforms_per_block;
@@ -68,7 +68,7 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
     }
     else
     {
-        auto normal_key = fpkey(length[sbcc_dim], precision);
+        FMKey normal_key(length[sbcc_dim], precision);
         if(!function_pool::has_function(normal_key))
             return false;
         numTrans = function_pool::get_kernel(normal_key).transforms_per_block;

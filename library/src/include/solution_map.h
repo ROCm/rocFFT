@@ -124,7 +124,7 @@ struct SolutionNode
 {
     SolutionNodeType sol_node_type = SOL_INTERNAL_NODE;
     ComputeScheme    using_scheme  = CS_NONE;
-    FMKey            kernel_key    = EmptyFMKey;
+    FMKey            kernel_key    = FMKey::EmptyFMKey();
     // like the childnodes on tree-node, a childnode could be internal/leaf/kernel-node
     std::vector<SolutionPtr> solution_childnodes;
 

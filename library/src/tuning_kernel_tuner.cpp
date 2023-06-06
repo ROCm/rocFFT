@@ -603,12 +603,12 @@ void EnumerateKernelConfigs(const ExecPlan& execPlan)
 
         // if this kernel is an internal built-in one, we are not tunining it yet, (transpose..etc)
         // but we will plan to tune it in the future.
-        if(base_key == EmptyFMKey)
+        if(base_key == FMKey::EmptyFMKey())
         {
             check_dup = true;
             ProblemKey built_in_kernel_key(archName, solution_map::KERNEL_TOKEN_BUILTIN_KERNEL);
             TuningBenchmarker::GetSingleton().GetBindingSolutionMap()->add_solution(
-                built_in_kernel_key, EmptyFMKey, check_dup);
+                built_in_kernel_key, FMKey::EmptyFMKey(), check_dup);
 
             tuningPacket->tuning_kernel_tokens[node_id] = solution_map::KERNEL_TOKEN_BUILTIN_KERNEL;
             tuningPacket->is_builtin_kernel[node_id]    = true;
@@ -640,9 +640,8 @@ void EnumerateKernelConfigs(const ExecPlan& execPlan)
             //     the SBRC-Trans-Type in the BaseKey of the default kernel is not always right
             //     for all the configurations. Since TPB is changed, so we should also update
             //     the SBRC-Trans-Type according to config and node dimenstion.
-            SBRC_TRANSPOSE_TYPE sbrcType
+            alt_key.sbrcTrans
                 = execPlan.execSeq[node_id]->sbrc_transpose_type(config.transforms_per_block);
-            std::get<3>(alt_key) = sbrcType;
 
             // when init tuning: output bunches of candidate kernels,
             // actually we need to check if there is an duplcation, but in this case it'll never happen

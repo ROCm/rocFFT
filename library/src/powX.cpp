@@ -102,8 +102,8 @@ bool GetTuningKernelInfo(ExecPlan& execPlan)
         RTCKernel*   localCompiledKernel = execPlan.execSeq[i]->compiledKernel.get().get();
         GridParam    gp                  = execPlan.gridParam[i];
         FMKey        key                 = execPlan.execSeq[i]->GetKernelKey();
-        auto         lengths             = std::get<0>(key);
-        KernelConfig config              = std::get<4>(key);
+        auto         lengths             = key.lengths;
+        KernelConfig config              = key.kernel_config;
 
         // get occupancy: 0 means it's compiled (AOT)
         //               -1 means failed on getting occupancy

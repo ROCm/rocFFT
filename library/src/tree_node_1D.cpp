@@ -1026,7 +1026,7 @@ void SBCCNode::InitIntrinsicMode()
     // case 1: is runing tuning or a tuned solution, then use the setting in the config
     if(specified_key != nullptr)
     {
-        auto& config  = std::get<4>(*specified_key.get());
+        auto& config  = (*specified_key.get()).kernel_config;
         intrinsicMode = (config.intrinsic_buffer_inst) ? IntrinsicAccessType::ENABLE_BOTH
                                                        : IntrinsicAccessType::DISABLE_BOTH;
         return;
@@ -1117,7 +1117,7 @@ FMKey SBRCNode::GetKernelKey() const
     if(sbrcTranstype == SBRC_TRANSPOSE_TYPE::NONE)
     {
         // find the base kernel at first
-        FMKey baseKey = fpkey(length[0], precision, scheme, TILE_ALIGNED);
+        FMKey baseKey(length[0], precision, scheme, TILE_ALIGNED);
         // if we have the base kernel, then we set the exact sbrc_trans_type and return the real key
         // if we don't, then we simply return a key with NONE sbrc_trans_type
         // which will make KernelCheck() trigger an exception
@@ -1128,7 +1128,7 @@ FMKey SBRCNode::GetKernelKey() const
         }
     }
 
-    return fpkey(length[0], precision, scheme, sbrcTranstype);
+    return FMKey(length[0], precision, scheme, sbrcTranstype);
 }
 
 bool SBRCNode::KernelCheck(std::vector<FMKey>& kernel_keys)
@@ -1283,7 +1283,7 @@ void SBCRNode::InitIntrinsicMode()
     // case 1: is runing tuning or a tuned solution, then use the setting in the config
     if(specified_key != nullptr)
     {
-        auto& config  = std::get<4>(*specified_key.get());
+        auto& config  = (*specified_key.get()).kernel_config;
         intrinsicMode = (config.intrinsic_buffer_inst) ? IntrinsicAccessType::ENABLE_BOTH
                                                        : IntrinsicAccessType::DISABLE_BOTH;
         return;

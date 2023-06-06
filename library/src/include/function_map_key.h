@@ -254,68 +254,96 @@ struct FromString<KernelConfig>
 //    (And that is what exactly "fuction_pool::insert_default_entry()" and
 //                               "function_pool::get_actual_key()"" is doing
 //
-// TODO:
-//    eventually, it would be better to implement the FMKey to struct for better readibility
-//
-using FMKey = std::tuple<std::array<size_t, 2>,
-                         rocfft_precision,
-                         ComputeScheme,
-                         SBRC_TRANSPOSE_TYPE,
-                         KernelConfig>;
-
-static inline FMKey fpkey(size_t              length,
-                          rocfft_precision    precision,
-                          ComputeScheme       scheme        = CS_KERNEL_STOCKHAM,
-                          SBRC_TRANSPOSE_TYPE transpose     = NONE,
-                          KernelConfig        kernel_config = KernelConfig::EmptyConfig())
+struct FMKey
 {
-    return {{length, 0}, precision, scheme, transpose, kernel_config};
-}
+    std::array<size_t, 2> lengths;
+    rocfft_precision      precision;
+    ComputeScheme         scheme        = CS_KERNEL_STOCKHAM;
+    SBRC_TRANSPOSE_TYPE   sbrcTrans     = NONE;
+    KernelConfig          kernel_config = KernelConfig::EmptyConfig();
 
-static inline FMKey fpkey(size_t              length1,
-                          size_t              length2,
-                          rocfft_precision    precision,
-                          ComputeScheme       scheme        = CS_KERNEL_2D_SINGLE,
-                          SBRC_TRANSPOSE_TYPE transpose     = NONE,
-                          KernelConfig        kernel_config = KernelConfig::EmptyConfig())
-{
-    return {{length1, length2}, precision, scheme, transpose, kernel_config};
-}
+    FMKey()             = default;
+    FMKey(const FMKey&) = default;
+
+    // simple constructor for 1d-kernel
+    FMKey(size_t              length0,
+          rocfft_precision    precision,
+          ComputeScheme       scheme        = CS_KERNEL_STOCKHAM,
+          SBRC_TRANSPOSE_TYPE transpose     = NONE,
+          KernelConfig        kernel_config = KernelConfig::EmptyConfig())
+        : lengths({length0, 0})
+        , precision(precision)
+        , scheme(scheme)
+        , sbrcTrans(transpose)
+        , kernel_config(kernel_config)
+    {
+    }
+
+    // with every data
+    FMKey(size_t              length0,
+          size_t              length1,
+          rocfft_precision    precision,
+          ComputeScheme       scheme        = CS_KERNEL_2D_SINGLE,
+          SBRC_TRANSPOSE_TYPE transpose     = NONE,
+          KernelConfig        kernel_config = KernelConfig::EmptyConfig())
+        : lengths({length0, length1})
+        , precision(precision)
+        , scheme(scheme)
+        , sbrcTrans(transpose)
+        , kernel_config(kernel_config)
+    {
+    }
+
+    FMKey& operator=(const FMKey&) = default;
+
+    bool operator==(const FMKey& rhs) const
+    {
+        return std::tie(lengths, precision, scheme, sbrcTrans, kernel_config)
+               == std::tie(
+                   rhs.lengths, rhs.precision, rhs.scheme, rhs.sbrcTrans, rhs.kernel_config);
+    }
+
+    bool operator!=(const FMKey& rhs) const
+    {
+        return !((*this) == rhs);
+    }
+
+    static FMKey EmptyFMKey()
+    {
+        static FMKey empty;
+        return empty;
+    }
+};
+
+static std::vector<FMKey> EmptyFMKeyVec = {};
 
 // add an alternative kernel with different kernel config from base FMKey
 static FMKey get_alternative_FMKey(const FMKey& base_FMKey, const KernelConfig& alt_config)
 {
-    const auto&               lengthVec = std::get<0>(base_FMKey);
-    const rocfft_precision    precision = std::get<1>(base_FMKey);
-    const ComputeScheme       scheme    = std::get<2>(base_FMKey);
-    const SBRC_TRANSPOSE_TYPE trans     = std::get<3>(base_FMKey);
+    FMKey ret_key(base_FMKey);
+    ret_key.kernel_config = alt_config;
 
-    return {lengthVec, precision, scheme, trans, alt_config};
+    return ret_key;
 }
 
 static void GetKernelToken(const FMKey& key, std::string& min_token)
 {
-    const auto&            lengthVec = std::get<0>(key);
-    const rocfft_precision precision = std::get<1>(key);
-    const ComputeScheme    scheme    = std::get<2>(key);
-
     min_token = "kernel";
 
     min_token += "_len";
-    min_token += std::to_string(lengthVec[0]);
-    if(scheme == CS_KERNEL_2D_SINGLE)
-        min_token += "x" + std::to_string(lengthVec[1]);
+    min_token += std::to_string(key.lengths[0]);
+    if(key.scheme == CS_KERNEL_2D_SINGLE)
+        min_token += "x" + std::to_string(key.lengths[1]);
 
-    min_token += "_" + PrintPrecision(precision);
-    min_token += "_" + PrintKernelSchemeAbbr(scheme);
+    min_token += "_" + PrintPrecision(key.precision);
+    min_token += "_" + PrintKernelSchemeAbbr(key.scheme);
 
     // NB: KernelToken is used when tuning the kernel configuration,
     //     But when we try different setting of TPB, the SBRCTransType
     //     would not be the same value. So we should not keep the SBRCTransType
     //     in the token, and all the SBRC kernels in that solution-vec may have
     //     specify the real type.
-    // const SBRC_TRANSPOSE_TYPE transType = std::get<3>(key);
-    // min_token += "_" + PrintSBRCTransposeType(transType);
+    // min_token += "_" + PrintSBRCTransposeType(key.sbrcTrans);
 }
 
 template <>
@@ -324,19 +352,16 @@ struct ToString<FMKey>
     std::string print(const FMKey& value) const
     {
         std::string         str     = "{";
-        auto                len     = std::get<0>(value);
-        std::vector<size_t> lengths = {len[0], len[1]};
+        std::vector<size_t> lengths = {value.lengths[0], value.lengths[1]};
 
         str += VectorFieldDescriptor<size_t>().describe("lengths", lengths) + ",";
-        str += FieldDescriptor<std::string>().describe("precision",
-                                                       PrintPrecision(std::get<1>(value)))
+        str += FieldDescriptor<std::string>().describe("precision", PrintPrecision(value.precision))
                + ",";
-        str += FieldDescriptor<std::string>().describe("scheme", PrintScheme(std::get<2>(value)))
-               + ",";
+        str += FieldDescriptor<std::string>().describe("scheme", PrintScheme(value.scheme)) + ",";
         str += FieldDescriptor<std::string>().describe("sbrc_trans",
-                                                       PrintSBRCTransposeType(std::get<3>(value)))
+                                                       PrintSBRCTransposeType(value.sbrcTrans))
                + ",";
-        str += FieldDescriptor<KernelConfig>().describe("kernelConfig", std::get<4>(value));
+        str += FieldDescriptor<KernelConfig>().describe("kernelConfig", value.kernel_config);
         str += "}";
         return str;
     }
@@ -357,28 +382,25 @@ struct FromString<FMKey>
         FieldParser<std::string>().parse("sbrc_trans", sbrcTransStr, current);
         FieldParser<KernelConfig>().parse("kernelConfig", config, current);
 
-        ret = {{len[0], len[1]},
-               StrToPrecision(precStr),
-               StrToComputeScheme(schemeStr),
-               StrToSBRCTransType(sbrcTransStr),
-               config};
+        ret.lengths       = {len[0], len[1]};
+        ret.precision     = StrToPrecision(precStr);
+        ret.scheme        = StrToComputeScheme(schemeStr);
+        ret.sbrcTrans     = StrToSBRCTransType(sbrcTransStr);
+        ret.kernel_config = config;
     }
 };
-
-static FMKey              EmptyFMKey    = {};
-static std::vector<FMKey> EmptyFMKeyVec = {};
 
 struct SimpleHash
 {
     size_t operator()(const FMKey& p) const noexcept
     {
         size_t h = 0;
-        for(auto& v : std::get<0>(p))
+        for(auto& v : p.lengths)
             h ^= std::hash<int>{}(v);
-        h ^= std::hash<rocfft_precision>{}(std::get<1>(p));
-        h ^= std::hash<ComputeScheme>{}(std::get<2>(p));
-        h ^= std::hash<SBRC_TRANSPOSE_TYPE>{}(std::get<3>(p));
-        h ^= std::hash<KernelConfig>{}(std::get<4>(p));
+        h ^= std::hash<rocfft_precision>{}(p.precision);
+        h ^= std::hash<ComputeScheme>{}(p.scheme);
+        h ^= std::hash<SBRC_TRANSPOSE_TYPE>{}(p.sbrcTrans);
+        h ^= std::hash<KernelConfig>{}(p.kernel_config);
 
         return h;
     }

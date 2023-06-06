@@ -450,7 +450,7 @@ template <typename T>
 gpubuf twiddles_create_2D_pr(
     size_t N1, size_t N2, rocfft_precision precision, const char* gpu_arch, unsigned int deviceId)
 {
-    auto                kernel = function_pool::get_kernel(fpkey(N1, N2, precision));
+    auto                kernel = function_pool::get_kernel(FMKey(N1, N2, precision));
     std::vector<size_t> radices1, radices2;
 
     int    count               = 0;

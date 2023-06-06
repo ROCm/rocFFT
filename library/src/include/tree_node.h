@@ -555,8 +555,8 @@ public:
         if(specified_key)
             return *specified_key.get();
 
-        return (dimension == 1) ? fpkey(length[0], precision, scheme)
-                                : fpkey(length[0], length[1], precision, scheme);
+        return (dimension == 1) ? FMKey(length[0], precision, scheme)
+                                : FMKey(length[0], length[1], precision, scheme);
     }
 
     // Compute the large twd decomposition base
