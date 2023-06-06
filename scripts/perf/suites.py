@@ -33,6 +33,7 @@ all_inplaces = [True, False]
 all_reals = [True, False]
 def_tuning_min_wgs = 64
 def_tuning_max_wgs = 512
+def_export_full_token = False
 
 # yapf: disable
 lengths = {
@@ -347,7 +348,8 @@ def mktag(tag, dimension, precision, direction, inplace, real):
 
 # yield problem sizes with default precision, direction, etc
 def default_length_params(tag, lengths, nbatch, precisions=all_precisions, \
-    directions=all_directions, inplaces=all_inplaces, reals=all_reals, min_wgs=def_tuning_min_wgs, max_wgs=def_tuning_max_wgs):
+    directions=all_directions, inplaces=all_inplaces, reals=all_reals, min_wgs=def_tuning_min_wgs, \
+    max_wgs=def_tuning_max_wgs, full_token=def_export_full_token):
 
     # workaround: disable failing token on gfx906
     if perflib.specs.get_machine_specs(0).gpuid == '0x66a1':
@@ -375,7 +377,8 @@ def default_length_params(tag, lengths, nbatch, precisions=all_precisions, \
                           real=real,
                           precision=precision,
                           min_wgs=min_wgs,
-                          max_wgs=max_wgs)
+                          max_wgs=max_wgs,
+                          full_token=full_token)
 
 
 def md():
@@ -408,8 +411,15 @@ def qa():
                   real=False,
                   precision='double')
 
-    yield from default_length_params("336x336x56", [(336, 336, 56)],
+    yield from default_length_params("336x336x56_b1", [(336, 336, 56)],
                                      1,
+                                     directions=[-1],
+                                     precisions=['double'],
+                                     inplaces=[True, False],
+                                     reals=[False])
+
+    yield from default_length_params("336x336x56_b10", [(336, 336, 56)],
+                                     10,
                                      directions=[-1],
                                      precisions=['double'],
                                      inplaces=[True, False],
@@ -790,8 +800,17 @@ def tuning_suite():
                           max_wgs=256)
 
     # we'd like to search more for this problem, so min_wgs = 64, not 128
-    yield from default_length_params("336x336x56", [(336, 336, 56)],
+    yield from default_length_params("336x336x56_b1", [(336, 336, 56)],
                                      1,
+                                     directions=[-1],
+                                     precisions=['double'],
+                                     inplaces=[True, False],
+                                     reals=[False],
+                                     max_wgs=256,
+                                     full_token=True)
+
+    yield from default_length_params("336x336x56_b10", [(336, 336, 56)],
+                                     10,
                                      directions=[-1],
                                      precisions=['double'],
                                      inplaces=[True, False],

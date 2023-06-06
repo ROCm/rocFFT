@@ -71,7 +71,14 @@ size_t SerializeTree(TreeNode* node, std::string& archName)
     }
 
     GetNodeToken(*node, min_token, full_token);
-    ProblemKey problemKey(archName, min_token);
+
+    // if tuner is going to export the solution with the exact token (including batches, stride, offset, dist)
+    // note this is only applicable to root node.
+    std::string& export_token
+        = (TuningBenchmarker::GetSingleton().GetPacket()->export_full_token && node->isRootNode())
+              ? full_token
+              : min_token;
+    ProblemKey problemKey(archName, export_token);
 
     // Add a solution to primary map (as candidates):
     //   if SOL_INTERNAL_NODE --> childrens = decomposition
@@ -82,7 +89,7 @@ size_t SerializeTree(TreeNode* node, std::string& archName)
 
     // save the problem name;
     if(node->isRootNode())
-        TuningBenchmarker::GetSingleton().GetPacket()->tuning_problem_name = min_token;
+        TuningBenchmarker::GetSingleton().GetPacket()->tuning_problem_name = export_token;
 
     return my_option_id;
 }

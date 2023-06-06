@@ -245,9 +245,10 @@ void TuningBenchmarker::FindWinnerForCurrNode(double&      curr_best_msec,
     // if not empty, then sort and update IDs
     if(!bench_infos_vec.empty())
     {
-        std::sort(bench_infos_vec.begin(),
-                  bench_infos_vec.end(),
-                  [](BenchmarkInfo& a, BenchmarkInfo& b) { return a.gflops > b.gflops; });
+        std::sort(
+            bench_infos_vec.begin(), bench_infos_vec.end(), [](BenchmarkInfo& a, BenchmarkInfo& b) {
+                return a.milli_seconds < b.milli_seconds;
+            });
 
         // check if the best of this phase is better than previous winner
         auto& winner_of_this_phase = bench_infos_vec.front();

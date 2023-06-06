@@ -176,16 +176,18 @@ def command_tuning(arguments):
     # check flag setting, could be from --input file or from argument list
     if 'dump_candidates' not in launcher:
         launcher['dump_candidates'] = arguments.dump
-    if 'tune_exact_prob' not in launcher:
-        launcher['tune_exact_prob'] = arguments.exact
     if 'print_reject_reason' not in launcher:
         launcher['print_reject_reason'] = arguments.print_reject
+    if 'force_full_token' not in launcher and arguments.exact_token is True:
+        launcher['force_full_token'] = True
     if 'overwrite_max_wgs' not in launcher and arguments.max_wgs is not None:
         launcher['overwrite_max_wgs'] = arguments.max_wgs
     if 'overwrite_min_wgs' not in launcher and arguments.min_wgs is not None:
         launcher['overwrite_min_wgs'] = arguments.min_wgs
 
     # remind users if we are using a global value
+    if 'force_full_token' in launcher:
+        print("export-full-token is turned on for all problems")
     if 'overwrite_max_wgs' in launcher:
         print("max-workgroup-sizes is globally overwritten to {}".format(
             arguments.max_wgs))
@@ -203,12 +205,6 @@ def command_tuning(arguments):
         os.environ['DUMP_TUNING'] = '1'
     elif 'DUMP_TUNING' in os.environ:
         del os.environ['DUMP_TUNING']
-
-    # set env variable: match exact token
-    if launcher['tune_exact_prob'] == True:
-        os.environ['TUNE_EXACT_PROB'] = '1'
-    elif 'TUNE_EXACT_PROB' in os.environ:
-        del os.environ['TUNE_EXACT_PROB']
 
     # set env variable: print rejection reason
     if launcher['print_reject_reason'] == True:
@@ -228,6 +224,9 @@ def command_tuning(arguments):
     single_merging_meta = {}
 
     for prob in launcher['problems']:
+        # set TUNE_EXACT_PROB when it's set true from cmd, or use the setting in each problem
+        if 'force_full_token' in launcher or prob['full_token'] == True:
+            os.environ['TUNE_EXACT_PROB'] = '1'
         # overwritting min_ and max_wgs are optional, when not specified, we use the setting in each problem
         os.environ['MAX_WGS'] = str(
             launcher['overwrite_max_wgs']
@@ -256,6 +255,8 @@ def command_tuning(arguments):
             single_merging_meta['outfile'] = outfile
             single_merging_meta['token'] = token
             merging_metadata.append(deepcopy(single_merging_meta))
+        if 'TUNE_EXACT_PROB' in os.environ:
+            del os.environ['TUNE_EXACT_PROB']
 
     del os.environ['ROCFFT_RTC_CACHE_PATH']
     del os.environ['MIN_WGS']
@@ -278,9 +279,13 @@ def command_tuning(arguments):
     json.dump(merging_metadata, merging_metadata_file)
 
 
-def validate(validator, testing_meta_data):
+def validate(validator, testing_meta_data, skip):
 
     for single_meta in testing_meta_data:
+        if skip is True:
+            single_meta['Valid'] = True
+            continue
+
         prob = single_meta['problem']
         new_single_solution_file = Path(single_meta['outfile'])
         print("\nAccuracy test for the new solution {}...".format(
@@ -295,10 +300,10 @@ def validate(validator, testing_meta_data):
         os.environ['ROCFFT_READ_EXPLICIT_SOL_MAP_FILE'] = str(
             new_single_solution_file)
 
-        # use token, change batch to at least 10
-        # since we are running validation, not perf
+        # use token, change batch to at least 10, since we are running validation,
+        # but if the sol is exported with full_token, then we don't modify the token
         token = str(single_meta['token'])
-        if prob['nbatch'] < 10:
+        if prob['nbatch'] < 10 and prob['full_token'] == False:
             old_batch_str = '_batch_' + str(prob['nbatch']) + '_'
             new_batch_str = '_batch_10_'
             token = token.replace(old_batch_str, new_batch_str)
@@ -395,7 +400,10 @@ def command_merging(arguments):
     print("\n###############################################")
     print("First, run validation to skip wrong solutions..")
     print("###############################################")
-    validate(arguments.validator, merging_meta_data)
+    skipValidation = arguments.validation == 0
+    if skipValidation:
+        print("\nAccuracy test is set to be skipped")
+    validate(arguments.validator, merging_meta_data, skipValidation)
 
     RunRecord = {}
 
@@ -434,11 +442,7 @@ def command_merging(arguments):
         print('---------------------------------------------------\n')
         times = flatten(times)
 
-        RunRecord[token] = {
-            'RefTimes': times,
-            'RefSolToken': solToken,
-            'RefExactToken': (matchType == "FULL")
-        }
+        RunRecord[token] = {'RefTimes': times, 'RefSolToken': solToken}
 
     # Second Run - load new solution map from "ROCFFT_READ_EXPLICIT_SOL_MAP_FILE"
     print("\n###################################")
@@ -482,8 +486,7 @@ def command_merging(arguments):
         RunRecord[token].update({
             'NewTimes': times,
             'NewSolToken': solToken,
-            'SolutionFile': new_single_solution_file,
-            'NewExactToken': (matchType == "FULL")
+            'SolutionFile': new_single_solution_file
         })
 
     import scipy.stats
@@ -524,11 +527,7 @@ def command_merging(arguments):
         speed_up = result['SpeedUp']
         signficance = result['Significance']
         confident: bool = signficance <= 0.05
-        new_is_faster: bool = speed_up > 1.0 and confident
-        ref_is_min_matching: bool = result['RefExactToken'] is False
-        new_is_min_matching: bool = result['NewExactToken'] is False
-        can_keep_slow_ref_sol: bool = new_is_faster and ref_is_min_matching and not new_is_min_matching
-        keep_ref_solution: bool = (not new_is_faster) or can_keep_slow_ref_sol
+        new_is_faster: bool = speed_up > 1.01 and confident
 
         if new_is_faster:
             InsertionInfo['arch'] = prefix
@@ -540,10 +539,6 @@ def command_merging(arguments):
         print("For problem {}:\n".format(token))
         print("\tReference solution: {}".format(result['RefSolToken']))
         print("\tTime (Median): {} ms ...".format(result['RefTimes']))
-        print("\t\t--> Token-matching type is {}-match".format(
-            'minimal' if ref_is_min_matching else 'exact'))
-        print("\t\t--> {} the original solution\n".format(
-            'KEEP' if keep_ref_solution else 'DISCARD'))
 
         print("\tNew solution: {} from file: {}".format(
             result['NewSolToken'], result['SolutionFile']))
@@ -551,8 +546,6 @@ def command_merging(arguments):
         print("\tSpeed-Up run2 over run1: {} / Pval: {} : {}, {}".format(
             speed_up, signficance, 'FASTER' if speed_up > 1.0 else 'SLOWER',
             'Confident' if confident else 'Not Confident'))
-        print("\t\t--> Token-matching type is {}-match".format(
-            'minimal' if new_is_min_matching else 'exact'))
         print("\t\t--> {} the new solution\n".format(
             'PICK' if new_is_faster else 'DISCARD'))
 
@@ -612,9 +605,9 @@ def main():
         default=False)
 
     tuning_parser.add_argument(
-        '--exact',
+        '--exact_token',
         help=
-        'output solution for the exact problem (including batch, stride, dist), default False',
+        '(Overwrite globally) output solution for the exact problem (using token including batch, stride, dist, offset), default False',
         action='store_true',
         default=False)
 
@@ -628,14 +621,14 @@ def main():
         '--max_wgs',
         type=int,
         help=
-        'Overwrite tuning max workgroups size to the specified value for ALL kernels.',
+        '(Overwrite globally) tuning max workgroups size to the specified value for ALL kernels.',
         default=None)
 
     tuning_parser.add_argument(
         '--min_wgs',
         type=int,
         help=
-        'Overwrite tuning min workgroups size to the specified value for ALL kernels.',
+        '(Overwrite globally) tuning min workgroups size to the specified value for ALL kernels.',
         default=None)
 
     tuning_parser.add_argument(
@@ -667,6 +660,12 @@ def main():
         type=str,
         help='path of the merging meta file, must specify',
         default=None)
+
+    merge_parser.add_argument(
+        '--validation',
+        type=int,
+        help='do validation test before merge, 1 for True/0 for False, default 1',
+        default=1)
 
     arguments = parser.parse_args()
 

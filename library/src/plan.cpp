@@ -1725,8 +1725,19 @@ void GetNodeToken(const TreeNode& probNode, std::string& min_token, std::string&
     }
 
     token += "batch_" + std::to_string(probNode.batch);
+
+    token += "_istride";
+    for(size_t i = 0; i < probNode.inStride.size(); ++i)
+        token += "_" + std::to_string(probNode.inStride[i]);
+
+    token += "_ostride";
+    for(size_t i = 0; i < probNode.outStride.size(); ++i)
+        token += "_" + std::to_string(probNode.outStride[i]);
+
     token += "_idist_" + std::to_string(probNode.iDist);
     token += "_odist_" + std::to_string(probNode.oDist);
+    token += "_ioffset_" + std::to_string(probNode.iOffset);
+    token += "_ooffset_" + std::to_string(probNode.oOffset);
 
     full_token = token;
 }

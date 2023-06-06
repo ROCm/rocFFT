@@ -71,6 +71,7 @@ class Problem:
     tag: str = None
     min_wgs: int = 64
     max_wgs: int = 512
+    full_token: bool = False
     meta: Dict[str, str] = field(default_factory=dict)
 
     def toJSON(self):
