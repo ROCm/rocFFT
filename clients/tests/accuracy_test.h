@@ -39,6 +39,7 @@
 
 extern int    verbose;
 extern size_t ramgb;
+extern bool   fftw_compare;
 
 static const size_t ONE_GiB = 1 << 30;
 
@@ -816,6 +817,11 @@ inline void execute_gpu_fft(Tparams&              params,
     if(fft_status != fft_status_success)
         throw std::runtime_error("rocFFT plan execution failure");
 
+    // if not comparing, then just executing the GPU FFT is all we
+    // need to do
+    if(!fftw_compare)
+        return;
+
     // copy GPU output back
     ASSERT_TRUE(!gpu_output.empty()) << "no output buffers";
     for(unsigned int idx = 0; idx < gpu_output.size(); ++idx)
@@ -1363,7 +1369,7 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     std::shared_future<void>             convert_cpu_input_precision;
     bool                                 run_fftw = true;
     std::unique_ptr<StoreCPUDataToCache> store_to_cache;
-    if(last_cpu_fft_data.length == params.length
+    if(fftw_compare && last_cpu_fft_data.length == params.length
        && last_cpu_fft_data.transform_type == params.transform_type
        && last_cpu_fft_data.run_callbacks == params.run_callbacks)
     {
@@ -1493,12 +1499,13 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         }
     }
 
-    std::vector<hostbuf> gpu_input_data
-        = allocate_host_buffer(params.precision, params.itype, ibuffer_sizes_elems);
+    std::vector<hostbuf> gpu_input_data;
 
     // allocate and populate the input buffer (cpu/gpu)
     if(run_fftw)
     {
+        gpu_input_data = allocate_host_buffer(params.precision, params.itype, ibuffer_sizes_elems);
+
         //generate the input directly on the gpu
         params.compute_input(ibuffer);
 
@@ -1565,8 +1572,10 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             }
         }
     }
-    else
+    else if(fftw_compare)
     {
+        gpu_input_data = allocate_host_buffer(params.precision, params.itype, ibuffer_sizes_elems);
+
         // In case the cached cpu input needed conversion, wait for it
         if(convert_cpu_input_precision.valid())
             convert_cpu_input_precision.get();
@@ -1623,26 +1632,28 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     }
 
     // compute input norm
-    std::shared_future<VectorNorms> cpu_input_norm = std::async(std::launch::async, [&]() {
-        // in case the cached cpu input needed conversion, wait for it
-        if(convert_cpu_input_precision.valid())
-            convert_cpu_input_precision.get();
+    std::shared_future<VectorNorms> cpu_input_norm;
+    if(fftw_compare)
+        cpu_input_norm = std::async(std::launch::async, [&]() {
+            // in case the cached cpu input needed conversion, wait for it
+            if(convert_cpu_input_precision.valid())
+                convert_cpu_input_precision.get();
 
-        auto input_norm = norm(cpu_input,
-                               contiguous_params.ilength(),
-                               contiguous_params.nbatch,
-                               contiguous_params.precision,
-                               contiguous_params.itype,
-                               contiguous_params.istride,
-                               contiguous_params.idist,
-                               contiguous_params.ioffset);
-        if(verbose > 2)
-        {
-            std::cout << "CPU Input Linf norm:  " << input_norm.l_inf << "\n";
-            std::cout << "CPU Input L2 norm:    " << input_norm.l_2 << "\n";
-        }
-        return input_norm;
-    });
+            auto input_norm = norm(cpu_input,
+                                   contiguous_params.ilength(),
+                                   contiguous_params.nbatch,
+                                   contiguous_params.precision,
+                                   contiguous_params.itype,
+                                   contiguous_params.istride,
+                                   contiguous_params.idist,
+                                   contiguous_params.ioffset);
+            if(verbose > 2)
+            {
+                std::cout << "CPU Input Linf norm:  " << input_norm.l_inf << "\n";
+                std::cout << "CPU Input L2 norm:    " << input_norm.l_2 << "\n";
+            }
+            return input_norm;
+        });
 
     std::vector<gpubuf>  obuffer_data;
     std::vector<gpubuf>* obuffer = &obuffer_data;
@@ -1712,36 +1723,38 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     // NOTE: This must happen after input is copied to GPU and input
     // norm is computed, since the CPU FFT may overwrite the input.
     VectorNorms              cpu_output_norm;
-    std::shared_future<void> cpu_fft = std::async(std::launch::async, [&]() {
-        // wait for input norm to finish, since we might overwrite input
-        cpu_input_norm.get();
+    std::shared_future<void> cpu_fft;
+    if(fftw_compare)
+        cpu_fft = std::async(std::launch::async, [&]() {
+            // wait for input norm to finish, since we might overwrite input
+            cpu_input_norm.get();
 
-        if(run_fftw)
-            execute_cpu_fft<Tfloat>(params, contiguous_params, cpu_plan, cpu_input, cpu_output);
-        // in case the cached cpu output needed conversion, wait for it
-        else if(convert_cpu_output_precision.valid())
-            convert_cpu_output_precision.get();
+            if(run_fftw)
+                execute_cpu_fft<Tfloat>(params, contiguous_params, cpu_plan, cpu_input, cpu_output);
+            // in case the cached cpu output needed conversion, wait for it
+            else if(convert_cpu_output_precision.valid())
+                convert_cpu_output_precision.get();
 
-        if(verbose > 3)
-        {
-            std::cout << "CPU output:\n";
-            contiguous_params.print_obuffer(cpu_output);
-        }
+            if(verbose > 3)
+            {
+                std::cout << "CPU output:\n";
+                contiguous_params.print_obuffer(cpu_output);
+            }
 
-        cpu_output_norm = norm(cpu_output,
-                               params.olength(),
-                               params.nbatch,
-                               params.precision,
-                               contiguous_params.otype,
-                               contiguous_params.ostride,
-                               contiguous_params.odist,
-                               contiguous_params.ooffset);
-        if(verbose > 2)
-        {
-            std::cout << "CPU Output Linf norm: " << cpu_output_norm.l_inf << "\n";
-            std::cout << "CPU Output L2 norm:   " << cpu_output_norm.l_2 << "\n";
-        }
-    });
+            cpu_output_norm = norm(cpu_output,
+                                   params.olength(),
+                                   params.nbatch,
+                                   params.precision,
+                                   contiguous_params.otype,
+                                   contiguous_params.ostride,
+                                   contiguous_params.odist,
+                                   contiguous_params.ooffset);
+            if(verbose > 2)
+            {
+                std::cout << "CPU Output Linf norm: " << cpu_output_norm.l_inf << "\n";
+                std::cout << "CPU Output L2 norm:   " << cpu_output_norm.l_2 << "\n";
+            }
+        });
 
     // execute GPU transform
     //
@@ -1758,16 +1771,18 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     }
 
     // compute GPU output norm
-    std::shared_future<VectorNorms> gpu_norm = std::async(std::launch::async, [&]() {
-        return norm(gpu_output,
-                    params.olength(),
-                    params.nbatch,
-                    params.precision,
-                    params.otype,
-                    params.ostride,
-                    params.odist,
-                    params.ooffset);
-    });
+    std::shared_future<VectorNorms> gpu_norm;
+    if(fftw_compare)
+        gpu_norm = std::async(std::launch::async, [&]() {
+            return norm(gpu_output,
+                        params.olength(),
+                        params.nbatch,
+                        params.precision,
+                        params.otype,
+                        params.ostride,
+                        params.odist,
+                        params.ooffset);
+        });
 
     // compare output
     //
@@ -1785,26 +1800,29 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     double      linf_cutoff;
     VectorNorms diff;
 
-    std::shared_future<void> compare_output = std::async(std::launch::async, [&]() {
-        cpu_fft.get();
-        linf_cutoff = type_epsilon(params.precision) * cpu_output_norm.l_inf * log(total_length);
+    std::shared_future<void> compare_output;
+    if(fftw_compare)
+        compare_output = std::async(std::launch::async, [&]() {
+            cpu_fft.get();
+            linf_cutoff
+                = type_epsilon(params.precision) * cpu_output_norm.l_inf * log(total_length);
 
-        diff = distance(cpu_output,
-                        gpu_output,
-                        params.olength(),
-                        params.nbatch,
-                        params.precision,
-                        contiguous_params.otype,
-                        contiguous_params.ostride,
-                        contiguous_params.odist,
-                        params.otype,
-                        params.ostride,
-                        params.odist,
-                        linf_failures.get(),
-                        linf_cutoff,
-                        {0},
-                        params.ooffset);
-    });
+            diff = distance(cpu_output,
+                            gpu_output,
+                            params.olength(),
+                            params.nbatch,
+                            params.precision,
+                            contiguous_params.otype,
+                            contiguous_params.ostride,
+                            contiguous_params.odist,
+                            params.otype,
+                            params.ostride,
+                            params.odist,
+                            linf_failures.get(),
+                            linf_cutoff,
+                            {0},
+                            params.ooffset);
+        });
 
     // Update the cache if this current transform is different from
     // what's stored.  But if this transform only has a smaller batch
@@ -1827,7 +1845,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         last_cpu_fft_data.precision      = params.precision;
     }
 
-    compare_output.get();
+    if(compare_output.valid())
+        compare_output.get();
 
     if(!store_to_cache)
         store_to_cache = std::make_unique<StoreCPUDataToCache>(cpu_input, cpu_output);
@@ -1842,27 +1861,30 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             params_inverse, ibuffer, pobuffer, pibuffer, gpu_input_data);
     }
 
-    ASSERT_TRUE(std::isfinite(cpu_input_norm.get().l_2));
-    ASSERT_TRUE(std::isfinite(cpu_input_norm.get().l_inf));
-
-    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_2));
-    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_inf));
-
-    if(verbose > 1)
+    if(fftw_compare)
     {
-        std::cout << "GPU output Linf norm: " << gpu_norm.get().l_inf << "\n";
-        std::cout << "GPU output L2 norm:   " << gpu_norm.get().l_2 << "\n";
-        std::cout << "GPU linf norm failures:";
-        std::sort(linf_failures->begin(), linf_failures->end());
-        for(const auto& i : *linf_failures)
-        {
-            std::cout << " (" << i.first << "," << i.second << ")";
-        }
-        std::cout << std::endl;
-    }
+        ASSERT_TRUE(std::isfinite(cpu_input_norm.get().l_2));
+        ASSERT_TRUE(std::isfinite(cpu_input_norm.get().l_inf));
 
-    EXPECT_TRUE(std::isfinite(gpu_norm.get().l_inf)) << params.str();
-    EXPECT_TRUE(std::isfinite(gpu_norm.get().l_2)) << params.str();
+        ASSERT_TRUE(std::isfinite(cpu_output_norm.l_2));
+        ASSERT_TRUE(std::isfinite(cpu_output_norm.l_inf));
+
+        if(verbose > 1)
+        {
+            std::cout << "GPU output Linf norm: " << gpu_norm.get().l_inf << "\n";
+            std::cout << "GPU output L2 norm:   " << gpu_norm.get().l_2 << "\n";
+            std::cout << "GPU linf norm failures:";
+            std::sort(linf_failures->begin(), linf_failures->end());
+            for(const auto& i : *linf_failures)
+            {
+                std::cout << " (" << i.first << "," << i.second << ")";
+            }
+            std::cout << std::endl;
+        }
+
+        EXPECT_TRUE(std::isfinite(gpu_norm.get().l_inf)) << params.str();
+        EXPECT_TRUE(std::isfinite(gpu_norm.get().l_2)) << params.str();
+    }
 
     switch(params.precision)
     {
@@ -1892,19 +1914,22 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         std::cout << "Linf diff: " << diff.l_inf << "\n";
     }
 
-    EXPECT_TRUE(diff.l_inf <= linf_cutoff)
-        << "Linf test failed.  Linf:" << diff.l_inf
-        << "\tnormalized Linf: " << diff.l_inf / cpu_output_norm.l_inf
-        << "\tcutoff: " << linf_cutoff << params.str();
+    if(fftw_compare)
+    {
+        EXPECT_TRUE(diff.l_inf <= linf_cutoff)
+            << "Linf test failed.  Linf:" << diff.l_inf
+            << "\tnormalized Linf: " << diff.l_inf / cpu_output_norm.l_inf
+            << "\tcutoff: " << linf_cutoff << params.str();
 
-    EXPECT_TRUE(diff.l_2 / cpu_output_norm.l_2
-                < sqrt(log2(total_length)) * type_epsilon(params.precision))
-        << "L2 test failed. L2: " << diff.l_2
-        << "\tnormalized L2: " << diff.l_2 / cpu_output_norm.l_2
-        << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(params.precision)
-        << params.str();
+        EXPECT_TRUE(diff.l_2 / cpu_output_norm.l_2
+                    < sqrt(log2(total_length)) * type_epsilon(params.precision))
+            << "L2 test failed. L2: " << diff.l_2
+            << "\tnormalized L2: " << diff.l_2 / cpu_output_norm.l_2
+            << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(params.precision)
+            << params.str();
+    }
 
-    if(round_trip)
+    if(round_trip && fftw_compare)
     {
         compare_round_trip_inverse<Tparams>(params_inverse,
                                             contiguous_params,

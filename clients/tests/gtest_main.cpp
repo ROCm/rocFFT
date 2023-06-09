@@ -87,6 +87,9 @@ double max_l2_eps_half     = 0.0;
 // Control whether we use FFTW's wisdom (which we use to imply FFTW_MEASURE).
 bool use_fftw_wisdom = false;
 
+// Compare results against FFTW in accuracy tests
+bool fftw_compare = true;
+
 // Cache the last cpu fft that was requested
 last_cpu_fft_cache last_cpu_fft_data;
 
@@ -241,7 +244,9 @@ int main(int argc, char* argv[])
         ("planar_prob", po::value<double>(&planar_prob)->default_value(0.1),
         "Probability of running individual planar transforms")
         ("callback_prob", po::value<double>(&callback_prob)->default_value(0.1),
-         "Probability of running individual callback transforms");
+         "Probability of running individual callback transforms")
+        ("fftw_compare",
+	 po::value<bool>(&fftw_compare)->default_value(true), "Compare to FFTW in accuracy tests");
     // clang-format on
     po::variables_map vm;
     po::store(po::command_line_parser(argc, argv).options(opdesc).allow_unregistered().run(), vm);

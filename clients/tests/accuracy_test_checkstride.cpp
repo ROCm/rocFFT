@@ -20,8 +20,15 @@
 
 #include "accuracy_test.h"
 
+extern bool fftw_compare;
+
 inline auto param_checkstride()
 {
+    // checkstride requires us to copy data back to the host for
+    // checking, which we only do when comparing against FFTW.
+    if(!fftw_compare)
+        return std::vector<fft_params>{};
+
     // tuples of length,stride,nbatch,dist to test.  strides are arranged so
     // there's space either between elements on the fastest dim, or
     // between dims, or both.
