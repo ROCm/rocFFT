@@ -20,7 +20,6 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DROCFFT_DEVICE_FORCE_RELEASE=ON' : '-DCMAKE_BUILD_TYPE=Release'
     String buildTypeDir = debug ? 'debug' : 'release'
     String staticArg = buildStatic ? '-DBUILD_SHARED_LIBS=off' : ''
-    String hipClangArgs = jobName.contains('hipclang') ? '-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang' : ''
     String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
     //Set CI node's gfx arch as target if PR, otherwise use default targets of the library
     String amdgpuTargets = env.BRANCH_NAME.startsWith('PR-') ? '-DAMDGPU_TARGETS=\$gfx_arch' : ''
@@ -33,7 +32,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
                 set -e
                 mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${buildTunerArgs} ${hipClangArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${buildTunerArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
                 make -j\$(nproc)
                 sudo make install
             """
@@ -52,7 +51,6 @@ def runCompileClientCommand(platform, project, jobName, boolean debug=false)
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DROCFFT_DEVICE_FORCE_RELEASE=ON' : '-DCMAKE_BUILD_TYPE=Release'
     String buildTypeDir = debug ? 'debug' : 'release'
     //String staticArg = buildStatic ? '-DBUILD_SHARED_LIBS=off' : ''
-    String hipClangArgs = jobName.contains('hipclang') ? '-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang' : ''
     String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
     String amdgpuTargets = env.BRANCH_NAME.startsWith('PR-') ? '-DAMDGPU_TARGETS=\$gfx_arch' : ''
 
@@ -63,7 +61,7 @@ def runCompileClientCommand(platform, project, jobName, boolean debug=false)
                 set -ex
                 cd ${project.paths.project_build_prefix}/clients
                 mkdir -p build && cd build
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArgClients} ${hipClangArgs} ${cmakePrefixPathArg} ../
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArgClients} ${cmakePrefixPathArg} ../
                 make -j\$(nproc)
             """
     platform.runCommand(this, command)
@@ -116,7 +114,6 @@ def runSubsetBuildCommand(platform, project, jobName, genPattern, genSmall, genL
     String precisionArgs = onlyDouble ? '-DGENERATOR_PRECISION=double' : ''
     String kernelArgs = "${genPatternArgs} ${manualSmallArgs} ${manualLargeArgs} ${precisionArgs}"
 
-    String hipClangArgs = jobName.contains('hipclang') ? '-DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang' : ''
     String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
     //Set CI node's gfx arch as target if PR, otherwise use default targets of the library
     String amdgpuTargets = env.BRANCH_NAME.startsWith('PR-') ? '-DAMDGPU_TARGETS=\$gfx_arch' : ''
@@ -129,7 +126,7 @@ def runSubsetBuildCommand(platform, project, jobName, genPattern, genSmall, genL
                 rm -rf build/${buildTypeDir}
                 mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${kernelArgs} ${warningArgs} ${hipClangArgs} ${amdgpuTargets} ${rtcBuildCache} ../..
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${kernelArgs} ${warningArgs} ${amdgpuTargets} ${rtcBuildCache} ../..
                 make -j\$(nproc)
             """
     platform.runCommand(this, command)

@@ -273,7 +273,6 @@ build_clients=false
 build_release=true
 build_tuner=false
 build_relocatable=false
-build_hip_clang=true
 pattern_arg=false
 precision_arg=false
 group_num=false
@@ -326,9 +325,6 @@ while true; do
             shift ;;
         -t|--tuner)
             build_tuner=true
-            shift ;;
-        --hip-clang)
-            build_hip_clang=true
             shift ;;
         --address-sanitizer)
             build_address_sanitizer=true
@@ -492,13 +488,6 @@ if [[ "${build_clients}" == true ]]; then
 fi
 
 compiler="hipcc"
-if [[ "${build_hip_clang}" == true ]]; then
-    compiler="hipcc"
-fi
-
-if [[ "${build_hip_clang}" == true ]]; then
-    cmake_common_options="${cmake_common_options} -DUSE_HIP_CLANG=ON -DHIP_COMPILER=clang"
-fi
 
 # Build library with AMD toolchain because of existense of device kernels
 if [[ "${build_clients}" == false ]]; then

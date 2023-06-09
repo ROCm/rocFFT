@@ -49,16 +49,6 @@ set( ROCFFT_BUILD_SCOPE ON )
 
 project( rocfft LANGUAGES CXX C )
 
-# Control hip-clang use:
-set( USE_HIP_CLANG OFF CACHE BOOL "Use hip-clang to build for amdgpu" )
-if( USE_HIP_CLANG )
-  message( STATUS "Use hip-clang to build for amdgpu backend" )
-  set( HIP_PLATFORM "hip-clang" )
-  set( HIP_COMPILER "clang" )
-else()
-  set( HIP_PLATFORM "hcc" )
-endif()
-
 # This finds the rocm-cmake project, and installs it if not found
 # rocm-cmake contains common cmake code for rocm projects to help setup and install
 set( PROJECT_EXTERN_DIR ${CMAKE_CURRENT_BINARY_DIR}/extern )
