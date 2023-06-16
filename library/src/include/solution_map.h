@@ -102,7 +102,15 @@ struct SolutionPtr
 
     bool operator==(const SolutionPtr& rhs) const
     {
-        return std::tie(child_token, child_option) == std::tie(rhs.child_token, rhs.child_option);
+        return (child_token == rhs.child_token) && (child_option == rhs.child_option);
+    }
+
+    bool operator<(const SolutionPtr& rhs) const
+    {
+        if(child_token == rhs.child_token)
+            return child_option < rhs.child_option;
+
+        return child_token < rhs.child_token;
     }
 };
 
@@ -122,6 +130,7 @@ using ProbSolMap = std::unordered_map<ProblemKey, SolutionNodeVec, ProbKeyHash>;
 
 struct SolutionNode
 {
+    std::string      arch_name; // a good way to reverse look up
     SolutionNodeType sol_node_type = SOL_INTERNAL_NODE;
     ComputeScheme    using_scheme  = CS_NONE;
     FMKey            kernel_key    = FMKey::EmptyFMKey();
@@ -142,9 +151,22 @@ struct SolutionNode
 
     bool operator==(const SolutionNode& rhs) const
     {
-        return std::tie(sol_node_type, using_scheme, kernel_key, solution_childnodes)
-               == std::tie(
-                   rhs.sol_node_type, rhs.using_scheme, rhs.kernel_key, rhs.solution_childnodes);
+        return std::tie(arch_name, sol_node_type, using_scheme, kernel_key, solution_childnodes)
+               == std::tie(rhs.arch_name,
+                           rhs.sol_node_type,
+                           rhs.using_scheme,
+                           rhs.kernel_key,
+                           rhs.solution_childnodes);
+    }
+
+    bool operator<(const SolutionNode& rhs) const
+    {
+        return std::tie(arch_name, sol_node_type, using_scheme, kernel_key, solution_childnodes)
+               < std::tie(rhs.arch_name,
+                          rhs.sol_node_type,
+                          rhs.using_scheme,
+                          rhs.kernel_key,
+                          rhs.solution_childnodes);
     }
 
     // NB:
@@ -243,7 +265,7 @@ public:
 
     ~solution_map() = default;
 
-    void setup();
+    void setup(const std::string& arch_name);
 
     bool
         has_solution_node(const ProblemKey& probKey, size_t option_id = 0, bool primary_map = true);
@@ -283,6 +305,15 @@ public:
                         bool                isRootProb,
                         bool                check_dup,
                         bool                primary_map = true);
+
+    // get all child nodes of specified type of a tree-node, put in a set
+    bool get_typed_nodes_of_tree(const SolutionNode&     root,
+                                 SolutionNodeType        type,
+                                 std::set<SolutionNode>& ret);
+
+    // get solution-nodes of SOL_KERNEL_ONLY, getUsedOnly flag filters the kernels
+    // that are not used (replaced by newly-tuned), default false, return all kernels
+    bool get_all_kernels(std::vector<SolutionNode>& sol_kernels, bool getUsedOnly = false);
 
     // parse the format version of the input file
     bool get_solution_map_version(const fs::path& sol_map_in_path);

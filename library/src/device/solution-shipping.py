@@ -163,6 +163,9 @@ def generate_solution_map(solutions):
 
         # assigning solution data
         populate += Assign(
+            str(var_solution) + '.arch_name', '"' + str(arch) + '"')
+
+        populate += Assign(
             str(var_solution) + '.sol_node_type',
             'StrToSolutionNodeType("' + sol_node_type + '")')
 

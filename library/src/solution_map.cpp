@@ -321,7 +321,7 @@ void solution_map::generate_link_info()
 //////////////////////
 // Public Functions
 //////////////////////
-void solution_map::setup()
+void solution_map::setup(const std::string& arch_name)
 {
     // if we have speicified an explicit file-path, then read from it,
     std::string explict_read_path_str = rocfft_getenv("ROCFFT_READ_EXPLICIT_SOL_MAP_FILE");
@@ -342,8 +342,7 @@ void solution_map::setup()
         read_solution_map_data(sol_map_input);
 
         // read data from current arch
-        auto deviceProp = get_curr_device_prop();
-        sol_map_input   = get_solution_map_path(read_folder_str, get_arch_name(deviceProp));
+        sol_map_input = get_solution_map_path(read_folder_str, arch_name);
         read_solution_map_data(sol_map_input);
     }
 }
@@ -395,6 +394,7 @@ size_t solution_map::add_solution(const ProblemKey&               probKey,
                                   bool                            primary_map)
 {
     SolutionNode solution;
+    solution.arch_name     = probKey.arch;
     solution.using_scheme  = currentNode->scheme;
     solution.sol_node_type = (currentNode->nodeType == NT_LEAF) ? SOL_LEAF_NODE : SOL_INTERNAL_NODE;
     solution.solution_childnodes = children;
@@ -409,6 +409,7 @@ size_t solution_map::add_solution(const ProblemKey& probKey,
                                   bool              primary_map)
 {
     SolutionNode solution;
+    solution.arch_name    = probKey.arch;
     solution.using_scheme = (kernel_key == FMKey::EmptyFMKey()) ? CS_NONE : kernel_key.scheme;
     solution.sol_node_type
         = (kernel_key == FMKey::EmptyFMKey()) ? SOL_BUILTIN_KERNEL : SOL_KERNEL_ONLY;
@@ -473,6 +474,71 @@ size_t solution_map::add_solution(const ProblemKey&   probKey,
     sol_vec.push_back(solution);
 
     return sol_vec.size() - 1;
+}
+
+bool solution_map::get_typed_nodes_of_tree(const SolutionNode&     root,
+                                           SolutionNodeType        type,
+                                           std::set<SolutionNode>& ret)
+{
+    if(root.sol_node_type == type)
+    {
+        ret.insert(root);
+    }
+    else
+    {
+        for(const auto& child : root.solution_childnodes)
+        {
+            auto& child_node = get_solution_node(ProblemKey(root.arch_name, child.child_token),
+                                                 child.child_option);
+            get_typed_nodes_of_tree(child_node, type, ret);
+        }
+    }
+
+    return true;
+}
+
+bool solution_map::get_all_kernels(std::vector<SolutionNode>& sol_kernels, bool getUsedOnly)
+{
+    // if get all, then we simply return all "SOL_KERNEL_ONLY" nodes
+    if(!getUsedOnly)
+    {
+        for(auto& [key, value] : primary_sol_map)
+        {
+            SolutionNodeVec& sol_vec = value;
+            if(sol_vec.front().sol_node_type != SOL_KERNEL_ONLY)
+                continue;
+
+            for(auto& kernel : sol_vec)
+                sol_kernels.push_back(kernel);
+        }
+    }
+    // if get used only, then we need to start from a real-root-problem and return its kernels
+    // the principle of a root-problem is:
+    //   1. if the first element of a sol_vec is SOL_INTERNAL_NODE, not DUMMY, then it is a root
+    //      (Large 1d, 2d, 3d), if not put in index-0, then they are sub-problems
+    //   2. if the first element of a sol_vec is SOL_LEAF_NODE, and ComputeSchemeIsAProblem() is true
+    //      (Small-1d, single-2d), leaf-node could also be a root-problem
+    else
+    {
+        std::set<SolutionNode> kernels_set; // to avoid duplicates
+        for(auto& [key, value] : primary_sol_map)
+        {
+            SolutionNodeVec& sol_vec    = value;
+            SolutionNode&    first_node = sol_vec.front();
+
+            if((first_node.sol_node_type == SOL_INTERNAL_NODE)
+               || (first_node.sol_node_type == SOL_LEAF_NODE
+                   && ComputeSchemeIsAProblem(first_node.using_scheme)))
+            {
+                // get first_node's all kernels
+                get_typed_nodes_of_tree(first_node, SOL_KERNEL_ONLY, kernels_set);
+            }
+        }
+
+        std::copy(kernels_set.begin(), kernels_set.end(), std::back_inserter(sol_kernels));
+    }
+
+    return true;
 }
 
 // parse the format version of the input file, call by converter
@@ -552,7 +618,12 @@ bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path, bool 
             std::vector<SolMapEntry> entry_vec;
             VectorFieldParser<SolMapEntry>().parse("Data", entry_vec, tokens);
             for(auto& entry : entry_vec)
+            {
+                // automatically set arch_name which is not in the text file
+                for(auto& sol : entry.second)
+                    sol.arch_name = entry.first.arch;
                 dst_map.emplace(entry.first, entry.second);
+            }
         }
         catch(const std::exception& e)
         {

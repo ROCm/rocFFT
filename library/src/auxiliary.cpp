@@ -125,7 +125,8 @@ rocfft_status rocfft_setup()
     }
 
     // setup solution map once in program at the start of library use
-    solution_map::get_solution_map().setup();
+    auto arch_name = get_arch_name(get_curr_device_prop());
+    solution_map::get_solution_map().setup(arch_name);
     TuningBenchmarker::GetSingleton().Setup();
 
     log_trace(__func__);

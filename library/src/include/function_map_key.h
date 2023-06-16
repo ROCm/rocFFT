@@ -87,50 +87,22 @@ struct KernelConfig
 
     bool operator<(const KernelConfig& rhs) const
     {
-        size_t l_h = std::hash<bool>{}(use_3steps_large_twd);
-        size_t r_h = std::hash<bool>{}(rhs.use_3steps_large_twd);
-        if(l_h > r_h)
-            return true;
-        if(l_h < r_h)
-            return false;
-
-        l_h = std::hash<bool>{}(half_lds);
-        r_h = std::hash<bool>{}(rhs.half_lds);
-        if(l_h > r_h)
-            return true;
-        if(l_h < r_h)
-            return false;
-
-        l_h = std::hash<bool>{}(direct_to_from_reg);
-        r_h = std::hash<bool>{}(rhs.direct_to_from_reg);
-        if(l_h > r_h)
-            return true;
-        if(l_h < r_h)
-            return false;
-
-        l_h = std::hash<bool>{}(intrinsic_buffer_inst);
-        r_h = std::hash<bool>{}(rhs.intrinsic_buffer_inst);
-        if(l_h > r_h)
-            return true;
-        if(l_h < r_h)
-            return false;
-
-        if(transforms_per_block > rhs.transforms_per_block)
-            return true;
-        if(transforms_per_block < rhs.transforms_per_block)
-            return false;
-
-        if(workgroup_size > rhs.workgroup_size)
-            return true;
-        if(workgroup_size < rhs.workgroup_size)
-            return false;
-
-        if(threads_per_transform > rhs.threads_per_transform)
-            return true;
-        if(threads_per_transform < rhs.threads_per_transform)
-            return false;
-
-        return (factors > rhs.factors);
+        return std::tie(use_3steps_large_twd,
+                        half_lds,
+                        direct_to_from_reg,
+                        intrinsic_buffer_inst,
+                        transforms_per_block,
+                        workgroup_size,
+                        threads_per_transform,
+                        factors)
+               < std::tie(rhs.use_3steps_large_twd,
+                          rhs.half_lds,
+                          rhs.direct_to_from_reg,
+                          rhs.intrinsic_buffer_inst,
+                          rhs.transforms_per_block,
+                          rhs.workgroup_size,
+                          rhs.threads_per_transform,
+                          rhs.factors);
     }
 
     std::string Print() const
@@ -306,6 +278,12 @@ struct FMKey
     bool operator!=(const FMKey& rhs) const
     {
         return !((*this) == rhs);
+    }
+
+    bool operator<(const FMKey& rhs) const
+    {
+        return std::tie(lengths, precision, scheme, sbrcTrans, kernel_config)
+               < std::tie(rhs.lengths, rhs.precision, rhs.scheme, rhs.sbrcTrans, rhs.kernel_config);
     }
 
     static FMKey EmptyFMKey()

@@ -32,6 +32,7 @@ using namespace std::placeholders;
 #include "rtc_realcomplex_gen.h"
 #include "rtc_stockham_gen.h"
 #include "rtc_twiddle_gen.h"
+#include "solution_map.h"
 
 #include "device/kernel-generator-embed.h"
 
@@ -50,6 +51,7 @@ struct WorkItem
 {
     std::string      kernel_name;
     kernel_src_gen_t generate_src;
+    std::string      sol_arch_name;
 };
 typedef WorkQueue<WorkItem> CompileQueue;
 
@@ -336,7 +338,7 @@ void build_stockham_function_pool(CompileQueue& queue)
                                                    enable_scaling,
                                                    fuseBlue);
                            };
-                           queue.push({kernel_name, generate_src});
+                           queue.push({kernel_name, generate_src, ""});
                        });
     }
 }
@@ -407,7 +409,7 @@ void build_realcomplex(CompileQueue& queue)
                     = [=](const std::string& kernel_name) -> std::string {
                     return realcomplex_even_transpose_rtc(kernel_name, specs);
                 };
-                queue.push({kernel_name, generate_src});
+                queue.push({kernel_name, generate_src, ""});
             }
         }
     }
@@ -422,7 +424,7 @@ void build_apply_callback(CompileQueue& queue)
             = [=](const std::string& kernel_name) -> std::string {
             return apply_callback_rtc(kernel_name, precision);
         };
-        queue.push({kernel_name, generate_src});
+        queue.push({kernel_name, generate_src, ""});
     }
 }
 
@@ -443,8 +445,252 @@ void build_twiddle(CompileQueue& queue)
                 = [=](const std::string& kernel_name) -> std::string {
                 return twiddle_rtc(kernel_name, type, precision);
             };
-            queue.push({kernel_name, generate_src});
+            queue.push({kernel_name, generate_src, ""});
         }
+    }
+}
+
+void solution_kernel_combo(FMKey                     kernel_key,
+                           std::function<void(int,
+                                              rocfft_result_placement,
+                                              rocfft_array_type,
+                                              rocfft_array_type,
+                                              EmbeddedType,
+                                              SBRC_TRANSPOSE_TYPE,
+                                              DirectRegType,
+                                              IntrinsicAccessType,
+                                              int,
+                                              int,
+                                              int,
+                                              bool,
+                                              bool)> func)
+{
+    KernelConfig& config = kernel_key.kernel_config;
+
+    std::vector<bool> unitstride_range;
+
+    // todo: placement should be part of config or fmkey...
+    std::vector<rocfft_result_placement> placements = {rocfft_placement_notinplace};
+
+    // todo: ebtype should be part of config or fmkey...
+    EmbeddedType ebtype = EmbeddedType::NONE;
+
+    DirectRegType dir_reg_type
+        = config.direct_to_from_reg ? TRY_ENABLE_IF_SUPPORT : FORCE_OFF_OR_NOT_SUPPORT;
+    IntrinsicAccessType intrinsic_mode = config.intrinsic_buffer_inst ? ENABLE_BOTH : DISABLE_BOTH;
+
+    // SBCC can be used with or without large twd.  Large twd may be
+    // base 4, 5, 6, 8.  Base 4 is unused since it's only useful up
+    // to 4k lengths, which we already have single kernels for.
+    // for use_3steps = FALSE: base is always 8, steps can be 2 or 3
+    // for            = TRUE:  base can be 5, 6, steps is always 3
+    std::vector<std::array<int, 2>> base_steps = {{0, 0}, {5, 3}, {6, 3}, {8, 2}, {8, 3}};
+
+    // kernels from solution map are all RTC with some static_dim depending on nodes
+    // we need to expand all possible values (basically, 1,2,3, block compute > 1)
+    std::vector<int> static_dims;
+
+    switch(kernel_key.scheme)
+    {
+    case CS_KERNEL_STOCKHAM_BLOCK_CC:
+    {
+        placements.push_back(rocfft_placement_inplace);
+        // SBCC is never unit stride
+        unitstride_range = {false};
+        // sbcc can be used in 2D, 3D, for L1D, it's still psuedo-2D
+        static_dims = {2, 3};
+        // depends on use_3steps flag
+        if(config.use_3steps_large_twd)
+            base_steps = {{5, 3}, {6, 3}};
+        else
+            base_steps = {{8, 2}, {8, 3}};
+        break;
+    }
+    case CS_KERNEL_STOCKHAM_BLOCK_CR:
+    {
+        base_steps.resize(1);
+        // SBCR is never unit stride
+        unitstride_range = {false};
+        // sbcr now is used in 3D only
+        static_dims = {3};
+        break;
+    }
+    case CS_KERNEL_STOCKHAM_BLOCK_RC:
+    case CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z:
+    case CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY:
+    {
+        base_steps.resize(1);
+        unitstride_range = {true, false};
+        // SBRC can be used in 2D, 3D, but SBRC-with-Transpose are 3D
+        if(kernel_key.scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
+            static_dims = {2, 3};
+        else
+            static_dims = {3};
+        break;
+    }
+    case CS_KERNEL_STOCKHAM:
+    {
+        base_steps.resize(1);
+        unitstride_range = {true, false};
+        placements.push_back(rocfft_placement_inplace);
+        static_dims = {1, 2, 3};
+        break;
+    }
+    default:
+        // throw std::runtime_error("unsupported scheme in stockham_combo aot_rtc");
+        // since it is not possible that we are here,
+        // so directly return is fine which means do nothing
+        return;
+    }
+
+    for(auto direction : {-1, 1})
+    {
+        for(auto placement : placements)
+        {
+            for(auto inArrayType : {rocfft_array_type_complex_interleaved})
+            {
+                for(auto outArrayType : {rocfft_array_type_complex_interleaved})
+                {
+                    if(placement == rocfft_placement_inplace && inArrayType != outArrayType)
+                        continue;
+                    for(auto unitstride : unitstride_range)
+                    {
+                        for(auto static_dim : static_dims)
+                        {
+                            for(auto base_step : base_steps)
+                            {
+                                for(auto callback : {true, false})
+                                {
+                                    func(direction,
+                                         placement,
+                                         inArrayType,
+                                         outArrayType,
+                                         ebtype,
+                                         kernel_key.sbrcTrans,
+                                         dir_reg_type,
+                                         intrinsic_mode,
+                                         static_dim,
+                                         base_step[0],
+                                         base_step[1],
+                                         unitstride,
+                                         callback);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+void build_solution_kernels(CompileQueue& queue)
+{
+    // build every kernel in the solution map
+    solution_map& solmap = solution_map::get_solution_map();
+
+    std::vector<SolutionNode> kernel_nodes;
+    solmap.get_all_kernels(kernel_nodes, true);
+
+    // scaling Stockham kernels are always built at runtime
+    const bool enable_scaling = false;
+
+    // fused Bluestein kernels are also always built at runtime
+    auto fuseBlue = BluesteinFuseType::BFT_NONE;
+
+    for(const SolutionNode& kernel_sol : kernel_nodes)
+    {
+        const std::string&  arch_name  = kernel_sol.arch_name;
+        const FMKey&        kernel_key = kernel_sol.kernel_key;
+        const KernelConfig& config     = kernel_key.kernel_config;
+
+        // auto length1D = kernel_key.lengths[0];
+        // auto length2D = kernel_key.lengths[1];
+        auto                      precision = kernel_key.precision;
+        auto                      scheme    = kernel_key.scheme;
+        std::vector<unsigned int> factors;
+        std::copy(config.factors.begin(), config.factors.end(), std::back_inserter(factors));
+
+        solution_kernel_combo(
+            kernel_key,
+            [=, &queue](int                     direction,
+                        rocfft_result_placement placement,
+                        rocfft_array_type       inArrayType,
+                        rocfft_array_type       outArrayType,
+                        EmbeddedType            ebtype,
+                        SBRC_TRANSPOSE_TYPE     sbrc_trans_type,
+                        DirectRegType           dir_reg_type,
+                        IntrinsicAccessType     intrinsic,
+                        int                     static_dim,
+                        int                     ltwd_base,
+                        int                     ltwd_step,
+                        bool                    unitstride,
+                        bool                    callbacks) {
+                // callbacks need to disable intrisinc mode
+                // so if we are pre-compiling a callbacks + intrinsic, runtime-compilation
+                // eventually goes to a callback + non-intrinsic (see stockham_rtc_kernel_name)
+                if(callbacks && (intrinsic != IntrinsicAccessType::DISABLE_BOTH))
+                    intrinsic = IntrinsicAccessType::DISABLE_BOTH;
+
+                StockhamGeneratorSpecs specs{factors,
+                                             {},
+                                             {static_cast<unsigned int>(precision)},
+                                             static_cast<unsigned int>(config.workgroup_size),
+                                             PrintScheme(scheme)};
+                specs.threads_per_transform = config.threads_per_transform[0];
+                specs.half_lds              = config.half_lds;
+                specs.direct_to_from_reg    = config.direct_to_from_reg;
+                specs.wgs_is_derived        = true;
+                // kernel_sol should specify the static_dim, need to set here,
+                // so move specs to local instead of captured (need mutable if captured)
+                specs.static_dim = static_dim;
+
+                auto kernel_name = stockham_rtc_kernel_name(specs,
+                                                            specs,
+                                                            scheme,
+                                                            direction,
+                                                            precision,
+                                                            placement,
+                                                            inArrayType,
+                                                            outArrayType,
+                                                            unitstride,
+                                                            ltwd_base,
+                                                            ltwd_step,
+                                                            false,
+                                                            ebtype,
+                                                            dir_reg_type,
+                                                            intrinsic,
+                                                            sbrc_trans_type,
+                                                            callbacks,
+                                                            enable_scaling,
+                                                            fuseBlue);
+
+                std::function<std::string(const std::string&)> generate_src
+                    = [=](const std::string& kernel_name) -> std::string {
+                    return stockham_rtc(specs,
+                                        specs,
+                                        nullptr,
+                                        kernel_name,
+                                        scheme,
+                                        direction,
+                                        precision,
+                                        placement,
+                                        inArrayType,
+                                        outArrayType,
+                                        unitstride,
+                                        ltwd_base,
+                                        ltwd_step,
+                                        false,
+                                        ebtype,
+                                        dir_reg_type,
+                                        intrinsic,
+                                        sbrc_trans_type,
+                                        callbacks,
+                                        enable_scaling,
+                                        fuseBlue);
+                };
+                queue.push({kernel_name, generate_src, arch_name});
+            });
     }
 }
 
@@ -498,8 +744,22 @@ int main(int argc, char** argv)
                 auto item = queue.pop();
                 if(item.kernel_name.empty())
                     break;
+
                 for(const auto& gpu_arch : gpu_archs)
-                    cached_compile(item.kernel_name, gpu_arch, item.generate_src, generator_sum());
+                {
+                    if(item.sol_arch_name.empty())
+                    {
+                        cached_compile(
+                            item.kernel_name, gpu_arch, item.generate_src, generator_sum());
+                    }
+                    else if(gpu_arch.find(item.sol_arch_name) != std::string::npos)
+                    {
+                        // std::cout << "arch: " << gpu_arch
+                        //           << ", solution-kernel: " << item.kernel_name << std::endl;
+                        cached_compile(
+                            item.kernel_name, gpu_arch, item.generate_src, generator_sum());
+                    }
+                }
             }
         });
     }
@@ -508,6 +768,7 @@ int main(int argc, char** argv)
     build_realcomplex(queue);
     build_apply_callback(queue);
     build_twiddle(queue);
+    build_solution_kernels(queue);
 
     // signal end of results with empty work items
     for(size_t i = 0; i < NUM_THREADS; ++i)

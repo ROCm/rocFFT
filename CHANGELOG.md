@@ -2,6 +2,11 @@
 
 Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
 
+## rocFFT 1.0.25 for ROCm 6.0.0
+
+### Changed
+- Built kernels in solution-map to library kernel cache.
+
 ## rocFFT 1.0.24 for ROCm 5.7.0
 
 ### Optimizations

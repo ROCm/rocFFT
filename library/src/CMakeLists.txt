@@ -131,7 +131,7 @@ set( kgen_logic_files
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_cr.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rc.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rr.h
-     ${CMAKE_SOURCE_DIR}/library/src/device/generator/bluestein_generator.h     
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/bluestein_generator.h
      ${CMAKE_SOURCE_DIR}/library/src/rtc_compile.cpp
      ${CMAKE_SOURCE_DIR}/library/src/include/rtc_stockham_gen.h
      ${CMAKE_SOURCE_DIR}/library/src/rtc_stockham_gen.cpp
@@ -342,6 +342,7 @@ foreach( target
 endforeach()
 
 add_executable( rocfft_aot_helper
+  enum_printer.cpp
   rocfft_aot_helper.cpp
   rocfft_stub.cpp
 )
@@ -460,6 +461,7 @@ target_link_libraries( rocfft_config_search PRIVATE
 target_link_libraries( rocfft_aot_helper PRIVATE
   generator
   rocfft-function-pool
+  rocfft-solution-map
   )
 
  # build executable rocfft-offline-tuner
@@ -507,7 +509,7 @@ add_custom_command(
   OUTPUT rocfft_kernel_cache.db
   COMMAND rocfft_aot_helper \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS_AOT}
   DEPENDS rocfft_aot_helper rocfft_rtc_helper
-  COMMENT "Compile kernels into shipped cache file"
+  COMMENT "Compile default kernels and solution-map kernels into shipped cache file"
 )
 add_custom_target( rocfft_kernel_cache_target ALL
   DEPENDS rocfft_kernel_cache.db
