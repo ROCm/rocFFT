@@ -564,10 +564,11 @@ def command_run(arguments):
 
     failed_tokens = timer.run_cases(filtered(generator))
 
-    print()
+    if failed_tokens:
+        print()
 
-    logging.info("failed tokens: " + "\n".join(failed_tokens))
-    print("failed tokens:\n" + "\n".join(failed_tokens))
+        logging.info("failed tokens: " + "\n".join(failed_tokens))
+        print("failed tokens:\n" + "\n".join(failed_tokens))
 
 def command_autoperf(arguments):
     """Compare performance of two builds automagically."""
