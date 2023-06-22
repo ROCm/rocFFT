@@ -34,6 +34,7 @@ from textwrap import dedent
 class MachineSpecs:
     hostname: str
     cpu: str
+    sbios: str
     kernel: str
     ram: str
     distro: str
@@ -52,6 +53,7 @@ class MachineSpecs:
         Host info:
             hostname:       {self.hostname}
             cpu info:       {self.cpu}
+            sbios info:     {self.sbios}
             ram:            {self.ram}
             distro:         {self.distro}
             kernel version: {self.kernel}
@@ -104,6 +106,8 @@ def get_machine_specs(devicenum):
 
     hostname = socket.gethostname()
     cpu = search(r'^model name\s*: (.*?)$', cpuinfo)
+    sbios = path('/sys/class/dmi/id/bios_vendor').read_text().strip() + path(
+        '/sys/class/dmi/id/bios_version').read_text().strip()
     kernel = search(r'version (\S*)', version)
     ram = search(r'MemTotal:\s*(\S*)', meminfo)
     distro = search(r'PRETTY_NAME="(.*?)"', os_release)
@@ -124,15 +128,15 @@ def get_machine_specs(devicenum):
                   r'sclk.*\((.*?)\)$', rocm_smi) if rocm_smi_found else 0
 
     ram = '{:.2f} GiB'.format(float(ram) / 1024**2)
-    vram = '{:.2f} GiB'.format(float(vram) / 1024**3)
+    vram = '{:.2f} GiB'.format(float(vram) / 1024**3 if vram else 0)
 
     bandwidth = None
     if gpuid == '0x66af':
         # radeon7: float: 13.8 TFLOPs, double: 3.46 TFLOPs, 1024 GB/s
         bandwidth = (13.8, 3.46, 1024)
 
-    return MachineSpecs(hostname, cpu, kernel, ram, distro, rocmversion, vbios,
-                        gpuid, deviceinfo, vram, perflevel, mclk, sclk,
+    return MachineSpecs(hostname, cpu, sbios, kernel, ram, distro, rocmversion,
+                        vbios, gpuid, deviceinfo, vram, perflevel, mclk, sclk,
                         bandwidth)
 
 
