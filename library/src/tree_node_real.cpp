@@ -77,8 +77,8 @@ static bool SBCC_dim_available(const std::vector<size_t>& length,
     // NB:
     //  we can remove this limitation if we are using sbcc instead of stockham 1d,
     //  (especially for sbcc with load-to-reg, the numTrans is increased)
-    if(length[0] < numTrans && !have_sbcc)
-        return false;
+    // if(length[0] < numTrans && !have_sbcc)
+    //     return false;
 
     // for regular stockham kernels, ensure we are doing enough rows
     // to coalesce properly. 4 seems to be enough for
@@ -443,14 +443,77 @@ void Real2DEvenNode::BuildTree_internal(const SchemeVec& child_schemes)
     // if we have SBCC for the higher dimension, use that and avoid transpose
     solution = SBCC_dim_available(length, 1, precision) ? INPLACE_SBCC : TR_PAIR;
 
+    // but if we have 2D_SINGLE available, then we use it
+    // NB: use the check function in NodeFactory to make sure lds limit
+    // TODO- this part should be done in offline-tuning
+    NodeMetaData nodeData(this);
+    if(inArrayType == rocfft_array_type_real) //forward
+    {
+        nodeData.length = {length[0] / 2, length[1]};
+        if(NodeFactory::use_CS_2D_SINGLE(nodeData))
+            solution = REAL_2D_SINGLE;
+    }
+    else
+    {
+        nodeData.length = {outputLength[1], outputLength[0] / 2};
+        if(NodeFactory::use_CS_2D_SINGLE(nodeData))
+            solution = REAL_2D_SINGLE;
+    }
+
     switch(solution)
     {
+    case REAL_2D_SINGLE:
+        BuildTree_internal_2D_SINGLE();
+        break;
     case INPLACE_SBCC:
         BuildTree_internal_SBCC();
         break;
     case TR_PAIR:
         BuildTree_internal_TR_pair();
         break;
+    }
+}
+
+void Real2DEvenNode::BuildTree_internal_2D_SINGLE()
+{
+    if(inArrayType == rocfft_array_type_real)
+    {
+        auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
+        applyCallback->dimension = dimension;
+        applyCallback->length    = length;
+
+        NodeMetaData cfftPlanData(this);
+        cfftPlanData.dimension = dimension;
+        cfftPlanData.length    = length;
+        cfftPlanData.length[0] = cfftPlanData.length[0] / 2;
+
+        auto cfftPlan = NodeFactory::CreateExplicitNode(cfftPlanData, this);
+        cfftPlan->RecursiveBuildTree();
+        cfftPlan->ebtype          = EmbeddedType::Real2C_POST;
+        cfftPlan->allowOutofplace = true;
+        cfftPlan->outputLength    = cfftPlan->length;
+        cfftPlan->outputLength.front() += 1;
+
+        childNodes.emplace_back(std::move(applyCallback));
+        childNodes.emplace_back(std::move(cfftPlan));
+    }
+    else
+    {
+        NodeMetaData cfftPlanData(this);
+        cfftPlanData.dimension = dimension;
+        cfftPlanData.length    = {outputLength[1], outputLength[0] / 2};
+
+        auto cfftPlan = NodeFactory::CreateExplicitNode(cfftPlanData, this);
+        cfftPlan->RecursiveBuildTree();
+        cfftPlan->ebtype          = EmbeddedType::C2Real_PRE;
+        cfftPlan->allowOutofplace = true;
+
+        auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
+        applyCallback->dimension = dimension;
+        applyCallback->length    = outputLength;
+
+        childNodes.emplace_back(std::move(cfftPlan));
+        childNodes.emplace_back(std::move(applyCallback));
     }
 }
 
@@ -620,12 +683,67 @@ void Real2DEvenNode::AssignParams_internal()
 {
     switch(solution)
     {
+    case REAL_2D_SINGLE:
+        AssignParams_internal_2D_SINGLE();
+        break;
     case INPLACE_SBCC:
         AssignParams_internal_SBCC();
         break;
     case TR_PAIR:
         AssignParams_internal_TR_pair();
         break;
+    }
+}
+
+void Real2DEvenNode::AssignParams_internal_2D_SINGLE()
+{
+    const bool forward = inArrayType == rocfft_array_type_real;
+    if(forward)
+    {
+        auto& applyCallback      = childNodes[0];
+        applyCallback->inStride  = inStride;
+        applyCallback->iDist     = iDist;
+        applyCallback->outStride = inStride;
+        applyCallback->oDist     = iDist;
+
+        auto& fused_2d     = childNodes[1];
+        fused_2d->inStride = inStride;
+        for(unsigned int i = 1; i < fused_2d->inStride.size(); ++i)
+        {
+            fused_2d->inStride[i] /= 2;
+        }
+        fused_2d->iDist     = iDist / 2;
+        fused_2d->outStride = outStride;
+        fused_2d->oDist     = oDist;
+        fused_2d->AssignParams();
+    }
+    else
+    {
+        auto& fused_2d      = childNodes[0];
+        fused_2d->inStride  = inStride;
+        fused_2d->iDist     = iDist;
+        fused_2d->outStride = outStride;
+        fused_2d->oDist     = oDist / 2;
+        // The strides must be translated from real to complex.
+        for(unsigned int i = 1; i < fused_2d->inStride.size(); ++i)
+        {
+            fused_2d->outStride[i] /= 2;
+        }
+        std::swap(fused_2d->inStride[0], fused_2d->inStride[1]);
+        std::swap(fused_2d->outStride[0], fused_2d->outStride[1]);
+
+        fused_2d->AssignParams();
+
+        // we apply callbacks on the root plan's output
+        TreeNode* rootPlan = this;
+        while(rootPlan->parent != nullptr)
+            rootPlan = rootPlan->parent;
+
+        auto& applyCallback      = childNodes.back();
+        applyCallback->inStride  = rootPlan->outStride;
+        applyCallback->iDist     = rootPlan->oDist;
+        applyCallback->outStride = rootPlan->outStride;
+        applyCallback->oDist     = rootPlan->oDist;
     }
 }
 
@@ -785,6 +903,9 @@ void Real3DEvenNode::BuildTree_internal(const SchemeVec& child_schemes)
 
     switch(solution)
     {
+    case REAL_2D_SINGLE_SBCC:
+        BuildTree_internal_2D_SINGLE_CC();
+        break;
     case INPLACE_SBCC:
         BuildTree_internal_SBCC();
         break;
@@ -809,10 +930,39 @@ void Real3DEvenNode::Build_solution()
     const std::vector<size_t>* complexLength = nullptr;
     set_complex_length(*this, realLength, complexLength);
 
+    const bool forward = inArrayType == rocfft_array_type_real;
+
+    const bool planInStrideUnit  = this->GetPlanRoot()->inStrideUnit;
+    const bool planOutStrideUnit = this->GetPlanRoot()->outStrideUnit;
+
+    // but if we have 2D_SINGLE available, then we use it
+    // NB: use the check function in NodeFactory to make sure lds limit
+    // TODO- this part should be done in offline-tuning
+    NodeMetaData nodeData(this);
+    if(forward)
+    {
+        nodeData.length = {length[0] / 2, length[1]};
+        if(NodeFactory::use_CS_2D_SINGLE(nodeData) && SBCC_dim_available(length, 2, precision)
+           && (planInStrideUnit && planOutStrideUnit))
+        {
+            solution = REAL_2D_SINGLE_SBCC;
+            return;
+        }
+    }
+    else
+    {
+        nodeData.length = {outputLength[1], outputLength[0] / 2};
+        if(NodeFactory::use_CS_2D_SINGLE(nodeData) && SBCC_dim_available(outputLength, 2, precision)
+           && (planInStrideUnit && planOutStrideUnit))
+        {
+            solution = REAL_2D_SINGLE_SBCC;
+            return;
+        }
+    }
+
     // NB:
     //   - We need better general mechanism to choose In-place SBCC, SBCR and SBRC solution.
-
-    if(inArrayType != rocfft_array_type_real)
+    if(!forward)
     {
         // FIXME:
         //    1. Currently, BuildTree_internal_SBCR and AssignParams_internal_SBCR
@@ -861,6 +1011,59 @@ void Real3DEvenNode::Build_solution()
 #endif
 
     solution = (sbcc_inplace) ? INPLACE_SBCC : TR_PAIRS;
+}
+
+void Real3DEvenNode::BuildTree_internal_2D_SINGLE_CC()
+{
+    const bool forward = inArrayType == rocfft_array_type_real;
+
+    if(forward)
+    {
+        auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
+        applyCallback->dimension = dimension;
+        applyCallback->length    = length;
+
+        auto xyPlan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_2D_SINGLE, this);
+        xyPlan->length    = {length[0] / 2, length[1], length[2]};
+        xyPlan->dimension = 2;
+        xyPlan->RecursiveBuildTree();
+        xyPlan->ebtype       = EmbeddedType::Real2C_POST;
+        xyPlan->outputLength = xyPlan->length;
+        xyPlan->outputLength.front() += 1;
+
+        bool haveSBCC_Z     = function_pool::has_SBCC_kernel(length[2], precision);
+        auto scheme         = haveSBCC_Z ? CS_KERNEL_STOCKHAM_BLOCK_CC : CS_KERNEL_STOCKHAM;
+        auto sbccZ          = NodeFactory::CreateNodeFromScheme(scheme, this);
+        sbccZ->length       = {length[2], (length[0] / 2 + 1), length[1]};
+        sbccZ->outputLength = outputLength;
+        sbccZ->dimension    = 1;
+
+        childNodes.emplace_back(std::move(applyCallback));
+        childNodes.emplace_back(std::move(xyPlan));
+        childNodes.emplace_back(std::move(sbccZ));
+    }
+    else
+    {
+        bool haveSBCC_Z  = function_pool::has_SBCC_kernel(outputLength[2], precision);
+        auto scheme      = haveSBCC_Z ? CS_KERNEL_STOCKHAM_BLOCK_CC : CS_KERNEL_STOCKHAM;
+        auto sbccZ       = NodeFactory::CreateNodeFromScheme(scheme, this);
+        sbccZ->length    = {outputLength[2], (outputLength[0] / 2 + 1) * outputLength[1]};
+        sbccZ->dimension = 1;
+
+        auto xyPlan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_2D_SINGLE, this);
+        xyPlan->length    = {outputLength[1], outputLength[0] / 2, outputLength[2]};
+        xyPlan->dimension = 2;
+        xyPlan->RecursiveBuildTree();
+        xyPlan->ebtype = EmbeddedType::C2Real_PRE;
+
+        auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
+        applyCallback->dimension = dimension;
+        applyCallback->length    = outputLength;
+
+        childNodes.emplace_back(std::move(sbccZ));
+        childNodes.emplace_back(std::move(xyPlan));
+        childNodes.emplace_back(std::move(applyCallback));
+    }
 }
 
 void Real3DEvenNode::BuildTree_internal_SBCC()
@@ -1172,6 +1375,9 @@ void Real3DEvenNode::AssignParams_internal()
 {
     switch(solution)
     {
+    case REAL_2D_SINGLE_SBCC:
+        AssignParams_internal_2D_SINGLE_CC();
+        break;
     case INPLACE_SBCC:
         AssignParams_internal_SBCC();
         break;
@@ -1184,6 +1390,74 @@ void Real3DEvenNode::AssignParams_internal()
     default:
         throw std::runtime_error("3D R2C/C2R assign params failure: " + PrintScheme(scheme));
         break;
+    }
+}
+
+void Real3DEvenNode::AssignParams_internal_2D_SINGLE_CC()
+{
+    const bool forward = inArrayType == rocfft_array_type_real;
+
+    if(forward)
+    {
+        auto& applyCallback      = childNodes[0];
+        applyCallback->inStride  = inStride;
+        applyCallback->iDist     = iDist;
+        applyCallback->outStride = inStride;
+        applyCallback->oDist     = iDist;
+
+        auto& fused_2d     = childNodes[1];
+        fused_2d->inStride = inStride;
+        for(unsigned int i = 1; i < fused_2d->inStride.size(); ++i)
+        {
+            fused_2d->inStride[i] /= 2;
+        }
+        fused_2d->iDist     = iDist / 2;
+        fused_2d->outStride = outStride;
+        fused_2d->oDist     = oDist;
+        fused_2d->AssignParams();
+
+        // SBCC along Z dim
+        auto& sbccZ      = childNodes[2];
+        sbccZ->inStride  = {outStride[2], outStride[0], outStride[1]};
+        sbccZ->outStride = sbccZ->inStride;
+        sbccZ->iDist     = oDist;
+        sbccZ->oDist     = oDist;
+        sbccZ->AssignParams();
+    }
+    else
+    {
+        auto& sbccZ      = childNodes[0];
+        sbccZ->inStride  = {inStride[2], inStride[0]};
+        sbccZ->iDist     = iDist;
+        sbccZ->outStride = sbccZ->inStride;
+        sbccZ->oDist     = iDist;
+        sbccZ->AssignParams();
+
+        auto& fused_2d      = childNodes[1];
+        fused_2d->inStride  = inStride;
+        fused_2d->outStride = outStride;
+        // The strides must be translated from real to complex.
+        for(unsigned int i = 1; i < fused_2d->inStride.size(); ++i)
+        {
+            fused_2d->outStride[i] /= 2;
+        }
+        std::swap(fused_2d->inStride[0], fused_2d->inStride[1]);
+        std::swap(fused_2d->outStride[0], fused_2d->outStride[1]);
+
+        fused_2d->iDist = fused_2d->length.back() * fused_2d->inStride.back();
+        fused_2d->oDist = fused_2d->length.back() * fused_2d->outStride.back();
+        fused_2d->AssignParams();
+
+        // we apply callbacks on the root plan's output
+        TreeNode* rootPlan = this;
+        while(rootPlan->parent != nullptr)
+            rootPlan = rootPlan->parent;
+
+        auto& applyCallback      = childNodes.back();
+        applyCallback->inStride  = rootPlan->outStride;
+        applyCallback->iDist     = rootPlan->oDist;
+        applyCallback->outStride = rootPlan->outStride;
+        applyCallback->oDist     = rootPlan->oDist;
     }
 }
 

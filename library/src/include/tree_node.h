@@ -413,6 +413,10 @@ public:
     bool allowInplace    = true;
     bool allowOutofplace = true;
 
+    // only root node keeps this info from execPlan
+    bool inStrideUnit;
+    bool outStrideUnit;
+
     // if soffset < 2^32 then we can't use it. Check soffset by buffer size
     // separate load and store,
     // in inplace kernels, enabling both is not always a good choice
@@ -733,6 +737,9 @@ struct ExecPlan
     size_t blueWorkBufSize  = 0;
     size_t chirpWorkBufSize = 0;
 
+    // OB_IN refers to iStride, OB_OUT refers to oStride
+    std::map<OperatingBuffer, bool> isUnitStride;
+
     size_t WorkBufBytes(size_t base_type_size) const
     {
         // base type is the size of one real, work buf counts in
@@ -751,5 +758,6 @@ std::unique_ptr<SchemeTree> ApplySolution(ExecPlan& execPlan);
 void GetNodeToken(const TreeNode& probNode, std::string& min_token, std::string& full_token);
 void ProcessNode(ExecPlan& execPlan);
 void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan);
+bool BufferIsUnitStride(ExecPlan& execPlan, OperatingBuffer buf);
 
 #endif // TREE_NODE_H

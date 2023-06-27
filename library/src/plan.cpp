@@ -664,6 +664,10 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
                 execPlan.iLength.front() = execPlan.oLength.front() * 2;
         }
 
+        // setup isUnitStride values
+        execPlan.rootPlan->inStrideUnit  = BufferIsUnitStride(execPlan, OB_USER_IN);
+        execPlan.rootPlan->outStrideUnit = BufferIsUnitStride(execPlan, OB_USER_OUT);
+
         // set scaling on the root plan
         execPlan.rootPlan->scale_factor = p->desc.scale_factor;
 
@@ -949,6 +953,38 @@ void get_large_twd_base_steps(size_t large1DLen, bool use3steps, size_t& base, s
             "large-twd-base 8 could be 2,3 steps, but not supported for 4-steps yet");
     if(base < 8 && steps != 3)
         throw std::runtime_error("large-twd-base for 4,5,6 must be 3-steps");
+}
+
+bool BufferIsUnitStride(ExecPlan& execPlan, OperatingBuffer buf)
+{
+    // temp buffers are unit stride
+    if(buf != OB_USER_IN && buf != OB_USER_OUT)
+        return true;
+
+    if(execPlan.isUnitStride.find(buf) != execPlan.isUnitStride.end())
+        return execPlan.isUnitStride.at(buf);
+
+    auto stride = (buf == OB_USER_IN) ? execPlan.rootPlan->inStride : execPlan.rootPlan->outStride;
+    auto length = (buf == OB_USER_IN) ? execPlan.iLength : execPlan.oLength;
+    auto dist   = (buf == OB_USER_IN) ? execPlan.rootPlan->iDist : execPlan.rootPlan->oDist;
+    size_t curStride = 1;
+    do
+    {
+        if(stride.front() != curStride)
+            return false;
+        curStride *= length.front();
+        stride.erase(stride.begin());
+        length.erase(length.begin());
+    } while(!stride.empty());
+
+    // NB: users may input incorrect i/o-dist value for inplace transform
+    //     however, when the batch-size is 1, we can simply make it permissive
+    //     since the dist is not used in single batch. But note that we still need
+    //     to pass the above do-while to ensure all the previous strides are valid.
+    bool result = (execPlan.rootPlan->batch == 1) || (curStride == dist);
+
+    execPlan.isUnitStride[buf] = result;
+    return result;
 }
 
 void TreeNode::CopyNodeData(const TreeNode& srcNode)

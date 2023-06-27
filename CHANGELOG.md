@@ -4,6 +4,9 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ## rocFFT 1.0.25 for ROCm 6.0.0
 
+### Optimizations
+- Improved performance of some small 2D/3D real FFTs supported by 2D_SINGLE kernel.
+
 ### Changed
 - Built kernels in solution-map to library kernel cache.
 

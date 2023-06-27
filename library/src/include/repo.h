@@ -173,7 +173,9 @@ public:
     static std::pair<void*, size_t> GetTwiddles2D(size_t           length0,
                                                   size_t           length1,
                                                   rocfft_precision precision,
-                                                  const char*      gpu_arch);
+                                                  const char*      gpu_arch,
+                                                  bool             attach_halfN1,
+                                                  bool             attach_halfN2);
     static std::pair<void*, size_t>
                 GetChirp(size_t length, rocfft_precision precision, const char* gpu_arch);
     static void ReleaseTwiddle1D(void* ptr);

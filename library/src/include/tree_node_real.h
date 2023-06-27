@@ -82,7 +82,8 @@ class Real2DEvenNode : public InternalNode
     enum Solution
     {
         INPLACE_SBCC, // SBCC + SBRR with pre/post processing
-        TR_PAIR // TRTR Real2C, or RTRT for C2Real
+        TR_PAIR, // RTRT Real2C, or TRTR for C2Real
+        REAL_2D_SINGLE, // 2D_SINGLE with pre/post processing
     };
 
     bool UseOutputLengthForPadding() override
@@ -100,9 +101,11 @@ protected:
     void     BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
     Solution solution = TR_PAIR;
 
+    void BuildTree_internal_2D_SINGLE();
     void BuildTree_internal_SBCC();
     void BuildTree_internal_TR_pair();
 
+    void AssignParams_internal_2D_SINGLE();
     void AssignParams_internal_SBCC();
     void AssignParams_internal_TR_pair();
 };
@@ -116,10 +119,11 @@ class Real3DEvenNode : public InternalNode
 
     enum Solution
     {
-        INPLACE_SBCC, // SBCC + SBCC + SBRR with pre/post processing
+        REAL_2D_SINGLE_SBCC, // FWD: (2D_SINGLE with post-processing) + CC / BWD: CC + (2D_SINGLE with pre-processing)
+        INPLACE_SBCC, // FWD: (RR with post-processing) + CC + CC / BWD: CC + CC + (RR with pre-processing)
         SBCR, // SBCR + SBCR + SBCR with pre-processing for C2Real only
-        SBRC, // SBRC + SBRC + SBRC with post-processing for Real2C only
-        TR_PAIRS // TRTRTR Real2C, or RTRTRT for C2Real
+        SBRC, // SBRC + SBRC + SBRC with post-processing for Real2C only // NOT IMPLEMENTED
+        TR_PAIRS // RTRTRT Real2C, or TRTRTR for C2Real
     };
 
     bool UseOutputLengthForPadding() override
@@ -140,10 +144,12 @@ protected:
 
     void Build_solution();
 
+    void BuildTree_internal_2D_SINGLE_CC();
     void BuildTree_internal_SBCC();
     void BuildTree_internal_SBCR();
     void BuildTree_internal_TR_pairs();
 
+    void AssignParams_internal_2D_SINGLE_CC();
     void AssignParams_internal_SBCC();
     void AssignParams_internal_SBCR();
     void AssignParams_internal_TR_pairs();

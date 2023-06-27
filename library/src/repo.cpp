@@ -195,7 +195,9 @@ std::pair<void*, size_t> Repo::GetTwiddles1D(size_t                     length,
 std::pair<void*, size_t> Repo::GetTwiddles2D(size_t           length0,
                                              size_t           length1,
                                              rocfft_precision precision,
-                                             const char*      gpu_arch)
+                                             const char*      gpu_arch,
+                                             bool             attach_halfN1,
+                                             bool             attach_halfN2)
 {
     std::lock_guard<std::mutex> lck(mtx);
     Repo&                       repo = Repo::GetRepo();
@@ -203,7 +205,8 @@ std::pair<void*, size_t> Repo::GetTwiddles2D(size_t           length0,
     repo_twd_key_2D_t key{length0, length1, precision};
     return GetTwiddlesInternal(
         key, repo.twiddles_2D, repo.twiddles_2D_reverse, [&](unsigned int deviceId) {
-            return twiddles_create_2D(length0, length1, precision, gpu_arch, deviceId);
+            return twiddles_create_2D(
+                length0, length1, precision, gpu_arch, attach_halfN1, attach_halfN2, deviceId);
         });
 }
 

@@ -156,11 +156,12 @@ struct StockhamKernelRR : public StockhamKernel
 
     StatementList real_trans_pre_post(ProcessingType type) override
     {
-        std::string   pre_post = (type == ProcessingType::PRE) ? " before " : " after ";
+        std::string   pre_post   = (type == ProcessingType::PRE) ? " before " : " after ";
+        auto          twd_offset = (length - factors.front());
         StatementList stmts;
         stmts += CommentLines{"handle even-length real to complex pre-process in lds" + pre_post
                               + "transform"};
-        stmts += real2cmplx_pre_post(length, type);
+        stmts += real2cmplx_pre_post(length, type, threads_per_transform, twd_offset);
         return stmts;
     }
 

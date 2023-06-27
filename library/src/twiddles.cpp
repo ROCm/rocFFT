@@ -134,7 +134,7 @@ protected:
 
         if(attach_halfN)
         {
-            launch_half_N_kernel(stream, device_data_ptr + table_sz);
+            launch_half_N_kernel(stream, device_data_ptr + table_sz, half_N, N);
         }
     }
 
@@ -166,7 +166,7 @@ protected:
 
         if(attach_halfN)
         {
-            launch_half_N_kernel(stream, device_data_ptr + length);
+            launch_half_N_kernel(stream, device_data_ptr + length, half_N, N);
         }
     }
 
@@ -202,7 +202,7 @@ protected:
         kernel.launch(kargs, dim3(numBlocksX, numBlocksY), dim3(blockSize, blockSize), 0, stream);
     }
 
-    void launch_half_N_kernel(hipStream_t& stream, T* output)
+    void launch_half_N_kernel(hipStream_t& stream, T* output, size_t half_N, size_t N)
     {
         auto blockSize = TWIDDLES_THREADS;
 
@@ -245,12 +245,21 @@ class TwiddleTable2D : public TwiddleTable<T>
 private:
     size_t N1;
     size_t N2;
+    bool   attach_halfN1;
+    bool   attach_halfN2;
 
 public:
-    TwiddleTable2D(rocfft_precision precision, const std::string& gpu_arch, size_t _N1, size_t _N2)
+    TwiddleTable2D(rocfft_precision   precision,
+                   const std::string& gpu_arch,
+                   size_t             _N1,
+                   size_t             _N2,
+                   bool               _attach_halfN1,
+                   bool               _attach_halfN2)
         : TwiddleTable<T>(precision, gpu_arch, 0, 0, false)
         , N1(_N1)
         , N2(_N2)
+        , attach_halfN1(_attach_halfN1)
+        , attach_halfN2(_attach_halfN2)
     {
     }
 
@@ -259,6 +268,10 @@ public:
                               hipStream_t&               stream,
                               gpubuf&                    output)
     {
+        // _half_N can be either halfN1 or halfN2, we don't enable both at the same time
+        size_t _half_N = (attach_halfN1) ? (N1 + 1) / 2 : ((attach_halfN2) ? (N2 + 1) / 2 : 0);
+        size_t _N1orN2 = (attach_halfN1) ? N1 : ((attach_halfN2) ? N2 : 0);
+
         if(radices1 == radices2)
             N2 = 0;
 
@@ -277,15 +290,16 @@ public:
         else
             table_sz_2 = N2;
 
-        auto table_sz    = (table_sz_1 + table_sz_2);
-        auto table_bytes = table_sz * sizeof(T);
+        auto table_sz       = table_sz_1 + table_sz_2; // basic twd without PRE_POST
+        auto total_table_sz = table_sz + _half_N; // half_N would be zero if not PRE/POST
+        auto table_bytes    = total_table_sz * sizeof(T);
 
         if(table_bytes == 0)
             return;
 
         if(output.alloc(table_bytes) != hipSuccess)
             throw std::runtime_error("unable to allocate twiddle length "
-                                     + std::to_string(table_sz));
+                                     + std::to_string(total_table_sz));
 
         auto device_data_ptr          = static_cast<T*>(output.data());
         TwiddleTable<T>::length_limit = N1;
@@ -306,6 +320,12 @@ public:
                                                    minElem_2,
                                                    stream,
                                                    device_data_ptr + table_sz_1);
+        }
+
+        if(_half_N)
+        {
+            TwiddleTable<T>::launch_half_N_kernel(
+                stream, device_data_ptr + table_sz, _half_N, _N1orN2);
         }
     }
 };
@@ -447,8 +467,13 @@ gpubuf twiddles_create(size_t                     N,
 }
 
 template <typename T>
-gpubuf twiddles_create_2D_pr(
-    size_t N1, size_t N2, rocfft_precision precision, const char* gpu_arch, unsigned int deviceId)
+gpubuf twiddles_create_2D_pr(size_t           N1,
+                             size_t           N2,
+                             rocfft_precision precision,
+                             const char*      gpu_arch,
+                             bool             attach_halfN,
+                             bool             attach_halfN2,
+                             unsigned int     deviceId)
 {
     auto                kernel = function_pool::get_kernel(FMKey(N1, N2, precision));
     std::vector<size_t> radices1, radices2;
@@ -475,7 +500,7 @@ gpubuf twiddles_create_2D_pr(
             throw std::runtime_error("hipStreamCreate failure");
     }
 
-    TwiddleTable2D<T> twTable(precision, gpu_arch, N1, N2);
+    TwiddleTable2D<T> twTable(precision, gpu_arch, N1, N2, attach_halfN, attach_halfN2);
     twTable.GenerateTwiddleTable(radices1, radices2, stream, twts);
 
     if(hipStreamSynchronize(stream) != hipSuccess)
@@ -484,17 +509,24 @@ gpubuf twiddles_create_2D_pr(
     return twts;
 }
 
-gpubuf twiddles_create_2D(
-    size_t N1, size_t N2, rocfft_precision precision, const char* gpu_arch, unsigned int deviceId)
+gpubuf twiddles_create_2D(size_t           N1,
+                          size_t           N2,
+                          rocfft_precision precision,
+                          const char*      gpu_arch,
+                          bool             attach_halfN,
+                          bool             attach_halfN2,
+                          unsigned int     deviceId)
 {
     switch(precision)
     {
     case rocfft_precision_single:
-        return twiddles_create_2D_pr<rocfft_complex<float>>(N1, N2, precision, gpu_arch, deviceId);
+        return twiddles_create_2D_pr<rocfft_complex<float>>(
+            N1, N2, precision, gpu_arch, attach_halfN, attach_halfN2, deviceId);
     case rocfft_precision_double:
-        return twiddles_create_2D_pr<rocfft_complex<double>>(N1, N2, precision, gpu_arch, deviceId);
+        return twiddles_create_2D_pr<rocfft_complex<double>>(
+            N1, N2, precision, gpu_arch, attach_halfN, attach_halfN2, deviceId);
     case rocfft_precision_half:
         return twiddles_create_2D_pr<rocfft_complex<_Float16>>(
-            N1, N2, precision, gpu_arch, deviceId);
+            N1, N2, precision, gpu_arch, attach_halfN, attach_halfN2, deviceId);
     }
 }

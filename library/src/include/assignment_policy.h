@@ -138,8 +138,6 @@ private:
     // but could be alias if root is real, and test is CI, or root is HI and test is CI
     static bool EquivalentArrayType(rocfft_array_type rootAryType, rocfft_array_type testAryType);
 
-    static bool BufferIsUnitStride(const ExecPlan& execPlan, OperatingBuffer buf);
-
     bool ValidOutBuffer(ExecPlan&           execPlan,
                         NodeBufTestCacheKey cacheMapKey,
                         TreeNode&           node,

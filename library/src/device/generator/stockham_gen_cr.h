@@ -401,10 +401,12 @@ struct StockhamKernelCR : public StockhamKernel
         if(type == ProcessingType::POST)
             return {};
 
+        auto twd_offset = (length - factors.front());
+
         StatementList stmts;
         stmts += CommentLines{
             "handle even-length real to complex pre-process in lds before transform"};
-        stmts += real2cmplx_pre_post(length, type);
+        stmts += real2cmplx_pre_post(length, type, threads_per_transform, twd_offset);
         return stmts;
     }
 };

@@ -262,9 +262,15 @@ void RC2DNode::AssignParams_internal()
  *****************************************************/
 bool Single2DNode::CreateDeviceResources()
 {
+    twd_attach_halfN  = (ebtype == EmbeddedType::Real2C_POST);
+    twd_attach_halfN2 = (ebtype == EmbeddedType::C2Real_PRE);
     // create one set of twiddles for each dimension
-    std::tie(twiddles, twiddles_size)
-        = Repo::GetTwiddles2D(length[0], length[1], precision, deviceProp.gcnArchName);
+    std::tie(twiddles, twiddles_size) = Repo::GetTwiddles2D(length[0],
+                                                            length[1],
+                                                            precision,
+                                                            deviceProp.gcnArchName,
+                                                            twd_attach_halfN,
+                                                            twd_attach_halfN2);
 
     return CreateLargeTwdTable();
 }
@@ -279,9 +285,27 @@ void Single2DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
     gp.b_x   = (batch + bwd - 1) / bwd;
     gp.wgs_x = wgs;
 
+    size_t padded_len0 = length[0];
+    size_t padded_len1 = length[1];
+
+    if(ebtype == EmbeddedType::Real2C_POST)
+        padded_len0 += 1;
+    if(ebtype == EmbeddedType::C2Real_PRE)
+        padded_len1 += 1;
+
     // if fastest length is power of 2, pad it to avoid LDS bank conflicts
-    auto padded_len0 = IsPo2(length[0]) ? length[0] + 1 : length[0];
-    lds              = padded_len0 * length[1] * bwd;
+    if(ebtype != EmbeddedType::C2Real_PRE)
+    {
+        // for EBTYPE NONE/POST, the fastest length is length0
+        padded_len0 = IsPo2(padded_len0) ? padded_len0 + 1 : padded_len0;
+    }
+    else
+    {
+        // for EBTYPE PRE, the fastest length is length1
+        padded_len1 = IsPo2(padded_len1) ? padded_len1 + 1 : padded_len1;
+    }
+
+    lds = padded_len0 * padded_len1 * bwd;
 
     // if we're doing 3D transform, we need to repeat the 2D
     // transform in the 3rd dimension

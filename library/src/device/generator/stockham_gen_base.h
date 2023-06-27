@@ -952,7 +952,10 @@ struct StockhamKernel : public StockhamGeneratorSpecs
                 Literal{"true"}};
     }
 
-    StatementList real2cmplx_pre_post(unsigned int half_N, ProcessingType type)
+    StatementList real2cmplx_pre_post(unsigned int   half_N,
+                                      ProcessingType type,
+                                      unsigned int   tpt,
+                                      unsigned int   twd_offset)
     {
         std::string function_name = type == ProcessingType::PRE
                                         ? "real_pre_process_kernel_inplace"
@@ -974,21 +977,20 @@ struct StockhamKernel : public StockhamGeneratorSpecs
 
         // if we have fewer threads per transform than quarter_N,
         // we need to call the pre/post function multiple times
-        auto r2c_calls_per_transform = quarter_N / threads_per_transform;
-        if(quarter_N % threads_per_transform > 0)
+        auto r2c_calls_per_transform = quarter_N / tpt;
+        if(quarter_N % tpt > 0)
             r2c_calls_per_transform += 1;
         for(unsigned int i = 0; i < r2c_calls_per_transform; ++i)
         {
             TemplateList tpls;
             tpls.append(scalar_type);
             tpls.append(Ndiv4);
-            std::vector<Expression> args{
-                thread_id % threads_per_transform + i * threads_per_transform,
-                half_N - thread_id % threads_per_transform - i * threads_per_transform,
-                quarter_N,
-                lds_complex + offset_lds,
-                0,
-                twiddles + (half_N - factors.front())};
+            std::vector<Expression> args{thread_id % tpt + i * tpt,
+                                         half_N - thread_id % tpt - i * tpt,
+                                         quarter_N,
+                                         lds_complex + offset_lds,
+                                         0,
+                                         twiddles + twd_offset};
             stmts += Call{function_name, tpls, args};
         }
         if(type == ProcessingType::PRE)

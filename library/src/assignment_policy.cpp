@@ -171,31 +171,6 @@ bool AssignmentPolicy::EquivalentArrayType(rocfft_array_type rootAryType,
     return (testAryType == rootAryType);
 }
 
-bool AssignmentPolicy::BufferIsUnitStride(const ExecPlan& execPlan, OperatingBuffer buf)
-{
-    // temp buffers are unit stride
-    if(buf != OB_USER_IN && buf != OB_USER_OUT)
-        return true;
-    auto stride = (buf == OB_USER_IN) ? execPlan.rootPlan->inStride : execPlan.rootPlan->outStride;
-    auto length = (buf == OB_USER_IN) ? execPlan.iLength : execPlan.oLength;
-    auto dist   = (buf == OB_USER_IN) ? execPlan.rootPlan->iDist : execPlan.rootPlan->oDist;
-    size_t curStride = 1;
-    do
-    {
-        if(stride.front() != curStride)
-            return false;
-        curStride *= length.front();
-        stride.erase(stride.begin());
-        length.erase(length.begin());
-    } while(!stride.empty());
-
-    // NB: users may input incorrect i/o-dist value for inplace transform
-    //     however, when the batch-size is 1, we can simply make it permissive
-    //     since the dist is not used in single batch. But note that we still need
-    //     to pass the above do-while to ensure all the previous strides are valid.
-    return (execPlan.rootPlan->batch == 1) || (curStride == dist);
-}
-
 // return true if OB_TEMP_BLUESTEIN is a valid output buffer for the node
 static bool ValidOutBufferBluestein(TreeNode& node)
 {
@@ -353,20 +328,18 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
     {
         auto fitArrayType = buffer == OB_USER_IN ? execPlan.rootPlan->inArrayType
                                                  : execPlan.rootPlan->outArrayType;
-        if(dataFits(node, buffer) && EquivalentArrayType(fitArrayType, arrayType))
+        test_result       = dataFits(node, buffer) && EquivalentArrayType(fitArrayType, arrayType);
+        if(!test_result)
         {
-            test_result = true;
+            // if that didn't fit, and we're writing to OB_USER_OUT, and
+            // this is an in-place R2C/C2R transform, then we could also
+            // try fitting into the shape of the input.
+            if(buffer == OB_USER_OUT && execPlan.rootPlan->placement == rocfft_placement_inplace
+               && (execPlan.rootPlan->inArrayType == rocfft_array_type_real
+                   || execPlan.rootPlan->outArrayType == rocfft_array_type_real))
+                test_result = dataFits(node, OB_USER_IN)
+                              && EquivalentArrayType(execPlan.rootPlan->inArrayType, arrayType);
         }
-        // if that didn't fit, and we're writing to OB_USER_OUT, and
-        // this is an in-place R2C/C2R transform, then we could also
-        // try fitting into the shape of the input.
-        else if(buffer == OB_USER_OUT && execPlan.rootPlan->placement == rocfft_placement_inplace
-                && (execPlan.rootPlan->inArrayType == rocfft_array_type_real
-                    || execPlan.rootPlan->outArrayType == rocfft_array_type_real))
-            test_result = dataFits(node, OB_USER_IN)
-                          && EquivalentArrayType(execPlan.rootPlan->inArrayType, arrayType);
-        else
-            test_result = false;
     }
 
     node_buf_test_cache[cacheMapKey] = test_result;

@@ -65,6 +65,9 @@ class Single2DNode : public LeafNode
 {
     friend class NodeFactory;
 
+private:
+    bool twd_attach_halfN2 = false;
+
 protected:
     Single2DNode(TreeNode* p, ComputeScheme s)
         : LeafNode(p, s)
@@ -77,6 +80,10 @@ protected:
 
 public:
     bool CreateDeviceResources() override;
+    bool UseOutputLengthForPadding() override
+    {
+        return ebtype != EmbeddedType::NONE;
+    }
 };
 
 #endif // TREE_NODE_2D_H
