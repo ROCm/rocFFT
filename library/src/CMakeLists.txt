@@ -555,10 +555,13 @@ if(WIN32)
 else()
   set(ROCFFT_KERNEL_CACHE_INSTALL_DIR ${ROCM_INSTALL_LIBDIR}/rocfft)
 endif()
-rocm_install(FILES ${ROCFFT_KERNEL_CACHE_PATH}
-  DESTINATION "${ROCFFT_KERNEL_CACHE_INSTALL_DIR}"
-  COMPONENT runtime
-)
+
+if( NOT ENABLE_ASAN_PACKAGING )
+  rocm_install(FILES ${ROCFFT_KERNEL_CACHE_PATH}
+    DESTINATION "${ROCFFT_KERNEL_CACHE_INSTALL_DIR}"
+    COMPONENT runtime
+  )
+endif()
 
 # rtc helper is an internal library executable on Linux, placed in a
 # rocFFT subdirectory of the library directory.  On Windows it goes
@@ -568,10 +571,13 @@ if(WIN32)
 else()
   set(ROCFFT_RTC_HELPER_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/rocfft )
 endif()
-rocm_install(PROGRAMS $<TARGET_FILE:rocfft_rtc_helper>
-  DESTINATION "${ROCFFT_RTC_HELPER_INSTALL_DIR}"
-  COMPONENT runtime
-)
+
+if( NOT ENABLE_ASAN_PACKAGING )
+  rocm_install(PROGRAMS $<TARGET_FILE:rocfft_rtc_helper>
+    DESTINATION "${ROCFFT_RTC_HELPER_INSTALL_DIR}"
+    COMPONENT runtime
+  )
+endif()
 
 rocm_export_targets(
   TARGETS roc::rocfft
