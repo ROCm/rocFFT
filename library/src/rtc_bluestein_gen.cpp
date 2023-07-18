@@ -25,6 +25,7 @@
 #include "device/generator/generator.h"
 #include "device/kernel-generator-embed.h"
 #include "rtc_kernel.h"
+#include "rtc_test_harness.h"
 
 std::string bluestein_single_rtc_kernel_name(const BluesteinSingleSpecs& specs)
 {
@@ -129,6 +130,8 @@ std::string bluestein_single_rtc(const std::string& kernel_name, const Bluestein
     }
 
     src += func.render();
+
+    write_standalone_test_harness(func, src);
     return src;
 }
 
@@ -218,7 +221,9 @@ static std::string bluestein_multi_chirp_rtc(const std::string&         kernel_n
         {Assign{output[tx], CallExpr{"scalar_type", {Literal{"0.0"}, Literal{"0.0"}}}},
          Assign{output[tx + M], CallExpr{"scalar_type", {Literal{"0.0"}, Literal{"0.0"}}}}}};
 
-    return func.render();
+    auto src = func.render();
+    write_standalone_test_harness(func, src);
+    return src;
 }
 
 std::string bluestein_multi_rtc(const std::string& kernel_name, const BluesteinMultiSpecs& specs)
@@ -385,5 +390,6 @@ std::string bluestein_multi_rtc(const std::string& kernel_name, const BluesteinM
         func = make_planar(func, "output");
 
     src += func.render();
+    write_standalone_test_harness(func, src);
     return src;
 }

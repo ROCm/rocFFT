@@ -41,9 +41,11 @@ RTCKernel::RTCKernel(const std::string&       kernel_name,
     : gridDim(gridDim)
     , blockDim(blockDim)
 {
+#ifndef ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS
     // if we're only compiling, no need to actually load the code objects
     if(rocfft_getenv("ROCFFT_INTERNAL_COMPILE_ONLY") == "1")
         return;
+#endif
     if(hipModuleLoadData(&module, code.data()) != hipSuccess)
         throw std::runtime_error("failed to load module for " + kernel_name);
 
@@ -51,6 +53,7 @@ RTCKernel::RTCKernel(const std::string&       kernel_name,
         throw std::runtime_error("failed to get function " + kernel_name);
 }
 
+#ifndef ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS
 void RTCKernel::launch(DeviceCallIn& data)
 {
     RTCKernelArgs kargs = get_launch_args(data);
@@ -82,6 +85,7 @@ void RTCKernel::launch(DeviceCallIn& data)
            gp.lds_bytes,
            data.rocfft_stream);
 }
+#endif
 
 void RTCKernel::launch(
     RTCKernelArgs& kargs, dim3 gridDim, dim3 blockDim, unsigned int lds_bytes, hipStream_t stream)
@@ -93,6 +97,7 @@ void RTCKernel::launch(
                       &size,
                       HIP_LAUNCH_PARAM_END};
 
+#ifndef ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS
     if(LOG_PLAN_ENABLED())
     {
         int        max_blocks_per_sm;
@@ -104,6 +109,7 @@ void RTCKernel::launch(
         else
             *kernelplan_stream << "Can not retrieve occupancy info." << std::endl;
     }
+#endif
 
     if(hipModuleLaunchKernel(kernel,
                              gridDim.x,

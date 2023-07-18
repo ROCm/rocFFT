@@ -100,7 +100,13 @@ set( kgen_embed_files
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_13.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_16.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/rtc_radix_functions/radix_17.h
-   )
+
+     # extra files for generating standalone test harnesses for kernels
+     ${CMAKE_SOURCE_DIR}/shared/gpubuf.h
+     ${CMAKE_SOURCE_DIR}/library/src/include/rtc_kernel.h
+     ${CMAKE_SOURCE_DIR}/library/src/rtc_kernel.cpp
+     ${CMAKE_SOURCE_DIR}/library/src/rtc_test_harness_helper.cpp
+)
 
 # files that contribute to the logic of how code gets generated -
 # embedded files obviously already contribute.  these are checksummed
@@ -278,6 +284,7 @@ add_library( rocfft-rtc-gen OBJECT
   rtc_transpose_gen.cpp
   rtc_twiddle_gen.cpp
   rtc_chirp_gen.cpp
+  rtc_test_harness.cpp
 )
 # caching of generation/compilation
 add_library( rocfft-rtc-cache OBJECT

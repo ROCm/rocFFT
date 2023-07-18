@@ -21,6 +21,7 @@
 #include "rtc_transpose_gen.h"
 #include "../../shared/array_predicate.h"
 #include "device/generator/generator.h"
+#include "rtc_test_harness.h"
 
 #include "device/kernel-generator-embed.h"
 
@@ -320,6 +321,8 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
         func = make_planar(func, "output");
 
     src += func.render();
+
+    write_standalone_test_harness(func, src);
 
     return src;
 }

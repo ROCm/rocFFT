@@ -117,6 +117,13 @@ struct RTCKernel
                         std::string&       kernel_name,
                         bool               enable_callbacks = false);
 
+    // take already-compiled code object and prepare to launch the
+    // named kernel
+    RTCKernel(const std::string&       kernel_name,
+              const std::vector<char>& code,
+              dim3                     gridDim  = {},
+              dim3                     blockDim = {});
+
     virtual ~RTCKernel()
     {
         kernel = nullptr;
@@ -142,9 +149,11 @@ struct RTCKernel
     // normal launch from within rocFFT execution plan
     bool get_occupancy(dim3 blockDim, unsigned int lds_bytes, int& occupancy);
 
+#ifndef ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS
     // Subclasses implement this - each kernel type has different
     // parameters
     virtual RTCKernelArgs get_launch_args(DeviceCallIn& data) = 0;
+#endif
 
     // function to construct the correct RTCKernel object, given a kernel name and its compiled code
     using rtckernel_construct_t = std::function<std::unique_ptr<RTCKernel>(
@@ -158,12 +167,7 @@ struct RTCKernel
     dim3 blockDim;
 
 protected:
-    // protected ctor, use "runtime_compile" to build kernel for a node
-    RTCKernel(const std::string&       kernel_name,
-              const std::vector<char>& code,
-              dim3                     gridDim  = {},
-              dim3                     blockDim = {});
-
+#ifndef ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS
     struct RTCGenerator
     {
         kernel_name_gen_t     generate_name;
@@ -185,12 +189,13 @@ protected:
         dim3 gridDim;
         dim3 blockDim;
     };
+#endif
 
     hipModule_t   module = nullptr;
     hipFunction_t kernel = nullptr;
-
-private:
 };
+
+#ifndef ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS
 
 // helper functions to construct pieces of RTC kernel names
 static const char* rtc_array_type_name(rocfft_array_type type)
@@ -245,5 +250,6 @@ static const std::string rtc_const_cbtype_decl(bool enable_callbacks)
     else
         return "static const CallbackType cbtype = CallbackType::NONE;\n";
 }
+#endif
 
 #endif

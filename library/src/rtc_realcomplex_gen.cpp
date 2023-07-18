@@ -21,6 +21,7 @@
 #include "rtc_realcomplex_gen.h"
 #include "../../shared/array_predicate.h"
 #include "device/generator/generator.h"
+#include "rtc_test_harness.h"
 
 #include "device/kernel-generator-embed.h"
 
@@ -64,6 +65,17 @@ std::string realcomplex_rtc_kernel_name(const RealComplexSpecs& specs)
 std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs& specs)
 {
     std::string src;
+    // includes and declarations
+
+    src += rocfft_complex_h;
+    src += common_h;
+    src += callback_h;
+
+    src += rtc_precision_type_decl(specs.precision);
+
+    src += rtc_const_cbtype_decl(specs.enable_callbacks);
+
+    src += "static const unsigned int dim = " + std::to_string(specs.dim) + ";\n";
 
     const char* input_type
         = specs.scheme == CS_KERNEL_COPY_R_TO_CMPLX ? "real_type_t<scalar_type>" : "scalar_type";
@@ -283,32 +295,20 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
         func = make_planar(func, "output");
 
     src += func.render();
+    write_standalone_test_harness(func, src);
     return src;
 }
 
 // generate source for RTC realcomplex kernel.
 std::string realcomplex_rtc(const std::string& kernel_name, const RealComplexSpecs& specs)
 {
-    std::string src;
-    // includes and declarations
-
-    src += rocfft_complex_h;
-    src += common_h;
-    src += callback_h;
-
-    src += rtc_precision_type_decl(specs.precision);
-
-    src += rtc_const_cbtype_decl(specs.enable_callbacks);
-
-    src += "static const unsigned int dim = " + std::to_string(specs.dim) + ";\n";
-
     switch(specs.scheme)
     {
     case CS_KERNEL_COPY_R_TO_CMPLX:
     case CS_KERNEL_COPY_CMPLX_TO_HERM:
     case CS_KERNEL_COPY_CMPLX_TO_R:
     case CS_KERNEL_COPY_HERM_TO_CMPLX:
-        return src + r2c_copy_rtc(kernel_name, specs);
+        return r2c_copy_rtc(kernel_name, specs);
     default:
         throw std::runtime_error("invalid realcomplex rtc scheme");
     }
@@ -567,6 +567,7 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
         func = make_planar(func, "output");
 
     src += func.render();
+    write_standalone_test_harness(func, src);
     return src;
 }
 
@@ -989,6 +990,7 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
         func = make_planar(func, "output");
 
     src += func.render();
+    write_standalone_test_harness(func, src);
     return src;
 }
 
@@ -1084,5 +1086,6 @@ std::string apply_callback_rtc(const std::string& kernel_name, rocfft_precision 
     func.body += accessor;
 
     src += func.render();
+    write_standalone_test_harness(func, src);
     return src;
 }

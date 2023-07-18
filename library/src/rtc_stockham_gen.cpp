@@ -22,6 +22,7 @@
 
 #include "../../shared/array_predicate.h"
 #include "rtc_stockham_gen.h"
+#include "rtc_test_harness.h"
 
 using namespace std::placeholders;
 
@@ -492,6 +493,8 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     src += "static const size_t large_twiddle_base = " + std::to_string(largeTwdBase) + ";\n";
     src += "static const size_t large_twiddle_steps = " + std::to_string(largeTwdSteps) + ";\n";
 
-    src += make_rtc(*global, kernel_name, enable_scaling).render();
+    *global = make_rtc(*global, kernel_name, enable_scaling);
+    src += global->render();
+    write_standalone_test_harness(*global, src);
     return src;
 }

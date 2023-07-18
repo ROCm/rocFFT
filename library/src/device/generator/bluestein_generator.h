@@ -52,23 +52,21 @@ public:
     //
     // internal variables
     //
-    Variable chirp{"chirp", "const scalar_type* __restrict__ "};
+    Variable chirp{"chirp", "const scalar_type", true, true};
     Variable data_idx{"data_idx", "size_t"};
     Variable data_voffset{"data_voffset", "size_t"};
     Variable data_soffset{"data_soffset", "size_t"};
     Variable data_rw_flag{"data_rw_flag", "bool"};
-    Variable buf_in{"buf_in", "scalar_type*"};
-    Variable buf_inre{"buf_inre", "real_type_t<scalar_type>* __restrict__ "};
-    Variable buf_inim{"buf_inim", "real_type_t<scalar_type>* __restrict__ "};
-    Variable buf_out{"buf_out", "scalar_type*"};
-    Variable buf_outre{"buf_outre", "real_type_t<scalar_type>* __restrict__ "};
-    Variable buf_outim{"buf_outim", "real_type_t<scalar_type>* __restrict__ "};
-    Variable data_buf{"data_buf", "scalar_type*"};
-    Variable data_bufre{"data_bufre", "real_type_t<scalar_type>* __restrict__ "};
-    Variable data_bufim{"data_bufim", "real_type_t<scalar_type>* __restrict__ "};
+    Variable buf_in{"buf_in", "scalar_type", true};
+    Variable buf_inre{"buf_inre", "real_type_t<scalar_type>", true, true};
+    Variable buf_inim{"buf_inim", "real_type_t<scalar_type>", true, true};
+    Variable buf_out{"buf_out", "scalar_type", true};
+    Variable buf_outre{"buf_outre", "real_type_t<scalar_type>", true, true};
+    Variable buf_outim{"buf_outim", "real_type_t<scalar_type>", true, true};
+    Variable data_buf{"data_buf", "scalar_type", true};
+    Variable data_bufre{"data_bufre", "real_type_t<scalar_type>", true, true};
+    Variable data_bufim{"data_bufim", "real_type_t<scalar_type>", true, true};
     Variable data_elem{"data_elem", "scalar_type"};
-    Variable data_elemre{"data_elemre", "real_type_t<scalar_type> __restrict__ "};
-    Variable data_elemim{"data_elemim", "real_type_t<scalar_type> __restrict__ "};
     Variable length_N_blue{"length_N_blue", "const size_t"};
     Variable length_M_blue{"length_M_blue", "const size_t"};
     Variable global_stride_in_0{"global_stride_in_0", "const size_t"};

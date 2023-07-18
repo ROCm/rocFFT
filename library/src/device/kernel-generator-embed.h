@@ -47,6 +47,11 @@ extern const char* radix_13_h;
 extern const char* radix_16_h;
 extern const char* radix_17_h;
 
+extern const char* gpubuf_h;
+extern const char* rtc_kernel_h;
+extern const char* rtc_kernel_cpp;
+extern const char* rtc_test_harness_helper_cpp;
+
 const std::array<char, 32> generator_sum();
 
 // append the necessary radix headers to src, for the given factors

@@ -20,18 +20,24 @@
 
 #include "rocfft.h"
 
+#include "../../shared/concurrency.h"
 #include "../../shared/environment.h"
 #include "../../shared/gpubuf.h"
 #include "../../shared/rocfft_complex.h"
 #include "hip/hip_runtime_api.h"
 #include <boost/scope_exit.hpp>
 #include <condition_variable>
+#include <cstdlib>
 #include <fstream>
 #include <gtest/gtest.h>
 #include <mutex>
 #include <regex>
 #include <thread>
 #include <vector>
+
+#ifdef _OPENMP
+#include <omp.h>
+#endif
 
 #if __has_include(<filesystem>)
 #include <filesystem>
@@ -475,6 +481,124 @@ TEST(rocfft_UnitTest, rtc_helper_crash)
 
     rocfft_plan_destroy(plan);
     plan = nullptr;
+}
+
+TEST(rocfft_UnitTest, rtc_test_harness)
+{
+    // check that hipcc is available since this test requires it
+    //
+    // NOTE: using system() for launching subprocesses for simplicity
+    // and portability
+#ifdef WIN32
+    static const char* test_command = "hipcc --version > NUL";
+#else
+    static const char* test_command = "hipcc --version > /dev/null";
+#endif
+    if(std::system(test_command) != 0)
+        GTEST_SKIP();
+
+    rocfft_cleanup();
+
+    // activate writing of rtc test harnesses
+    EnvironmentSetTemp env_harness("ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS", "1");
+
+    // ensure every kernel gets compiled once
+    EnvironmentSetTemp env_cache("ROCFFT_RTC_CACHE_PATH", ":memory:");
+    EnvironmentSetTemp env_sys_cache("ROCFFT_RTC_SYS_CACHE_PATH", ":memory:");
+
+    rocfft_setup();
+
+    // ensure stale files from previous runs of this test won't cause
+    // problems - clean up any rocfft_kernel_harness_*.cpp files that
+    // might be left behind
+    for(const auto& entry : std::filesystem::directory_iterator{"."})
+    {
+        auto filename = entry.path().filename();
+        if(filename.string().compare(0, 22, "rocfft_kernel_harness_") == 0
+           && filename.extension().string() == ".cpp")
+            fs::remove(entry);
+    }
+
+    // construct a few different types of plans to try to get all
+    // different kernels compiled
+
+    auto create_destroy_plan
+        = [](rocfft_transform_type type, const size_t dim, const size_t* lengths) -> void {
+        rocfft_plan plan = nullptr;
+        ASSERT_EQ(rocfft_plan_create(&plan,
+                                     rocfft_placement_inplace,
+                                     type,
+                                     rocfft_precision_single,
+                                     dim,
+                                     lengths,
+                                     1,
+                                     nullptr),
+                  rocfft_status_success);
+        ASSERT_EQ(rocfft_plan_destroy(plan), rocfft_status_success);
+        plan = nullptr;
+    };
+    // large 1D R2C + C2R
+    const size_t L1D_PROBLEM_SIZE[1] = {16384};
+    create_destroy_plan(rocfft_transform_type_real_forward, 1, L1D_PROBLEM_SIZE);
+    create_destroy_plan(rocfft_transform_type_real_inverse, 1, L1D_PROBLEM_SIZE);
+
+    // small bluestein R2C + C2R (also covers odd length)
+    const size_t SMALL_BLUESTEIN_PROBLEM_SIZE[1] = {37};
+    create_destroy_plan(rocfft_transform_type_real_forward, 1, SMALL_BLUESTEIN_PROBLEM_SIZE);
+    create_destroy_plan(rocfft_transform_type_real_inverse, 1, SMALL_BLUESTEIN_PROBLEM_SIZE);
+
+    // large bluestein C2C
+    const size_t LARGE_BLUESTEIN_PROBLEM_SIZE[1] = {8191};
+    create_destroy_plan(rocfft_transform_type_complex_forward, 1, LARGE_BLUESTEIN_PROBLEM_SIZE);
+
+    // L1D_TRTRT
+    const size_t L1D_TRTRT_PROBLEM_SIZE[1] = {680};
+    create_destroy_plan(rocfft_transform_type_complex_forward, 1, L1D_TRTRT_PROBLEM_SIZE);
+
+    // small 3D (exercises 2D_SINGLE)
+    const size_t SMALL_3D_PROBLEM_SIZE[3] = {25, 25, 25};
+    create_destroy_plan(rocfft_transform_type_complex_forward, 3, SMALL_3D_PROBLEM_SIZE);
+
+    // larger 3D
+    const size_t LARGE_3D_PROBLEM_SIZE[3] = {200, 200, 200};
+    create_destroy_plan(rocfft_transform_type_complex_forward, 3, LARGE_3D_PROBLEM_SIZE);
+
+    // now try to compile each file - they'd need hand-editing to test
+    // something useful, but we can at least ensure they build.
+
+    // enumerate all the files
+    std::vector<std::pair<std::string, int>> files;
+    size_t                                   i = 0;
+    for(;; ++i)
+    {
+        // construct name of main file
+        fs::path main_file = "rocfft_kernel_harness_" + std::to_string(i) + ".cpp";
+
+        if(!fs::exists(main_file))
+            break;
+
+        files.emplace_back(main_file.string(), -1);
+    }
+
+    // we should have generated at least a few kernels
+    ASSERT_FALSE(files.empty());
+
+#ifdef _OPENMP
+#pragma omp parallel for num_threads(rocfft_concurrency())
+#endif
+    for(i = 0; i < files.size(); ++i)
+    {
+#ifdef WIN32
+        const std::string command = "hipcc -o NUL " + files[i].first;
+#else
+        const std::string command = "hipcc -o /dev/null " + files[i].first;
+#endif
+        files[i].second = std::system(command.c_str());
+    }
+
+    // check that all compiles succeeded
+    for(const auto& file : files)
+        ASSERT_EQ(file.second, 0);
 }
 
 #endif
