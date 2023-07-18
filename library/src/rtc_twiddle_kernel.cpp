@@ -31,7 +31,7 @@ RTCKernelTwiddle RTCKernelTwiddle::generate(const std::string& gpu_arch,
     kernel_src_gen_t generator{
         [=](const std::string& kernel_name) { return twiddle_rtc(kernel_name, type, precision); }};
 
-    auto code = cached_compile(kernel_name, gpu_arch, generator, generator_sum());
+    auto code = RTCCache::cached_compile(kernel_name, gpu_arch, generator, generator_sum());
 
     return RTCKernelTwiddle{kernel_name, code, {}, {}};
 }

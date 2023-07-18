@@ -29,7 +29,7 @@ RTCKernelChirp RTCKernelChirp::generate(const std::string& gpu_arch, rocfft_prec
     kernel_src_gen_t generator{
         [=](const std::string& kernel_name) { return chirp_rtc(kernel_name, precision); }};
 
-    auto code = cached_compile(kernel_name, gpu_arch, generator, generator_sum());
+    auto code = RTCCache::cached_compile(kernel_name, gpu_arch, generator, generator_sum());
 
     return RTCKernelChirp{kernel_name, code, {}, {}};
 }

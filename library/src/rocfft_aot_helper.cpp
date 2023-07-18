@@ -749,14 +749,14 @@ int main(int argc, char** argv)
                 {
                     if(item.sol_arch_name.empty())
                     {
-                        cached_compile(
+                        RTCCache::cached_compile(
                             item.kernel_name, gpu_arch, item.generate_src, generator_sum());
                     }
                     else if(gpu_arch.find(item.sol_arch_name) != std::string::npos)
                     {
                         // std::cout << "arch: " << gpu_arch
                         //           << ", solution-kernel: " << item.kernel_name << std::endl;
-                        cached_compile(
+                        RTCCache::cached_compile(
                             item.kernel_name, gpu_arch, item.generate_src, generator_sum());
                     }
                 }

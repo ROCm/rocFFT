@@ -172,7 +172,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
             }
             try
             {
-                std::vector<char> code = cached_compile(
+                std::vector<char> code = RTCCache::cached_compile(
                     kernel_name, gpu_arch, generator.generate_src, generator_sum());
                 return generator.construct_rtckernel(
                     kernel_name, code, generator.gridDim, generator.blockDim);

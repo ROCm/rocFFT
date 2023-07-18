@@ -25,6 +25,8 @@
 #include "rtc_generator.h"
 #include "sqlite3.h"
 #include <array>
+#include <future>
+#include <map>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -62,6 +64,19 @@ typedef std::unique_ptr<sqlite3_stmt, sqlite3_stmt_deleter> sqlite3_stmt_ptr;
 
 struct RTCCache
 {
+    // Get compiled code object for a kernel.  Checks the cache to
+    // see if the kernel has already been compiled and returns the
+    // cached kernel if present.
+    //
+    // Otherwise, calls "generate_src" to generate the source, compiles
+    // the source, and updates the cache before returning the compiled
+    // kernel.  Tries in-process compile first and falls back to
+    // subprocess if necessary.
+    static std::vector<char> cached_compile(const std::string&          kernel_name,
+                                            const std::string&          gpu_arch_with_flags,
+                                            kernel_src_gen_t            generate_src,
+                                            const std::array<char, 32>& generator_sum);
+
     RTCCache();
     ~RTCCache() = default;
 
@@ -124,19 +139,27 @@ private:
     // lock around deserialization, since that attaches a fixed-name
     // schema to the db and we don't want a collision
     std::mutex deserialize_mutex;
-};
 
-// Get compiled code object for a kernel.  Checks the cache to
-// see if the kernel has already been compiled and returns the
-// cached kernel if present.
-//
-// Otherwise, calls "generate_src" to generate the source, compiles
-// the source, and updates the cache before returning the compiled
-// kernel.  Tries in-process compile first and falls back to
-// subprocess if necessary.
-std::vector<char> cached_compile(const std::string&          kernel_name,
-                                 const std::string&          gpu_arch_with_flags,
-                                 kernel_src_gen_t            generate_src,
-                                 const std::array<char, 32>& generator_sum);
+    // keep track of compiles we've started but haven't finished, so
+    // that if two identical kernel requests come at the same time, we
+    // only compile once.
+    struct pending_key
+    {
+        std::string kernel_name;
+        std::string gpu_arch;
+        bool        operator<(const pending_key& other) const
+        {
+            if(kernel_name < other.kernel_name)
+                return true;
+            if(kernel_name > other.kernel_name)
+                return false;
+            return gpu_arch < other.gpu_arch;
+        };
+    };
+    // map kernel name + arch to a code object future
+    std::map<pending_key, std::shared_future<std::vector<char>>> pending_compiles;
+    std::mutex                                                   pending_compiles_mutex;
+    friend struct PendingCompileCleanup;
+};
 
 #endif

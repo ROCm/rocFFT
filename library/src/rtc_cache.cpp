@@ -31,6 +31,7 @@
 #include <hip/hip_version.h>
 #include <hip/hiprtc.h>
 #include <mutex>
+#include <optional>
 
 namespace fs = std::filesystem;
 
@@ -404,21 +405,11 @@ static std::string gpu_arch_strip_flags(const std::string gpu_arch_with_flags)
     return gpu_arch_with_flags.substr(0, gpu_arch_with_flags.find(':'));
 }
 
-std::vector<char> cached_compile(const std::string&          kernel_name,
-                                 const std::string&          gpu_arch_with_flags,
-                                 kernel_src_gen_t            generate_src,
-                                 const std::array<char, 32>& generator_sum)
+static std::vector<char> cached_compile_impl(const std::string&          kernel_name,
+                                             const std::string&          gpu_arch,
+                                             kernel_src_gen_t            generate_src,
+                                             const std::array<char, 32>& generator_sum)
 {
-    // Supplied gpu arch may have extra flags on it
-    // (e.g. gfx90a:sramecc+:xnack-), Strip those from the arch name
-    // since omitting them will generate code that handles either
-    // case.
-    //
-    // As of this writing, there are no known performance benefits to
-    // including the flags.  If that changes, we may need to be more
-    // selective about which flags to strip.
-    std::string gpu_arch = gpu_arch_strip_flags(gpu_arch_with_flags);
-
     // check cache first
     std::vector<char> code;
     if(RTCCache::single)
@@ -545,6 +536,76 @@ std::vector<char> cached_compile(const std::string&          kernel_name,
         RTCCache::single->store_code_object(kernel_name, gpu_arch, generator_sum, code);
     }
     return code;
+}
+
+// RAII type to ensure a pending compile we insert is removed at
+// scope exit
+struct PendingCompileCleanup
+{
+    PendingCompileCleanup(const RTCCache::pending_key& key)
+        : key(key)
+    {
+    }
+    ~PendingCompileCleanup()
+    {
+        if(RTCCache::single)
+        {
+            std::lock_guard<std::mutex> lock(RTCCache::single->pending_compiles_mutex);
+            RTCCache::single->pending_compiles.erase(key);
+        }
+    }
+    const RTCCache::pending_key& key;
+};
+
+std::vector<char> RTCCache::cached_compile(const std::string&          kernel_name,
+                                           const std::string&          gpu_arch_with_flags,
+                                           kernel_src_gen_t            generate_src,
+                                           const std::array<char, 32>& generator_sum)
+{
+    // Supplied gpu arch may have extra flags on it
+    // (e.g. gfx90a:sramecc+:xnack-), Strip those from the arch name
+    // since omitting them will generate code that handles either
+    // case.
+    //
+    // As of this writing, there are no known performance benefits to
+    // including the flags.  If that changes, we may need to be more
+    // selective about which flags to strip.
+    std::string gpu_arch = gpu_arch_strip_flags(gpu_arch_with_flags);
+
+    std::shared_future<std::vector<char>> result;
+
+    const pending_key                    key{kernel_name, gpu_arch};
+    std::optional<PendingCompileCleanup> cleanup;
+    if(RTCCache::single)
+    {
+        // check the map of pending work for this compile
+        std::lock_guard<std::mutex> lock(RTCCache::single->pending_compiles_mutex);
+        auto                        pc = RTCCache::single->pending_compiles.find(key);
+        if(pc == RTCCache::single->pending_compiles.end())
+        {
+            // not in the pending map, so add a future and launch the
+            // work to look up the kernel in the cache or compile it.
+            pc = RTCCache::single->pending_compiles
+                     .emplace(key,
+                              std::async(std::launch::async,
+                                         cached_compile_impl,
+                                         kernel_name,
+                                         gpu_arch,
+                                         generate_src,
+                                         generator_sum))
+                     .first;
+            cleanup.emplace(key);
+        }
+        result = pc->second;
+    }
+    else
+    {
+        // no cache?  just directly compile
+        std::promise<std::vector<char>> p;
+        p.set_value(cached_compile_impl(kernel_name, gpu_arch, generate_src, generator_sum));
+        result = p.get_future();
+    }
+    return result.get();
 }
 
 void RTCCache::enable_write_mostly()
