@@ -426,8 +426,8 @@ TEST(rocfft_UnitTest, rtc_helper_crash)
     fs::path test_exe    = filename;
     fs::path crasher_exe = test_exe.replace_filename("rtc_helper_crash.exe");
 #else
-    fs::path test_exe    = program_invocation_name;
-    fs::path crasher_exe = test_exe.replace_filename("rtc_helper_crash");
+    fs::path           test_exe     = program_invocation_name;
+    fs::path           crasher_exe  = test_exe.replace_filename("rtc_helper_crash");
 #endif
 
     // use the crashing helper
