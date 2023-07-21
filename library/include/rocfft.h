@@ -216,7 +216,7 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_destroy(rocfft_plan plan);
  *  The supplied factor must be a finite number.  That is, it must neither be infinity nor NaN.
  *
  *  @param[in] description description handle
- *  @param[in] scale scaling factor
+ *  @param[in] scale_factor scaling factor
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_factor(
     rocfft_plan_description description, const double scale_factor);
@@ -424,8 +424,8 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_stream(rocfft_execution_in
  *  or output.
  *
  *  @param[in] info execution info handle
- *  @param[in] cb callback function pointers
- *  @param[in] cbdata callback function data, passed to the function pointer when it is called
+ *  @param[in] cb_functions callback function pointers
+ *  @param[in] cb_data callback function data, passed to the function pointer when it is called
  *  @param[in] shared_mem_bytes amount of shared memory to allocate for the callback function to use */
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_load_callback(rocfft_execution_info info,
                                                                     void** cb_functions,
@@ -464,8 +464,8 @@ ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_load_callback(rocfft_execu
  *  or output.
  *
  *  @param[in] info execution info handle
- *  @param[in] cb callbacks function pointers
- *  @param[in] cbdata callback function data, passed to the function pointer when it is called
+ *  @param[in] cb_functions callbacks function pointers
+ *  @param[in] cb_data callback function data, passed to the function pointer when it is called
  *  @param[in] shared_mem_bytes amount of shared memory to allocate for the callback function to use
  *  */
 ROCFFT_EXPORT rocfft_status rocfft_execution_info_set_store_callback(rocfft_execution_info info,
