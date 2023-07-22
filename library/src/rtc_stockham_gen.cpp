@@ -365,6 +365,9 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
             *global = make_planar(*global, "buf");
     }
 
+    if(enable_scaling)
+        *global = make_scalefactor(*global);
+
     if(fuseBluestein)
         *global = make_bluestein(scheme, fuseBlue, *global);
 
@@ -493,7 +496,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     src += "static const size_t large_twiddle_base = " + std::to_string(largeTwdBase) + ";\n";
     src += "static const size_t large_twiddle_steps = " + std::to_string(largeTwdSteps) + ";\n";
 
-    *global = make_rtc(*global, kernel_name, enable_scaling);
+    *global = make_rtc(*global, kernel_name);
     src += global->render();
     write_standalone_test_harness(*global, src);
     return src;

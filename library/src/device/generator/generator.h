@@ -942,15 +942,13 @@ public:
     }
     std::string render() const
     {
-        return "store_cb(" + vrender(ptr) + "," + vrender(index) + ","
-               + vrender(scale_factor ? (value * scale_factor.value()) : value)
+        return "store_cb(" + vrender(ptr) + "," + vrender(index) + "," + vrender(value)
                + ", store_cb_data, nullptr);";
     }
 
-    Expression                ptr;
-    Expression                index;
-    Expression                value;
-    std::optional<Expression> scale_factor;
+    Expression ptr;
+    Expression index;
+    Expression value;
 };
 
 // Planar version of StoreGlobal, so we remember the scale factor
@@ -958,36 +956,22 @@ public:
 class StoreGlobalPlanar
 {
 public:
-    StoreGlobalPlanar(const Variable&                  realPtr,
-                      const Variable&                  imagPtr,
-                      const Expression&                index,
-                      const Variable&                  value,
-                      const std::optional<Expression>& scale_factor)
+    StoreGlobalPlanar(const Variable&   realPtr,
+                      const Variable&   imagPtr,
+                      const Expression& index,
+                      const Expression& value)
         : realPtr{realPtr}
         , imagPtr{imagPtr}
         , index{index}
         , value{value}
-        , scale_factor{scale_factor}
     {
     }
-    std::string render() const
-    {
-        // Output two assignments
-        return Assign{realPtr[index],
-                      scale_factor ? Expression{value.x() * scale_factor.value()}
-                                   : Expression{value.x()}}
-                   .render()
-               + Assign{imagPtr[index],
-                        scale_factor ? Expression{value.y() * scale_factor.value()}
-                                     : Expression{value.y()}}
-                     .render();
-    }
+    std::string render() const;
 
-    Variable                  realPtr;
-    Variable                  imagPtr;
-    Expression                index;
-    Variable                  value;
-    std::optional<Expression> scale_factor;
+    Variable   realPtr;
+    Variable   imagPtr;
+    Expression index;
+    Expression value;
 };
 
 class Butterfly
@@ -1022,62 +1006,46 @@ public:
     std::string render() const
     {
         return "store_intrinsic(" + vrender(ptr) + "," + vrender(voffset) + "," + vrender(soffset)
-               + "," + vrender(scale_factor ? (value * scale_factor.value()) : value) + ","
-               + vrender(rw_flag) + ");";
+               + "," + vrender(value) + "," + vrender(rw_flag) + ");";
     }
 
-    Expression                ptr;
-    Expression                voffset;
-    Expression                soffset;
-    Expression                value;
-    Expression                rw_flag;
-    std::optional<Expression> scale_factor;
+    Expression ptr;
+    Expression voffset;
+    Expression soffset;
+    Expression value;
+    Expression rw_flag;
 };
 
 class IntrinsicStorePlanar
 {
 public:
-    IntrinsicStorePlanar(const Expression&                ptrre,
-                         const Expression&                ptrim,
-                         const Expression&                voffset,
-                         const Expression&                soffset,
-                         const Expression&                value,
-                         const Expression&                rw_flag,
-                         const std::optional<Expression>& scale_factor)
+    IntrinsicStorePlanar(const Expression& ptrre,
+                         const Expression& ptrim,
+                         const Expression& voffset,
+                         const Expression& soffset,
+                         const Expression& value,
+                         const Expression& rw_flag)
         : ptrre{ptrre}
         , ptrim{ptrim}
         , voffset{voffset}
         , soffset{soffset}
         , value{value}
         , rw_flag{rw_flag}
-        , scale_factor{scale_factor}
     {
     }
     std::string render() const
     {
-        return "store_intrinsic(" + vrender(ptrre) + "," + vrender(voffset) + "," + vrender(soffset)
-               + ","
-               + Literal{"real_type_t<scalar_type>("
-                         + vrender(scale_factor ? (value * scale_factor.value()) : value) + ".x)"}
-                     .render()
-               + "," + vrender(rw_flag)
-               + ");"
-                 "\n"
-                 "store_intrinsic("
-               + vrender(ptrim) + "," + vrender(voffset) + "," + vrender(soffset) + ","
-               + Literal{"real_type_t<scalar_type>("
-                         + vrender(scale_factor ? (value * scale_factor.value()) : value) + ".y)"}
-                     .render()
-               + "," + vrender(rw_flag) + ");";
+        return "store_intrinsic_planar(" + vrender(ptrre) + "," + vrender(ptrim) + ","
+               + vrender(voffset) + "," + vrender(soffset) + "," + vrender(value) + ","
+               + vrender(rw_flag) + ");";
     }
 
-    Expression                ptrre;
-    Expression                ptrim;
-    Expression                voffset;
-    Expression                soffset;
-    Expression                value;
-    Expression                rw_flag;
-    std::optional<Expression> scale_factor;
+    Expression ptrre;
+    Expression ptrim;
+    Expression voffset;
+    Expression soffset;
+    Expression value;
+    Expression rw_flag;
 };
 
 class IntrinsicLoadToDest
@@ -1455,29 +1423,22 @@ struct BaseVisitor
 
     virtual StatementList visit_IntrinsicStorePlanar(const IntrinsicStorePlanar& x)
     {
-        auto                      ptrre   = std::visit(*this, x.ptrre);
-        auto                      ptrim   = std::visit(*this, x.ptrim);
-        auto                      voffset = std::visit(*this, x.voffset);
-        auto                      soffset = std::visit(*this, x.soffset);
-        auto                      value   = std::visit(*this, x.value);
-        auto                      rw_flag = std::visit(*this, x.rw_flag);
-        std::optional<Expression> scale_factor;
-        if(x.scale_factor)
-            scale_factor = std::visit(*this, x.scale_factor.value());
-        return StatementList{
-            IntrinsicStorePlanar(ptrre, ptrim, voffset, soffset, value, rw_flag, scale_factor)};
+        auto ptrre   = std::visit(*this, x.ptrre);
+        auto ptrim   = std::visit(*this, x.ptrim);
+        auto voffset = std::visit(*this, x.voffset);
+        auto soffset = std::visit(*this, x.soffset);
+        auto value   = std::visit(*this, x.value);
+        auto rw_flag = std::visit(*this, x.rw_flag);
+        return StatementList{IntrinsicStorePlanar(ptrre, ptrim, voffset, soffset, value, rw_flag)};
     }
 
     virtual StatementList visit_StoreGlobalPlanar(const StoreGlobalPlanar& x)
     {
-        auto                      realPtr = std::get<Variable>(visit_Variable(x.realPtr));
-        auto                      imagPtr = std::get<Variable>(visit_Variable(x.imagPtr));
-        auto                      index   = std::visit(*this, x.index);
-        auto                      value   = std::get<Variable>(visit_Variable(x.value));
-        std::optional<Expression> scale_factor;
-        if(x.scale_factor)
-            scale_factor = std::visit(*this, x.scale_factor.value());
-        return StatementList{StoreGlobalPlanar(realPtr, imagPtr, index, value, scale_factor)};
+        auto realPtr = std::get<Variable>(visit_Variable(x.realPtr));
+        auto imagPtr = std::get<Variable>(visit_Variable(x.imagPtr));
+        auto index   = std::visit(*this, x.index);
+        auto value   = std::visit(*this, x.value);
+        return StatementList{StoreGlobalPlanar(realPtr, imagPtr, index, value)};
     }
 
     virtual Function visit_Function(const Function& x)
@@ -1531,120 +1492,60 @@ struct MakePlanarVisitor : public BaseVisitor
         return y;
     }
 
-    StatementList visit_Assign(const Assign& x) override
+    Expression visit_LoadGlobal(const LoadGlobal& x) override
     {
-        StatementList stmts;
-        if(x.lhs.name == varname && std::holds_alternative<Variable>(x.rhs))
+        auto var = std::get<Variable>(x.args[0]);
+        if(var.name == varname)
         {
-            // on lhs, lhs needs to be split; use .x and .y on rhs
-
-            auto rhs = std::get<Variable>(x.rhs);
-
-            auto re = Variable(x.lhs);
-            re.name = rename;
-            auto im = Variable(x.lhs);
-            im.name = imname;
-
-            // FIXME- Not every rhs is complex
-            // stmts += Assign(re, rhs.x, x.oper);
-            // stmts += Assign(im, rhs.y, x.oper);
-            stmts += Assign(re, rhs, x.oper);
-            stmts += Assign(im, rhs, x.oper);
-            return stmts;
+            Variable re = var;
+            re.name     = rename;
+            Variable im = var;
+            im.name     = imname;
+            return LoadGlobalPlanar({re, im, x.args[1]});
         }
-        else if(std::holds_alternative<Variable>(x.rhs)
-                && std::get<Variable>(x.rhs).name == varname)
+        return x;
+    }
+
+    Expression visit_IntrinsicLoad(const IntrinsicLoad& x) override
+    {
+        auto var = std::get<Variable>(x.args[0]);
+        if(var.name == varname)
         {
-            // on rhs, rhs needs to be joined as a complex literal
-
-            auto rhs = std::get<Variable>(x.rhs);
-            auto re  = Variable(rhs);
-            re.name  = rename;
-            auto im  = Variable(rhs);
-            im.name  = imname;
-            stmts += Assign{x.lhs, ComplexLiteral{re, im}, x.oper};
-            return stmts;
+            Variable re = var;
+            re.name     = rename;
+            Variable im = var;
+            im.name     = imname;
+            return IntrinsicLoadPlanar({re, im, x.args[1], x.args[2], x.args[3]});
         }
-        // callbacks don't support planar, so loads are just direct
-        // memory accesses
-        else if(std::holds_alternative<LoadGlobal>(x.rhs))
-        {
-            auto load = std::get<LoadGlobal>(x.rhs);
-            auto ptr  = std::get<Variable>(load.args[0]);
-            if(ptr.name == varname)
-            {
-                auto& idx = load.args[1];
-
-                auto re = ptr;
-                re.name = rename;
-                auto im = ptr;
-                im.name = imname;
-
-                stmts += Assign{x.lhs, LoadGlobalPlanar({re, im, idx}), x.oper};
-                return stmts;
-            }
-        }
-        // callbacks don't support planar
-        else if(std::holds_alternative<IntrinsicLoad>(x.rhs))
-        {
-            auto load = std::get<IntrinsicLoad>(x.rhs);
-            auto ptr  = std::get<Variable>(load.args[0]);
-            if(ptr.name == varname)
-            {
-                auto& voffset = load.args[1];
-                auto& soffset = load.args[2];
-                auto& rw_flag = load.args[3];
-
-                auto re = ptr;
-                re.name = rename;
-                auto im = ptr;
-                im.name = imname;
-
-                stmts += Assign{
-                    x.lhs, IntrinsicLoadPlanar({re, im, voffset, soffset, rw_flag}), x.oper};
-                return stmts;
-            }
-        }
-
-        return StatementList{x};
+        return x;
     }
 
     StatementList visit_StoreGlobal(const StoreGlobal& x) override
     {
-        // callbacks don't support planar, so stores are just direct
-        // memory accesses
         auto var = std::get<Variable>(x.ptr);
-
         if(var.name == varname)
         {
-            auto re = var;
-            re.name = rename;
-            auto im = var;
-            im.name = imname;
-
-            auto value = std::get<Variable>(x.value);
-            return {StoreGlobalPlanar{re, im, x.index, value, x.scale_factor}};
+            Variable re = var;
+            re.name     = rename;
+            Variable im = var;
+            im.name     = imname;
+            return {StoreGlobalPlanar{re, im, x.index, x.value}};
         }
-        return StatementList{x};
+        return {x};
     }
 
     StatementList visit_IntrinsicStore(const IntrinsicStore& x) override
     {
-        // callbacks don't support planar
         auto var = std::get<Variable>(x.ptr);
-
         if(var.name == varname)
         {
-            auto re = var;
-            re.name = rename;
-            auto im = var;
-            im.name = imname;
-
-            auto value = std::get<Variable>(x.value);
-            return {IntrinsicStorePlanar{
-                re, im, x.voffset, x.soffset, value, x.rw_flag, x.scale_factor}};
+            Variable re = var;
+            re.name     = rename;
+            Variable im = var;
+            im.name     = imname;
+            return {IntrinsicStorePlanar{re, im, x.voffset, x.soffset, x.value, x.rw_flag}};
         }
-        return StatementList{x};
+        return {x};
     }
 };
 
@@ -1870,16 +1771,69 @@ static Function make_inverse(const Function& f)
     return visitor(f);
 }
 
+// Add scale factor
+struct MakeScaleFactorVisitor : public BaseVisitor
+{
+    MakeScaleFactorVisitor()
+        : scale_factor("scale_factor", "const real_type_t<scalar_type>")
+    {
+    }
+
+    Function visit_Function(const Function& x) override
+    {
+        Function y{x};
+        y.arguments.append(scale_factor);
+        return BaseVisitor::visit_Function(y);
+    }
+
+    StatementList visit_StoreGlobal(const StoreGlobal& x) override
+    {
+        StoreGlobal y{x};
+        // multiply by scale factor when storing to global
+        y.value = y.value * scale_factor;
+        return StatementList{y};
+    }
+
+    StatementList visit_StoreGlobalPlanar(const StoreGlobalPlanar& x) override
+    {
+        StoreGlobalPlanar y{x};
+        // multiply by scale factor when storing to global
+        y.value = y.value * scale_factor;
+        return StatementList{y};
+    }
+
+    StatementList visit_IntrinsicStore(const IntrinsicStore& x) override
+    {
+        IntrinsicStore y{x};
+        // multiply by scale factor when storing to global
+        y.value = y.value * scale_factor;
+        return StatementList{y};
+    }
+
+    StatementList visit_IntrinsicStorePlanar(const IntrinsicStorePlanar& x) override
+    {
+        IntrinsicStorePlanar y{x};
+        // multiply by scale factor when storing to global
+        y.value = y.value * scale_factor;
+        return StatementList{y};
+    }
+    Variable scale_factor;
+};
+
+static Function make_scalefactor(const Function& f)
+{
+    auto visitor = MakeScaleFactorVisitor();
+    return visitor(f);
+}
+
 //
 // Make runtime-compileable
 //
 
 struct MakeRTCVisitor : public BaseVisitor
 {
-    MakeRTCVisitor(const std::string& kernel_name, bool enable_scaling)
+    MakeRTCVisitor(const std::string& kernel_name)
         : kernel_name(kernel_name)
-        , enable_scaling(enable_scaling)
-        , scale_factor("scale_factor", "const real_type_t<scalar_type>")
     {
     }
     Function visit_Function(const Function& x) override
@@ -1896,47 +1850,14 @@ struct MakeRTCVisitor : public BaseVisitor
         // the need for template args.
         y.templates.arguments.clear();
 
-        // scaling requires an extra argument with the scale factor
-        if(enable_scaling)
-            y.arguments.append(scale_factor);
-
-        return BaseVisitor::visit_Function(y);
-    }
-
-    StatementList visit_StoreGlobal(const StoreGlobal& x) override
-    {
-        StoreGlobal y{x};
-        // multiply by scale factor when storing to global, if requested
-        if(enable_scaling)
-            y.scale_factor = scale_factor;
-        return StatementList{y};
-    }
-
-    StatementList visit_StoreGlobalPlanar(const StoreGlobalPlanar& x) override
-    {
-        StoreGlobalPlanar y{x};
-        // multiply by scale factor when storing to global, if requested
-        if(enable_scaling)
-            y.scale_factor = scale_factor;
-        return StatementList{y};
-    }
-
-    StatementList visit_IntrinsicStore(const IntrinsicStore& x) override
-    {
-        IntrinsicStore y{x};
-        // multiply by scale factor when storing to global, if requested
-        if(enable_scaling)
-            y.scale_factor = scale_factor;
-        return StatementList{y};
+        return y;
     }
 
     std::string kernel_name;
-    bool        enable_scaling;
-    Variable    scale_factor;
 };
 
-static Function make_rtc(const Function& f, const std::string& kernel_name, bool enable_scaling)
+static Function make_rtc(const Function& f, const std::string& kernel_name)
 {
-    auto visitor = MakeRTCVisitor(kernel_name, enable_scaling);
+    auto visitor = MakeRTCVisitor(kernel_name);
     return visitor(f);
 }

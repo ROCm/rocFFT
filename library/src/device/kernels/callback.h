@@ -138,6 +138,22 @@ struct callback_type<double>
 static __device__ auto load_cb_default_double  = load_cb_default<double>;
 static __device__ auto store_cb_default_double = store_cb_default<double>;
 
+// planar helpers
+template <typename Tfloat>
+__device__ rocfft_complex<Tfloat>
+           load_planar(const Tfloat* dataRe, const Tfloat* dataIm, size_t offset)
+{
+    return rocfft_complex<Tfloat>{dataRe[offset], dataIm[offset]};
+}
+
+template <typename Tfloat>
+__device__ void
+    store_planar(Tfloat* dataRe, Tfloat* dataIm, size_t offset, rocfft_complex<Tfloat> element)
+{
+    dataRe[offset] = element.x;
+    dataIm[offset] = element.y;
+}
+
 // intrinsic
 template <typename T>
 __device__ void intrinsic_load_to_dest(
@@ -167,6 +183,26 @@ __device__ T intrinsic_load(const T* data, unsigned int voffset, unsigned int so
 #endif
 }
 
+template <typename Tfloat>
+__device__ rocfft_complex<Tfloat> intrinsic_load_planar(
+    const Tfloat* dataRe, const Tfloat* dataIm, unsigned int voffset, unsigned int soffset, bool rw)
+{
+#ifdef USE_GFX_BUFFER_INTRINSIC
+    return rocfft_complex<Tfloat>{buffer_load<Tfloat, sizeof(Tfloat)>().load(
+                                      reinterpret_cast<void*>(const_cast<Tfloat*>(dataRe)),
+                                      (uint32_t)(voffset * sizeof(Tfloat)),
+                                      (uint32_t)(soffset * sizeof(Tfloat)),
+                                      rw),
+                                  buffer_load<Tfloat, sizeof(Tfloat)>().load(
+                                      reinterpret_cast<void*>(const_cast<Tfloat*>(dataIm)),
+                                      (uint32_t)(voffset * sizeof(Tfloat)),
+                                      (uint32_t)(soffset * sizeof(Tfloat)),
+                                      rw)};
+#else
+    return rocfft_complex<Tfloat>{dataRe[soffset + voffset], dataIm[soffset + voffset]};
+#endif
+}
+
 template <typename T>
 __device__ void
     store_intrinsic(T* data, unsigned int voffset, unsigned int soffset, T element, bool rw)
@@ -180,6 +216,34 @@ __device__ void
 #else
     if(rw)
         data[soffset + voffset] = element;
+#endif
+}
+
+template <typename Tfloat>
+__device__ void store_intrinsic_planar(Tfloat*                dataRe,
+                                       Tfloat*                dataIm,
+                                       unsigned int           voffset,
+                                       unsigned int           soffset,
+                                       rocfft_complex<Tfloat> element,
+                                       bool                   rw)
+{
+#ifdef USE_GFX_BUFFER_INTRINSIC
+    buffer_store<Tfloat, sizeof(Tfloat)>(element.x,
+                                         reinterpret_cast<void*>(const_cast<Tfloat*>(dataRe)),
+                                         (uint32_t)(voffset * sizeof(Tfloat)),
+                                         (uint32_t)(soffset * sizeof(Tfloat)),
+                                         rw);
+    buffer_store<Tfloat, sizeof(Tfloat)>(element.y,
+                                         reinterpret_cast<void*>(const_cast<Tfloat*>(dataIm)),
+                                         (uint32_t)(voffset * sizeof(Tfloat)),
+                                         (uint32_t)(soffset * sizeof(Tfloat)),
+                                         rw);
+#else
+    if(rw)
+    {
+        dataRe[soffset + voffset] = element.x;
+        dataIm[soffset + voffset] = element.y;
+    }
 #endif
 }
 

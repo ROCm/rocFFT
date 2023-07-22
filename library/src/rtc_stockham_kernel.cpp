@@ -268,6 +268,26 @@ RTCKernelArgs RTCKernelStockham::get_launch_args(DeviceCallIn& data)
         if(array_type_is_planar(data.node->outArrayType))
             kargs.append_ptr(data.bufOut[1]);
     }
+
+    // scale factor, if necessary
+    if(data.node->IsScalingEnabled())
+    {
+        // scale factor is always double on the node, but needs to be
+        // the right type for the kernel
+        switch(data.node->precision)
+        {
+        case rocfft_precision_double:
+            kargs.append_double(data.node->scale_factor);
+            break;
+        case rocfft_precision_single:
+            kargs.append_float(data.node->scale_factor);
+            break;
+        case rocfft_precision_half:
+            kargs.append_half(data.node->scale_factor);
+            break;
+        }
+    }
+
     // fused bluestein data (chirp table and lengths)
     switch(data.node->fuseBlue)
     {

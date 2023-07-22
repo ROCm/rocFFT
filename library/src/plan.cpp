@@ -1242,12 +1242,16 @@ void TreeNode::RefreshTree()
 
     // only modify nodes that work with user data, and skip Bluestein
     // nodes that only set up the chirp buffer
-    auto first = std::find_if_not(
-                     childNodes.begin(),
-                     childNodes.end(),
-                     [](const std::unique_ptr<TreeNode>& n) { return n->IsBluesteinChirpSetup(); })
-                     ->get();
-    auto last = childNodes.back().get();
+    auto firstIt = std::find_if_not(
+        childNodes.begin(), childNodes.end(), [](const std::unique_ptr<TreeNode>& n) {
+            return n->IsBluesteinChirpSetup();
+        });
+    // if these children are all setup nodes, there's nothing further to refresh
+    if(firstIt == childNodes.end())
+        return;
+
+    auto first = firstIt->get();
+    auto last  = childNodes.back().get();
 
     // Skip first node in multi-kernel fused Bluestein
     // since it is not connected to the buffer chain

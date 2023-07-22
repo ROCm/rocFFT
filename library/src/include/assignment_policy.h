@@ -100,12 +100,11 @@ struct CmpNodeBufTestCacheKey
     //  Comparing order is ID-in-exeSeq (means that node) -> buffer_ENUM -> array-type_ENUM
     bool operator()(NodeBufTestCacheKey const& lhs, NodeBufTestCacheKey const& rhs) const
     {
-        if(std::get<0>(lhs) < std::get<0>(rhs))
-            return true;
-        else if(std::get<1>(lhs) < std::get<1>(rhs))
-            return true;
-        else
-            return std::get<2>(lhs) < std::get<2>(rhs);
+        if(std::get<0>(lhs) != std::get<0>(rhs))
+            return std::get<0>(lhs) < std::get<0>(rhs);
+        else if(std::get<1>(lhs) != std::get<1>(rhs))
+            return std::get<1>(lhs) < std::get<1>(rhs);
+        return std::get<2>(lhs) < std::get<2>(rhs);
     }
 };
 

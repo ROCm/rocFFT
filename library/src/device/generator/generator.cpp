@@ -185,8 +185,8 @@ LoadGlobalPlanar::LoadGlobalPlanar(const std::vector<Expression>& args)
 
 std::string LoadGlobalPlanar::render() const
 {
-    return "{" + vrender(args[0]) + "[" + vrender(args[2]) + "]" + "," + vrender(args[1]) + "["
-           + vrender(args[2]) + "]" + "}";
+    return "load_planar(" + vrender(args[0]) + "," + vrender(args[1]) + "," + vrender(args[2])
+           + ")";
 }
 
 std::string ArgumentList::render_decl() const
@@ -519,6 +519,12 @@ std::string Declaration::render() const
         s += " = " + vrender(*value);
     s += ";";
     return s;
+}
+
+std::string StoreGlobalPlanar::render() const
+{
+    return "store_planar(" + realPtr.render() + "," + imagPtr.render() + "," + vrender(index) + ","
+           + vrender(value) + ");";
 }
 
 std::string Butterfly::render() const

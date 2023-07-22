@@ -644,17 +644,13 @@ public:
                     int               direction,
                     bool              planar_load,
                     bool              planar_store,
-                    bool              intrinsic,
-                    bool              enable_scaling = false,
-                    const Expression& scale_factor   = Literal{"1"})
+                    bool              intrinsic)
         : scheme(scheme)
         , type(type)
         , direction(direction)
         , planar_load(planar_load)
         , planar_store(planar_store)
         , intrinsic(intrinsic)
-        , enable_scaling(enable_scaling)
-        , scale_factor(scale_factor)
     {
     }
 
@@ -831,37 +827,19 @@ private:
         {
             if(intrinsic)
             {
-                if(enable_scaling)
-                    return std::make_unique<Statement>(IntrinsicStorePlanar(blueData.data_bufre,
-                                                                            blueData.data_bufim,
-                                                                            blueData.data_voffset,
-                                                                            blueData.data_soffset,
-                                                                            blueData.data_elem,
-                                                                            blueData.data_rw_flag,
-                                                                            scale_factor));
-                else
-                    return std::make_unique<Statement>(IntrinsicStorePlanar(blueData.data_bufre,
-                                                                            blueData.data_bufim,
-                                                                            blueData.data_voffset,
-                                                                            blueData.data_soffset,
-                                                                            blueData.data_elem,
-                                                                            blueData.data_rw_flag,
-                                                                            std::nullopt));
+                return std::make_unique<Statement>(IntrinsicStorePlanar(blueData.data_bufre,
+                                                                        blueData.data_bufim,
+                                                                        blueData.data_voffset,
+                                                                        blueData.data_soffset,
+                                                                        blueData.data_elem,
+                                                                        blueData.data_rw_flag));
             }
             else
             {
-                if(enable_scaling)
-                    return std::make_unique<Statement>(StoreGlobalPlanar(blueData.data_bufre,
-                                                                         blueData.data_bufim,
-                                                                         blueData.data_idx,
-                                                                         blueData.data_elem,
-                                                                         scale_factor));
-                else
-                    return std::make_unique<Statement>(StoreGlobalPlanar(blueData.data_bufre,
-                                                                         blueData.data_bufim,
-                                                                         blueData.data_idx,
-                                                                         blueData.data_elem,
-                                                                         std::nullopt));
+                return std::make_unique<Statement>(StoreGlobalPlanar(blueData.data_bufre,
+                                                                     blueData.data_bufim,
+                                                                     blueData.data_idx,
+                                                                     blueData.data_elem));
             }
         }
         else
@@ -884,37 +862,17 @@ private:
         {
             if(intrinsic)
             {
-                if(enable_scaling)
-                    return std::make_unique<Statement>(IntrinsicStorePlanar(blueData.data_bufre,
-                                                                            blueData.data_bufim,
-                                                                            index,
-                                                                            0,
-                                                                            blueData.data_elem,
-                                                                            blueData.data_rw_flag,
-                                                                            scale_factor));
-                else
-                    return std::make_unique<Statement>(IntrinsicStorePlanar(blueData.data_bufre,
-                                                                            blueData.data_bufim,
-                                                                            index,
-                                                                            0,
-                                                                            blueData.data_elem,
-                                                                            blueData.data_rw_flag,
-                                                                            std::nullopt));
+                return std::make_unique<Statement>(IntrinsicStorePlanar(blueData.data_bufre,
+                                                                        blueData.data_bufim,
+                                                                        index,
+                                                                        0,
+                                                                        blueData.data_elem,
+                                                                        blueData.data_rw_flag));
             }
             else
             {
-                if(enable_scaling)
-                    return std::make_unique<Statement>(StoreGlobalPlanar(blueData.data_bufre,
-                                                                         blueData.data_bufim,
-                                                                         index,
-                                                                         blueData.data_elem,
-                                                                         scale_factor));
-                else
-                    return std::make_unique<Statement>(StoreGlobalPlanar(blueData.data_bufre,
-                                                                         blueData.data_bufim,
-                                                                         index,
-                                                                         blueData.data_elem,
-                                                                         std::nullopt));
+                return std::make_unique<Statement>(StoreGlobalPlanar(
+                    blueData.data_bufre, blueData.data_bufim, index, blueData.data_elem));
             }
         }
         else
@@ -1361,8 +1319,6 @@ private:
     bool              planar_load;
     bool              planar_store;
     bool              intrinsic;
-    bool              enable_scaling;
-    Expression        scale_factor;
     BluesteinFunction function;
 };
 
