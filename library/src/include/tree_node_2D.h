@@ -38,7 +38,7 @@ protected:
         scheme = CS_2D_RTRT;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
 };
 
 /*****************************************************
@@ -55,7 +55,7 @@ protected:
         scheme = CS_2D_RC;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
 };
 
 /*****************************************************

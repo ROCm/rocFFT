@@ -40,6 +40,28 @@ struct KernelConfig
     int                 workgroup_size        = 0;
     std::array<int, 2>  threads_per_transform = {0, 0};
     std::vector<size_t> factors               = {0};
+    // above data is what we can tune
+    //
+    // the followings are other information of this kernel.
+    // not tunable values, they come from the tuned problem nodes.
+    // When pre-building kernels to AOT-cache, they can tell
+    // us what exact kernels to pre-build, avoding other variants,
+    // hence reduce cache sizes.
+    EmbeddedType ebType = EmbeddedType::NONE;
+
+    // a little different for direction
+    // When prebuilding AOT kernels:
+    // For real-transform: build with the exact direction (since R2C & C2R are different)
+    //     cmplx-transform: still build -1 & 1, since they share same solution.
+    int direction = -1;
+    // NB:
+    //  when generating candidates in tuning process,
+    //  we haven't done buffer-assignment and CollapseContiguousDims
+    //  but we should be able to know it when export solutions.
+    int               static_dim = 0;
+    PlacementCode     placement  = PC_UNSET;
+    rocfft_array_type iAryType   = rocfft_array_type_complex_interleaved;
+    rocfft_array_type oAryType   = rocfft_array_type_complex_interleaved;
 
     KernelConfig()                    = default;
     KernelConfig(const KernelConfig&) = default;
@@ -51,7 +73,13 @@ struct KernelConfig
                  std::array<int, 2>&&  tpt,
                  bool                  half_lds              = false,
                  bool                  direct_to_from_reg    = false,
-                 bool                  intrinsic_buffer_inst = false)
+                 bool                  intrinsic_buffer_inst = false,
+                 EmbeddedType          ebType                = EmbeddedType::NONE,
+                 int                   direction             = -1,
+                 int                   static_dim            = 0,
+                 PlacementCode         placement             = PC_UNSET,
+                 rocfft_array_type     iAryType = rocfft_array_type_complex_interleaved,
+                 rocfft_array_type     oAryType = rocfft_array_type_complex_interleaved)
         : use_3steps_large_twd(use_3steps)
         , half_lds(half_lds)
         , direct_to_from_reg(direct_to_from_reg)
@@ -60,6 +88,12 @@ struct KernelConfig
         , workgroup_size(wgs)
         , threads_per_transform(tpt)
         , factors(factors)
+        , ebType(ebType)
+        , direction(direction)
+        , static_dim(static_dim)
+        , placement(placement)
+        , iAryType(iAryType)
+        , oAryType(oAryType)
     {
     }
 
@@ -184,7 +218,18 @@ struct ToString<KernelConfig>
         str += FieldDescriptor<unsigned int>().describe("tpb", value.transforms_per_block) + ",";
         str += FieldDescriptor<int>().describe("wgs", value.workgroup_size) + ",";
         str += VectorFieldDescriptor<int>().describe("tpt", tpt) + ",";
-        str += VectorFieldDescriptor<size_t>().describe("factors", value.factors);
+        str += VectorFieldDescriptor<size_t>().describe("factors", value.factors) + ",";
+        // below: not tunable data, for AOT cache
+        str += FieldDescriptor<std::string>().describe("ebtype", PrintEBType(value.ebType)) + ",";
+        str += FieldDescriptor<int>().describe("direction", value.direction) + ",";
+        str += FieldDescriptor<int>().describe("static_dim", value.static_dim) + ",";
+        str += FieldDescriptor<std::string>().describe("placement",
+                                                       PrintPlacementCode(value.placement))
+               + ",";
+        str += FieldDescriptor<std::string>().describe("iAryType", PrintArrayType(value.iAryType))
+               + ",";
+        str += FieldDescriptor<std::string>().describe("oAryType", PrintArrayType(value.oAryType));
+
         str += "}";
         return str;
     }
@@ -197,16 +242,41 @@ struct FromString<KernelConfig>
     {
         std::vector<int> tpt;
         size_t           tpb;
+        std::string      ebTypeStr, placementStr, iAryTypeStr, oAryTypeStr;
 
         FieldParser<bool>().parse("use_3steps", ret.use_3steps_large_twd, current);
         FieldParser<bool>().parse("half_lds", ret.half_lds, current);
         FieldParser<bool>().parse("dir_reg", ret.direct_to_from_reg, current);
         FieldParser<bool>().parse("buffer_inst", ret.intrinsic_buffer_inst, current);
         FieldParser<size_t>().parse("tpb", tpb, current);
+
         FieldParser<int>().parse("wgs", ret.workgroup_size, current);
         VectorFieldParser<int>().parse("tpt", tpt, current);
         VectorFieldParser<size_t>().parse("factors", ret.factors, current);
 
+        if(DescriptorFormatVersion::UsingVersion < 2)
+        {
+            ret.static_dim = 0;
+            ret.direction  = -1;
+            ebTypeStr      = PrintEBType(EmbeddedType::NONE);
+            placementStr   = PrintPlacementCode(PC_UNSET);
+            iAryTypeStr    = PrintArrayType(rocfft_array_type_complex_interleaved);
+            oAryTypeStr    = PrintArrayType(rocfft_array_type_complex_interleaved);
+        }
+        else
+        {
+            FieldParser<std::string>().parse("ebtype", ebTypeStr, current);
+            FieldParser<int>().parse("direction", ret.direction, current);
+            FieldParser<int>().parse("static_dim", ret.static_dim, current);
+            FieldParser<std::string>().parse("placement", placementStr, current);
+            FieldParser<std::string>().parse("iAryType", iAryTypeStr, current);
+            FieldParser<std::string>().parse("oAryType", oAryTypeStr, current);
+        }
+
+        ret.ebType                   = StrToEBType(ebTypeStr);
+        ret.placement                = StrToPlacementCode(placementStr);
+        ret.iAryType                 = StrToArrayType(iAryTypeStr);
+        ret.oAryType                 = StrToArrayType(oAryTypeStr);
         ret.transforms_per_block     = tpb;
         ret.threads_per_transform[0] = tpt[0];
         ret.threads_per_transform[1] = tpt[1];

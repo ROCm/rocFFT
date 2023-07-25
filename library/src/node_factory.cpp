@@ -389,11 +389,6 @@ inline void PrintFailInfo(rocfft_precision precision,
                     << PrintScheme(kernelScheme) << std::endl;
 }
 
-// std::unique_ptr<TreeNode> NodeFactory::CreateNode(TreeNode* parentNode)
-// {
-//     return std::unique_ptr<TreeNode>(new TreeNode(parentNode));
-// }
-
 std::unique_ptr<TreeNode> NodeFactory::CreateNodeFromScheme(ComputeScheme s, TreeNode* parent)
 {
     switch(s)

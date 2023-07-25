@@ -26,6 +26,11 @@
 #include <regex>
 #include <sstream>
 
+namespace DescriptorFormatVersion
+{
+    static int UsingVersion = 0;
+};
+
 static inline std::string quote_str(const std::string& s)
 {
     return "\"" + s + "\"";

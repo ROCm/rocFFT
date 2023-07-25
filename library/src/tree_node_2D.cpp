@@ -28,9 +28,24 @@
 /*****************************************************
  * 2D_RTRT  *
  *****************************************************/
-void RTRT2DNode::BuildTree_internal(const SchemeVec& child_schemes)
+void RTRT2DNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
-    bool noSolution = child_schemes.empty();
+    bool noSolution = child_scheme_trees.empty();
+
+    // check schemes from solution map
+    ComputeScheme determined_scheme_node0 = CS_NONE;
+    ComputeScheme determined_scheme_node2 = CS_NONE;
+    if(!noSolution)
+    {
+        if((child_scheme_trees.size() != 4)
+           || (child_scheme_trees[1]->curScheme != CS_KERNEL_TRANSPOSE)
+           || (child_scheme_trees[3]->curScheme != CS_KERNEL_TRANSPOSE))
+        {
+            throw std::runtime_error("RTRT2DNode: Unexpected child scheme from solution map");
+        }
+        determined_scheme_node0 = child_scheme_trees[0]->curScheme;
+        determined_scheme_node2 = child_scheme_trees[2]->curScheme;
+    }
 
     // first row fft
     NodeMetaData row1PlanData(this);
@@ -41,14 +56,10 @@ void RTRT2DNode::BuildTree_internal(const SchemeVec& child_schemes)
     {
         row1PlanData.length.push_back(length[index]);
     }
-    // skip the decide scheme part in node factory
-    ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[0];
-    auto          row1Plan = NodeFactory::CreateExplicitNode(row1PlanData, this, determined_scheme);
-    row1Plan->RecursiveBuildTree();
+    auto row1Plan = NodeFactory::CreateExplicitNode(row1PlanData, this, determined_scheme_node0);
+    row1Plan->RecursiveBuildTree((noSolution) ? nullptr : child_scheme_trees[0].get());
 
     // first transpose
-    if(!noSolution)
-        assert(child_schemes[1] == CS_KERNEL_TRANSPOSE);
     auto trans1Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     trans1Plan->length.push_back(length[0]);
     trans1Plan->length.push_back(length[1]);
@@ -68,14 +79,10 @@ void RTRT2DNode::BuildTree_internal(const SchemeVec& child_schemes)
     {
         row2PlanData.length.push_back(length[index]);
     }
-    // skip the decide scheme part in node factory
-    determined_scheme = (noSolution) ? CS_NONE : child_schemes[2];
-    auto row2Plan     = NodeFactory::CreateExplicitNode(row2PlanData, this, determined_scheme);
-    row2Plan->RecursiveBuildTree();
+    auto row2Plan = NodeFactory::CreateExplicitNode(row2PlanData, this, determined_scheme_node2);
+    row2Plan->RecursiveBuildTree((noSolution) ? nullptr : child_scheme_trees[2].get());
 
     // second transpose
-    if(!noSolution)
-        assert(child_schemes[3] == CS_KERNEL_TRANSPOSE);
     auto trans2Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     trans2Plan->length.push_back(length[1]);
     trans2Plan->length.push_back(length[0]);
@@ -194,9 +201,21 @@ void RTRT2DNode::AssignParams_internal()
 /*****************************************************
  * 2D_RC  *
  *****************************************************/
-void RC2DNode::BuildTree_internal(const SchemeVec& child_schemes)
+void RC2DNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
-    bool noSolution = child_schemes.empty();
+    bool noSolution = child_scheme_trees.empty();
+
+    // check schemes from solution map
+    ComputeScheme determined_scheme_node0 = CS_NONE;
+    if(!noSolution)
+    {
+        if((child_scheme_trees.size() != 2)
+           || (child_scheme_trees[1]->curScheme != CS_KERNEL_STOCKHAM_BLOCK_CC))
+        {
+            throw std::runtime_error("RC2DNode: Unexpected child scheme from solution map");
+        }
+        determined_scheme_node0 = child_scheme_trees[0]->curScheme;
+    }
 
     // row fft
     NodeMetaData rowPlanData(this);
@@ -207,14 +226,10 @@ void RC2DNode::BuildTree_internal(const SchemeVec& child_schemes)
     {
         rowPlanData.length.push_back(length[index]);
     }
-    // skip the decide scheme part in node factory
-    ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[0];
-    auto          rowPlan = NodeFactory::CreateExplicitNode(rowPlanData, this, determined_scheme);
-    rowPlan->RecursiveBuildTree();
+    auto rowPlan = NodeFactory::CreateExplicitNode(rowPlanData, this, determined_scheme_node0);
+    rowPlan->RecursiveBuildTree((noSolution) ? nullptr : child_scheme_trees[0].get());
 
     // column fft
-    if(!noSolution)
-        assert(child_schemes[1] == CS_KERNEL_STOCKHAM_BLOCK_CC);
     auto colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
     colPlan->length.push_back(length[1]);
     colPlan->dimension = 1;

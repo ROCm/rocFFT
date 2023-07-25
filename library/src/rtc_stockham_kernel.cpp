@@ -41,24 +41,16 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     // if scale factor is enabled, we force RTC for this kernel
     bool enable_scaling = node.IsScalingEnabled();
 
-    // for sbrc variant, the sbrcTranstype should be assigned when we are here
-    // since the value is assigned in KernelCheck()
-    SBRC_TRANSPOSE_TYPE transpose_type = node.sbrcTranstype;
-
     // SBRC variants look in the function pool for plain BLOCK_RC to
     // learn the block width, then decide on the transpose type once
     // that's known.
     auto         pool_scheme = node.scheme;
-    unsigned int static_dim  = node.length.size();
+    unsigned int static_dim  = node.GetStaticDim();
     if(pool_scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z
        || pool_scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY
        || pool_scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
     {
         pool_scheme = CS_KERNEL_STOCKHAM_BLOCK_RC;
-        // These are all 3D kernels, but are sometimes shoehorned
-        // into 2D plans.  Make sure they get at least 3 dims.
-        if(static_dim == 2)
-            static_dim = 3;
     }
 
     std::optional<FFTKernel> kernel;
@@ -76,7 +68,9 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     case CS_KERNEL_STOCKHAM_BLOCK_CR:
     case CS_KERNEL_STOCKHAM_BLOCK_RC:
     {
-        if((pool_scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) && (transpose_type == NONE))
+        // for sbrc variant, the sbrcTranstype should be assigned when we are here
+        // since the value is assigned in KernelCheck()
+        if((pool_scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) && (node.sbrcTranstype == NONE))
             throw std::runtime_error("Invalid SBRC_TRANS_TYPE for SBRC kernel");
 
         // these go into the function pool normally and are passed to
@@ -188,7 +182,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                                         node.ebtype,
                                         node.dir2regMode,
                                         node.intrinsicMode,
-                                        transpose_type,
+                                        node.sbrcTranstype,
                                         enable_callbacks,
                                         node.IsScalingEnabled(),
                                         node.fuseBlue);
@@ -216,7 +210,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                             node.ebtype,
                             node.dir2regMode,
                             node.intrinsicMode,
-                            transpose_type,
+                            node.sbrcTranstype,
                             enable_callbacks,
                             node.IsScalingEnabled(),
                             node.fuseBlue);

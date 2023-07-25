@@ -195,18 +195,19 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
     if(num_nodes == 0)
     {
         std::cout << "[Result]: This fft problem hasn't been supported yet. (Prime number or "
-                     "real-transform)"
+                     "2D-Single)"
                   << std::endl;
         rocfft_cleanup();
         return EXIT_FAILURE;
     }
 
-    double overall_best_time = std::numeric_limits<double>().max();
+    static const double max_double = std::numeric_limits<double>().max();
 
-    std::vector<int>         winner_phases   = std::vector<int>(num_nodes, 0);
-    std::vector<int>         winner_ids      = std::vector<int>(num_nodes, 0);
-    std::vector<std::string> kernels         = std::vector<std::string>(num_nodes, "");
-    std::vector<double>      node_best_times = std::vector<double>(num_nodes, overall_best_time);
+    double                   overall_best_time = max_double;
+    std::vector<int>         winner_phases     = std::vector<int>(num_nodes, 0);
+    std::vector<int>         winner_ids        = std::vector<int>(num_nodes, 0);
+    std::vector<std::string> kernels           = std::vector<std::string>(num_nodes, "");
+    std::vector<double>      node_best_times   = std::vector<double>(num_nodes, max_double);
 
     // calculate this once only
     const double totsize
@@ -251,12 +252,12 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
 
                 LIB_V_THROW(params.create_plan(), "Plan creation failed");
 
-                // skip low occupancy test...simple output gflops 0
+                // skip low occupancy test...simple output gflops 0, and a max double as ms
                 BenchmarkInfo info = offline_tuner->GetCurrBenchmarkInfo();
                 if(info.occupancy == 1 || info.occupancy < 0)
                 {
                     std::cout << "\nOccupancy 1 or -1, Skipped" << std::endl;
-                    offline_tuner->UpdateCurrBenchResult(0, 0);
+                    offline_tuner->UpdateCurrBenchResult(max_double, 0);
                     continue;
                 }
 

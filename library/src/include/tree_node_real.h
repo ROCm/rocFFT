@@ -37,7 +37,7 @@ protected:
         scheme = CS_REAL_TRANSFORM_USING_CMPLX;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
 
 public:
     bool UseOutputLengthForPadding() override
@@ -60,7 +60,7 @@ protected:
         scheme = CS_REAL_TRANSFORM_EVEN;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
 
 public:
     // 3D Even can possibly set this
@@ -98,12 +98,12 @@ protected:
         scheme = CS_REAL_2D_EVEN;
     }
     void     AssignParams_internal() override;
-    void     BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void     BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
     Solution solution = TR_PAIR;
 
     void BuildTree_internal_2D_SINGLE();
-    void BuildTree_internal_SBCC();
-    void BuildTree_internal_TR_pair();
+    void BuildTree_internal_SBCC(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec);
+    void BuildTree_internal_TR_pair(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec);
 
     void AssignParams_internal_2D_SINGLE();
     void AssignParams_internal_SBCC();
@@ -138,16 +138,16 @@ protected:
         scheme = CS_REAL_3D_EVEN;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
 
     Solution solution = TR_PAIRS;
 
     void Build_solution();
 
     void BuildTree_internal_2D_SINGLE_CC();
-    void BuildTree_internal_SBCC();
-    void BuildTree_internal_SBCR();
-    void BuildTree_internal_TR_pairs();
+    void BuildTree_internal_SBCC(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec);
+    void BuildTree_internal_SBCR(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec);
+    void BuildTree_internal_TR_pairs(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec);
 
     void AssignParams_internal_2D_SINGLE_CC();
     void AssignParams_internal_SBCC();

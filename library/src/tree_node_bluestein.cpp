@@ -100,7 +100,7 @@ BluesteinType BluesteinNode::DecideBlueType()
 /*****************************************************
  * CS_BLUESTEIN
  *****************************************************/
-void BluesteinNode::BuildTree_internal(const SchemeVec& child_schemes)
+void BluesteinNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
     // Build a node for a 1D stage using the Bluestein algorithm for
     // general transform lengths.

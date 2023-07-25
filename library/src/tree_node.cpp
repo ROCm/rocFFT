@@ -119,19 +119,29 @@ bool LeafNode::KernelCheck(std::vector<FMKey>& kernel_keys)
         FMKey assignedKey = kernel_keys.front();
         kernel_keys.erase(kernel_keys.begin());
 
-        // check if the assigned key is consistent with the node information
-        if((length[0] != assignedKey.lengths[0])
-           || (dimension == 2 && length[1] != assignedKey.lengths[1])
-           || (precision != assignedKey.precision) || (scheme != assignedKey.scheme))
+        // for kernels that haven't been supported tuning. (i.e. 2D_SINGLE)
+        // don't assign specified_key
+        if(assignedKey == FMKey::EmptyFMKey())
         {
             if(LOG_TRACE_ENABLED())
                 (*LogSingleton::GetInstance().GetTraceOS())
-                    << "solution kernel keys are invalid" << std::endl;
+                    << "kernel is not tuned, use default kernel." << std::endl;
+        }
+        // check if the assigned key is consistent with the node information
+        else if((length[0] != assignedKey.lengths[0])
+                || (dimension == 2 && length[1] != assignedKey.lengths[1])
+                || (precision != assignedKey.precision) || (scheme != assignedKey.scheme)
+                || (ebtype != assignedKey.kernel_config.ebType))
+        {
+            if(LOG_TRACE_ENABLED())
+                (*LogSingleton::GetInstance().GetTraceOS())
+                    << "solution kernel keys are invalid: key properties != node's properties"
+                    << std::endl;
             return false;
         }
         else
         {
-            // get the sbrc_trans_type from assignedKey (for sbrc)
+            // get sbrc_trans_type from assignedKey (for sbrc)
             sbrcTranstype = assignedKey.sbrcTrans;
 
             function_pool::add_new_kernel(assignedKey);

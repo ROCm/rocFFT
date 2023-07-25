@@ -823,6 +823,9 @@ rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
     case rocfft_placement_notinplace:
         rocfft_cout << "not in-place";
         break;
+    default:
+        rocfft_cout << "unset";
+        break;
     }
     rocfft_cout << std::endl;
     rocfft_cout << std::endl;
@@ -1100,15 +1103,11 @@ void TreeNode::RecursiveBuildTree(SchemeTree* solution_scheme)
         allowOutofplace = !allowInplace;
     }
 
-    SchemeVec child_schemes;
-    if(solution_scheme)
-    {
-        for(const auto& child : solution_scheme->children)
-            child_schemes.push_back(child->curScheme);
-    }
+    SchemeTreeVec& child_scheme
+        = (solution_scheme) ? solution_scheme->children : EmptySchemeTreeVec;
 
     // overriden by each derived class
-    BuildTree_internal(child_schemes);
+    BuildTree_internal(child_scheme);
 }
 
 void TreeNode::SanityCheck(SchemeTree* solution_scheme, std::vector<FMKey>& kernel_keys)
@@ -1744,7 +1743,17 @@ void GetNodeToken(const TreeNode& probNode, std::string& min_token, std::string&
     for(size_t i = 0; i < probNode.dimension; ++i)
         token += std::to_string(probNode.length[i]) + "_";
 
-    token += (probNode.precision == rocfft_precision_single) ? "sp_" : "dp_";
+    std::string precision_str;
+    if(probNode.precision == rocfft_precision_single)
+        precision_str = "sp_";
+    else if(probNode.precision == rocfft_precision_double)
+        precision_str = "dp_";
+    else if(probNode.precision == rocfft_precision_half)
+        precision_str = "half_";
+    else
+        throw std::runtime_error("tree node has invalid precision");
+
+    token += precision_str;
     token += (probNode.placement == rocfft_placement_inplace) ? "ip_" : "op_";
 
     bool is_real_trans = ((probNode.inArrayType == rocfft_array_type_real)
@@ -1754,17 +1763,17 @@ void GetNodeToken(const TreeNode& probNode, std::string& min_token, std::string&
     if(is_real_trans)
     {
         token += "real_";
-        token += (is_fwd) ? "fwd_" : "bwd_";
+        token += (is_fwd) ? "fwd" : "bwd";
         min_token = token;
     }
     else
     {
         token += "complex";
         min_token = token;
-        token += (is_fwd) ? "_fwd_" : "_bwd_";
+        token += (is_fwd) ? "_fwd" : "_bwd";
     }
 
-    token += "batch_" + std::to_string(probNode.batch);
+    token += "_batch_" + std::to_string(probNode.batch);
 
     token += "_istride";
     for(size_t i = 0; i < probNode.inStride.size(); ++i)
@@ -1854,13 +1863,16 @@ std::unique_ptr<SchemeTree>
         if(sol_node.solution_childnodes.size() != 1)
             return nullptr;
 
-        std::string& kernel_token    = sol_node.solution_childnodes[0].child_token;
-        size_t       kernel_option   = sol_node.solution_childnodes[0].child_option;
-        bool         built_in_kernel = (kernel_token == solution_map::KERNEL_TOKEN_BUILTIN_KERNEL);
+        std::string& kernel_token   = sol_node.solution_childnodes[0].child_token;
+        size_t       kernel_option  = sol_node.solution_childnodes[0].child_option;
+        bool         tunable_kernel = (kernel_token != solution_map::KERNEL_TOKEN_BUILTIN_KERNEL);
+
+        // TODO- to remove after we can tuning 2D_SIGNEL
+        tunable_kernel = tunable_kernel && (sol_node.using_scheme != CS_KERNEL_2D_SINGLE);
 
         // When tuning, we're runing through each bench
         // so we use the elaborated token (_leafnode_id_phase_id)
-        if(TuningBenchmarker::GetSingleton().IsProcessingTuning() && !built_in_kernel)
+        if(TuningBenchmarker::GetSingleton().IsProcessingTuning() && tunable_kernel)
         {
             auto tuningPacket          = TuningBenchmarker::GetSingleton().GetPacket();
             int  curr_tuning_node_id   = tuningPacket->tuning_node_id;
@@ -1893,9 +1905,16 @@ std::unique_ptr<SchemeTree>
             return nullptr;
 
         // get the kernel of this leaf node, be sure to pick the right kernel option
-        SolutionNode kernel_node = sol_map_single.get_solution_node(probKey_kernel, kernel_option);
+        SolutionNode& kernel_node = sol_map_single.get_solution_node(probKey_kernel, kernel_option);
         execPlan.solution_kernels.push_back(kernel_node.kernel_key);
         curScheme->numKernels = 1;
+
+        // Keep the references, and after buffer-assignment and colapse-batch-dim,
+        // we can save some info back to the kernel-configurations
+        if(TuningBenchmarker::GetSingleton().IsProcessingTuning())
+        {
+            execPlan.sol_kernel_configs.push_back(&(kernel_node.kernel_key.kernel_config));
+        }
 
         if(LOG_TRACE_ENABLED())
         {
@@ -1982,7 +2001,7 @@ void ProcessNode(ExecPlan& execPlan)
     AssignmentPolicy policy;
     policy.AssignBuffers(execPlan);
 
-    if(noSolution)
+    if(TuningBenchmarker::GetSingleton().IsProcessingTuning() == false)
     {
         // Apply the fusion after buffer, strides are assigned
         execPlan.rootPlan->ApplyFusion();

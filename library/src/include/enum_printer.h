@@ -37,6 +37,13 @@ enum OperatingBuffer
     OB_TEMP_BLUESTEIN      = 0b10000,
 };
 
+enum PlacementCode
+{
+    PC_IP,
+    PC_OP,
+    PC_UNSET,
+};
+
 // the decision strategy for buffer assigment
 enum rocfft_optimize_strategy
 {
@@ -51,11 +58,16 @@ std::string PrintOptimizeStrategy(const rocfft_optimize_strategy ros);
 std::string PrintDirectToFromRegMode(const DirectRegType ty);
 std::string PrintArrayType(const rocfft_array_type aryType);
 std::string PrintPlacement(const rocfft_result_placement placement);
+std::string PrintPlacementCode(const PlacementCode placementCode);
 std::string PrintEBType(const EmbeddedType ebtype);
 std::string PrintSBRCTransposeType(const SBRC_TRANSPOSE_TYPE ty);
 std::string PrintPrecision(const rocfft_precision pre);
 
-SBRC_TRANSPOSE_TYPE StrToSBRCTransType(const std::string& str);
-rocfft_precision    StrToPrecision(const std::string& str);
+rocfft_array_type       StrToArrayType(const std::string& str);
+rocfft_result_placement StrToPlacement(const std::string& str);
+PlacementCode           StrToPlacementCode(const std::string& str);
+EmbeddedType            StrToEBType(const std::string& str);
+SBRC_TRANSPOSE_TYPE     StrToSBRCTransType(const std::string& str);
+rocfft_precision        StrToPrecision(const std::string& str);
 
 #endif

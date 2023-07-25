@@ -465,15 +465,16 @@ void solution_kernel_combo(FMKey                     kernel_key,
                                               bool,
                                               bool)> func)
 {
-    KernelConfig& config = kernel_key.kernel_config;
-
     std::vector<bool> unitstride_range;
 
-    // todo: placement should be part of config or fmkey...
-    std::vector<rocfft_result_placement> placements = {rocfft_placement_notinplace};
-
-    // todo: ebtype should be part of config or fmkey...
-    EmbeddedType ebtype = EmbeddedType::NONE;
+    // we pre-build the kernels with the exact settings if possible
+    KernelConfig&     config     = kernel_key.kernel_config;
+    EmbeddedType      ebtype     = config.ebType;
+    PlacementCode     placement  = config.placement;
+    rocfft_array_type iAryType   = config.iAryType;
+    rocfft_array_type oAryType   = config.oAryType;
+    int               direction  = config.direction;
+    int               static_dim = config.static_dim;
 
     DirectRegType dir_reg_type
         = config.direct_to_from_reg ? TRY_ENABLE_IF_SUPPORT : FORCE_OFF_OR_NOT_SUPPORT;
@@ -486,19 +487,39 @@ void solution_kernel_combo(FMKey                     kernel_key,
     // for            = TRUE:  base can be 5, 6, steps is always 3
     std::vector<std::array<int, 2>> base_steps = {{0, 0}, {5, 3}, {6, 3}, {8, 2}, {8, 3}};
 
-    // kernels from solution map are all RTC with some static_dim depending on nodes
-    // we need to expand all possible values (basically, 1,2,3, block compute > 1)
-    std::vector<int> static_dims;
+    // The static_dim value in solution map should be tuned for a known dim.
+    // To avoid unused kernels, we should build for the exact one.
+    // But if it is 0, which is from old format version,
+    // we expand it to all support values (basically, 1,2,3, block compute > 1)
+    std::vector<int>                     static_dims_range = {static_dim};
+    std::vector<int>                     dir_range         = {direction};
+    std::vector<rocfft_result_placement> placement_range;
+    if(placement != PC_UNSET)
+    {
+        placement_range
+            = {(placement == PC_IP) ? rocfft_placement_inplace : rocfft_placement_notinplace};
+    }
+
+    // a C2C kernel, we bwd and fwd can share the same solution
+    if(iAryType != rocfft_array_type_real && oAryType != rocfft_array_type_real)
+        dir_range = {-1, 1};
 
     switch(kernel_key.scheme)
     {
     case CS_KERNEL_STOCKHAM_BLOCK_CC:
     {
-        placements.push_back(rocfft_placement_inplace);
         // SBCC is never unit stride
         unitstride_range = {false};
+        // placement
+        if(placement == PC_UNSET)
+        {
+            placement_range = {rocfft_placement_inplace, rocfft_placement_notinplace};
+        }
         // sbcc can be used in 2D, 3D, for L1D, it's still psuedo-2D
-        static_dims = {2, 3};
+        if(static_dim == 0)
+        {
+            static_dims_range = {2, 3};
+        }
         // depends on use_3steps flag
         if(config.use_3steps_large_twd)
             base_steps = {{5, 3}, {6, 3}};
@@ -511,8 +532,16 @@ void solution_kernel_combo(FMKey                     kernel_key,
         base_steps.resize(1);
         // SBCR is never unit stride
         unitstride_range = {false};
+        // placement
+        if(placement == PC_UNSET)
+        {
+            placement_range = {rocfft_placement_notinplace};
+        }
         // sbcr now is used in 3D only
-        static_dims = {3};
+        if(static_dim == 0)
+        {
+            static_dims_range = {3};
+        }
         break;
     }
     case CS_KERNEL_STOCKHAM_BLOCK_RC:
@@ -521,19 +550,35 @@ void solution_kernel_combo(FMKey                     kernel_key,
     {
         base_steps.resize(1);
         unitstride_range = {true, false};
+        // placement
+        if(placement == PC_UNSET)
+        {
+            placement_range = {rocfft_placement_notinplace};
+        }
         // SBRC can be used in 2D, 3D, but SBRC-with-Transpose are 3D
-        if(kernel_key.scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
-            static_dims = {2, 3};
-        else
-            static_dims = {3};
+        if(static_dim == 0)
+        {
+            if(kernel_key.scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
+                static_dims_range = {2, 3};
+            else
+                static_dims_range = {3};
+        }
         break;
     }
     case CS_KERNEL_STOCKHAM:
     {
         base_steps.resize(1);
         unitstride_range = {true, false};
-        placements.push_back(rocfft_placement_inplace);
-        static_dims = {1, 2, 3};
+        // placement
+        if(placement == PC_UNSET)
+        {
+            placement_range = {rocfft_placement_inplace, rocfft_placement_notinplace};
+        }
+        // Stockham can use in 1D/2D/3D
+        if(static_dim == 0)
+        {
+            static_dims_range = {1, 2, 3};
+        }
         break;
     }
     default:
@@ -543,19 +588,19 @@ void solution_kernel_combo(FMKey                     kernel_key,
         return;
     }
 
-    for(auto direction : {-1, 1})
+    for(auto direction : dir_range)
     {
-        for(auto placement : placements)
+        for(auto placement : placement_range)
         {
-            for(auto inArrayType : {rocfft_array_type_complex_interleaved})
+            for(auto inArrayType : {iAryType})
             {
-                for(auto outArrayType : {rocfft_array_type_complex_interleaved})
+                for(auto outArrayType : {oAryType})
                 {
                     if(placement == rocfft_placement_inplace && inArrayType != outArrayType)
                         continue;
                     for(auto unitstride : unitstride_range)
                     {
-                        for(auto static_dim : static_dims)
+                        for(auto static_dim : static_dims_range)
                         {
                             for(auto base_step : base_steps)
                             {
@@ -631,6 +676,14 @@ void build_solution_kernels(CompileQueue& queue)
                 // eventually goes to a callback + non-intrinsic (see stockham_rtc_kernel_name)
                 if(callbacks && (intrinsic != IntrinsicAccessType::DISABLE_BOTH))
                     intrinsic = IntrinsicAccessType::DISABLE_BOTH;
+
+                // same rejection as aot function_pool, but no need to test (length % 2)
+                // since the kernel is tuned from real nodes.
+                if(ebtype != EmbeddedType::NONE)
+                {
+                    if((scheme == CS_KERNEL_STOCKHAM && !unitstride) || callbacks)
+                        return;
+                }
 
                 StockhamGeneratorSpecs specs{factors,
                                              {},

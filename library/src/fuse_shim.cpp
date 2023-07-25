@@ -23,9 +23,9 @@
 #include "function_pool.h"
 #include "node_factory.h"
 
-size_t TransformsPerThreadblock(const size_t len, rocfft_precision precision)
+size_t TransformsPerThreadblock(const FMKey& kernel_key)
 {
-    return function_pool::get_kernel(FMKey(len, precision)).transforms_per_block;
+    return function_pool::get_kernel(kernel_key).transforms_per_block;
 }
 
 bool canOptimizeWithStride(TreeNode* stockham)
@@ -34,7 +34,7 @@ bool canOptimizeWithStride(TreeNode* stockham)
     // diagonal transpose
     if(IsPo2(stockham->length[0]) && stockham->length.size() >= 3)
         return false;
-    size_t numTrans = TransformsPerThreadblock(stockham->length[0], stockham->precision);
+    size_t numTrans = TransformsPerThreadblock(stockham->GetKernelKey());
 
     // ensure we are doing enough rows to coalesce properly. 4
     // seems to be enough for double-precision, whereas some
@@ -152,7 +152,8 @@ std::unique_ptr<TreeNode> TRFuseShim::FuseKernels()
     auto fused = NodeFactory::CreateNodeFromScheme(stockham->scheme, stockham->parent);
     fused->CopyNodeData(*stockham);
     // actually no need to check kernel exists, we already have the kernel with the same length/scheme
-    if(!fused->KernelCheck())
+    std::vector<FMKey> kernelkey = {stockham->GetKernelKey()};
+    if(!fused->KernelCheck(kernelkey))
         return nullptr;
 
     fused->placement   = rocfft_placement_notinplace;
@@ -234,7 +235,8 @@ std::unique_ptr<TreeNode> RTFuseShim::FuseKernels()
     auto fused = NodeFactory::CreateNodeFromScheme(stockham->scheme, stockham->parent);
     fused->CopyNodeData(*stockham);
     // actually no need to check kernel exists, we already have the kernel with the same length/scheme
-    if(!fused->KernelCheck())
+    std::vector<FMKey> kernelkey = {stockham->GetKernelKey()};
+    if(!fused->KernelCheck(kernelkey))
         return nullptr;
 
     fused->placement    = rocfft_placement_notinplace;

@@ -99,9 +99,10 @@ bool GetTuningKernelInfo(ExecPlan& execPlan)
 
     for(size_t i = 0; i < execPlan.execSeq.size(); ++i)
     {
-        RTCKernel*   localCompiledKernel = execPlan.execSeq[i]->compiledKernel.get().get();
+        TreeNode*    curNode             = execPlan.execSeq[i];
+        RTCKernel*   localCompiledKernel = curNode->compiledKernel.get().get();
         GridParam    gp                  = execPlan.gridParam[i];
-        FMKey        key                 = execPlan.execSeq[i]->GetKernelKey();
+        FMKey        key                 = curNode->GetKernelKey();
         auto         lengths             = key.lengths;
         KernelConfig config              = key.kernel_config;
 
@@ -153,6 +154,18 @@ bool GetTuningKernelInfo(ExecPlan& execPlan)
         tuningPacket->tpb[i]           = config.transforms_per_block;
         tuningPacket->util_rate[i]     = util_ss.str();
         tuningPacket->factors_str[i]   = factors_str;
+
+        // save some data back to kernel-config (to the saved references)
+        // since we've done buffer-assignment and collapse-dim now.
+        if(tuningPacket->is_builtin_kernel[i] == false)
+        {
+            KernelConfig* sol_kernel_config = execPlan.sol_kernel_configs[i];
+            sol_kernel_config->static_dim   = curNode->GetStaticDim();
+            sol_kernel_config->iAryType     = curNode->inArrayType;
+            sol_kernel_config->oAryType     = curNode->outArrayType;
+            sol_kernel_config->placement
+                = (curNode->placement == rocfft_placement_inplace) ? PC_IP : PC_OP;
+        }
     }
 
     return true;

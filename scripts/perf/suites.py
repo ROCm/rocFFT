@@ -429,7 +429,7 @@ def qa():
             yield Problem(length3,
                           tag=mktag('qa3md', 3, 'single', direction, False,
                                     True),
-                          nbatch=1,
+                          nbatch=10,
                           direction=direction,
                           inplace=False,
                           real=True,
@@ -730,6 +730,55 @@ def short_test():
 def tuning_example():
     """tuning 3 examples problems"""
 
+    # real 1d : odd/even/small/large - fwd
+    length1s = [243, 486, 16807, 16384]
+    yield from default_length_params("real_1d_fwd",
+                                     length1s,
+                                     40000,
+                                     directions=[-1],
+                                     precisions=['double'],
+                                     inplaces=[True, False],
+                                     reals=[True],
+                                     min_wgs=128,
+                                     max_wgs=256)
+
+    # real 1d : odd/even/small/large - bwd - FIXME: bugs: batchsize for bwd can't exceed 1024
+    yield from default_length_params("real_1d_fwd",
+                                     length1s,
+                                     1024,
+                                     directions=[1],
+                                     precisions=['double'],
+                                     inplaces=[True, False],
+                                     reals=[True],
+                                     min_wgs=128,
+                                     max_wgs=256)
+
+    # real 2d
+    length2s = [(55, 55), (64, 52), (52, 52)]
+    yield from default_length_params("real_2d",
+                                     length2s,
+                                     10000,
+                                     directions=[-1, 1],
+                                     precisions=['double'],
+                                     inplaces=[False],
+                                     reals=[True],
+                                     min_wgs=128,
+                                     max_wgs=256)
+
+    # real 3d
+    length3s = [(75, 55, 55), (208, 104, 104), (100, 100, 100),
+                (200, 200, 200)]
+    yield from default_length_params("real_3d",
+                                     length3s,
+                                     10,
+                                     directions=[-1, 1],
+                                     precisions=['double'],
+                                     inplaces=[False],
+                                     reals=[True],
+                                     min_wgs=128,
+                                     max_wgs=256)
+
+    # complex
     yield from default_length_params("81_1d", [(81)],
                                      60000,
                                      directions=[-1],
@@ -815,6 +864,21 @@ def tuning_suite():
                                      inplaces=[True, False],
                                      reals=[False],
                                      max_wgs=256)
+
+    # for length3 in lengths['md']:
+    for length3 in [(100, 100, 100), (200, 200, 200), (208, 100, 100),
+                    (108, 108, 80), (128, 128, 256)]:
+        for direction in [-1, 1]:
+            yield Problem(length3,
+                          tag=mktag('qa3md', 3, 'single', direction, False,
+                                    True),
+                          nbatch=10,
+                          direction=direction,
+                          inplace=False,
+                          real=True,
+                          precision='single',
+                          min_wgs=128,
+                          max_wgs=256)
 
     for length in lengths['qa1d10b']:
         yield Problem([length],

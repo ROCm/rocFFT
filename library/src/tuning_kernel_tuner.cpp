@@ -317,6 +317,7 @@ std::set<KernelConfig> SupportedKernelConfigs(size_t length,
     // we will remove those configs(A) with tpt = length,
     // and remove other configs having the same tpb as configs(A)
     std::set<size_t> tpbs_to_remove;
+    std::set<size_t> tpts_with_bad_util_rate;
     std::set<size_t> all_tpts;
 
     bool        print_reject = !rocfft_getenv("PRINT_REJECT_REASON").empty();
@@ -340,7 +341,7 @@ std::set<KernelConfig> SupportedKernelConfigs(size_t length,
 
     if(is_phase0 == false)
     {
-        // no_permutation might always be 0...
+        // manually permute in phase-1
         no_permutation = true;
         factorizations = GetTotalFactorizationsForPhase1(node_id, factorizations);
     }
@@ -367,19 +368,8 @@ std::set<KernelConfig> SupportedKernelConfigs(size_t length,
             auto avg_rate  = util_rates.back();
             // if average rate < 1.0 or > 8.0 , or any of heights > 8.0, then it's bad
             if(avg_rate < 1.0 || *max_rates > 8.0)
-            {
-                if(avg_rate < 1.0)
-                    PrintRejectionMsg(
-                        "reject: small util_avg_rate (< 1): " + std::to_string(avg_rate) + "\n",
-                        print_reject);
-                else
-                    PrintRejectionMsg(
-                        "reject: existng an util_rate (> 8): " + std::to_string(*max_rates) + "\n",
-                        print_reject);
-                tpt = tpts.erase(tpt);
-            }
-            else
-                ++tpt;
+                tpts_with_bad_util_rate.insert(*tpt);
+            ++tpt;
         }
 
         // go through all permutations of the factors
@@ -540,8 +530,30 @@ std::set<KernelConfig> SupportedKernelConfigs(size_t length,
     }
 
     // [reduce search space]
+    // remove bad tpts that have bad util_rate
+    // (we compare the size to make sure we won't have nothing after doing this)
+    if(all_tpts.size() > tpts_with_bad_util_rate.size())
+    {
+        for(auto config = configs.begin(), last = configs.end(); config != last;)
+        {
+            // remove bad tpt
+            size_t tpt = config->threads_per_transform[0];
+            if(tpts_with_bad_util_rate.count(tpt))
+            {
+                PrintRejectionMsg("reject: removing tpt " + std::to_string(tpt)
+                                      + " due to bad util_avg_rate\n" + config->Print() + "\n\n",
+                                  print_reject);
+                config = configs.erase(config);
+                all_tpts.erase(tpt);
+            }
+            else
+                ++config;
+        }
+    }
+
+    // [reduce search space]
     // we can remove the largest 33% tpt, since they are always in low perf.
-    if(all_tpts.size() > 0)
+    if(all_tpts.size() > 0 && is_phase0)
     {
         size_t num_tpts_to_remove = (all_tpts.size() - 1) / 2;
         if(num_tpts_to_remove > 0)
@@ -598,6 +610,7 @@ void EnumerateKernelConfigs(const ExecPlan& execPlan)
         bool   is_sbcc   = (execPlan.execSeq[node_id]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC);
         bool   is_sbrc   = (execPlan.execSeq[node_id]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC);
         bool   is_sbcr   = (execPlan.execSeq[node_id]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CR);
+        bool   is_2d     = (execPlan.execSeq[node_id]->scheme == CS_KERNEL_2D_SINGLE);
         size_t large1D   = execPlan.execSeq[node_id]->large1D;
         auto   base_key  = execPlan.execSeq[node_id]->GetKernelKey();
 
@@ -616,6 +629,22 @@ void EnumerateKernelConfigs(const ExecPlan& execPlan)
             continue;
         }
 
+        // TODO- remove this when tuning 2D_SINGLE is implemented
+        if(is_2d)
+        {
+            check_dup = true;
+            GetKernelToken(base_key, kernel_token);
+            ProblemKey probKey_kernel(archName, kernel_token);
+            TuningBenchmarker::GetSingleton().GetBindingSolutionMap()->add_solution(
+                probKey_kernel, FMKey::EmptyFMKey(), check_dup);
+
+            // pretend 2d_single is builtin-kernel, we just borrow the builtin-kernel logic to skip tuning it.
+            tuningPacket->tuning_kernel_tokens[node_id] = kernel_token;
+            tuningPacket->is_builtin_kernel[node_id]    = true;
+            tuningPacket->total_candidates[node_id]     = bench_ssn;
+            continue;
+        }
+
         // In init stage, save the default kernel token (without extra info)
         GetKernelToken(base_key, kernel_token);
         tuningPacket->tuning_kernel_tokens[node_id] = kernel_token;
@@ -629,14 +658,19 @@ void EnumerateKernelConfigs(const ExecPlan& execPlan)
         // enumerate !
         auto kernel_configs
             = SupportedKernelConfigs(len, node_id, is_single, is_sbcc, is_sbrc, is_sbcr, large1D);
-        for(const auto& config : kernel_configs)
+        for(KernelConfig config : kernel_configs)
         {
+            // We can set the ebType and direction here. But we still don't know static_dim, aryType,
+            // placement until buffer-assignment and collapse-dim. We'll get them later. (PowX.cpp)
+            config.ebType    = execPlan.execSeq[node_id]->ebtype;
+            config.direction = execPlan.execSeq[node_id]->direction;
+
             // NB:
             //  add_solution will append a solution to the solution-vec under the probKey
             FMKey alt_key = get_alternative_FMKey(base_key, config);
 
             // NB:
-            //     A very important part for SBRCTransis that: !!!!
+            //     A very important part for SBRCTranspose type !
             //     the SBRC-Trans-Type in the BaseKey of the default kernel is not always right
             //     for all the configurations. Since TPB is changed, so we should also update
             //     the SBRC-Trans-Type according to config and node dimenstion.

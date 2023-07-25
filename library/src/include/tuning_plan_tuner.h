@@ -23,9 +23,13 @@
 
 #include "tree_node.h"
 #include "tuning_helper.h"
+#include <optional>
 
 // return size_t: the "option_id" of the return node in its sol-vector
-size_t SerializeTree(TreeNode* node, std::string& archName);
+size_t SerializeTree(TreeNode*                         node,
+                     std::string&                      archName,
+                     const std::optional<std::string>& root_min_token  = std::nullopt,
+                     const std::optional<std::string>& root_full_token = std::nullopt);
 void   EnumerateTrees(ExecPlan& execPlan);
 
 #endif

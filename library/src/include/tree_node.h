@@ -164,6 +164,10 @@ struct SchemeTree
     }
 };
 
+using SchemeTreeVec = std::vector<std::unique_ptr<SchemeTree>>;
+
+static SchemeTreeVec EmptySchemeTreeVec = {};
+
 using SchemeVec = std::vector<ComputeScheme>;
 
 static SchemeVec EmptySchemeVec = {};
@@ -469,6 +473,14 @@ public:
 
     virtual void SanityCheck(SchemeTree*         solution_scheme = nullptr,
                              std::vector<FMKey>& kernel_keys     = EmptyFMKeyVec);
+
+    // used when RTC kernels, and output to solution map for pre-building to AOT-cache
+    // 3D_SBRC will override this
+    virtual unsigned int GetStaticDim() const
+    {
+        return length.size();
+    }
+
     // If high dims are contiguous, we can collapse them to make offset
     // calculation simpler
     void CollapseContiguousDims();
@@ -572,8 +584,8 @@ public:
     bool IsBluesteinChirpSetup();
 
 protected:
-    virtual void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) = 0;
-    virtual void AssignParams_internal()                                             = 0;
+    virtual void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) = 0;
+    virtual void AssignParams_internal()                                                    = 0;
 };
 
 class InternalNode : public TreeNode
@@ -633,7 +645,7 @@ public:
     size_t              wgs              = 0;
     size_t              lds              = 0;
 
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) final {
+    void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) final {
     } // nothing to do in leaf node
     void AssignParams_internal() final {} // nothing to do in leaf node
     bool CreateLargeTwdTable();
@@ -705,6 +717,12 @@ struct ExecPlan
 
     // kernels that extracted from solution map
     std::vector<FMKey> solution_kernels;
+
+    // Keep the references of kernel-solution-nodes during tuning-process.
+    // We have to assign back some values after  buffer-assignment /
+    // colapse-batch-dim , which are not called when enumerating
+    // kernel-configurations.
+    std::vector<KernelConfig*> sol_kernel_configs;
 
     // scheme decompositions from solution map
     std::unique_ptr<SchemeTree> rootScheme;

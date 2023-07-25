@@ -30,9 +30,24 @@
 /*****************************************************
  * L1D_TRTRT  *
  *****************************************************/
-void TRTRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
+void TRTRT1DNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
-    bool noSolution = child_schemes.empty();
+    bool noSolution = child_scheme_trees.empty();
+
+    // check schemes from solution map
+    ComputeScheme determined_scheme_node1 = CS_NONE;
+    if(!noSolution)
+    {
+        if((child_scheme_trees.size() != 5)
+           || (child_scheme_trees[0]->curScheme != CS_KERNEL_TRANSPOSE)
+           || (child_scheme_trees[2]->curScheme != CS_KERNEL_TRANSPOSE)
+           || (child_scheme_trees[3]->curScheme != CS_KERNEL_STOCKHAM)
+           || (child_scheme_trees[4]->curScheme != CS_KERNEL_TRANSPOSE))
+        {
+            throw std::runtime_error("TRTRT1DNode: Unexpected child scheme from solution map");
+        }
+        determined_scheme_node1 = child_scheme_trees[1]->curScheme;
+    }
 
     size_t lenFactor1 = length.back();
     size_t lenFactor0 = length[0] / lenFactor1;
@@ -41,8 +56,6 @@ void TRTRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
     length.pop_back();
 
     // first transpose
-    if(!noSolution)
-        assert(child_schemes[0] == CS_KERNEL_TRANSPOSE);
     auto trans1Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     trans1Plan->length.push_back(lenFactor0);
     trans1Plan->length.push_back(lenFactor1);
@@ -63,15 +76,11 @@ void TRTRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
         row1PlanData.length.push_back(length[index]);
     }
 
-    // skip the decide scheme part in node factory
-    ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[1];
-    auto          row1Plan = NodeFactory::CreateExplicitNode(row1PlanData, this, determined_scheme);
-    row1Plan->large1D      = 0;
-    row1Plan->RecursiveBuildTree();
+    auto row1Plan = NodeFactory::CreateExplicitNode(row1PlanData, this, determined_scheme_node1);
+    row1Plan->large1D = 0;
+    row1Plan->RecursiveBuildTree((noSolution) ? nullptr : child_scheme_trees[1].get());
 
     // second transpose
-    if(!noSolution)
-        assert(child_schemes[2] == CS_KERNEL_TRANSPOSE);
     auto trans2Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     trans2Plan->length.push_back(lenFactor1);
     trans2Plan->length.push_back(lenFactor0);
@@ -84,8 +93,6 @@ void TRTRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
     trans2Plan->SetTransposeOutputLength();
 
     // second row fft
-    if(!noSolution)
-        assert(child_schemes[3] == CS_KERNEL_STOCKHAM);
     auto row2Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM, this);
     row2Plan->length.push_back(lenFactor0);
     row2Plan->length.push_back(lenFactor1);
@@ -96,8 +103,6 @@ void TRTRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
     }
 
     // third transpose
-    if(!noSolution)
-        assert(child_schemes[4] == CS_KERNEL_TRANSPOSE);
     auto trans3Plan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     trans3Plan->length.push_back(lenFactor0);
     trans3Plan->length.push_back(lenFactor1);
@@ -311,9 +316,20 @@ void TRTRT1DNode::AssignParams_internal()
 /*****************************************************
  * L1D_CC  *
  *****************************************************/
-void CC1DNode::BuildTree_internal(const SchemeVec& child_schemes)
+void CC1DNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
-    bool noSolution = child_schemes.empty();
+    bool noSolution = child_scheme_trees.empty();
+
+    // check schemes from solution map
+    if(!noSolution)
+    {
+        if((child_scheme_trees.size() != 2)
+           || (child_scheme_trees[0]->curScheme != CS_KERNEL_STOCKHAM_BLOCK_CC)
+           || (child_scheme_trees[1]->curScheme != CS_KERNEL_STOCKHAM_BLOCK_RC))
+        {
+            throw std::runtime_error("CC1DNode: Unexpected child scheme from solution map");
+        }
+    }
 
     size_t lenFactor1 = length.back();
     size_t lenFactor0 = length[0] / lenFactor1;
@@ -322,8 +338,6 @@ void CC1DNode::BuildTree_internal(const SchemeVec& child_schemes)
     length.pop_back();
 
     // first plan, column-to-column
-    if(!noSolution)
-        assert(child_schemes[0] == CS_KERNEL_STOCKHAM_BLOCK_CC);
     auto col2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
 
     col2colPlan->typeBlue = typeBlue;
@@ -349,8 +363,6 @@ void CC1DNode::BuildTree_internal(const SchemeVec& child_schemes)
     std::swap(col2colPlan->outputLength[0], col2colPlan->outputLength[1]);
 
     // second plan, row-to-column
-    if(!noSolution)
-        assert(child_schemes[1] == CS_KERNEL_STOCKHAM_BLOCK_RC);
     auto row2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_RC, this);
 
     row2colPlan->typeBlue = typeBlue;
@@ -663,9 +675,21 @@ void CC1DNode::AssignParams_internal()
 /*****************************************************
  * L1D_CRT  *
  *****************************************************/
-void CRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
+void CRT1DNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
-    bool noSolution = child_schemes.empty();
+    bool noSolution = child_scheme_trees.empty();
+
+    // check schemes from solution map
+    if(!noSolution)
+    {
+        if((child_scheme_trees.size() != 3)
+           || (child_scheme_trees[0]->curScheme != CS_KERNEL_STOCKHAM_BLOCK_CC)
+           || (child_scheme_trees[1]->curScheme != CS_KERNEL_STOCKHAM)
+           || (child_scheme_trees[2]->curScheme != CS_KERNEL_TRANSPOSE))
+        {
+            throw std::runtime_error("CRT1DNode: Unexpected child scheme from solution map");
+        }
+    }
 
     size_t lenFactor1 = length.back();
     size_t lenFactor0 = length[0] / lenFactor1;
@@ -674,8 +698,6 @@ void CRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
     length.pop_back();
 
     // first plan, column-to-column
-    if(!noSolution)
-        assert(child_schemes[0] == CS_KERNEL_STOCKHAM_BLOCK_CC);
     auto col2colPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CC, this);
     // large1D flag to confirm we need multiply twiddle factor
     col2colPlan->large1D = length[0];
@@ -690,8 +712,6 @@ void CRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
     std::swap(col2colPlan->outputLength[0], col2colPlan->outputLength[1]);
 
     // second plan, row-to-row
-    if(!noSolution)
-        assert(child_schemes[1] == CS_KERNEL_STOCKHAM);
     auto row2rowPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM, this);
     row2rowPlan->length.push_back(lenFactor0);
     row2rowPlan->length.push_back(lenFactor1);
@@ -704,8 +724,6 @@ void CRT1DNode::BuildTree_internal(const SchemeVec& child_schemes)
     // row2rowPlan->allowOutofplace = false;
 
     // third plan, transpose
-    if(!noSolution)
-        assert(child_schemes[2] == CS_KERNEL_TRANSPOSE);
     auto transPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, this);
     transPlan->length.push_back(lenFactor0);
     transPlan->length.push_back(lenFactor1);

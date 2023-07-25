@@ -29,20 +29,19 @@
 #include <unordered_set>
 
 // Some problems are not supported yet.
-static const std::set<ComputeScheme> supported_prob_schemes = {CS_KERNEL_STOCKHAM,
-                                                               CS_L1D_TRTRT,
-                                                               CS_L1D_CC,
-                                                               CS_L1D_CRT,
-                                                               CS_2D_RTRT,
-                                                               CS_2D_RC,
-                                                               CS_3D_TRTRTR,
-                                                               CS_3D_RTRT,
-                                                               CS_3D_BLOCK_RC,
-                                                               CS_3D_BLOCK_CR,
-                                                               CS_3D_RC};
+// NB:
+//   if root-problem is one of the followings, then we don't tune the problem.
+//   But we still need to take care when sub-problem is a 2D_SINGLE,
+//   in that case, we don't tune the kernel and use the default one.
+//   (bluestein is not possible to be a sub-problem)
+static const std::set<ComputeScheme> not_supported_tuning_prob_schemes
+    = {CS_BLUESTEIN, CS_KERNEL_2D_SINGLE};
 
 // return size_t: the "option_id" of the return node in its sol-vector
-size_t SerializeTree(TreeNode* node, std::string& archName)
+size_t SerializeTree(TreeNode*                         node,
+                     std::string&                      archName,
+                     const std::optional<std::string>& root_min_token,
+                     const std::optional<std::string>& root_full_token)
 {
     std::vector<SolutionPtr> child_nodes;
     std::string              min_token, full_token;
@@ -70,7 +69,17 @@ size_t SerializeTree(TreeNode* node, std::string& archName)
         child_nodes.push_back({min_token, 0});
     }
 
-    GetNodeToken(*node, min_token, full_token);
+    // if root_token are provided, it means we are handling root-node
+    // and we directly use the provided tokens instead of calling Get..() again
+    if(root_min_token && root_full_token)
+    {
+        min_token  = *root_min_token;
+        full_token = *root_full_token;
+    }
+    else
+    {
+        GetNodeToken(*node, min_token, full_token);
+    }
 
     // if tuner is going to export the solution with the exact token (including batches, stride, offset, dist)
     // note this is only applicable to root node.
@@ -98,13 +107,18 @@ void EnumerateTrees(ExecPlan& execPlan)
 {
     std::string archName = get_arch_name(execPlan.deviceProp);
 
+    // NB:
+    //  Get Root's token before build tree. Since Real-Transform may modify the length.
+    std::string root_min_token, root_full_token;
+    GetNodeToken(*execPlan.rootPlan, root_min_token, root_full_token);
+
     // TODO- plan-tuning: build tree several times to generate different trees
     {
         execPlan.rootPlan->RecursiveBuildTree();
 
-        // Haven't supported type (real, bluestein...), return directly.
+        // Haven't supported type (2D, bluestein...), return directly.
         // And tuner knows to skip work by testing "packet->total_nodes == 0"
-        if(supported_prob_schemes.count(execPlan.rootPlan->scheme) == 0)
+        if(not_supported_tuning_prob_schemes.count(execPlan.rootPlan->scheme) != 0)
             return;
 
         assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->dimension);
@@ -120,7 +134,7 @@ void EnumerateTrees(ExecPlan& execPlan)
         if(TuningBenchmarker::GetSingleton().GetPacket()->tuning_phase == 0)
         {
             // Adding decompoistion solutions from this tree-decomposition
-            SerializeTree(execPlan.rootPlan.get(), archName);
+            SerializeTree(execPlan.rootPlan.get(), archName, root_min_token, root_full_token);
         }
 
         // Adding kernel candidates

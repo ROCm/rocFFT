@@ -28,6 +28,9 @@
 #define ENUMSTR(x) x, TO_STR(x)
 #define STRENUM(x) TO_STR(x), x
 
+//
+// precision map
+//
 static std::map<rocfft_precision, const char*> PrecisionToStrMap()
 {
     std::map<rocfft_precision, const char*> PrecisionToStr = {{rocfft_precision_single, "single"},
@@ -44,6 +47,9 @@ static std::map<std::string, rocfft_precision> StrToPrecisionMap()
     return StrToPrecision;
 }
 
+//
+// sbrc trans map
+//
 static std::map<SBRC_TRANSPOSE_TYPE, const char*> SBRCTransTypetoStrMap()
 {
     std::map<SBRC_TRANSPOSE_TYPE, const char*> SBRCTransTypeToStr = {
@@ -57,6 +63,84 @@ static std::map<std::string, SBRC_TRANSPOSE_TYPE> StrToSBRCTransTypeMap()
     for(auto i : SBRCTransTypetoStrMap())
         StrToSBRCTransType.emplace(i.second, i.first);
     return StrToSBRCTransType;
+}
+
+//
+// ebtype map
+//
+static std::map<EmbeddedType, const char*> EBTypeToStrMap()
+{
+    std::map<EmbeddedType, const char*> EBTypeToStr = {{EmbeddedType::NONE, "NONE"},
+                                                       {EmbeddedType::Real2C_POST, "R2C_POST"},
+                                                       {EmbeddedType::C2Real_PRE, "C2R_PRE"}};
+    return EBTypeToStr;
+}
+
+static std::map<std::string, EmbeddedType> StrToEBTypeMap()
+{
+    std::map<std::string, EmbeddedType> StrToEBType;
+    for(auto i : EBTypeToStrMap())
+        StrToEBType.emplace(i.second, i.first);
+    return StrToEBType;
+}
+
+//
+// placement map
+//
+static std::map<rocfft_result_placement, const char*> PlacementToStrMap()
+{
+    std::map<rocfft_result_placement, const char*> PlacementToStr
+        = {{rocfft_placement_inplace, "IP"}, {rocfft_placement_notinplace, "OP"}};
+    return PlacementToStr;
+}
+
+static std::map<std::string, rocfft_result_placement> StrToPlacementMap()
+{
+    std::map<std::string, rocfft_result_placement> StrToPlacement;
+    for(auto i : PlacementToStrMap())
+        StrToPlacement.emplace(i.second, i.first);
+    return StrToPlacement;
+}
+
+//
+// (internal) placement code map
+//
+static std::map<PlacementCode, const char*> PlacementCodeToStrMap()
+{
+    std::map<PlacementCode, const char*> PlacementCodeToStr
+        = {{PC_IP, "IP"}, {PC_OP, "OP"}, {PC_UNSET, "NA"}};
+    return PlacementCodeToStr;
+}
+
+static std::map<std::string, PlacementCode> StrToPlacementCodeMap()
+{
+    std::map<std::string, PlacementCode> StrToPlacementCode;
+    for(auto i : PlacementCodeToStrMap())
+        StrToPlacementCode.emplace(i.second, i.first);
+    return StrToPlacementCode;
+}
+
+//
+// array type map
+//
+static std::map<rocfft_array_type, const char*> ArrayTypeToStrMap()
+{
+    std::map<rocfft_array_type, const char*> ArrayTypeToStr
+        = {{rocfft_array_type_complex_interleaved, "CI"},
+           {rocfft_array_type_complex_planar, "CP"},
+           {rocfft_array_type_real, "R"},
+           {rocfft_array_type_hermitian_interleaved, "HI"},
+           {rocfft_array_type_hermitian_planar, "HP"},
+           {rocfft_array_type_unset, "NA"}};
+    return ArrayTypeToStr;
+}
+
+static std::map<std::string, rocfft_array_type> StrToArrayTypeMap()
+{
+    std::map<std::string, rocfft_array_type> StrToArrayType;
+    for(auto i : ArrayTypeToStrMap())
+        StrToArrayType.emplace(i.second, i.first);
+    return StrToArrayType;
 }
 
 std::string PrintOperatingBuffer(const OperatingBuffer ob)
@@ -113,29 +197,54 @@ std::string PrintPrecision(const rocfft_precision pre)
 
 std::string PrintArrayType(const rocfft_array_type aryType)
 {
-    static const std::map<rocfft_array_type, const char*> aryTypeStr
-        = {{rocfft_array_type_complex_interleaved, "CI"},
-           {rocfft_array_type_complex_planar, "CP"},
-           {rocfft_array_type_real, "R"},
-           {rocfft_array_type_hermitian_interleaved, "HI"},
-           {rocfft_array_type_hermitian_planar, "HP"},
-           {rocfft_array_type_unset, "NA"}};
+    static auto aryTypeStr = ArrayTypeToStrMap();
     return aryTypeStr.at(aryType);
 }
+
 std::string PrintPlacement(const rocfft_result_placement placement)
 {
-    static const std::map<rocfft_result_placement, const char*> placementStr
-        = {{rocfft_placement_inplace, "IP"}, {rocfft_placement_notinplace, "OP"}};
+    static auto placementStr = PlacementToStrMap();
     return placementStr.at(placement);
 }
+
+std::string PrintPlacementCode(const PlacementCode placementCode)
+{
+    static auto strMap = PlacementCodeToStrMap();
+    return strMap.at(placementCode);
+}
+
 std::string PrintEBType(const EmbeddedType ebtype)
 {
-    if(ebtype == EmbeddedType::NONE)
-        return std::string("NONE");
-    else if(ebtype == EmbeddedType::Real2C_POST)
-        return std::string("POST");
-    else
-        return std::string("PRE");
+    static auto ebtype2strMap = EBTypeToStrMap();
+    return ebtype2strMap.at(ebtype);
+}
+
+//
+// String to Enum
+//
+
+rocfft_array_type StrToArrayType(const std::string& str)
+{
+    static auto str2ArrayTypeMap = StrToArrayTypeMap();
+    return str2ArrayTypeMap.at(str);
+}
+
+rocfft_result_placement StrToPlacement(const std::string& str)
+{
+    static auto str2PlacementMap = StrToPlacementMap();
+    return str2PlacementMap.at(str);
+}
+
+PlacementCode StrToPlacementCode(const std::string& str)
+{
+    static auto str2PlacementCodeMap = StrToPlacementCodeMap();
+    return str2PlacementCodeMap.at(str);
+}
+
+EmbeddedType StrToEBType(const std::string& str)
+{
+    static auto str2ebTypeMap = StrToEBTypeMap();
+    return str2ebTypeMap.at(str);
 }
 
 SBRC_TRANSPOSE_TYPE StrToSBRCTransType(const std::string& str)

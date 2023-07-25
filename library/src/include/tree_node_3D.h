@@ -42,7 +42,7 @@ protected:
 
 protected:
     void AssignParams_internal() override;
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
 };
 
 /*****************************************************
@@ -63,7 +63,7 @@ protected:
         scheme = CS_3D_TRTRTR;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
 };
 
 /*****************************************************
@@ -86,7 +86,7 @@ protected:
         scheme = CS_3D_BLOCK_RC;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
 };
 
 /*****************************************************
@@ -107,7 +107,7 @@ protected:
         scheme = CS_3D_BLOCK_CR;
     }
     void AssignParams_internal() override;
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
 };
 
 /*****************************************************
@@ -130,7 +130,7 @@ protected:
     }
 
     void AssignParams_internal() override;
-    void BuildTree_internal(const SchemeVec& child_schemes = EmptySchemeVec) override;
+    void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
 };
 
 /*****************************************************
@@ -159,6 +159,16 @@ protected:
 
 public:
     bool KernelCheck(std::vector<FMKey>& kernel_keys = EmptyFMKeyVec) override;
+
+    // used when RTC kernels, and output to solution map for pre-building to AOT-cache
+    unsigned int GetStaticDim() const override
+    {
+        // This is 3D kernels, but are sometimes shoehorned
+        // into 2D plans.  Make sure they get at least 3 dims.
+        auto ret = TreeNode::GetStaticDim();
+        ret      = (ret == 2) ? 3 : ret;
+        return ret;
+    }
 
     SBRC_TRANSPOSE_TYPE sbrc_transpose_type(unsigned int blockWidth) const override
     {

@@ -29,22 +29,33 @@
 /*****************************************************
  * 3D_RTRT  *
  *****************************************************/
-void RTRT3DNode::BuildTree_internal(const SchemeVec& child_schemes)
+void RTRT3DNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
-    bool noSolution = child_schemes.empty();
+    bool noSolution = child_scheme_trees.empty();
+
+    // check schemes from solution map
+    ComputeScheme determined_scheme_node0 = CS_NONE;
+    ComputeScheme determined_scheme_node2 = CS_NONE;
+    if(!noSolution)
+    {
+        if((child_scheme_trees.size() != 4)
+           || (child_scheme_trees[1]->curScheme != CS_KERNEL_TRANSPOSE_XY_Z)
+           || (child_scheme_trees[3]->curScheme != CS_KERNEL_TRANSPOSE_Z_XY))
+        {
+            throw std::runtime_error("RTRT3DNode: Unexpected child scheme from solution map");
+        }
+        determined_scheme_node0 = child_scheme_trees[0]->curScheme;
+        determined_scheme_node2 = child_scheme_trees[2]->curScheme;
+    }
 
     // 2d fft
     NodeMetaData xyPlanData(this);
     xyPlanData.length    = length;
     xyPlanData.dimension = 2;
-    // skip the decide scheme part in node factory
-    ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[0];
-    auto          xyPlan = NodeFactory::CreateExplicitNode(xyPlanData, this, determined_scheme);
-    xyPlan->RecursiveBuildTree();
+    auto xyPlan = NodeFactory::CreateExplicitNode(xyPlanData, this, determined_scheme_node0);
+    xyPlan->RecursiveBuildTree((noSolution) ? nullptr : child_scheme_trees[0].get());
 
     // first transpose
-    if(!noSolution)
-        assert(child_schemes[1] == CS_KERNEL_TRANSPOSE_XY_Z);
     auto trans1Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, this);
     trans1Plan->length = length;
     trans1Plan->SetTransposeOutputLength();
@@ -57,14 +68,10 @@ void RTRT3DNode::BuildTree_internal(const SchemeVec& child_schemes)
     zPlanData.length.push_back(length[2]);
     zPlanData.length.push_back(length[0]);
     zPlanData.length.push_back(length[1]);
-    // skip the decide scheme part in node factory
-    determined_scheme = determined_scheme = (noSolution) ? CS_NONE : child_schemes[2];
-    auto zPlan = NodeFactory::CreateExplicitNode(zPlanData, this, determined_scheme);
-    zPlan->RecursiveBuildTree();
+    auto zPlan = NodeFactory::CreateExplicitNode(zPlanData, this, determined_scheme_node2);
+    zPlan->RecursiveBuildTree((noSolution) ? nullptr : child_scheme_trees[2].get());
 
     // second transpose
-    if(!noSolution)
-        assert(child_schemes[3] == CS_KERNEL_TRANSPOSE_Z_XY);
     auto trans2Plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
     trans2Plan->length = zPlan->length;
     trans2Plan->SetTransposeOutputLength();
@@ -154,17 +161,27 @@ void RTRT3DNode::AssignParams_internal()
 /*****************************************************
  * 3D_TRTRTR  *
  *****************************************************/
-void TRTRTR3DNode::BuildTree_internal(const SchemeVec& child_schemes)
+void TRTRTR3DNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
-    bool noSolution = child_schemes.empty();
+    bool noSolution = child_scheme_trees.empty();
+
+    // check schemes from solution map
+    if(!noSolution)
+    {
+        if((child_scheme_trees.size() != 6)
+           || (child_scheme_trees[0]->curScheme != CS_KERNEL_TRANSPOSE_Z_XY)
+           || (child_scheme_trees[2]->curScheme != CS_KERNEL_TRANSPOSE_Z_XY)
+           || (child_scheme_trees[4]->curScheme != CS_KERNEL_TRANSPOSE_Z_XY))
+        {
+            throw std::runtime_error("TRTRTR3DNode: Unexpected child scheme from solution map");
+        }
+    }
 
     std::vector<size_t> cur_length = length;
 
     for(int i = 0; i < 6; i += 2)
     {
         // transpose Z_XY
-        if(!noSolution)
-            assert(child_schemes[i] == CS_KERNEL_TRANSPOSE_Z_XY);
         auto trans_plan    = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_Z_XY, this);
         trans_plan->length = cur_length;
         trans_plan->SetTransposeOutputLength();
@@ -178,9 +195,10 @@ void TRTRTR3DNode::BuildTree_internal(const SchemeVec& child_schemes)
         row_plan_data.length    = cur_length;
         row_plan_data.dimension = 1;
         // skip the decide scheme part in node factory
-        ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[i + 1];
+        ComputeScheme determined_scheme
+            = (noSolution) ? CS_NONE : child_scheme_trees[i + 1]->curScheme;
         auto row_plan = NodeFactory::CreateExplicitNode(row_plan_data, this, determined_scheme);
-        row_plan->RecursiveBuildTree();
+        row_plan->RecursiveBuildTree((noSolution) ? nullptr : child_scheme_trees[i + 1].get());
 
         // TR
         childNodes.emplace_back(std::move(trans_plan));
@@ -281,9 +299,9 @@ void TRTRTR3DNode::AssignParams_internal()
 /*****************************************************
  * CS_3D_BLOCK_RC  *
  *****************************************************/
-void BLOCKRC3DNode::BuildTree_internal(const SchemeVec& child_schemes)
+void BLOCKRC3DNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
-    bool noSolution = child_schemes.empty();
+    bool noSolution = child_scheme_trees.empty();
 
     std::vector<size_t> cur_length = length;
 
@@ -365,8 +383,9 @@ void BLOCKRC3DNode::BuildTree_internal(const SchemeVec& child_schemes)
         {
             auto sbrcScheme = (use_ZXY_sbrc) ? CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY
                                              : CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z;
-            if(!noSolution)
-                assert(child_schemes[childNodes.size()] == sbrcScheme);
+            if(!noSolution && (child_scheme_trees[childNodes.size()]->curScheme != sbrcScheme))
+                throw std::runtime_error(
+                    "BLOCKRC3DNode: Unexpected child scheme from solution map");
             auto sbrc_node    = NodeFactory::CreateNodeFromScheme(sbrcScheme, this);
             sbrc_node->length = cur_length;
             sbrc_node->SetTransposeOutputLength();
@@ -379,14 +398,16 @@ void BLOCKRC3DNode::BuildTree_internal(const SchemeVec& child_schemes)
             row_plan_data.length    = cur_length;
             row_plan_data.dimension = 1;
             ComputeScheme determined_scheme
-                = (noSolution) ? CS_NONE : child_schemes[childNodes.size()];
+                = (noSolution) ? CS_NONE : child_scheme_trees[childNodes.size()]->curScheme;
             auto row_plan = NodeFactory::CreateExplicitNode(row_plan_data, this, determined_scheme);
-            row_plan->RecursiveBuildTree();
+            row_plan->RecursiveBuildTree(
+                (noSolution) ? nullptr : child_scheme_trees[childNodes.size()].get());
 
             // transpose XY_Z
             auto transScheme = (use_ZXY_sbrc) ? CS_KERNEL_TRANSPOSE_Z_XY : CS_KERNEL_TRANSPOSE_XY_Z;
-            if(!noSolution)
-                assert(child_schemes[childNodes.size() + 1] == transScheme);
+            if(!noSolution && (child_scheme_trees[childNodes.size() + 1]->curScheme != transScheme))
+                throw std::runtime_error(
+                    "BLOCKRC3DNode: Unexpected child scheme from solution map");
             auto trans_plan    = NodeFactory::CreateNodeFromScheme(transScheme, this);
             trans_plan->length = cur_length;
             trans_plan->SetTransposeOutputLength();
@@ -494,9 +515,21 @@ void BLOCKRC3DNode::AssignParams_internal()
 /*****************************************************
  * CS_3D_BLOCK_CR  *
  *****************************************************/
-void BLOCKCR3DNode::BuildTree_internal(const SchemeVec& child_schemes)
+void BLOCKCR3DNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
-    bool noSolution = child_schemes.empty();
+    bool noSolution = child_scheme_trees.empty();
+
+    // check schemes from solution map
+    if(!noSolution)
+    {
+        if((child_scheme_trees.size() != 3)
+           || (child_scheme_trees[0]->curScheme != CS_KERNEL_STOCKHAM_BLOCK_CR)
+           || (child_scheme_trees[1]->curScheme != CS_KERNEL_STOCKHAM_BLOCK_CR)
+           || (child_scheme_trees[2]->curScheme != CS_KERNEL_STOCKHAM_BLOCK_CR))
+        {
+            throw std::runtime_error("BLOCKCR3DNode: Unexpected child scheme from solution map");
+        }
+    }
 
     // TODO: It works only for 3 SBCR children nodes for now.
     //       The final logic will be similar to what SBRC has.
@@ -504,8 +537,6 @@ void BLOCKCR3DNode::BuildTree_internal(const SchemeVec& child_schemes)
     std::vector<size_t> cur_length = length;
     for(int i = 0; i < 3; ++i)
     {
-        if(!noSolution)
-            assert(child_schemes[i] == CS_KERNEL_STOCKHAM_BLOCK_CR);
         auto node = NodeFactory::CreateNodeFromScheme(CS_KERNEL_STOCKHAM_BLOCK_CR, this);
         node->length.push_back(cur_length[2]);
         node->length.push_back(cur_length[0] * cur_length[1]);
@@ -550,9 +581,20 @@ void BLOCKCR3DNode::AssignParams_internal()
 /*****************************************************
  * CS_3D_RC  *
  *****************************************************/
-void RC3DNode::BuildTree_internal(const SchemeVec& child_schemes)
+void RC3DNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
-    bool noSolution = child_schemes.empty();
+    bool noSolution = child_scheme_trees.empty();
+
+    // check schemes from solution map
+    ComputeScheme determined_scheme_node0 = CS_NONE;
+    ComputeScheme determined_scheme_node1 = CS_NONE;
+    if(!noSolution)
+    {
+        if((child_scheme_trees.size() != 2))
+            throw std::runtime_error("RC3DNode: Unexpected child scheme from solution map");
+        determined_scheme_node0 = child_scheme_trees[0]->curScheme;
+        determined_scheme_node1 = child_scheme_trees[1]->curScheme;
+    }
 
     // 2d fft
     NodeMetaData xyPlanData(this);
@@ -564,10 +606,8 @@ void RC3DNode::BuildTree_internal(const SchemeVec& child_schemes)
     {
         xyPlanData.length.push_back(length[index]);
     }
-    // skip the decide scheme part in node factory
-    ComputeScheme determined_scheme = (noSolution) ? CS_NONE : child_schemes[0];
-    auto          xyPlan = NodeFactory::CreateExplicitNode(xyPlanData, this, determined_scheme);
-    xyPlan->RecursiveBuildTree();
+    auto xyPlan = NodeFactory::CreateExplicitNode(xyPlanData, this, determined_scheme_node0);
+    xyPlan->RecursiveBuildTree((noSolution) ? nullptr : child_scheme_trees[0].get());
 
     // z col fft
     NodeMetaData zPlanData(this);
@@ -584,12 +624,10 @@ void RC3DNode::BuildTree_internal(const SchemeVec& child_schemes)
     // use explicit SBCC kernel if available
     std::unique_ptr<TreeNode> zPlan;
 
-    // skip the decide scheme part in node factory
-    determined_scheme = (noSolution) ? CS_NONE : child_schemes[1];
-    if(determined_scheme)
+    if(determined_scheme_node1 != CS_NONE)
     {
-        zPlan = NodeFactory::CreateExplicitNode(zPlanData, this, determined_scheme);
-        zPlan->RecursiveBuildTree();
+        zPlan = NodeFactory::CreateExplicitNode(zPlanData, this, determined_scheme_node1);
+        zPlan->RecursiveBuildTree((noSolution) ? nullptr : child_scheme_trees[1].get());
     }
     else
     {
@@ -602,7 +640,7 @@ void RC3DNode::BuildTree_internal(const SchemeVec& child_schemes)
         else
         {
             zPlan = NodeFactory::CreateExplicitNode(zPlanData, this);
-            zPlan->RecursiveBuildTree();
+            zPlan->RecursiveBuildTree(nullptr);
         }
     }
 

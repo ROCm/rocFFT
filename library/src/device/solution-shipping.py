@@ -96,6 +96,13 @@ class KernelConfig(BaseNode):
         kc += ', true' if (buffer_inst is not None
                            and buffer_inst == True) else ', false'
 
+        kc += ', StrToEBType("' + str(self.config['ebtype']) + '")'
+        kc += ', ' + str(self.config['direction'])
+        kc += ', ' + str(self.config['static_dim'])
+        kc += ', StrToPlacementCode("' + str(self.config['placement']) + '")'
+        kc += ', StrToArrayType("' + str(self.config['iAryType']) + '")'
+        kc += ', StrToArrayType("' + str(self.config['oAryType']) + '")'
+
         kc += ')'
         return kc
 

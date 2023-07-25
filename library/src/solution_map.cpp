@@ -35,7 +35,7 @@ static std::regex regEx("[^:;,\"\\{\\}\\[\\s]+", std::regex_constants::optimize)
 
 static const char* def_solution_map_path = "rocfft_solution_map.dat";
 
-const int   solution_map::VERSION                       = 1;
+const int   solution_map::VERSION                       = 2;
 const char* solution_map::KERNEL_TOKEN_BUILTIN_KERNEL   = "kernel_token_builtin_kernel";
 const char* solution_map::LEAFNODE_TOKEN_BUILTIN_KERNEL = "leafnode_token_builtin_kernel";
 
@@ -604,6 +604,18 @@ bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path, bool 
         return false;
     }
 
+    auto latestParseProcess = [=, &dst_map, &tokens]() {
+        std::vector<SolMapEntry> entry_vec;
+        VectorFieldParser<SolMapEntry>().parse("Data", entry_vec, tokens);
+        for(auto& entry : entry_vec)
+        {
+            // automatically set arch_name which is not in the text file
+            for(auto& sol : entry.second)
+                sol.arch_name = entry.first.arch;
+            dst_map.emplace(entry.first, entry.second);
+        }
+    };
+
     // should be latest version as long as it's not called by converter
     if(assume_latest_ver)
     {
@@ -614,16 +626,11 @@ bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path, bool 
                 throw std::runtime_error("format version of the input file is not the latest, "
                                          "please execute the solution map converter first.");
 
+            // set the descriptor / parse to the latest version
+            DescriptorFormatVersion::UsingVersion = solution_map::VERSION;
+
             // always do the latest version reading here
-            std::vector<SolMapEntry> entry_vec;
-            VectorFieldParser<SolMapEntry>().parse("Data", entry_vec, tokens);
-            for(auto& entry : entry_vec)
-            {
-                // automatically set arch_name which is not in the text file
-                for(auto& sol : entry.second)
-                    sol.arch_name = entry.first.arch;
-                dst_map.emplace(entry.first, entry.second);
-            }
+            latestParseProcess();
         }
         catch(const std::exception& e)
         {
@@ -647,6 +654,24 @@ bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path, bool 
             FieldParser<ProblemKey>().parse("Problem", probKey, tokens);
             VectorFieldParser<SolutionNode>().parse("Solutions", solutionVec, tokens);
             dst_map.emplace(probKey, solutionVec);
+        }
+    }
+    else if(self_version == 1)
+    {
+        try
+        {
+            FieldParser<int>().parse("Version", self_version, tokens);
+            // set the descriptor / parse to the corresponding
+            DescriptorFormatVersion::UsingVersion = self_version;
+            // if the difference of the version can be handled by parser internally,
+            // we still can call the latestParseProcess(). Just remember to set
+            // DescriptorFormatVersion::UsingVersion
+            latestParseProcess();
+        }
+        catch(const std::exception& e)
+        {
+            std::cerr << e.what() << std::endl;
+            return false;
         }
     }
     // handling other version in the future
@@ -681,6 +706,9 @@ bool solution_map::write_solution_map_data(const fs::path& sol_map_out_path,
     // sort !
     if(sort)
         std::sort(entry_vec.begin(), entry_vec.end(), ProbSolCmp);
+
+    // guard for safety, though we are always writing with latest version format
+    DescriptorFormatVersion::UsingVersion = solution_map::VERSION;
 
     // write version at the beginning
     ss << "{";
@@ -834,11 +862,16 @@ bool SolutionMapConverter::VersionCheckAndConvert(const std::string& in_map_path
         if(sol_map.get_solution_map_version(in_map_path) == false)
             return false;
 
+        bool has_conversion = sol_map.self_version != solution_map::VERSION;
+        if(!has_conversion)
+        {
+            std::cout << "solution map is already at the latest version.\n";
+            return true;
+        }
+
         // the read function should be able to read the file according to the parsed self_version
         if(sol_map.read_solution_map_data(in_map_path) == false)
             return false;
-
-        bool has_conversion = sol_map.self_version != solution_map::VERSION;
 
         // ---------
         // some actions that convert the current data to the latest one
@@ -848,14 +881,9 @@ bool SolutionMapConverter::VersionCheckAndConvert(const std::string& in_map_path
         // other actions that need to make it fitting latest version
         // ---------
 
-        if(has_conversion)
-        {
-            std::cout << "successfully converted solution map from version(" << sol_map.self_version
-                      << ") to latest version(" << solution_map::VERSION << ").\n";
-            return sol_map.write_solution_map_data(out_map_path);
-        }
-        else
-            std::cout << "solution map is already at the latest version.\n";
+        std::cout << "successfully converted solution map from version(" << sol_map.self_version
+                  << ") to latest version(" << solution_map::VERSION << ").\n";
+        return sol_map.write_solution_map_data(out_map_path);
     }
     catch(const std::exception& e)
     {
