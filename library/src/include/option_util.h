@@ -35,10 +35,8 @@
 #include <vector>
 
 // Regular expression for token delimiters (whitespace and commas)
-static const std::regex program_options_regex{"[, \\f\\n\\r\\t\\v]+",
-                                              std::regex_constants::optimize};
-
-static const std::regex vector_delim{",", std::regex_constants::optimize};
+#define PROGRAM_OPTIONS_REGEX "[, \\f\\n\\r\\t\\v]+"
+#define VECTOR_DELIM ","
 
 // variables_map is a set of seen options
 using variables_map = std::set<std::string>;
@@ -264,6 +262,9 @@ public:
     // Parse an option at the current (argc, argv) position
     void parse_option(int& argc, char**& argv, variables_map& vm, bool ignoreUnknown = false) const
     {
+        static const std::regex program_options_regex{PROGRAM_OPTIONS_REGEX,
+                                                      std::regex_constants::optimize};
+
         // Iterate across all options
         for(const auto& opt : m_optlist)
         {
@@ -312,6 +313,9 @@ public:
     // Formatted output of command-line arguments description
     friend std::ostream& operator<<(std::ostream& os, const options_description& d)
     {
+        static const std::regex program_options_regex{PROGRAM_OPTIONS_REGEX,
+                                                      std::regex_constants::optimize};
+
         // Iterate across all options
         for(const auto& opt : d.m_optlist)
         {
@@ -404,6 +408,8 @@ inline void notify(const variables_map&) {}
 
 void parse_arg_ints(std::string const& inStr, std::vector<size_t>& outVector)
 {
+    static const std::regex vector_delim{VECTOR_DELIM, std::regex_constants::optimize};
+
     // std::cout << inStr << std::endl;
     for(std::sregex_token_iterator tok{inStr.begin(), inStr.end(), vector_delim, -1};
         tok != std::sregex_token_iterator();
@@ -415,6 +421,8 @@ void parse_arg_ints(std::string const& inStr, std::vector<size_t>& outVector)
 
 void parse_arg_strings(std::string const& inStr, std::vector<std::string>& outVector)
 {
+    static const std::regex vector_delim{VECTOR_DELIM, std::regex_constants::optimize};
+
     // std::cout << inStr << std::endl;
     for(std::sregex_token_iterator tok{inStr.begin(), inStr.end(), vector_delim, -1};
         tok != std::sregex_token_iterator();
