@@ -58,25 +58,6 @@ void RTCKernel::launch(DeviceCallIn& data)
 {
     RTCKernelArgs kargs = get_launch_args(data);
 
-    // scale factor, if necessary
-    if(data.node->IsScalingEnabled())
-    {
-        // scale factor is always double on the node, but needs to be
-        // the right type for the kernel
-        switch(data.node->precision)
-        {
-        case rocfft_precision_double:
-            kargs.append_double(data.node->scale_factor);
-            break;
-        case rocfft_precision_single:
-            kargs.append_float(data.node->scale_factor);
-            break;
-        case rocfft_precision_half:
-            kargs.append_half(data.node->scale_factor);
-            break;
-        }
-    }
-
     const auto& gp = data.gridParam;
 
     launch(kargs,

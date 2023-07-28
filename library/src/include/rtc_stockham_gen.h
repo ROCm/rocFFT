@@ -25,6 +25,7 @@
 
 #include "../device/generator/stockham_gen.h"
 #include "compute_scheme.h"
+#include "load_store_ops.h"
 #include "rocfft.h"
 #include "rtc_kernel.h"
 
@@ -48,8 +49,9 @@ std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
                                      IntrinsicAccessType           intrinsicMode,
                                      SBRC_TRANSPOSE_TYPE           transpose_type,
                                      bool                          enable_callbacks,
-                                     bool                          enable_scaling,
-                                     BluesteinFuseType             fuseBlue);
+                                     BluesteinFuseType             fuseBlue,
+                                     const LoadOps&                loadOps,
+                                     const StoreOps&               storeOps);
 
 // generate source for RTC stockham kernel.  transforms_per_block may
 // be nullptr, but if non-null, stockham_rtc stores the number of
@@ -73,7 +75,8 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          IntrinsicAccessType           intrinsicMode,
                          SBRC_TRANSPOSE_TYPE           transpose_type,
                          bool                          enable_callbacks,
-                         bool                          enable_scaling,
-                         const BluesteinFuseType&      fuseBlue);
+                         const BluesteinFuseType&      fuseBlue,
+                         const LoadOps&                loadOps,
+                         const StoreOps&               storeOps);
 
 #endif

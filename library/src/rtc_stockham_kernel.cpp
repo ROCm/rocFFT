@@ -38,9 +38,6 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     std::optional<StockhamGeneratorSpecs> specs;
     std::optional<StockhamGeneratorSpecs> specs2d;
 
-    // if scale factor is enabled, we force RTC for this kernel
-    bool enable_scaling = node.IsScalingEnabled();
-
     // SBRC variants look in the function pool for plain BLOCK_RC to
     // learn the block width, then decide on the transpose type once
     // that's known.
@@ -79,7 +76,8 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
         // if a kernel is already precompiled, just use that.  but
         // changing largeTwdBatch transform count requires RTC, so we
         // can't use a precompiled kernel in that case.
-        if(kernel->device_function && !enable_scaling && !node.largeTwdBatchIsTransformCount)
+        if(kernel->device_function && !node.loadOps.enabled() && !node.storeOps.enabled()
+           && !node.largeTwdBatchIsTransformCount)
         {
             is_pre_compiled = true;
         }
@@ -102,7 +100,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
     {
         kernel = pool.get_kernel(key);
         // already precompiled?
-        if(kernel->device_function && !enable_scaling)
+        if(kernel->device_function && !node.loadOps.enabled() && !node.storeOps.enabled())
         {
             is_pre_compiled = true;
         }
@@ -184,8 +182,9 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                                         node.intrinsicMode,
                                         node.sbrcTranstype,
                                         enable_callbacks,
-                                        node.IsScalingEnabled(),
-                                        node.fuseBlue);
+                                        node.fuseBlue,
+                                        node.loadOps,
+                                        node.storeOps);
     };
 
     // if is pre-compiled, we assign the name-function only
@@ -212,8 +211,9 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                             node.intrinsicMode,
                             node.sbrcTranstype,
                             enable_callbacks,
-                            node.IsScalingEnabled(),
-                            node.fuseBlue);
+                            node.fuseBlue,
+                            node.loadOps,
+                            node.storeOps);
     };
 
     generator.construct_rtckernel
@@ -263,24 +263,7 @@ RTCKernelArgs RTCKernelStockham::get_launch_args(DeviceCallIn& data)
             kargs.append_ptr(data.bufOut[1]);
     }
 
-    // scale factor, if necessary
-    if(data.node->IsScalingEnabled())
-    {
-        // scale factor is always double on the node, but needs to be
-        // the right type for the kernel
-        switch(data.node->precision)
-        {
-        case rocfft_precision_double:
-            kargs.append_double(data.node->scale_factor);
-            break;
-        case rocfft_precision_single:
-            kargs.append_float(data.node->scale_factor);
-            break;
-        case rocfft_precision_half:
-            kargs.append_half(data.node->scale_factor);
-            break;
-        }
-    }
+    append_load_store_args(kargs, *data.node);
 
     // fused bluestein data (chirp table and lengths)
     switch(data.node->fuseBlue)
@@ -357,6 +340,5 @@ RTCKernelArgs RTCKernelStockham::get_launch_args(DeviceCallIn& data)
             }
         }
     }
-
     return kargs;
 }

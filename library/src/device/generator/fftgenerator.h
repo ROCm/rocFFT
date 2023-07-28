@@ -959,8 +959,6 @@ struct FFTBluesteinResMul : public FFTGPUWork
     unsigned int lengthBlue;
     FFTBuffer    dst, src, chirp;
     Variable     elem;
-    bool         enable_scaling;
-    Variable&    scale_factor;
 
     FFTBluesteinResMul() = delete;
     FFTBluesteinResMul(unsigned int            length,
@@ -969,8 +967,6 @@ struct FFTBluesteinResMul : public FFTGPUWork
                        FFTBuffer const&        src,
                        FFTBuffer const&        chirp,
                        Variable&               elem,
-                       bool                    enable_scaling,
-                       Variable&               scale_factor,
                        FFTGPUWorkParams const& params)
         : FFTGPUWork(params)
         , length(length)
@@ -979,8 +975,6 @@ struct FFTBluesteinResMul : public FFTGPUWork
         , src(src)
         , chirp(chirp)
         , elem(elem)
-        , enable_scaling(enable_scaling)
-        , scale_factor(scale_factor)
     {
     }
 
@@ -1005,8 +999,6 @@ struct FFTBluesteinResMul : public FFTGPUWork
                 elem.x(), MI * (src[idx].x() * chirp[idx].x() + src[idx].y() * chirp[idx].y())};
             write_cond.body += Assign{
                 elem.y(), MI * (-src[idx].x() * chirp[idx].y() + src[idx].y() * chirp[idx].x())};
-            if(enable_scaling)
-                write_cond.body += MultiplyAssign(elem, scale_factor);
             write_cond.body += dst.store_global(idx, elem);
             stmts += write_cond;
         }
@@ -1539,7 +1531,6 @@ struct BluesteinTransform
     unsigned int threads_per_block;
     unsigned int threads_per_transform;
 
-    bool                     enable_scaling;
     std::shared_ptr<Context> context;
 
     // FFT registers
@@ -1568,15 +1559,12 @@ struct BluesteinTransform
     Variable twiddles{"twiddles", "const scalar_type", true, true};
     Variable lds_padding{"lds_padding", "unsigned int"};
 
-    Variable scale_factor{"scale_factor", "real_type_t<scalar_type>"};
-
     BluesteinTransform(unsigned int              length,
                        unsigned int              lengthBlue,
                        int                       direction,
                        std::vector<unsigned int> factors,
                        unsigned int              threads_per_block,
                        unsigned int              threads_per_transform,
-                       bool                      enable_scaling,
                        std::shared_ptr<Context>  context)
         : length(length)
         , lengthBlue(lengthBlue)
@@ -1584,7 +1572,6 @@ struct BluesteinTransform
         , factors(factors)
         , threads_per_block(threads_per_block)
         , threads_per_transform(threads_per_transform)
-        , enable_scaling(enable_scaling)
         , context(context)
     {
         context->add_argument(buf_temp);
@@ -1594,7 +1581,6 @@ struct BluesteinTransform
         context->add_argument(nbatch);
         context->add_argument(lds_padding);
         context->add_argument(X.variable());
-        context->add_argument(scale_factor);
         R.size = compute_nregisters(lengthBlue, factors, threads_per_transform);
 
         context->add_local(thread);
@@ -1653,8 +1639,7 @@ struct BluesteinTransform
 
         bluestein += FFTSyncThreads{work_full};
         // multiply a * A -> X
-        bluestein += FFTBluesteinResMul(
-            length, lengthBlue, X, A, a, val, enable_scaling, scale_factor, work_full);
+        bluestein += FFTBluesteinResMul(length, lengthBlue, X, A, a, val, work_full);
 
         return make_table_twiddle(bluestein, stockham.twiddles);
     }

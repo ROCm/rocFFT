@@ -54,10 +54,9 @@ std::string realcomplex_rtc_kernel_name(const RealComplexSpecs& specs)
     kernel_name += rtc_array_type_name(specs.inArrayType);
     kernel_name += rtc_array_type_name(specs.outArrayType);
 
+    kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
     if(specs.enable_callbacks)
         kernel_name += "_CB";
-    if(specs.enable_scaling)
-        kernel_name += "_scale";
 
     return kernel_name;
 }
@@ -97,7 +96,6 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
     Variable stride_out3{"stride_out3", "unsigned int"};
     Variable input{"input", input_type, true, true};
     Variable output{"output", output_type, true, true};
-    Variable scale_factor_var{"scale_factor", "const real_type_t<scalar_type>"};
 
     Function func(kernel_name);
     func.launch_bounds = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
@@ -121,8 +119,6 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
     func.arguments.append(output);
     for(const auto& arg : get_callback_args().arguments)
         func.arguments.append(arg);
-    if(specs.scheme == CS_KERNEL_COPY_CMPLX_TO_HERM || specs.scheme == CS_KERNEL_COPY_CMPLX_TO_R)
-        func.arguments.append(scale_factor_var);
 
     Variable dim_var{"dim", "const unsigned int"};
 
@@ -265,8 +261,6 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
 
             Variable elem{"elem", "scalar_type"};
             guard.body += Declaration{elem, input[inputIdx]};
-            if(specs.enable_scaling)
-                guard.body += MultiplyAssign(elem, scale_factor_var);
             guard.body += StoreGlobal{output, outputIdx, elem};
             func.body += guard;
         }
@@ -282,12 +276,12 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
 
             Variable elem{"elem", "auto"};
             guard.body += Declaration{elem, input[inputIdx].x()};
-            if(specs.enable_scaling)
-                guard.body += MultiplyAssign(elem, scale_factor_var);
             guard.body += StoreGlobal{output, outputIdx, elem};
             func.body += guard;
         }
     }
+
+    make_load_store_ops(func, specs.loadOps, specs.storeOps);
 
     if(array_type_is_planar(specs.inArrayType))
         func = make_planar(func, "input");
@@ -341,10 +335,9 @@ std::string realcomplex_even_rtc_kernel_name(const RealComplexEvenSpecs& specs)
     kernel_name += rtc_array_type_name(specs.inArrayType);
     kernel_name += rtc_array_type_name(specs.outArrayType);
 
+    kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
     if(specs.enable_callbacks)
         kernel_name += "_CB";
-    if(specs.enable_scaling)
-        kernel_name += "_scale";
 
     return kernel_name;
 }
@@ -381,7 +374,6 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
     Variable output{"output", "scalar_type", true, true};
     Variable odist{"odist", "const unsigned int"};
     Variable twiddles{"twiddles", "const scalar_type", true, true};
-    Variable scale_factor{"scale_factor", "const real_type_t<scalar_type>"};
 
     Function func{kernel_name};
     func.launch_bounds = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
@@ -399,8 +391,6 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
     func.arguments.append(twiddles);
     for(const auto& arg : get_callback_args().arguments)
         func.arguments.append(arg);
-    if(specs.enable_scaling)
-        func.arguments.append(scale_factor);
 
     func.body += CommentLines{"blockIdx.y gives the multi-dimensional offset",
                               "blockIdx.z gives the batch offset"};
@@ -461,15 +451,11 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
         if_idx_p_zero.body
             += Assign{outval.x(), input[input_offset + 0].x() - input[input_offset + 0].y()};
         if_idx_p_zero.body += Assign{outval.y(), 0};
-        if(specs.enable_scaling)
-            if_idx_p_zero.body += MultiplyAssign(outval, scale_factor);
         if_idx_p_zero.body += StoreGlobal{output, output_offset + half_N, outval};
 
         if_idx_p_zero.body
             += Assign{outval.x(), input[input_offset + 0].x() + input[input_offset + 0].y()};
         if_idx_p_zero.body += Assign{outval.y(), 0};
-        if(specs.enable_scaling)
-            if_idx_p_zero.body += MultiplyAssign(outval, scale_factor);
         if_idx_p_zero.body += StoreGlobal{output, output_offset + 0, outval};
     }
     else
@@ -487,8 +473,6 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
     {
         if_Ndiv4.body += Assign{outval.x(), input[input_offset + quarter_N].x()};
         if_Ndiv4.body += Assign{outval.y(), -input[input_offset + quarter_N].y()};
-        if(specs.enable_scaling)
-            if_Ndiv4.body += MultiplyAssign(outval, scale_factor);
         if_Ndiv4.body += StoreGlobal{output, output_offset + quarter_N, outval};
     }
     else
@@ -522,16 +506,12 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
             += Assign{outval.x(), u.x() + v.x() * twd_p.y() + u.y() * twd_p.x()};
         else_idx_p_nonzero.body
             += Assign{outval.y(), v.y() + u.y() * twd_p.y() - v.x() * twd_p.x()};
-        if(specs.enable_scaling)
-            else_idx_p_nonzero.body += MultiplyAssign(outval, scale_factor);
         else_idx_p_nonzero.body += StoreGlobal{output, output_offset + idx_p, outval};
 
         else_idx_p_nonzero.body
             += Assign{outval.x(), u.x() - v.x() * twd_p.y() - u.y() * twd_p.x()};
         else_idx_p_nonzero.body
             += Assign{outval.y(), -v.y() + u.y() * twd_p.y() - v.x() * twd_p.x()};
-        if(specs.enable_scaling)
-            else_idx_p_nonzero.body += MultiplyAssign(outval, scale_factor);
         else_idx_p_nonzero.body += StoreGlobal{output, output_offset + idx_q, outval};
     }
     else
@@ -560,6 +540,8 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
     guard.body += else_idx_p_nonzero;
 
     func.body += guard;
+
+    make_load_store_ops(func, specs.loadOps, specs.storeOps);
 
     if(array_type_is_planar(specs.inArrayType))
         func = make_planar(func, "input");
@@ -593,10 +575,9 @@ std::string realcomplex_even_transpose_rtc_kernel_name(const RealComplexEvenTran
     kernel_name += rtc_array_type_name(specs.inArrayType);
     kernel_name += rtc_array_type_name(specs.outArrayType);
 
+    kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
     if(specs.enable_callbacks)
         kernel_name += "_CB";
-    if(specs.enable_scaling)
-        kernel_name += "_scale";
 
     return kernel_name;
 }
@@ -983,6 +964,8 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
                            val};
         func.body += butterfly;
     }
+
+    make_load_store_ops(func, specs.loadOps, specs.storeOps);
 
     if(array_type_is_planar(specs.inArrayType))
         func = make_planar(func, "input");

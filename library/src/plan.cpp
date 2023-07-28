@@ -64,7 +64,7 @@ rocfft_status rocfft_plan_description_set_scale_factor(rocfft_plan_description d
     log_trace(__func__, "description", description, "scale", scale_factor);
     if(!std::isfinite(scale_factor))
         return rocfft_status_invalid_arg_value;
-    description->scale_factor = scale_factor;
+    description->storeOps.scale_factor = scale_factor;
     return rocfft_status_success;
 }
 
@@ -668,8 +668,11 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
         execPlan.rootPlan->inStrideUnit  = BufferIsUnitStride(execPlan, OB_USER_IN);
         execPlan.rootPlan->outStrideUnit = BufferIsUnitStride(execPlan, OB_USER_OUT);
 
-        // set scaling on the root plan
-        execPlan.rootPlan->scale_factor = p->desc.scale_factor;
+        // set load/store ops on the root plan
+        if(p->desc.loadOps.enabled())
+            execPlan.rootPlan->loadOps = p->desc.loadOps;
+        if(p->desc.storeOps.enabled())
+            execPlan.rootPlan->storeOps = p->desc.storeOps;
 
         // check if we are doing tuning init now. If yes, we just return
         // since we are not going to do the execution
@@ -915,8 +918,8 @@ rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
     rocfft_cout << "output distance: " << plan->desc.outDist << std::endl;
     rocfft_cout << std::endl;
 
-    if(plan->desc.scale_factor != 1.0)
-        rocfft_cout << "scale factor: " << plan->desc.scale_factor << std::endl;
+    plan->desc.loadOps.print(rocfft_cout, {});
+    plan->desc.storeOps.print(rocfft_cout, {});
     rocfft_cout << std::endl;
 
     return rocfft_status_success;
@@ -1523,8 +1526,8 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
 
     os << indentStr << "Direct_to_from_Reg: " << PrintDirectToFromRegMode(dir2regMode);
     os << "\n";
-    if(IsScalingEnabled())
-        os << indentStr << "scale factor: " << scale_factor << "\n";
+    loadOps.print(os, indentStr);
+    storeOps.print(os, indentStr);
 
     os << indentStr << PrintOperatingBuffer(obIn) << " -> " << PrintOperatingBuffer(obOut) << "\n";
     os << indentStr << PrintOperatingBufferCode(obIn) << " -> " << PrintOperatingBufferCode(obOut)
@@ -2051,16 +2054,29 @@ void ProcessNode(ExecPlan& execPlan)
     size_t chirpSize        = 0;
     execPlan.rootPlan->DetermineBufferMemory(tmpBufSize, cmplxForRealSize, blueSize, chirpSize);
 
-    // Set scale factor on final leaf node prior to RTC, since we
-    // force RTC on Stockham kernels that need scaling
-    //
-    // But scaling happens before callback (if you want both), so we
-    // need to get the last one that's not APPLY_CALLBACK
-    auto scale_node
-        = std::find_if(execPlan.execSeq.rbegin(), execPlan.execSeq.rend(), [](TreeNode* node) {
-              return node->scheme != CS_KERNEL_APPLY_CALLBACK;
-          });
-    (*scale_node)->scale_factor = execPlan.rootPlan->scale_factor;
+    if(execPlan.rootPlan->loadOps.enabled())
+    {
+        // Load ops happen on first node of the plan, (after callbacks
+        // if you want both), so we need to get the first one that's not
+        // APPLY_CALLBACK
+        auto load_node
+            = std::find_if(execPlan.execSeq.begin(), execPlan.execSeq.end(), [](TreeNode* node) {
+                  return node->scheme != CS_KERNEL_APPLY_CALLBACK;
+              });
+        (*load_node)->loadOps = execPlan.rootPlan->loadOps;
+    }
+
+    if(execPlan.rootPlan->storeOps.enabled())
+    {
+        // Store ops happen on last node of the plan, (before callbacks
+        // if you want both), so we need to get the last one that's not
+        // APPLY_CALLBACK
+        auto store_node
+            = std::find_if(execPlan.execSeq.rbegin(), execPlan.execSeq.rend(), [](TreeNode* node) {
+                  return node->scheme != CS_KERNEL_APPLY_CALLBACK;
+              });
+        (*store_node)->storeOps = execPlan.rootPlan->storeOps;
+    }
 
     // compile kernels for applicable nodes
     RuntimeCompilePlan(execPlan);

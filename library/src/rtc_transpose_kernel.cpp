@@ -85,7 +85,8 @@ RTCKernel::RTCGenerator RTCKernelTranspose::generate_from_node(const TreeNode&  
                          diagonal,
                          tileAligned,
                          enable_callbacks,
-                         node.IsScalingEnabled()};
+                         node.loadOps,
+                         node.storeOps};
 
     generator.generate_name = [=]() { return transpose_rtc_kernel_name(specs); };
 
@@ -139,9 +140,6 @@ RTCKernelArgs RTCKernelTranspose::get_launch_args(DeviceCallIn& data)
     kargs.append_ptr(data.callbacks.store_cb_fn);
     kargs.append_ptr(data.callbacks.store_cb_data);
 
-    if(data.node->precision == rocfft_precision_single)
-        kargs.append_float(data.node->scale_factor);
-    else
-        kargs.append_double(data.node->scale_factor);
+    append_load_store_args(kargs, *data.node);
     return kargs;
 }

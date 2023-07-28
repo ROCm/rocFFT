@@ -58,8 +58,9 @@ std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
                                      IntrinsicAccessType           intrinsicMode,
                                      SBRC_TRANSPOSE_TYPE           transpose_type,
                                      bool                          enable_callbacks,
-                                     bool                          enable_scaling,
-                                     BluesteinFuseType             fuseBlue)
+                                     BluesteinFuseType             fuseBlue,
+                                     const LoadOps&                loadOps,
+                                     const StoreOps&               storeOps)
 {
     std::string kernel_name = "fft_rtc";
 
@@ -230,10 +231,9 @@ std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
         break;
     }
 
+    kernel_name += load_store_name_suffix(loadOps, storeOps);
     if(enable_callbacks)
         kernel_name += "_CB";
-    if(enable_scaling)
-        kernel_name += "_scale";
     return kernel_name;
 }
 
@@ -256,8 +256,9 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          IntrinsicAccessType           intrinsicMode,
                          SBRC_TRANSPOSE_TYPE           transpose_type,
                          bool                          enable_callbacks,
-                         bool                          enable_scaling,
-                         const BluesteinFuseType&      fuseBlue)
+                         const BluesteinFuseType&      fuseBlue,
+                         const LoadOps&                loadOps,
+                         const StoreOps&               storeOps)
 {
     std::unique_ptr<Function> lds2reg, reg2lds, device;
     std::unique_ptr<Function> lds2reg1, reg2lds1, device1;
@@ -351,6 +352,9 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
             *device1 = make_inverse(*device1);
         *global = make_inverse(*global);
     }
+
+    make_load_store_ops(*global, loadOps, storeOps);
+
     if(placement == rocfft_placement_notinplace)
     {
         *global = make_outofplace(*global);
@@ -364,9 +368,6 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
         if(array_type_is_planar(inArrayType))
             *global = make_planar(*global, "buf");
     }
-
-    if(enable_scaling)
-        *global = make_scalefactor(*global);
 
     if(fuseBluestein)
         *global = make_bluestein(scheme, fuseBlue, *global);

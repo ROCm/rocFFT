@@ -68,10 +68,9 @@ std::string transpose_rtc_kernel_name(const TransposeSpecs& specs)
         kernel_name += "_diag";
     if(specs.tileAligned)
         kernel_name += "_aligned";
+    kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
     if(specs.enable_callbacks)
         kernel_name += "_CB";
-    if(specs.enable_scaling)
-        kernel_name += "_scale";
     return kernel_name;
 }
 
@@ -111,7 +110,6 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     Variable stride_out2_var{"stride_out2", "unsigned int"};
     Variable stride_out_var{"stride_out", "const size_t", true, true};
     Variable odist_var{"odist", "unsigned int"};
-    Variable scale_factor_var{"scale_factor", "const real_type_t<scalar_type>"};
 
     Function func(kernel_name);
     func.launch_bounds = specs.tileX * specs.tileY;
@@ -137,7 +135,6 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     func.arguments.append(odist_var);
     for(const auto& arg : get_callback_args().arguments)
         func.arguments.append(arg);
-    func.arguments.append(scale_factor_var);
 
     // we use tileX*tileX tiles - tileY must evenly divide into
     // tileX, so that elems_per_thread is integral
@@ -308,12 +305,11 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     write_loop.body += Declaration{global_write_idx,
                                    idx0 * stride_out0_var + idx1 * stride_out1_var
                                        + idx2 * stride_out2_var + offset_out};
-    if(specs.enable_scaling)
-        write_loop.body += MultiplyAssign(val[i], scale_factor_var);
-
     write_loop.body += StoreGlobal{output_var, global_write_idx, val[i]};
 
     func.body += write_loop;
+
+    make_load_store_ops(func, specs.loadOps, specs.storeOps);
 
     if(array_type_is_planar(specs.inArrayType))
         func = make_planar(func, "input");

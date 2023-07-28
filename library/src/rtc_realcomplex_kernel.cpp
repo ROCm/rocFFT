@@ -57,7 +57,8 @@ RTCKernel::RTCGenerator RTCKernelRealComplex::generate_from_node(const TreeNode&
                            node.inArrayType,
                            node.outArrayType,
                            enable_callbacks,
-                           node.IsScalingEnabled()};
+                           node.loadOps,
+                           node.storeOps};
 
     generator.generate_name = [=]() { return realcomplex_rtc_kernel_name(specs); };
 
@@ -121,22 +122,7 @@ RTCKernelArgs RTCKernelRealComplex::get_launch_args(DeviceCallIn& data)
     kargs.append_unsigned_int(data.callbacks.load_cb_lds_bytes);
     kargs.append_ptr(data.callbacks.store_cb_fn);
     kargs.append_ptr(data.callbacks.store_cb_data);
-    if(data.node->scheme == CS_KERNEL_COPY_CMPLX_TO_HERM
-       || data.node->scheme == CS_KERNEL_COPY_CMPLX_TO_R)
-    {
-        switch(data.node->precision)
-        {
-        case rocfft_precision_half:
-            kargs.append_half(data.node->scale_factor);
-            break;
-        case rocfft_precision_single:
-            kargs.append_float(data.node->scale_factor);
-            break;
-        case rocfft_precision_double:
-            kargs.append_double(data.node->scale_factor);
-            break;
-        }
-    }
+    append_load_store_args(kargs, *data.node);
 
     return kargs;
 }
@@ -184,7 +170,8 @@ RTCKernel::RTCGenerator RTCKernelRealComplexEven::generate_from_node(const TreeN
                                 node.inArrayType,
                                 node.outArrayType,
                                 enable_callbacks,
-                                node.IsScalingEnabled()},
+                                node.loadOps,
+                                node.storeOps},
                                Ndiv4};
 
     generator.generate_name = [=]() { return realcomplex_even_rtc_kernel_name(specs); };
@@ -227,21 +214,7 @@ RTCKernelArgs RTCKernelRealComplexEven::get_launch_args(DeviceCallIn& data)
     kargs.append_unsigned_int(data.callbacks.load_cb_lds_bytes);
     kargs.append_ptr(data.callbacks.store_cb_fn);
     kargs.append_ptr(data.callbacks.store_cb_data);
-    if(data.node->IsScalingEnabled())
-    {
-        switch(data.node->precision)
-        {
-        case rocfft_precision_half:
-            kargs.append_half(data.node->scale_factor);
-            break;
-        case rocfft_precision_single:
-            kargs.append_float(data.node->scale_factor);
-            break;
-        case rocfft_precision_double:
-            kargs.append_double(data.node->scale_factor);
-            break;
-        }
-    }
+    append_load_store_args(kargs, *data.node);
 
     return kargs;
 }
@@ -306,7 +279,8 @@ RTCKernel::RTCGenerator RTCKernelRealComplexEvenTranspose::generate_from_node(
                                          node.inArrayType,
                                          node.outArrayType,
                                          enable_callbacks,
-                                         node.IsScalingEnabled()}};
+                                         node.loadOps,
+                                         node.storeOps}};
 
     generator.generate_name = [=]() { return realcomplex_even_transpose_rtc_kernel_name(specs); };
 
@@ -347,6 +321,8 @@ RTCKernelArgs RTCKernelRealComplexEvenTranspose::get_launch_args(DeviceCallIn& d
     kargs.append_unsigned_int(data.callbacks.load_cb_lds_bytes);
     kargs.append_ptr(data.callbacks.store_cb_fn);
     kargs.append_ptr(data.callbacks.store_cb_data);
+
+    append_load_store_args(kargs, *data.node);
 
     return kargs;
 }

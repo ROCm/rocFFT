@@ -285,6 +285,7 @@ add_library( rocfft-rtc-gen OBJECT
   rtc_twiddle_gen.cpp
   rtc_chirp_gen.cpp
   rtc_test_harness.cpp
+  load_store_ops_gen.cpp
 )
 # caching of generation/compilation
 add_library( rocfft-rtc-cache OBJECT
@@ -300,6 +301,7 @@ add_library( rocfft-rtc-launch OBJECT
   rtc_transpose_kernel.cpp
   rtc_twiddle_kernel.cpp
   rtc_chirp_kernel.cpp
+  load_store_ops_kernel.cpp
 )
 target_link_libraries( rocfft-rtc-launch PRIVATE rocfft-rtc-cache )
 

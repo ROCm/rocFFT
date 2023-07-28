@@ -37,6 +37,7 @@
 #include "enum_printer.h"
 #include "function_map_key.h"
 #include "kargs.h"
+#include "load_store_ops.h"
 #include "rtc_kernel.h"
 #include <hip/hip_runtime_api.h>
 
@@ -429,13 +430,8 @@ public:
     size_t                      allowedOutBuf;
     std::set<rocfft_array_type> allowedOutArrayTypes;
 
-    // scale factor for output of this node - each output element is
-    // multiplied by this factor if it's a finite number
-    double scale_factor = 1.0;
-    bool   IsScalingEnabled() const
-    {
-        return scale_factor != 1.0;
-    }
+    LoadOps  loadOps;
+    StoreOps storeOps;
 
 public:
     // Disallow copy constructor:

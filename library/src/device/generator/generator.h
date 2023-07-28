@@ -1408,7 +1408,8 @@ struct BaseVisitor
         auto ptr   = std::visit(*this, x.ptr);
         auto index = std::visit(*this, x.index);
         auto value = std::visit(*this, x.value);
-        return StatementList{StoreGlobal(ptr, index, value)};
+        auto out   = StoreGlobal(ptr, index, value);
+        return StatementList{out};
     }
 
     virtual StatementList visit_IntrinsicStore(const IntrinsicStore& x)
@@ -1418,7 +1419,8 @@ struct BaseVisitor
         auto soffset = std::visit(*this, x.soffset);
         auto value   = std::visit(*this, x.value);
         auto rw_flag = std::visit(*this, x.rw_flag);
-        return StatementList{IntrinsicStore(ptr, voffset, soffset, value, rw_flag)};
+        auto out     = IntrinsicStore{ptr, voffset, soffset, value, rw_flag};
+        return StatementList{out};
     }
 
     virtual StatementList visit_IntrinsicStorePlanar(const IntrinsicStorePlanar& x)
@@ -1599,23 +1601,25 @@ struct MakeOutOfPlaceVisitor : public BaseVisitor
     StatementList visit_StoreGlobal(const StoreGlobal& x) override
     {
         StatementList stmts;
-        mode       = ExpressionVisitMode::OUTPUT;
-        auto ptr   = std::visit(*this, x.ptr);
-        auto index = std::visit(*this, x.index);
-        auto value = std::visit(*this, x.value);
-        stmts += StoreGlobal{ptr, index, value};
+        mode              = ExpressionVisitMode::OUTPUT;
+        auto        ptr   = std::visit(*this, x.ptr);
+        auto        index = std::visit(*this, x.index);
+        auto        value = std::visit(*this, x.value);
+        StoreGlobal store{ptr, index, value};
+        stmts += store;
         return stmts;
     }
     StatementList visit_IntrinsicStore(const IntrinsicStore& x) override
     {
         StatementList stmts;
-        mode         = ExpressionVisitMode::OUTPUT;
-        auto ptr     = std::visit(*this, x.ptr);
-        auto voffset = std::visit(*this, x.voffset);
-        auto soffset = std::visit(*this, x.soffset);
-        auto value   = std::visit(*this, x.value);
-        auto rw_flag = std::visit(*this, x.rw_flag);
-        stmts += IntrinsicStore{ptr, voffset, soffset, value, rw_flag};
+        mode                   = ExpressionVisitMode::OUTPUT;
+        auto           ptr     = std::visit(*this, x.ptr);
+        auto           voffset = std::visit(*this, x.voffset);
+        auto           soffset = std::visit(*this, x.soffset);
+        auto           value   = std::visit(*this, x.value);
+        auto           rw_flag = std::visit(*this, x.rw_flag);
+        IntrinsicStore store{ptr, voffset, soffset, value, rw_flag};
+        stmts += store;
         return stmts;
     }
 
@@ -1768,61 +1772,6 @@ struct MakeInverseVisitor : public BaseVisitor
 static Function make_inverse(const Function& f)
 {
     auto visitor = MakeInverseVisitor();
-    return visitor(f);
-}
-
-// Add scale factor
-struct MakeScaleFactorVisitor : public BaseVisitor
-{
-    MakeScaleFactorVisitor()
-        : scale_factor("scale_factor", "const real_type_t<scalar_type>")
-    {
-    }
-
-    Function visit_Function(const Function& x) override
-    {
-        Function y{x};
-        y.arguments.append(scale_factor);
-        return BaseVisitor::visit_Function(y);
-    }
-
-    StatementList visit_StoreGlobal(const StoreGlobal& x) override
-    {
-        StoreGlobal y{x};
-        // multiply by scale factor when storing to global
-        y.value = y.value * scale_factor;
-        return StatementList{y};
-    }
-
-    StatementList visit_StoreGlobalPlanar(const StoreGlobalPlanar& x) override
-    {
-        StoreGlobalPlanar y{x};
-        // multiply by scale factor when storing to global
-        y.value = y.value * scale_factor;
-        return StatementList{y};
-    }
-
-    StatementList visit_IntrinsicStore(const IntrinsicStore& x) override
-    {
-        IntrinsicStore y{x};
-        // multiply by scale factor when storing to global
-        y.value = y.value * scale_factor;
-        return StatementList{y};
-    }
-
-    StatementList visit_IntrinsicStorePlanar(const IntrinsicStorePlanar& x) override
-    {
-        IntrinsicStorePlanar y{x};
-        // multiply by scale factor when storing to global
-        y.value = y.value * scale_factor;
-        return StatementList{y};
-    }
-    Variable scale_factor;
-};
-
-static Function make_scalefactor(const Function& f)
-{
-    auto visitor = MakeScaleFactorVisitor();
     return visitor(f);
 }
 

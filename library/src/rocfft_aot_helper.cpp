@@ -224,10 +224,7 @@ void build_stockham_function_pool(CompileQueue& queue)
     // build everything in the function pool
     function_pool& fp = function_pool::get_function_pool();
 
-    // scaling Stockham kernels are always built at runtime
-    const bool enable_scaling = false;
-
-    // fused Bluestein kernels are also always built at runtime
+    // fused Bluestein kernels are always built at runtime
     auto fuseBlue = BluesteinFuseType::BFT_NONE;
 
     for(const auto& i : fp.get_map())
@@ -303,8 +300,9 @@ void build_stockham_function_pool(CompileQueue& queue)
                                                                        intrinsic,
                                                                        sbrc_trans_type,
                                                                        callbacks,
-                                                                       enable_scaling,
-                                                                       fuseBlue);
+                                                                       fuseBlue,
+                                                                       {},
+                                                                       {});
                            std::function<std::string(const std::string&)> generate_src
                                = [=](const std::string& kernel_name) -> std::string {
                                StockhamGeneratorSpecs specs{
@@ -335,8 +333,9 @@ void build_stockham_function_pool(CompileQueue& queue)
                                                    intrinsic,
                                                    sbrc_trans_type,
                                                    callbacks,
-                                                   enable_scaling,
-                                                   fuseBlue);
+                                                   fuseBlue,
+                                                   {},
+                                                   {});
                            };
                            queue.push({kernel_name, generate_src, ""});
                        });
@@ -375,7 +374,8 @@ void build_realcomplex(CompileQueue& queue)
                                                         inArrayType,
                                                         outArrayType,
                                                         enable_callbacks,
-                                                        false},
+                                                        {},
+                                                        {}},
                                                        Ndiv4};
                             auto kernel_name = realcomplex_even_rtc_kernel_name(specs);
                             std::function<std::string(const std::string&)> generate_src
@@ -403,7 +403,8 @@ void build_realcomplex(CompileQueue& queue)
                                                      inArrayType,
                                                      outArrayType,
                                                      false,
-                                                     false}};
+                                                     {},
+                                                     {}}};
                 auto kernel_name = realcomplex_even_transpose_rtc_kernel_name(specs);
                 std::function<std::string(const std::string&)> generate_src
                     = [=](const std::string& kernel_name) -> std::string {
@@ -637,10 +638,7 @@ void build_solution_kernels(CompileQueue& queue)
     std::vector<SolutionNode> kernel_nodes;
     solmap.get_all_kernels(kernel_nodes, true);
 
-    // scaling Stockham kernels are always built at runtime
-    const bool enable_scaling = false;
-
-    // fused Bluestein kernels are also always built at runtime
+    // fused Bluestein kernels are always built at runtime
     auto fuseBlue = BluesteinFuseType::BFT_NONE;
 
     for(const SolutionNode& kernel_sol : kernel_nodes)
@@ -715,8 +713,9 @@ void build_solution_kernels(CompileQueue& queue)
                                                             intrinsic,
                                                             sbrc_trans_type,
                                                             callbacks,
-                                                            enable_scaling,
-                                                            fuseBlue);
+                                                            fuseBlue,
+                                                            {},
+                                                            {});
 
                 std::function<std::string(const std::string&)> generate_src
                     = [=](const std::string& kernel_name) -> std::string {
@@ -739,8 +738,9 @@ void build_solution_kernels(CompileQueue& queue)
                                         intrinsic,
                                         sbrc_trans_type,
                                         callbacks,
-                                        enable_scaling,
-                                        fuseBlue);
+                                        fuseBlue,
+                                        {},
+                                        {});
                 };
                 queue.push({kernel_name, generate_src, arch_name});
             });

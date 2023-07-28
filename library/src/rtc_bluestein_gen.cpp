@@ -56,10 +56,9 @@ std::string bluestein_single_rtc_kernel_name(const BluesteinSingleSpecs& specs)
         kernel_name += rtc_array_type_name(specs.outArrayType);
     }
 
+    kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
     if(specs.enable_callbacks)
         kernel_name += "_CB";
-    if(specs.enable_scaling)
-        kernel_name += "_scale";
     return kernel_name;
 }
 
@@ -95,7 +94,6 @@ std::string bluestein_single_rtc(const std::string& kernel_name, const Bluestein
                                         specs.factors,
                                         specs.threads_per_block,
                                         specs.threads_per_transform,
-                                        specs.enable_scaling,
                                         ctx};
     auto operations = bluestein.generate();
 
@@ -113,6 +111,8 @@ std::string bluestein_single_rtc(const std::string& kernel_name, const Bluestein
     func.body += Assign{bluestein.A, lds};
 
     func.body += operations.lower();
+
+    make_load_store_ops(func, specs.loadOps, specs.storeOps);
 
     if(specs.placement == rocfft_placement_notinplace)
     {
@@ -159,10 +159,9 @@ std::string bluestein_multi_rtc_kernel_name(const BluesteinMultiSpecs& specs)
     kernel_name += rtc_precision_name(specs.precision);
     kernel_name += rtc_array_type_name(specs.inArrayType);
     kernel_name += rtc_array_type_name(specs.outArrayType);
+    kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
     if(specs.enable_callbacks)
         kernel_name += "_CB";
-    if(specs.enable_scaling)
-        kernel_name += "_scale";
 
     return kernel_name;
 }
@@ -375,14 +374,14 @@ std::string bluestein_multi_rtc(const std::string& kernel_name, const BluesteinM
         func.body
             += Assign{out_elem.y(),
                       MI * (-input[iIdx].x() * chirp[tx].y() + input[iIdx].y() * chirp[tx].x())};
-        if(specs.enable_scaling)
-            func.body += MultiplyAssign(out_elem, scale_factor);
         func.body += StoreGlobal{output, oIdx, out_elem};
         break;
     }
     default:
         throw std::runtime_error("invalid bluestein rtc scheme");
     }
+
+    make_load_store_ops(func, specs.loadOps, specs.storeOps);
 
     if(array_type_is_planar(specs.inArrayType))
         func = make_planar(func, "input");

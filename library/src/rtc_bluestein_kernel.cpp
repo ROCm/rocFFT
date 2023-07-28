@@ -66,7 +66,8 @@ RTCKernel::RTCGenerator RTCKernelBluesteinSingle::generate_from_node(const TreeN
                                node.inArrayType,
                                node.outArrayType,
                                enable_callbacks,
-                               node.IsScalingEnabled()};
+                               node.loadOps,
+                               node.storeOps};
 
     generator.generate_name = [=]() { return bluestein_single_rtc_kernel_name(specs); };
 
@@ -107,18 +108,6 @@ RTCKernelArgs RTCKernelBluesteinSingle::get_launch_args(DeviceCallIn& data)
         if(array_type_is_planar(data.node->outArrayType))
             kargs.append_ptr(data.bufOut[1]);
     }
-    switch(data.node->precision)
-    {
-    case rocfft_precision_half:
-        kargs.append_half(data.node->scale_factor);
-        break;
-    case rocfft_precision_single:
-        kargs.append_float(data.node->scale_factor);
-        break;
-    case rocfft_precision_double:
-        kargs.append_double(data.node->scale_factor);
-        break;
-    }
 
     // callback params
     kargs.append_ptr(data.callbacks.load_cb_fn);
@@ -126,6 +115,8 @@ RTCKernelArgs RTCKernelBluesteinSingle::get_launch_args(DeviceCallIn& data)
     kargs.append_unsigned_int(data.callbacks.load_cb_lds_bytes);
     kargs.append_ptr(data.callbacks.store_cb_fn);
     kargs.append_ptr(data.callbacks.store_cb_data);
+
+    append_load_store_args(kargs, *data.node);
     return kargs;
 }
 
@@ -182,7 +173,8 @@ RTCKernel::RTCGenerator RTCKernelBluesteinMulti::generate_from_node(const TreeNo
                               node.inArrayType,
                               node.outArrayType,
                               enable_callbacks,
-                              node.IsScalingEnabled()};
+                              node.loadOps,
+                              node.storeOps};
 
     generator.generate_name = [=]() { return bluestein_multi_rtc_kernel_name(specs); };
 
@@ -267,18 +259,7 @@ RTCKernelArgs RTCKernelBluesteinMulti::get_launch_args(DeviceCallIn& data)
         kargs.append_ptr(data.callbacks.store_cb_fn);
         kargs.append_ptr(data.callbacks.store_cb_data);
 
-        switch(data.node->precision)
-        {
-        case rocfft_precision_half:
-            kargs.append_half(data.node->scale_factor);
-            break;
-        case rocfft_precision_single:
-            kargs.append_float(data.node->scale_factor);
-            break;
-        case rocfft_precision_double:
-            kargs.append_double(data.node->scale_factor);
-            break;
-        }
+        append_load_store_args(kargs, *data.node);
     }
     return kargs;
 }

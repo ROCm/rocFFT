@@ -22,6 +22,7 @@
 #define RTC_REAL2COMPLEX_EMBED_GEN
 
 #include "compute_scheme.h"
+#include "load_store_ops.h"
 #include "rocfft.h"
 #include "rtc_kernel.h"
 
@@ -37,7 +38,8 @@ struct RealComplexSpecs
     rocfft_array_type inArrayType;
     rocfft_array_type outArrayType;
     bool              enable_callbacks;
-    bool              enable_scaling;
+    LoadOps           loadOps;
+    StoreOps          storeOps;
 };
 
 struct RealComplexEvenSpecs : public RealComplexSpecs

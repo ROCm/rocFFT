@@ -22,6 +22,7 @@
 #define RTC_BLUESTEIN_GEN
 
 #include "compute_scheme.h"
+#include "load_store_ops.h"
 #include "rocfft.h"
 #include <vector>
 
@@ -39,7 +40,8 @@ struct BluesteinSingleSpecs
     rocfft_array_type         inArrayType;
     rocfft_array_type         outArrayType;
     bool                      enable_callbacks;
-    bool                      enable_scaling;
+    LoadOps                   loadOps;
+    StoreOps                  storeOps;
 };
 std::string bluestein_single_rtc_kernel_name(const BluesteinSingleSpecs& specs);
 std::string bluestein_single_rtc(const std::string& kernel_name, const BluesteinSingleSpecs& specs);
@@ -54,7 +56,8 @@ struct BluesteinMultiSpecs
     rocfft_array_type inArrayType;
     rocfft_array_type outArrayType;
     bool              enable_callbacks;
-    bool              enable_scaling;
+    LoadOps           loadOps;
+    StoreOps          storeOps;
 };
 
 std::string bluestein_multi_rtc_kernel_name(const BluesteinMultiSpecs& specs);

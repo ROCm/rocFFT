@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "function_pool.h"
+#include "load_store_ops.h"
 #include "tree_node.h"
 
 // Calculate the maximum pow number with the given base number
@@ -62,7 +63,8 @@ struct rocfft_plan_description_t
     std::array<size_t, 2> inOffset  = {0, 0};
     std::array<size_t, 2> outOffset = {0, 0};
 
-    double scale_factor = 1.0;
+    LoadOps  loadOps;
+    StoreOps storeOps;
 
     rocfft_plan_description_t() = default;
 

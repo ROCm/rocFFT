@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,36 +18,33 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef RTC_TRANSPOSE_GEN
-#define RTC_TRANSPOSE_GEN
-
 #include "load_store_ops.h"
-#include "rocfft.h"
 #include "rtc_kernel.h"
+#include "tree_node.h"
 
-#include "../device/kernels/common.h"
+void LoadOps::append_args(RTCKernelArgs& kargs, TreeNode& node) const {}
 
-struct TransposeSpecs
+void StoreOps::append_args(RTCKernelArgs& kargs, TreeNode& node) const
 {
-    unsigned int      tileX;
-    unsigned int      tileY;
-    size_t            dim;
-    rocfft_precision  precision;
-    rocfft_array_type inArrayType;
-    rocfft_array_type outArrayType;
-    size_t            largeTwdSteps;
-    int               largeTwdDirection;
-    bool              diagonal;
-    bool              tileAligned;
-    bool              enable_callbacks;
-    LoadOps           loadOps;
-    StoreOps          storeOps;
-};
+    if(scale_factor != 1.0)
+    {
+        switch(node.precision)
+        {
+        case rocfft_precision_single:
+            kargs.append_float(scale_factor);
+            break;
+        case rocfft_precision_double:
+            kargs.append_double(scale_factor);
+            break;
+        case rocfft_precision_half:
+            kargs.append_half(scale_factor);
+            break;
+        }
+    }
+}
 
-// generate name for RTC transpose kernel
-std::string transpose_rtc_kernel_name(const TransposeSpecs& specs);
-
-// generate source for RTC transpose kernel.
-std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& specs);
-
-#endif
+void append_load_store_args(RTCKernelArgs& kargs, TreeNode& node)
+{
+    node.loadOps.append_args(kargs, node);
+    node.storeOps.append_args(kargs, node);
+}
