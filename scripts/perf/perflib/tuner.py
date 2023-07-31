@@ -26,6 +26,10 @@ import subprocess
 import time
 from perflib.utils import cjoin
 
+import asyncio
+import sys
+from asyncio.subprocess import PIPE, STDOUT
+
 
 def run(tuner,
         length,
@@ -82,23 +86,49 @@ def run(tuner,
     outFileName = ""
     msg = "[Solution]:\n"
 
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
-    for line in proc.stdout:
-        line = line.decode('utf-8').rstrip('\n')
-        print(line)
-        if line.startswith(tokenToken):
-            token = line[len(tokenToken):]
-        elif line.startswith(outFileToken):
-            outFileName = line[len(outFileToken):]
-        elif line.startswith(resultToken):
-            msg += line[len(resultToken):] + '\n'
+    async def run_command(*args, timeout=None):
 
-    try:
-        proc.wait(timeout=None if timeout == 0 else timeout)
-    except subprocess.TimeoutExpired:
-        logging.info("timeout expired. killed. Please check the process.")
-        proc.kill()
-    success = proc.returncode == 0
+        process = await asyncio.create_subprocess_exec(
+            *args, stdout=asyncio.subprocess.PIPE)
+
+        nonlocal token
+        nonlocal outFileName
+        nonlocal msg
+
+        while True:
+            try:
+                line = await asyncio.wait_for(process.stdout.readline(),
+                                              timeout)
+            except asyncio.TimeoutError:
+                logging.info(
+                    "timeout expired. killed. Please check the process.")
+                print("timeout expired. killed. Please check the process.")
+                process.kill()  # Timeout or some criterion is not satisfied
+                break
+
+            if not line:
+                break
+            else:
+                line = line.decode('utf-8').rstrip('\n')
+                print(line)
+                if line.startswith(tokenToken):
+                    token = line[len(tokenToken):]
+                elif line.startswith(outFileToken):
+                    outFileName = line[len(outFileToken):]
+                elif line.startswith(resultToken):
+                    msg += line[len(resultToken):] + '\n'
+        return await process.wait()  # Wait for the child process to exit
+
+    if sys.platform == "win32":
+        loop = asyncio.ProactorEventLoop()  # For subprocess' pipes on Windows
+        asyncio.set_event_loop(loop)
+    else:
+        loop = asyncio.new_event_loop()
+
+    returncode = loop.run_until_complete(run_command(*cmd, timeout=10))
+    success = returncode == 0
+
+    loop.close()
 
     return token, outFileName, msg, success
 
