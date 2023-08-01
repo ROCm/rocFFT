@@ -84,7 +84,7 @@ RTCKernel::RTCGenerator RTCKernelTranspose::generate_from_node(const TreeNode&  
                          node.direction,
                          diagonal,
                          tileAligned,
-                         enable_callbacks,
+                         node.GetCallbackType(enable_callbacks),
                          node.loadOps,
                          node.storeOps};
 

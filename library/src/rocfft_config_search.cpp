@@ -168,7 +168,7 @@ std::string test_kernel_src(const std::string&               kernel_name,
                                            : DirectRegType::FORCE_OFF_OR_NOT_SUPPORT,
                         IntrinsicAccessType::DISABLE_BOTH,
                         SBRC_TRANSPOSE_TYPE::NONE,
-                        false,
+                        CallbackType::NONE,
                         BluesteinFuseType::BFT_NONE,
                         {},
                         {});

@@ -39,7 +39,7 @@ struct TransposeSpecs
     int               largeTwdDirection;
     bool              diagonal;
     bool              tileAligned;
-    bool              enable_callbacks;
+    CallbackType      cbtype;
     LoadOps           loadOps;
     StoreOps          storeOps;
 };

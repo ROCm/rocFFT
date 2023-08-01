@@ -181,7 +181,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                                         node.dir2regMode,
                                         node.intrinsicMode,
                                         node.sbrcTranstype,
-                                        enable_callbacks,
+                                        node.GetCallbackType(enable_callbacks),
                                         node.fuseBlue,
                                         node.loadOps,
                                         node.storeOps);
@@ -210,7 +210,7 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&   
                             node.dir2regMode,
                             node.intrinsicMode,
                             node.sbrcTranstype,
-                            enable_callbacks,
+                            node.GetCallbackType(enable_callbacks),
                             node.fuseBlue,
                             node.loadOps,
                             node.storeOps);

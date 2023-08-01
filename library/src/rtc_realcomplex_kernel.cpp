@@ -56,7 +56,7 @@ RTCKernel::RTCGenerator RTCKernelRealComplex::generate_from_node(const TreeNode&
                            node.precision,
                            node.inArrayType,
                            node.outArrayType,
-                           enable_callbacks,
+                           node.GetCallbackType(enable_callbacks),
                            node.loadOps,
                            node.storeOps};
 
@@ -169,7 +169,7 @@ RTCKernel::RTCGenerator RTCKernelRealComplexEven::generate_from_node(const TreeN
                                 node.precision,
                                 node.inArrayType,
                                 node.outArrayType,
-                                enable_callbacks,
+                                node.GetCallbackType(enable_callbacks),
                                 node.loadOps,
                                 node.storeOps},
                                Ndiv4};
@@ -278,7 +278,7 @@ RTCKernel::RTCGenerator RTCKernelRealComplexEvenTranspose::generate_from_node(
                                          node.precision,
                                          node.inArrayType,
                                          node.outArrayType,
-                                         enable_callbacks,
+                                         node.GetCallbackType(enable_callbacks),
                                          node.loadOps,
                                          node.storeOps}};
 

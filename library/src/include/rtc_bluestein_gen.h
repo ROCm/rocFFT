@@ -21,6 +21,7 @@
 #ifndef RTC_BLUESTEIN_GEN
 #define RTC_BLUESTEIN_GEN
 
+#include "../device/kernels/callback.h"
 #include "compute_scheme.h"
 #include "load_store_ops.h"
 #include "rocfft.h"
@@ -39,7 +40,7 @@ struct BluesteinSingleSpecs
     rocfft_result_placement   placement;
     rocfft_array_type         inArrayType;
     rocfft_array_type         outArrayType;
-    bool                      enable_callbacks;
+    CallbackType              cbtype;
     LoadOps                   loadOps;
     StoreOps                  storeOps;
 };
@@ -55,7 +56,7 @@ struct BluesteinMultiSpecs
     rocfft_precision  precision;
     rocfft_array_type inArrayType;
     rocfft_array_type outArrayType;
-    bool              enable_callbacks;
+    CallbackType      cbtype;
     LoadOps           loadOps;
     StoreOps          storeOps;
 };

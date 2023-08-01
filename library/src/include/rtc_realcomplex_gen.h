@@ -37,7 +37,7 @@ struct RealComplexSpecs
     rocfft_precision  precision;
     rocfft_array_type inArrayType;
     rocfft_array_type outArrayType;
-    bool              enable_callbacks;
+    CallbackType      cbtype;
     LoadOps           loadOps;
     StoreOps          storeOps;
 };

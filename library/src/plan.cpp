@@ -1654,14 +1654,16 @@ std::pair<TreeNode*, TreeNode*> ExecPlan::get_load_store_nodes() const
     const auto& seq = execSeq;
 
     // look forward for the first node that reads from input
-    auto load_it = std::find_if(
-        seq.begin(), seq.end(), [&](const TreeNode* n) { return n->obIn == rootPlan->obIn; });
-    TreeNode* load = load_it == seq.end() ? nullptr : *load_it;
+    auto      load_it = std::find_if(seq.begin(), seq.end(), [&](const TreeNode* n) {
+        return n->scheme != CS_KERNEL_APPLY_CALLBACK && n->obIn == rootPlan->obIn;
+    });
+    TreeNode* load    = load_it == seq.end() ? nullptr : *load_it;
 
     // look backward for the last node that writes to output
-    auto store_it = std::find_if(
-        seq.rbegin(), seq.rend(), [&](const TreeNode* n) { return n->obOut == rootPlan->obOut; });
-    TreeNode* store = store_it == seq.rend() ? nullptr : *store_it;
+    auto      store_it = std::find_if(seq.rbegin(), seq.rend(), [&](const TreeNode* n) {
+        return n->scheme != CS_KERNEL_APPLY_CALLBACK && n->obOut == rootPlan->obOut;
+    });
+    TreeNode* store    = store_it == seq.rend() ? nullptr : *store_it;
 
     assert(load && store);
     return std::make_pair(load, store);
@@ -2056,25 +2058,27 @@ void ProcessNode(ExecPlan& execPlan)
 
     if(execPlan.rootPlan->loadOps.enabled())
     {
-        // Load ops happen on first node of the plan, (after callbacks
+        // Load ops happen on first node that reads input, (after callbacks
         // if you want both), so we need to get the first one that's not
         // APPLY_CALLBACK
-        auto load_node
-            = std::find_if(execPlan.execSeq.begin(), execPlan.execSeq.end(), [](TreeNode* node) {
-                  return node->scheme != CS_KERNEL_APPLY_CALLBACK;
-              });
+        auto load_node = std::find_if(
+            execPlan.execSeq.begin(), execPlan.execSeq.end(), [&execPlan](TreeNode* node) {
+                return node->obIn == execPlan.rootPlan->obIn
+                       && node->scheme != CS_KERNEL_APPLY_CALLBACK;
+            });
         (*load_node)->loadOps = execPlan.rootPlan->loadOps;
     }
 
     if(execPlan.rootPlan->storeOps.enabled())
     {
-        // Store ops happen on last node of the plan, (before callbacks
-        // if you want both), so we need to get the last one that's not
-        // APPLY_CALLBACK
-        auto store_node
-            = std::find_if(execPlan.execSeq.rbegin(), execPlan.execSeq.rend(), [](TreeNode* node) {
-                  return node->scheme != CS_KERNEL_APPLY_CALLBACK;
-              });
+        // Store ops happen on last node of the plan that writes
+        // output, (before callbacks if you want both), so we need to
+        // get the last one that's not APPLY_CALLBACK
+        auto store_node = std::find_if(
+            execPlan.execSeq.rbegin(), execPlan.execSeq.rend(), [&execPlan](TreeNode* node) {
+                return node->obOut == execPlan.rootPlan->obOut
+                       && node->scheme != CS_KERNEL_APPLY_CALLBACK;
+            });
         (*store_node)->storeOps = execPlan.rootPlan->storeOps;
     }
 

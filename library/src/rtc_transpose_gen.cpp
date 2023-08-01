@@ -69,8 +69,7 @@ std::string transpose_rtc_kernel_name(const TransposeSpecs& specs)
     if(specs.tileAligned)
         kernel_name += "_aligned";
     kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
-    if(specs.enable_callbacks)
-        kernel_name += "_CB";
+    kernel_name += rtc_cbtype_name(specs.cbtype);
     return kernel_name;
 }
 
@@ -86,7 +85,7 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
 
     src += rtc_precision_type_decl(specs.precision);
 
-    src += rtc_const_cbtype_decl(specs.enable_callbacks);
+    src += rtc_const_cbtype_decl(specs.cbtype);
 
     // twiddle code assumes scalar type is named T
     src += "typedef scalar_type T;\n";
@@ -206,7 +205,8 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     func.body += CommentLines{"remaining is now the batch"};
     func.body += AddAssign(offset_in, remaining * idist_var);
     func.body += AddAssign(offset_out, remaining * odist_var);
-    func.body += CallbackDeclaration("scalar_type", "cbtype");
+    func.body += CallbackLoadDeclaration("scalar_type", "cbtype");
+    func.body += CallbackStoreDeclaration("scalar_type", "cbtype");
 
     // loop variables for reading/writing
     Variable i{"i", "unsigned int"};
@@ -315,6 +315,8 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
         func = make_planar(func, "input");
     if(array_type_is_planar(specs.outArrayType))
         func = make_planar(func, "output");
+
+    func = make_callback_realcomplex(func, specs.cbtype);
 
     src += func.render();
 

@@ -65,7 +65,7 @@ RTCKernel::RTCGenerator RTCKernelBluesteinSingle::generate_from_node(const TreeN
                                node.placement,
                                node.inArrayType,
                                node.outArrayType,
-                               enable_callbacks,
+                               node.GetCallbackType(enable_callbacks),
                                node.loadOps,
                                node.storeOps};
 
@@ -172,7 +172,7 @@ RTCKernel::RTCGenerator RTCKernelBluesteinMulti::generate_from_node(const TreeNo
                               node.precision,
                               node.inArrayType,
                               node.outArrayType,
-                              enable_callbacks,
+                              node.GetCallbackType(enable_callbacks),
                               node.loadOps,
                               node.storeOps};
 

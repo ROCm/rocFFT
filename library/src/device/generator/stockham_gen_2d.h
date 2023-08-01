@@ -294,7 +294,8 @@ struct StockhamKernelFused2D : public StockhamKernelRR
         body += Declaration{lds_linear, "true"};
         body += Declaration{direct_load_to_reg, "false"};
         body += Declaration{direct_store_from_reg, "false"};
-        body += CallbackDeclaration{scalar_type.name, callback_type.name};
+        body += CallbackLoadDeclaration{scalar_type.name, callback_type.name};
+        body += CallbackStoreDeclaration{scalar_type.name, callback_type.name};
         body += Declaration{
             SB_1ST,
             Ternary{Parens(embedded_type == "EmbeddedType::C2Real_PRE"), "SB_NONUNIT", "SB_UNIT"}};

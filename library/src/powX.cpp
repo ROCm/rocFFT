@@ -42,6 +42,7 @@
 
 #include "real2complex.h"
 
+#include "../../shared/array_predicate.h"
 #include "../../shared/environment.h"
 #include "../../shared/precision_type.h"
 #include "../../shared/printbuffer.h"
@@ -397,12 +398,14 @@ void SetDefaultCallback(const TreeNode* node, const SetCallbackType& type, void*
     auto result = hipSuccess;
 
     auto array_type = (type == SetCallbackType::LOAD) ? node->inArrayType : node->outArrayType;
+    auto node_callback_type = node->GetCallbackType(true);
 
-    // guaranteed to only have interleaved type by the caller (rocfft_execute)
-    auto is_complex = (array_type == rocfft_array_type_complex_interleaved
-                       || array_type == rocfft_array_type_hermitian_interleaved)
-                          ? true
-                          : false;
+    bool is_complex = array_type_is_complex(array_type);
+    // load r2c kernels and store c2r kernels need real-valued callbacks
+    if((type == SetCallbackType::LOAD && node_callback_type == CallbackType::USER_LOAD_STORE_R2C)
+       || (type == SetCallbackType::STORE
+           && node_callback_type == CallbackType::USER_LOAD_STORE_C2R))
+        is_complex = false;
 
     if(is_complex && type == SetCallbackType::LOAD)
     {
@@ -737,6 +740,10 @@ void TransformPowX(const ExecPlan&       execPlan,
                 = data.get_callback_type() == CallbackType::NONE
                       ? data.node->compiledKernel.get().get()
                       : data.node->compiledKernelWithCallbacks.get().get();
+
+            // HACK: skip apply callback
+            if(data.node->scheme == CS_KERNEL_APPLY_CALLBACK)
+                continue;
 
             // skip apply callback kernel if there's no callback
             if(data.node->scheme != CS_KERNEL_APPLY_CALLBACK

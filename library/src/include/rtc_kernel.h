@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "../../../shared/rocfft_complex.h"
+#include "../device/kernels/callback.h"
 #include "rtc_generator.h"
 
 struct DeviceCallIn;
@@ -243,12 +244,36 @@ static const char* rtc_precision_type_decl(rocfft_precision precision)
     }
 }
 
-static const std::string rtc_const_cbtype_decl(bool enable_callbacks)
+static const char* rtc_cbtype_name(CallbackType cbtype)
 {
-    if(enable_callbacks)
-        return "static const CallbackType cbtype = CallbackType::USER_LOAD_STORE;\n";
-    else
+    switch(cbtype)
+    {
+    case CallbackType::NONE:
+        return "";
+    case CallbackType::USER_LOAD_STORE:
+        return "_CB";
+    case CallbackType::USER_LOAD_STORE_R2C:
+        return "_CBr2c";
+    case CallbackType::USER_LOAD_STORE_C2R:
+        return "_CBc2r";
+    }
+}
+
+// realDataAsComplex is true if we're treating real data as complex
+// (in an even-length real-complex FFT)
+static const std::string rtc_const_cbtype_decl(CallbackType cbtype)
+{
+    switch(cbtype)
+    {
+    case CallbackType::NONE:
         return "static const CallbackType cbtype = CallbackType::NONE;\n";
+    case CallbackType::USER_LOAD_STORE:
+        return "static const CallbackType cbtype = CallbackType::USER_LOAD_STORE;\n";
+    case CallbackType::USER_LOAD_STORE_R2C:
+        return "static const CallbackType cbtype = CallbackType::USER_LOAD_STORE_R2C;\n";
+    case CallbackType::USER_LOAD_STORE_C2R:
+        return "static const CallbackType cbtype = CallbackType::USER_LOAD_STORE_C2R;\n";
+    }
 }
 #endif
 

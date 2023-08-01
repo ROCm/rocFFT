@@ -30,6 +30,8 @@
 #include <variant>
 #include <vector>
 
+#include "../kernels/callback.h"
+
 //
 // Helpers
 //
@@ -610,7 +612,6 @@ static PreDecrement operator--(const Expression& a)
 class Assign;
 class ReturnExpr;
 class Call;
-class CallbackDeclaration;
 class CallbackLoadDeclaration;
 class CallbackStoreDeclaration;
 class Declaration;
@@ -684,7 +685,6 @@ struct CommentLines
 using Statement = std::variant<Assign,
                                ReturnExpr,
                                Call,
-                               CallbackDeclaration,
                                CallbackLoadDeclaration,
                                CallbackStoreDeclaration,
                                CommentLines,
@@ -788,22 +788,6 @@ public:
     }
 };
 
-class CallbackDeclaration
-{
-public:
-    CallbackDeclaration(const std::string& scalar_type, const std::string& cbtype)
-        : scalar_type(scalar_type)
-        , cbtype(cbtype){};
-    std::string scalar_type;
-    std::string cbtype;
-    std::string render() const
-    {
-        return "auto load_cb = get_load_cb<" + scalar_type + ", " + cbtype + ">(load_cb_fn);\n"
-               + "auto store_cb = get_store_cb<" + scalar_type + ", " + cbtype
-               + ">(store_cb_fn);\n";
-    }
-};
-
 class CallbackLoadDeclaration
 {
 public:
@@ -812,9 +796,26 @@ public:
         , cbtype(cbtype){};
     std::string scalar_type;
     std::string cbtype;
+    // true if loading complex data through a real-valued callback
+    bool        r2c_callback = false;
     std::string render() const
     {
-        return "auto load_cb = get_load_cb<" + scalar_type + ", " + cbtype + ">(load_cb_fn);";
+        if(r2c_callback)
+            // declare a lambda that calls the real-valued callback
+            // twice to load one complex value
+            return R"lambda(
+    	    auto load_cb = [load_cb_fn](scalar_type* data, size_t offset, void* cbdata, void* sharedMem)
+    	    {
+                auto real_cb = reinterpret_cast<typename callback_type<real_type_t<scalar_type>>::load>(load_cb_fn);
+                return scalar_type
+                {
+                    real_cb(reinterpret_cast<real_type_t<scalar_type>*>(data), offset * 2, cbdata, sharedMem),
+                    real_cb(reinterpret_cast<real_type_t<scalar_type>*>(data), offset * 2 + 1, cbdata, sharedMem),
+                };
+            };
+            )lambda";
+        else
+            return "auto load_cb = get_load_cb<" + scalar_type + ", " + cbtype + ">(load_cb_fn);";
     }
 };
 
@@ -826,9 +827,24 @@ public:
         , cbtype(cbtype){};
     std::string scalar_type;
     std::string cbtype;
+    // true if storing complex data through a real-valued callback
+    bool        c2r_callback = false;
     std::string render() const
     {
-        return "auto store_cb = get_store_cb<" + scalar_type + ", " + cbtype + ">(store_cb_fn);";
+        if(c2r_callback)
+            // declare a lambda that calls the real-valued callback
+            // twice to store one complex value
+            return R"lambda(
+                auto store_cb = [store_cb_fn](scalar_type* data, size_t offset, scalar_type elem, void* cbdata, void* sharedMem)
+                {
+                    auto real_cb = reinterpret_cast<typename callback_type<real_type_t<scalar_type>>::store>(store_cb_fn);
+                    real_cb(reinterpret_cast<real_type_t<scalar_type>*>(data), offset * 2, elem.x, cbdata, sharedMem);
+                    real_cb(reinterpret_cast<real_type_t<scalar_type>*>(data), offset * 2 + 1, elem.y, cbdata, sharedMem);
+                };
+            )lambda";
+        else
+            return "auto store_cb = get_store_cb<" + scalar_type + ", " + cbtype
+                   + ">(store_cb_fn);";
     }
 };
 
@@ -1185,7 +1201,6 @@ struct BaseVisitor
     MAKE_VISITOR_OPERATOR(StatementList, Assign);
     MAKE_VISITOR_OPERATOR(StatementList, ReturnExpr);
     MAKE_VISITOR_OPERATOR(StatementList, Call);
-    MAKE_VISITOR_OPERATOR(StatementList, CallbackDeclaration);
     MAKE_VISITOR_OPERATOR(StatementList, CallbackLoadDeclaration);
     MAKE_VISITOR_OPERATOR(StatementList, CallbackStoreDeclaration);
     MAKE_VISITOR_OPERATOR(StatementList, CommentLines);
@@ -1296,7 +1311,6 @@ struct BaseVisitor
     MAKE_EXPR_VISIT(ComplexLiteral)
 
     MAKE_TRIVIAL_STATEMENT_VISIT(ReturnExpr)
-    MAKE_TRIVIAL_STATEMENT_VISIT(CallbackDeclaration)
     MAKE_TRIVIAL_STATEMENT_VISIT(CallbackLoadDeclaration)
     MAKE_TRIVIAL_STATEMENT_VISIT(CallbackStoreDeclaration)
     MAKE_TRIVIAL_STATEMENT_VISIT(LDSDeclaration)
@@ -1808,5 +1822,46 @@ struct MakeRTCVisitor : public BaseVisitor
 static Function make_rtc(const Function& f, const std::string& kernel_name)
 {
     auto visitor = MakeRTCVisitor(kernel_name);
+    return visitor(f);
+}
+
+// Make callbacks compatible with real-complex even-length optimization
+struct MakeCallbackRealComplexVisitor : public BaseVisitor
+{
+    MakeCallbackRealComplexVisitor(CallbackType cbtype)
+        : cbtype(cbtype)
+    {
+    }
+
+    StatementList visit_CallbackLoadDeclaration(const CallbackLoadDeclaration& x) override
+    {
+        if(cbtype == CallbackType::USER_LOAD_STORE_R2C)
+        {
+            CallbackLoadDeclaration y{x};
+            y.r2c_callback = true;
+            return {y};
+        }
+        return {x};
+    }
+
+    StatementList visit_CallbackStoreDeclaration(const CallbackStoreDeclaration& x) override
+    {
+        if(cbtype == CallbackType::USER_LOAD_STORE_C2R)
+        {
+            CallbackStoreDeclaration y{x};
+            y.c2r_callback = true;
+            return {y};
+        }
+        return {x};
+    }
+
+    CallbackType cbtype;
+};
+
+static Function make_callback_realcomplex(const Function& f, CallbackType cbtype)
+{
+    if(cbtype == CallbackType::NONE || cbtype == CallbackType::USER_LOAD_STORE)
+        return f;
+    auto visitor = MakeCallbackRealComplexVisitor(cbtype);
     return visitor(f);
 }

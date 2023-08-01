@@ -800,7 +800,8 @@ struct StockhamKernel : public StockhamGeneratorSpecs
         // half-lds
         body += set_lds_is_real();
 
-        body += CallbackDeclaration{scalar_type.name, callback_type.name};
+        body += CallbackLoadDeclaration{scalar_type.name, callback_type.name};
+        body += CallbackStoreDeclaration{scalar_type.name, callback_type.name};
 
         body += LineBreak{};
         body += CommentLines{"large twiddles"};

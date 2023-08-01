@@ -55,8 +55,7 @@ std::string realcomplex_rtc_kernel_name(const RealComplexSpecs& specs)
     kernel_name += rtc_array_type_name(specs.outArrayType);
 
     kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
-    if(specs.enable_callbacks)
-        kernel_name += "_CB";
+    kernel_name += rtc_cbtype_name(specs.cbtype);
 
     return kernel_name;
 }
@@ -72,7 +71,7 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
 
     src += rtc_precision_type_decl(specs.precision);
 
-    src += rtc_const_cbtype_decl(specs.enable_callbacks);
+    src += rtc_const_cbtype_decl(specs.cbtype);
 
     src += "static const unsigned int dim = " + std::to_string(specs.dim) + ";\n";
 
@@ -166,7 +165,8 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
         func.body
             += AddAssign(outputc_offset, ic2 * stride_out2 + ic1 * stride_out1 + ic0 * stride_out0);
 
-        func.body += CallbackDeclaration("scalar_type", "cbtype");
+        func.body += CallbackLoadDeclaration("scalar_type", "cbtype");
+        func.body += CallbackStoreDeclaration("scalar_type", "cbtype");
 
         func.body += CommentLines{"we would do hermitian2complex at the start of a C2R transform,",
                                   "so it would never be the last kernel to write to global",
@@ -241,7 +241,8 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
                                        "transform, so it would never be the last kernel to write",
                                        "to global memory.  don't bother going through the store cb",
                                        "to write global memory."};
-            guard.body += CallbackDeclaration("real_type_t<scalar_type>", "cbtype");
+            guard.body += CallbackLoadDeclaration("real_type_t<scalar_type>", "cbtype");
+            guard.body += CallbackStoreDeclaration("real_type_t<scalar_type>", "cbtype");
 
             ComplexLiteral elem{LoadGlobal{input, inputIdx}, "0.0"};
             guard.body += Assign{output[outputIdx], elem};
@@ -257,7 +258,8 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
                                        "from global memory.  don't bother going through the load",
                                        "callback to read global memory."};
 
-            guard.body += CallbackDeclaration("scalar_type", "cbtype");
+            guard.body += CallbackLoadDeclaration("scalar_type", "cbtype");
+            guard.body += CallbackStoreDeclaration("scalar_type", "cbtype");
 
             Variable elem{"elem", "scalar_type"};
             guard.body += Declaration{elem, input[inputIdx]};
@@ -272,7 +274,8 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
                                 "transform, so it would never be the first kernel to read",
                                 "from global memory.  don't bother going through the load cb",
                                 "to read global memory."};
-            guard.body += CallbackDeclaration("real_type_t<scalar_type>", "cbtype");
+            guard.body += CallbackLoadDeclaration("real_type_t<scalar_type>", "cbtype");
+            guard.body += CallbackStoreDeclaration("real_type_t<scalar_type>", "cbtype");
 
             Variable elem{"elem", "auto"};
             guard.body += Declaration{elem, input[inputIdx].x()};
@@ -336,8 +339,7 @@ std::string realcomplex_even_rtc_kernel_name(const RealComplexEvenSpecs& specs)
     kernel_name += rtc_array_type_name(specs.outArrayType);
 
     kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
-    if(specs.enable_callbacks)
-        kernel_name += "_CB";
+    kernel_name += rtc_cbtype_name(specs.cbtype);
 
     return kernel_name;
 }
@@ -353,7 +355,7 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
 
     src += rtc_precision_type_decl(specs.precision);
 
-    src += rtc_const_cbtype_decl(specs.enable_callbacks);
+    src += rtc_const_cbtype_decl(specs.cbtype);
 
     src += "static const unsigned int dim = " + std::to_string(specs.dim) + ";\n";
 
@@ -431,7 +433,8 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
                                    "to global memory.  don't bother going through store",
                                    "callback to write global memory."};
     }
-    guard.body += CallbackDeclaration("scalar_type", "cbtype");
+    guard.body += CallbackLoadDeclaration("scalar_type", "cbtype");
+    guard.body += CallbackStoreDeclaration("scalar_type", "cbtype");
 
     Variable outval{"outval", "scalar_type"};
     guard.body += Declaration{outval};
@@ -576,8 +579,7 @@ std::string realcomplex_even_transpose_rtc_kernel_name(const RealComplexEvenTran
     kernel_name += rtc_array_type_name(specs.outArrayType);
 
     kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
-    if(specs.enable_callbacks)
-        kernel_name += "_CB";
+    kernel_name += rtc_cbtype_name(specs.cbtype);
 
     return kernel_name;
 }
@@ -598,7 +600,7 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
 
     src += rtc_precision_type_decl(specs.precision);
 
-    src += rtc_const_cbtype_decl(specs.enable_callbacks);
+    src += rtc_const_cbtype_decl(specs.cbtype);
 
     // function arguments
     Variable dim{"dim", "size_t"};
@@ -843,7 +845,8 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
         write_middle_idx = output_batch_start + output_row_base + middle * output_row_stride;
     }
 
-    func.body += CallbackDeclaration("scalar_type", "cbtype");
+    func.body += CallbackLoadDeclaration("scalar_type", "cbtype");
+    func.body += CallbackStoreDeclaration("scalar_type", "cbtype");
 
     func.body += Declaration{val};
 
@@ -997,7 +1000,7 @@ std::string apply_callback_rtc(const std::string& kernel_name, rocfft_precision 
     src += rtc_precision_type_decl(precision);
 
     // callbacks are always enabled for this kernel
-    src += rtc_const_cbtype_decl(true);
+    src += rtc_const_cbtype_decl(CallbackType::USER_LOAD_STORE);
 
     // function arguments
     Variable dim{"dim", "unsigned int"};
@@ -1061,7 +1064,8 @@ std::string apply_callback_rtc(const std::string& kernel_name, rocfft_precision 
     func.body += Declaration{batch, "blockIdx.z"};
     func.body += Assign{offset_in, offset_in + batch * stride_in[dim]};
 
-    func.body += CallbackDeclaration("real_type_t<scalar_type>", "cbtype");
+    func.body += CallbackLoadDeclaration("real_type_t<scalar_type>", "cbtype");
+    func.body += CallbackStoreDeclaration("real_type_t<scalar_type>", "cbtype");
     If accessor{idx_0 < lengths[0], {}};
     accessor.body += Declaration{inputIdx, offset_in + idx_0 * stride_in[0]};
     accessor.body += Declaration{elem, LoadGlobal{input, inputIdx}};

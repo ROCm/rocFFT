@@ -243,6 +243,7 @@ int main(int argc, char* argv[])
          "Random seed; if unset, use an actual random seed.")
         ("planar_prob", po::value<double>(&planar_prob)->default_value(0.1),
         "Probability of running individual planar transforms")
+        ("callback", "Inject load/store callbacks")
         ("callback_prob", po::value<double>(&callback_prob)->default_value(0.1),
          "Probability of running individual callback transforms")
         ("fftw_compare",
@@ -281,7 +282,6 @@ int main(int argc, char* argv[])
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
          "forward\n3) real inverse")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
-        ("callback", "Inject load/store callbacks")
         ("checkstride", "Check that data is not written outside of output strides")
         ("double", "Double precision transform (deprecated: use --precision double)")
         ("precision", po::value<fft_precision>(&manual_params.precision),

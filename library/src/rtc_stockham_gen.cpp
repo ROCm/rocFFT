@@ -57,7 +57,7 @@ std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
                                      DirectRegType                 dir2regMode,
                                      IntrinsicAccessType           intrinsicMode,
                                      SBRC_TRANSPOSE_TYPE           transpose_type,
-                                     bool                          enable_callbacks,
+                                     CallbackType                  cbtype,
                                      BluesteinFuseType             fuseBlue,
                                      const LoadOps&                loadOps,
                                      const StoreOps&               storeOps)
@@ -216,7 +216,7 @@ std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
         kernel_name += "_dirReg";
 
     // callback kernels need to disable buffer load/store
-    if(enable_callbacks || dir2regMode == DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
+    if(cbtype != CallbackType::NONE || dir2regMode == DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
         intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
 
     switch(intrinsicMode)
@@ -232,8 +232,7 @@ std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
     }
 
     kernel_name += load_store_name_suffix(loadOps, storeOps);
-    if(enable_callbacks)
-        kernel_name += "_CB";
+    kernel_name += rtc_cbtype_name(cbtype);
     return kernel_name;
 }
 
@@ -255,7 +254,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          DirectRegType                 dir2regMode,
                          IntrinsicAccessType           intrinsicMode,
                          SBRC_TRANSPOSE_TYPE           transpose_type,
-                         bool                          enable_callbacks,
+                         CallbackType                  cbtype,
                          const BluesteinFuseType&      fuseBlue,
                          const LoadOps&                loadOps,
                          const StoreOps&               storeOps)
@@ -459,7 +458,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
         break;
     }
 
-    src += rtc_const_cbtype_decl(enable_callbacks);
+    src += rtc_const_cbtype_decl(cbtype);
 
     switch(dir2regMode)
     {
@@ -475,7 +474,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     src += (largeTwdBase > 0 && largeTwdSteps > 0) ? "true;\n" : "false;\n";
 
     // callback kernels need to disable buffer load/store
-    if(enable_callbacks || dir2regMode == DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
+    if(cbtype != CallbackType::NONE || dir2regMode == DirectRegType::FORCE_OFF_OR_NOT_SUPPORT)
         intrinsicMode = IntrinsicAccessType::DISABLE_BOTH;
 
     switch(intrinsicMode)
@@ -496,6 +495,8 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
 
     src += "static const size_t large_twiddle_base = " + std::to_string(largeTwdBase) + ";\n";
     src += "static const size_t large_twiddle_steps = " + std::to_string(largeTwdSteps) + ";\n";
+
+    *global = make_callback_realcomplex(*global, cbtype);
 
     *global = make_rtc(*global, kernel_name);
     src += global->render();

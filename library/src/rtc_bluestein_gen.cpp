@@ -57,8 +57,7 @@ std::string bluestein_single_rtc_kernel_name(const BluesteinSingleSpecs& specs)
     }
 
     kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
-    if(specs.enable_callbacks)
-        kernel_name += "_CB";
+    kernel_name += rtc_cbtype_name(specs.cbtype);
     return kernel_name;
 }
 
@@ -79,7 +78,7 @@ std::string bluestein_single_rtc(const std::string& kernel_name, const Bluestein
     append_radix_h(src, specs.factors);
     src += rtc_precision_type_decl(specs.precision);
 
-    src += rtc_const_cbtype_decl(specs.enable_callbacks);
+    src += rtc_const_cbtype_decl(specs.cbtype);
 
     src += "static const unsigned int dim = " + std::to_string(specs.dim) + ";\n";
 
@@ -103,7 +102,8 @@ std::string bluestein_single_rtc(const std::string& kernel_name, const Bluestein
 
     Variable lds{"lds", "__shared__ scalar_type", false, false, transforms_per_block * lengthBlue};
 
-    func.body += CallbackDeclaration("scalar_type", "cbtype");
+    func.body += CallbackLoadDeclaration("scalar_type", "cbtype");
+    func.body += CallbackStoreDeclaration("scalar_type", "cbtype");
 
     func.body += Declaration{lds};
     func.body += Assign{bluestein.a, bluestein.buf_temp};
@@ -128,6 +128,8 @@ std::string bluestein_single_rtc(const std::string& kernel_name, const Bluestein
         if(array_type_is_planar(specs.inArrayType))
             func = make_planar(func, "X");
     }
+
+    func = make_callback_realcomplex(func, specs.cbtype);
 
     src += func.render();
 
@@ -160,8 +162,7 @@ std::string bluestein_multi_rtc_kernel_name(const BluesteinMultiSpecs& specs)
     kernel_name += rtc_array_type_name(specs.inArrayType);
     kernel_name += rtc_array_type_name(specs.outArrayType);
     kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
-    if(specs.enable_callbacks)
-        kernel_name += "_CB";
+    kernel_name += rtc_cbtype_name(specs.cbtype);
 
     return kernel_name;
 }
@@ -235,7 +236,7 @@ std::string bluestein_multi_rtc(const std::string& kernel_name, const BluesteinM
 
     src += rtc_precision_type_decl(specs.precision);
 
-    src += rtc_const_cbtype_decl(specs.enable_callbacks);
+    src += rtc_const_cbtype_decl(specs.cbtype);
 
     // chirp looks different from the other kernels
     if(specs.scheme == CS_KERNEL_CHIRP)
@@ -315,7 +316,8 @@ std::string bluestein_multi_rtc(const std::string& kernel_name, const BluesteinM
     func.body += Declaration{iIdx, tx * stride_in[0]};
     func.body += Declaration{oIdx, tx * stride_out[0]};
 
-    func.body += CallbackDeclaration("scalar_type", "cbtype");
+    func.body += CallbackLoadDeclaration("scalar_type", "cbtype");
+    func.body += CallbackStoreDeclaration("scalar_type", "cbtype");
 
     switch(specs.scheme)
     {

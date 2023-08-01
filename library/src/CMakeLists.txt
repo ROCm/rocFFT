@@ -302,6 +302,7 @@ add_library( rocfft-rtc-launch OBJECT
   rtc_twiddle_kernel.cpp
   rtc_chirp_kernel.cpp
   load_store_ops_kernel.cpp
+  tree_node_callback.cpp
 )
 target_link_libraries( rocfft-rtc-launch PRIVATE rocfft-rtc-cache )
 
