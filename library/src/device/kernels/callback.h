@@ -166,7 +166,7 @@ __device__ void intrinsic_load_to_dest(
                               (uint32_t)(soffset * sizeof(T)),
                               rw);
 #else
-    target = data[soffset + voffset];
+    target = rw ? data[soffset + voffset] : target;
 #endif
 }
 
@@ -179,7 +179,7 @@ __device__ T intrinsic_load(const T* data, unsigned int voffset, unsigned int so
                                             (uint32_t)(soffset * sizeof(T)),
                                             rw);
 #else
-    return data[soffset + voffset];
+    return rw ? data[soffset + voffset] : T();
 #endif
 }
 
@@ -199,7 +199,8 @@ __device__ rocfft_complex<Tfloat> intrinsic_load_planar(
                                       (uint32_t)(soffset * sizeof(Tfloat)),
                                       rw)};
 #else
-    return rocfft_complex<Tfloat>{dataRe[soffset + voffset], dataIm[soffset + voffset]};
+    return rw ? rocfft_complex<Tfloat>{dataRe[soffset + voffset], dataIm[soffset + voffset]}
+              : rocfft_complex<Tfloat>();
 #endif
 }
 

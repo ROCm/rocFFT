@@ -40,7 +40,8 @@
 #endif
 
 #if defined(__gfx803__) || defined(__gfx900__) || defined(__gfx906__) || defined(__gfx908__) \
-    || defined(__gfx90a__) // test device
+    || defined(__gfx90a__) || defined(__gfx940__) || defined(__gfx941__)                     \
+    || defined(__gfx942__) // test device
 #define USE_GFX_BUFFER_INTRINSIC
 #define BUFFER_RESOURCE_3RD_DWORD 0x00020000
 #elif defined(__gfx1030__) // special device
