@@ -28,8 +28,8 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
        git branch: "${reference}", url: 'https://github.com/ROCmSoftwarePlatform/rocFFT.git'
     }
 
-    String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_RIDER=ON'
-    String noclientArgs = '-DBUILD_CLIENTS_SAMPLES=OFF -DBUILD_CLIENTS_TESTS=OFF -DBUILD_CLIENTS_RIDER=OFF'
+    String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCH=ON'
+    String noclientArgs = '-DBUILD_CLIENTS_SAMPLES=OFF -DBUILD_CLIENTS_TESTS=OFF -DBUILD_CLIENTS_BENCH=OFF'
     String warningArgs = '-DWERROR=ON'
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DROCFFT_DEVICE_FORCE_RELEASE=ON' : '-DCMAKE_BUILD_TYPE=Release'
     String buildTypeDir = debug ? 'debug' : 'release'
@@ -67,7 +67,7 @@ def runTestCommand (platform, project, boolean debug=false)
                     set -ex
                     pwd
                     cd ${project.paths.project_build_prefix}
-                    ./scripts/perf/rocfft-perf run --rider ./build/${directory}/clients/staging/dyna-rocfft-rider --lib ./ref-repo/build/${directory}/library/src/librocfft.so --lib ./build/${directory}/library/src/librocfft.so --out ./${dataType}_ref --out ./${dataType}_change --device 0 --precision ${dataType} --suite benchmarks
+                    ./scripts/perf/rocfft-perf run --bench ./build/${directory}/clients/staging/dyna-rocfft-bench --lib ./ref-repo/build/${directory}/library/src/librocfft.so --lib ./build/${directory}/library/src/librocfft.so --out ./${dataType}_ref --out ./${dataType}_change --device 0 --precision ${dataType} --suite benchmarks
                     ls ${dataType}_change
                     ls ${dataType}_ref
                     mkdir ${dataType}_results

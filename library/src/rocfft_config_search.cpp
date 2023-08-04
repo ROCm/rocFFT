@@ -225,7 +225,7 @@ float launch_kernel(RTCKernel&     kernel,
     std::vector<float> times;
     for(unsigned int i = 0; i < 11; ++i)
     {
-        // simulate rocfft-rider behaviour - memcpy input to device
+        // simulate rocfft-bench behaviour - memcpy input to device
         // before each execution
         if(hipMemcpy(data.input_buf.data(),
                      data.host_input_buf.data(),

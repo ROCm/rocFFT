@@ -117,7 +117,7 @@ def write_csv(path, records, meta={}, overwrite=False):
 
 @dataclass
 class Sample:
-    """Dyna-rider/rider timing sample: list of times for a given token.
+    """Dyna-bench/bench timing sample: list of times for a given token.
 
     This corresponds to a single line of a dat file.
     """
@@ -132,7 +132,7 @@ class Sample:
 
 @dataclass
 class DAT:
-    """Dyna-rider/rider DAT.
+    """Dyna-bench/bench DAT.
 
     This corresponds to a single .dat file.
     """
@@ -156,7 +156,7 @@ class DAT:
 
 @dataclass
 class Run:
-    """Dyna-rider/rider runs.
+    """Dyna-bench/bench runs.
 
     This corresponds to a directory of .dat files.
     """
@@ -167,7 +167,7 @@ class Run:
 
 
 def write_dat(fname, token, seconds, meta={}):
-    """Append record to dyna-rider/rider .dat file."""
+    """Append record to dyna-bench/bench .dat file."""
     record = [token, len(seconds)] + seconds
     write_tsv(fname, [record], meta=meta, overwrite=False)
 
@@ -221,7 +221,7 @@ def parse_token(token):
 
 
 def read_dat(fname):
-    """Read dyna-rider/rider .dat file."""
+    """Read dyna-bench/bench .dat file."""
     path = Path(fname)
     records, meta = {}, {}
     for line in path.read_text().splitlines():

@@ -2,7 +2,7 @@ import perflib.analysis
 import perflib.generators
 import perflib.html
 import perflib.pdf
-import perflib.rider
+import perflib.bench
 import perflib.tuner
 import perflib.timer
 import perflib.utils

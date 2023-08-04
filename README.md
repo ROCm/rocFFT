@@ -41,7 +41,7 @@ those calls on older ROCm compilers, though callbacks will not work
 correctly in this configuration.
 
 There are several clients included with rocFFT:
-1. rocfft-rider runs general transforms and is useful for performance analysis;
+1. rocfft-bench runs general transforms and is useful for performance analysis;
 2. rocfft-test runs various regression tests; and
 3. various small samples are included.
 
@@ -49,7 +49,7 @@ Clients are not built by default.  To build them:
 
 | Client          | CMake option                  | Dependencies                             |
 |-----------------|-------------------------------|------------------------------------------|
-| rocfft-rider    | `-DBUILD_CLIENTS_RIDER=on`    | Boost program options                    |
+| rocfft-bench    | `-DBUILD_CLIENTS_BENCH=on`    | Boost program options                    |
 | rocfft-test     | `-DBUILD_CLIENTS_TESTS=on`    | Boost program options, FFTW, Google Test |
 | samples         | `-DBUILD_CLIENTS_SAMPLES=on`  | Boost program options, FFTW              |
 

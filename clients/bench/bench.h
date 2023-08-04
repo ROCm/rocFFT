@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef RIDER_H
-#define RIDER_H
+#ifndef ROCFFT_BENCH_H
+#define ROCFFT_BENCH_H
 
 #include "rocfft.h"
 #include <boost/program_options.hpp>
@@ -75,4 +75,4 @@ inline void lib_V_Throw(rocfft_status      res,
 #define HIP_V_THROW(_status, _message) hip_V_Throw(_status, _message, __LINE__, __FILE__)
 #define LIB_V_THROW(_status, _message) lib_V_Throw(_status, _message, __LINE__, __FILE__)
 
-#endif // RIDER_H
+#endif // ROCFFT_BENCH_H

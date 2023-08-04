@@ -484,7 +484,7 @@ fi
 
 # clients
 if [[ "${build_clients}" == true ]]; then
-    cmake_client_options="${cmake_client_options} -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_RIDER=ON"
+    cmake_client_options="${cmake_client_options} -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCH=ON"
 fi
 
 compiler="hipcc"

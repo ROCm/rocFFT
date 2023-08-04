@@ -274,7 +274,7 @@ inline void log_trace(Ts&&... xs)
 // if bench logging is turned on with
 // (layer_mode & rocfft_layer_mode_log_bench) != 0
 // log_bench will call log_arguments to log a string that
-// can be input to the executable rocfft-rider.
+// can be input to the executable rocfft-bench.
 template <typename... Ts>
 inline void log_bench(Ts&&... xs)
 {

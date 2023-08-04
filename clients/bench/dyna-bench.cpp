@@ -39,7 +39,7 @@
 
 #include "../../shared/gpubuf.h"
 #include "../../shared/rocfft_params.h"
-#include "rider.h"
+#include "bench.h"
 #include "rocfft.h"
 
 #include <boost/program_options.hpp>
@@ -291,7 +291,7 @@ float run_plan(
 
 // Load python library with RTLD_GLOBAL so that rocfft is free to
 // import python modules that need all of the symbols in libpython.
-// Normally, dyna-rider will want to dlopen rocfft's with RTLD_LOCAL.
+// Normally, dyna-bench will want to dlopen rocfft's with RTLD_LOCAL.
 // If libpython is brought in this way, python modules might not be
 // able to find the symbols they need and import will fail.
 #ifndef WIN32
@@ -359,7 +359,7 @@ int main(int argc, char* argv[])
 
     // clang-format doesn't handle boost program options very well:
     // clang-format off
-    po::options_description opdesc("rocfft rider command line options");
+    po::options_description opdesc("dyna-rocfft-bench command line options");
     opdesc.add_options()("help,h", "Produces this help message")
         ("version,v", "Print queryable version information from the rocfft library")
         ("device", po::value<int>(&deviceId)->default_value(0), "Select a specific device id")

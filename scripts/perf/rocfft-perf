@@ -34,16 +34,16 @@ General workflow:
 Multiple runs can be compared at the post processing and plotting
 stages.  Multiple runs may:
 
-- be from different riders (eg, rocFFT, cuFFT, vkFFT etc)
-- be from dyna-rocfft-rider.
+- be from different benchmark programs (eg, rocFFT, cuFFT, vkFFT etc)
+- be from dyna-rocfft-bench.
 
 Usually:
 
-- a single rider (rocFFT) would be used to track performance over
+- a single bench (rocFFT) would be used to track performance over
   time;
-- multiple riders (rocFFT, cuFFT) would be used to compare different
+- multiple benchess (rocFFT, cuFFT) would be used to compare different
   FFT libraries;
-- a dyna-rider with multiple libraries (rocFFT) would be used to
+- a dyna-bench with multiple libraries (rocFFT) would be used to
   compare two different rocFFT commits.
 
 Runs/subprocesses are logged to `rocfft-perf.log`.
@@ -52,9 +52,9 @@ Runs/subprocesses are logged to `rocfft-perf.log`.
 Run
 ===
 
-The 'run' command drives FFT riders (if they accept the same command
-line arguments as `rocfft-rider`).  The rider to use is specified by
-the `--rider/-w` switch.
+The 'run' command drives FFT benchmarkers (if they accept the same
+command line arguments as `rocfft-bench`).  The benchmark program to
+use is specified by the `--bench/-w` switch.
 
 Test problems are generated using a `ProblemGenerator` and a filter.
 The default generator is a simple radix based generator.
@@ -82,8 +82,8 @@ Dynamic testing
 ===============
 
 Dynamic testing is enabled by specifying more than one `--lib/-i`
-option.  These are passed down to the rider, and hence it is assumed
-that the specific rider is a "dyna" rider.
+option.  These are passed down to the benchmarker, and hence it is assumed
+that the specific benchmarker is a "dyna" bench.
 
 Multiple output directories are used to store the results.
 
@@ -495,7 +495,7 @@ def command_generate(runs=None, label=None, output=None, significance=None, bonf
 
 
 def command_run(arguments):
-    """Run dyna-rider or rider."""
+    """Run dyna-bench or bench."""
 
     # build generator
     generator = None
@@ -535,14 +535,14 @@ def command_run(arguments):
         return
 
     # build timer
-    if arguments.rider is None:
-        print("No rider set... use -w /path/to/rider.")
+    if arguments.bench is None:
+        print("No benchmarker set... use -w /path/to/benchmarker.")
         return
-    dyna = 'dyna' in arguments.rider
+    dyna = 'dyna' in arguments.bench
     if dyna:
         if not arguments.lib:
             print(
-                "Need to set dynamically loaded library when using dyna-rider."
+                "Need to set dynamically loaded library when using dyna-bench."
             )
             return
     if not arguments.out:
@@ -551,7 +551,7 @@ def command_run(arguments):
 
     timer = perflib.timer.GroupedTimer()
     for attr in [
-            'device', 'rider', 'accutest', 'lib', 'out', 'device', 'ntrial',
+            'device', 'bench', 'accutest', 'lib', 'out', 'device', 'ntrial',
             'verbose', 'timeout', 'sequence'
     ]:
         update(attr, timer, arguments)
@@ -623,16 +623,16 @@ def command_autoperf(arguments):
 
     # run cases
     if static:
-        # use more trials for static rider
+        # use more trials for static bench
         timer1 = perflib.timer.GroupedTimer()
-        timer1.rider = build1 / 'rocfft-rider'
+        timer1.bench = build1 / 'rocfft-bench'
         timer1.lib = None
         timer1.out = [build1]
         timer1.ntrial = 20
         timer1.timeout = timeout
 
         timer2 = perflib.timer.GroupedTimer()
-        timer2.rider = build2 / 'rocfft-rider'
+        timer2.bench = build2 / 'rocfft-bench'
         timer2.lib = None
         timer2.out = [build2]
         timer2.ntrial = 20
@@ -640,7 +640,7 @@ def command_autoperf(arguments):
         timers = [timer1, timer2]
     else:
         timer = perflib.timer.GroupedTimer()
-        timer.rider = build1 / 'dyna-rocfft-rider'
+        timer.bench = build1 / 'dyna-rocfft-bench'
         timer.lib = [lib1, lib2]
         timer.out = [build1, build2]
         timer.timeout = timeout
@@ -692,9 +692,9 @@ def command_bweff(arguments):
             f'\n{tag} (group {i} of {len(all_problems)}): {len(problems)} problems'
         )
 
-        rider = Path(arguments.rider)
-        if not rider.is_file():
-            raise RuntimeError(f"Unable to find rider: {arguments.rider}")
+        bench = Path(arguments.bench)
+        if not bench.is_file():
+            raise RuntimeError(f"Unable to find benchmarker: {arguments.bench}")
 
         effdat_paths = [Path(arguments.out) / (tag + '.effdat')]
         generator = perflib.generators.VerbatimGenerator(problems)
@@ -714,8 +714,8 @@ def command_bweff(arguments):
 
             nbatch = (arguments.target_size << 30) // elem_size_bytes
 
-            # run rider
-            token = perflib.rider.run(arguments.rider,
+            # run bench
+            token = perflib.bench.run(arguments.bench,
                                       prob.length,
                                       direction=prob.direction,
                                       real=prob.real,
@@ -895,7 +895,7 @@ def main():
                             help='test suite name (appendable)',
                             action='append')
     run_parser.add_argument('-w',
-                            '--rider',
+                            '--bench',
                             type=str,
                             help='test executable path')
     run_parser.add_argument('-i',
@@ -975,7 +975,7 @@ def main():
     run_parser.add_argument(
         '--sequence',
         type=int,
-        help='dyna-rider test sequence',
+        help='dyna-bench test sequence',
         default=0)
     run_parser.add_argument('-f',
                             '--precision',
@@ -1024,7 +1024,7 @@ def main():
                                  action='append',
                                  default=['html'])
     autoperf_parser.add_argument('--static',
-                                 help='Use static rider instead of dyna',
+                                 help='Use static bench instead of dyna',
                                  action='store_true',
                                  default=False)
     autoperf_parser.add_argument(
@@ -1043,9 +1043,9 @@ def main():
                               help='test suite name (appendable)',
                               action='append',
                               required=True)
-    # path to rider executable
+    # path to bench executable
     bweff_parser.add_argument('-w',
-                              '--rider',
+                              '--bench',
                               type=str,
                               help='test executable path',
                               required=True)

@@ -28,8 +28,8 @@ if( NOT BUILD_CLIENTS_TESTS )
   option( BUILD_CLIENTS_TESTS "Build rocFFT unit tests" OFF )
 endif( )
 
-if( NOT BUILD_CLIENTS_RIDER )
-  option( BUILD_CLIENTS_RIDER "Build rocFFT rider" OFF )
+if( NOT BUILD_CLIENTS_BENCH )
+  option( BUILD_CLIENTS_BENCH "Build rocFFT benchmarks" OFF )
 endif( )
 
 if( NOT BUILD_CLIENTS_SAMPLES )

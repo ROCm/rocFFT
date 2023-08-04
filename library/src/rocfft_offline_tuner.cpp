@@ -387,7 +387,7 @@ int main(int argc, char* argv[])
 
     // Declare the supported options.
     // clang-format off
-    options_description opdesc("rocfft rider command line options");
+    options_description opdesc("rocfft offline tuner command line options");
     opdesc.add_options()("help,h", "produces this help message")
         ("version,v", "Print queryable version information from the rocfft library")
         ("command", value<int>(&command_type)->default_value(0), "Action to do:\n0) tuning\n1) merging solution map\n(default: 0)")

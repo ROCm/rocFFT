@@ -42,7 +42,7 @@ if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
     "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
 
-project( rocfft-clients-rider LANGUAGES CXX )
+project( rocfft-clients-bench LANGUAGES CXX )
 
 set(CMAKE_CXX_STANDARD 17)
 
@@ -69,21 +69,21 @@ include( ROCMInstallTargets )
 
 find_package( Boost COMPONENTS program_options REQUIRED)
 
-set( rider_list rocfft-rider dyna-rocfft-rider )
-foreach( rider ${rider_list})
+set( bench_list rocfft-bench dyna-rocfft-bench )
+foreach( bench ${bench_list})
 
-  if(${rider} STREQUAL "rocfft-rider")
-    add_executable( ${rider} ../../shared/array_validator.cpp rider.cpp rider.h )
+  if(${bench} STREQUAL "rocfft-bench")
+    add_executable( ${bench} ../../shared/array_validator.cpp bench.cpp bench.h )
   else()
-    add_executable( ${rider} ../../shared/array_validator.cpp dyna-rider.cpp rider.h )
+    add_executable( ${bench} ../../shared/array_validator.cpp dyna-bench.cpp bench.h )
   endif()
 
-  target_compile_options( ${rider} PRIVATE ${WARNING_FLAGS} -Wno-cpp )
+  target_compile_options( ${bench} PRIVATE ${WARNING_FLAGS} -Wno-cpp )
 
   # NB: hip-clang includes omp.h, so we need to specify the location
   # of ROCM_CLANG_ROOT at cmake config time if we are using clang++.
 
-  target_include_directories( ${rider}
+  target_include_directories( ${bench}
     PRIVATE
     $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/misc/include>
@@ -91,8 +91,8 @@ foreach( rider ${rider_list})
     ${ROCM_CLANG_ROOT}/include
     )
 
-  if(${rider} STREQUAL "rocfft-rider")
-    target_link_libraries( ${rider}
+  if(${bench} STREQUAL "rocfft-bench")
+    target_link_libraries( ${bench}
       PRIVATE
       hip::device
       roc::rocfft
@@ -100,7 +100,7 @@ foreach( rider ${rider_list})
       Boost::program_options
       )
   else()
-    target_link_libraries( ${rider}
+    target_link_libraries( ${bench}
       PRIVATE
       ${CMAKE_DL_LIBS}
       hip::device
@@ -109,7 +109,7 @@ foreach( rider ${rider_list})
       )
 
     # We need to include both rocfft.h and rocfft-export.h
-    target_include_directories( ${rider}
+    target_include_directories( ${bench}
       PRIVATE
       ${CMAKE_BINARY_DIR}/include/rocfft
       ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
@@ -117,29 +117,46 @@ foreach( rider ${rider_list})
       )
   endif()
 
-  target_link_libraries( ${rider} PUBLIC
+  target_link_libraries( ${bench} PUBLIC
     ${ROCFFT_CLIENTS_HOST_LINK_LIBS}
   )
 
-  set_target_properties( ${rider} PROPERTIES
+  set_target_properties( ${bench} PROPERTIES
     DEBUG_POSTFIX "-d"
     CXX_STANDARD_REQUIRED ON
   )
 
 
   if( ROCFFT_BUILD_SCOPE )
-    set( RIDER_OUT_DIR "/../staging" )
+    set( BENCH_OUT_DIR "/../staging" )
   elseif( ROCFFT_CLIENTS_BUILD_SCOPE )
-    set( RIDER_OUT_DIR "/../bin" )
+    set( BENCH_OUT_DIR "/../bin" )
   else()
-    set( RIDER_OUT_DIR "/bin")
+    set( BENCH_OUT_DIR "/bin")
   endif()
-  string( CONCAT RIDER_OUT_DIR "${PROJECT_BINARY_DIR}" ${RIDER_OUT_DIR} )
+  string( CONCAT BENCH_OUT_DIR "${PROJECT_BINARY_DIR}" ${BENCH_OUT_DIR} )
 
-  set_target_properties(${rider}
+  set_target_properties(${bench}
                         PROPERTIES
                         RUNTIME_OUTPUT_DIRECTORY
-                        ${RIDER_OUT_DIR} )
+                        ${BENCH_OUT_DIR} )
 
-  rocm_install(TARGETS ${rider} COMPONENT benchmarks)
+  rocm_install(TARGETS ${bench} COMPONENT benchmarks)
+
+  # install compatibility for old name of bench program - symlink on
+  # unix, hardlink on windows (since privilege is required to create
+  # symlinks there)
+  string(REPLACE bench rider bench_legacy ${bench})
+  if( WIN32 )
+    set( BENCH_LINK_COMMAND create_hardlink )
+    set( BENCH_NEW_NAME ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/$<TARGET_FILE_BASE_NAME:${bench}>${CMAKE_EXECUTABLE_SUFFIX} )
+    set( BENCH_OLD_NAME ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/${bench_legacy}${CMAKE_EXECUTABLE_SUFFIX} )
+  else()
+    set( BENCH_LINK_COMMAND create_symlink )
+    set( BENCH_NEW_NAME $<TARGET_FILE_BASE_NAME:${bench}> )
+    set( BENCH_OLD_NAME ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/${bench_legacy} )
+  endif()
+  install(
+    CODE "execute_process( COMMAND ${CMAKE_COMMAND} -E ${BENCH_LINK_COMMAND} ${BENCH_NEW_NAME} ${BENCH_OLD_NAME} )"
+  )
 endforeach()

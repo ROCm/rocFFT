@@ -25,7 +25,7 @@
 
 #include "../../shared/gpubuf.h"
 #include "../../shared/rocfft_params.h"
-#include "rider.h"
+#include "bench.h"
 #include "rocfft.h"
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
 
     // clang-format doesn't handle boost program options very well:
     // clang-format off
-    po::options_description opdesc("rocfft rider command line options");
+    po::options_description opdesc("rocfft-bench command line options");
     opdesc.add_options()("help,h", "produces this help message")
         ("version,v", "Print queryable version information from the rocfft library")
         ("device", po::value<int>(&deviceId)->default_value(0), "Select a specific device id")

@@ -17,7 +17,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
-"""Rider launch utils."""
+"""rocfft-bench launch utils."""
 
 import logging
 import pathlib
@@ -27,7 +27,7 @@ import tempfile
 import time
 
 
-def run(rider,
+def run(bench,
         length,
         direction=-1,
         real=False,
@@ -40,8 +40,8 @@ def run(rider,
         verbose=False,
         timeout=300,
         sequence=None):
-    """Run rocFFT rider and return execution times."""
-    cmd = [pathlib.Path(rider).resolve()]
+    """Run rocFFT bench and return execution times."""
+    cmd = [pathlib.Path(bench).resolve()]
 
     if isinstance(length, int):
         cmd += ['--length', length]
@@ -52,7 +52,7 @@ def run(rider,
         for library in libraries:
             cmd += ['--lib', pathlib.Path(library).resolve()]
         if len(libraries) > 1:
-            # only use different randomizations if using dyna-rider
+            # only use different randomizations if using dyna-bench
             if sequence is not None:
                 cmd += ['--sequence', str(sequence)]
 

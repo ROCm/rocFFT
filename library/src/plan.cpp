@@ -359,37 +359,37 @@ rocfft_status rocfft_plan_description_destroy(rocfft_plan_description descriptio
     return rocfft_status_success;
 }
 
-std::string rocfft_rider_command(rocfft_plan plan)
+std::string rocfft_bench_command(rocfft_plan plan)
 {
-    std::stringstream rider;
-    rider << "rocfft-rider --length ";
-    std::ostream_iterator<size_t> rider_iter(rider, " ");
-    std::copy(plan->lengths.rbegin() + (3 - plan->rank), plan->lengths.rend(), rider_iter);
-    rider << "-b " << plan->batch << " ";
+    std::stringstream bench;
+    bench << "rocfft-bench --length ";
+    std::ostream_iterator<size_t> bench_iter(bench, " ");
+    std::copy(plan->lengths.rbegin() + (3 - plan->rank), plan->lengths.rend(), bench_iter);
+    bench << "-b " << plan->batch << " ";
 
     if(plan->placement == rocfft_placement_notinplace)
-        rider << "-o ";
+        bench << "-o ";
 
-    rider << "-t " << plan->transformType << " ";
+    bench << "-t " << plan->transformType << " ";
 
-    rider << "--precision ";
-    rider << precision_name(plan->precision) << " ";
-    rider << "--itype " << plan->desc.inArrayType << " ";
-    rider << "--otype " << plan->desc.outArrayType << " ";
-    rider << "--istride ";
+    bench << "--precision ";
+    bench << precision_name(plan->precision) << " ";
+    bench << "--itype " << plan->desc.inArrayType << " ";
+    bench << "--otype " << plan->desc.outArrayType << " ";
+    bench << "--istride ";
     std::copy(
-        plan->desc.inStrides.rbegin() + (3 - plan->rank), plan->desc.inStrides.rend(), rider_iter);
-    rider << "--ostride ";
+        plan->desc.inStrides.rbegin() + (3 - plan->rank), plan->desc.inStrides.rend(), bench_iter);
+    bench << "--ostride ";
     std::copy(plan->desc.outStrides.rbegin() + (3 - plan->rank),
               plan->desc.outStrides.rend(),
-              rider_iter);
-    rider << "--idist " << plan->desc.inDist << " ";
-    rider << "--odist " << plan->desc.outDist << " ";
-    rider << "--ioffset ";
-    std::copy(plan->desc.inOffset.begin(), plan->desc.inOffset.end(), rider_iter);
-    rider << "--ooffset ";
-    std::copy(plan->desc.outOffset.begin(), plan->desc.outOffset.end(), rider_iter);
-    return rider.str();
+              bench_iter);
+    bench << "--idist " << plan->desc.inDist << " ";
+    bench << "--odist " << plan->desc.outDist << " ";
+    bench << "--ioffset ";
+    std::copy(plan->desc.inOffset.begin(), plan->desc.inOffset.end(), bench_iter);
+    bench << "--ooffset ";
+    std::copy(plan->desc.outOffset.begin(), plan->desc.outOffset.end(), bench_iter);
+    return bench.str();
 }
 
 void set_bluestein_strides(const rocfft_plan plan, NodeMetaData& planData)
@@ -591,7 +591,7 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     // sort the parameters to be row major, in case they're not
     plan->sort();
 
-    log_bench(rocfft_rider_command(p));
+    log_bench(rocfft_bench_command(p));
 
     // construct the plan
     try

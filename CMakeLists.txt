@@ -192,15 +192,20 @@ include( clients/cmake/build-options.cmake )
 
 # Build clients of the library
 if( BUILD_CLIENTS )
-  set( BUILD_CLIENTS_RIDER ON )
+  set( BUILD_CLIENTS_BENCH ON )
   set( BUILD_CLIENTS_SAMPLES ON )
   set( BUILD_CLIENTS_TESTS ON )
 endif( )
 
+# old name for BUILD_CLIENTS_BENCH
+if( BUILD_CLIENTS_RIDER )
+  set( BUILD_CLIENTS_BENCH ${BUILD_CLIENTS_RIDER} )
+endif()
+
 if( BUILD_CLIENTS_SAMPLES
     OR BUILD_CLIENTS_TESTS
-    OR BUILD_CLIENTS_RIDER )
-  if(BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SELFTEST OR BUILD_CLIENTS_RIDER)
+    OR BUILD_CLIENTS_BENCH )
+  if(BUILD_CLIENTS_TESTS OR BUILD_CLIENTS_SELFTEST OR BUILD_CLIENTS_BENCH)
     find_package( Boost COMPONENTS program_options REQUIRED)
     set(BOOST_DEB "libboost-program-options${Boost_VERSION_MAJOR}.${Boost_VERSION_MINOR}.${Boost_VERSION_PATCH}")
     set(BOOST_RPM "boost-program-options = ${Boost_VERSION_MAJOR}.${Boost_VERSION_MINOR}.${Boost_VERSION_PATCH}")
@@ -231,7 +236,7 @@ if( BUILD_CLIENTS_SAMPLES
         RPM ${BOOST_RPM} ${OPENMP_RPM} ${FFTW_RPM} rocrand
     )
   endif()
-  if(BUILD_CLIENTS_RIDER)
+  if(BUILD_CLIENTS_BENCH)
     rocm_package_setup_client_component(
       benchmarks
       DEPENDS

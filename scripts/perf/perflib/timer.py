@@ -32,7 +32,7 @@ from typing import Set
 
 @dataclass
 class Timer:
-    rider: str = ""
+    bench: str = ""
     accutest: str = ""
     active_tests_tokens: Set[bytes] = field(default_factory=set)
     lib: List[str] = field(default_factory=list)
@@ -45,9 +45,9 @@ class Timer:
 
     def run_cases(self, generator):
 
-        rider = path(self.rider)
-        if not rider.is_file():
-            raise RuntimeError(f"Unable to find (dyna-)rider: {self.rider}")
+        bench = path(self.bench)
+        if not bench.is_file():
+            raise RuntimeError(f"Unable to find (dyna-)bench: {self.bench}")
 
         failed_tokens = []
 
@@ -55,8 +55,8 @@ class Timer:
         no_accutest_prob_count = 0
         for prob in generator.generate_problems():
             total_prob_count += 1
-            token, seconds, success, __, __ = perflib.rider.run(
-                self.rider,
+            token, seconds, success, __, __ = perflib.bench.run(
+                self.bench,
                 prob.length,
                 direction=prob.direction,
                 real=prob.real,
@@ -98,7 +98,7 @@ class Timer:
 
 @dataclass
 class GroupedTimer:
-    rider: str = ""
+    bench: str = ""
     accutest: str = ""
     active_tests_tokens: Set[bytes] = field(default_factory=set)
     lib: List[str] = field(default_factory=list)

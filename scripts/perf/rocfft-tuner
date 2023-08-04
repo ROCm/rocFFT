@@ -33,7 +33,7 @@ General arguments shared between tune and merge commands:
 
 --workspace :
 --tuner     :
---rider     :
+--bench     :
 
 Runs/subprocesses are logged to `rocfft-tuner.log`.
 
@@ -46,7 +46,7 @@ you must add -DROCFFT_BUILD_OFFLINE_TUNER=ON to the build option. There
 is handy argument -t | --tuner for install.sh (`./install.sh -t or --tuner`)
 
 Test problems are generated using a `ProblemGenerator` and a filter.
-The problems generator is the same one as rocfft-perf (rider)
+The problems generator is the same one as rocfft-perf (bench)
 
 See
 
@@ -71,11 +71,10 @@ Merge
 ===============
 
 Dynamic testing is enabled by specifying more than one `--lib/-i`
-option.  These are passed down to the rider, and hence it is assumed
-that the specific rider is a "dyna" rider.
+option.  These are passed down to the benchmarker, and hence it is
+assumed that the specific benchmarker is a "dyna" bench.
 
 Multiple output directories are used to store the results.
-
 
 """
 
@@ -424,8 +423,8 @@ def command_merging(arguments):
             continue
 
         prob = single_meta['problem']
-        token, times, success, solToken, matchType = perflib.rider.run(
-            arguments.rider,
+        token, times, success, solToken, matchType = perflib.bench.run(
+            arguments.bench,
             prob['length'],
             direction=prob['direction'],
             real=prob['real'],
@@ -465,8 +464,8 @@ def command_merging(arguments):
         # set the explicit solution map filepath
         os.environ['ROCFFT_READ_EXPLICIT_SOL_MAP_FILE'] = str(
             new_single_solution_file)
-        token, times, success, solToken, matchType = perflib.rider.run(
-            arguments.rider,
+        token, times, success, solToken, matchType = perflib.bench.run(
+            arguments.bench,
             prob['length'],
             direction=prob['direction'],
             real=prob['real'],
@@ -579,10 +578,10 @@ def main():
         help='tuner executable path, used as tuner and merger',
         default='./build/release/library/src/rocfft_offline_tuner')
 
-    parser.add_argument('--rider',
+    parser.add_argument('--bench',
                         type=str,
-                        help='rocfft-rider executable path, used when merging',
-                        default='./build/release/clients/staging/rocfft-rider')
+                        help='rocfft-bench executable path, used when merging',
+                        default='./build/release/clients/staging/rocfft-bench')
 
     parser.add_argument('--validator',
                         type=str,

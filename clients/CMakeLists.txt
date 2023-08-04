@@ -63,10 +63,10 @@ set( CMAKE_EXPORT_COMPILE_COMMANDS ON )
 if(NOT ROCFFT_BUILD_SCOPE AND 
    NOT BUILD_CLIENTS_SAMPLES AND 
    NOT BUILD_CLIENTS_TESTS AND 
-   NOT BUILD_CLIENTS_RIDER)
+   NOT BUILD_CLIENTS_BENCH)
   set( BUILD_CLIENTS_SAMPLES ON )
   set( BUILD_CLIENTS_TESTS ON )
-  set( BUILD_CLIENTS_RIDER ON )
+  set( BUILD_CLIENTS_BENCH ON )
 endif()
 
 # each backend requires different libraries for host and device code
@@ -94,6 +94,6 @@ if( BUILD_CLIENTS_TESTS )
   add_subdirectory( tests )
 endif( )
 
-if( BUILD_CLIENTS_RIDER )
-  add_subdirectory( rider )
+if( BUILD_CLIENTS_BENCH )
+  add_subdirectory( bench )
 endif( )
