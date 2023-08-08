@@ -60,7 +60,7 @@ if __name__ == '__main__':
     # regex to filter out #include statements, since those can't work
     # for RTC.  The runtime ensures that all the really important
     # includes are already done for us.
-    include_regex = re.compile('''^\s*#include''')
+    include_regex = re.compile(r'''^\s*#include''')
 
     # embed files as strings
     outfile.write("#include <array>\n")
