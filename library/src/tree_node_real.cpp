@@ -217,18 +217,17 @@ void RealTransEvenNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
     size_t        fft_node_id       = 0;
     if(!noSolution)
     {
-        if(child_scheme_trees.size() != 2 && child_scheme_trees.size() != 3)
+        if(child_scheme_trees.size() != 1 && child_scheme_trees.size() != 2)
             throw std::runtime_error(
                 "RealTransEvenNode: Unexpected child scheme from solution map");
-        try_fuse_pre_post_processing = (child_scheme_trees.size() == 2) ? true : false;
+        try_fuse_pre_post_processing = (child_scheme_trees.size() == 1) ? true : false;
 
         // fwd
         if(direction == -1)
         {
-            fft_node_id = 1;
-            assert(child_scheme_trees[0]->curScheme == CS_KERNEL_APPLY_CALLBACK);
+            fft_node_id = 0;
             if(try_fuse_pre_post_processing == false) // not fused
-                assert(child_scheme_trees[2]->curScheme == CS_KERNEL_R_TO_CMPLX);
+                assert(child_scheme_trees[1]->curScheme == CS_KERNEL_R_TO_CMPLX);
         }
         // bwd
         else
@@ -236,24 +235,20 @@ void RealTransEvenNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
             fft_node_id = try_fuse_pre_post_processing ? 0 : 1;
             if(try_fuse_pre_post_processing == false) // not fused
                 assert(child_scheme_trees[0]->curScheme == CS_KERNEL_CMPLX_TO_R);
-            assert(child_scheme_trees.back()->curScheme == CS_KERNEL_APPLY_CALLBACK);
         }
         determined_scheme = child_scheme_trees[fft_node_id]->curScheme;
     }
 
     // NB:
     // immediate FFT children of CS_REAL_TRANSFORM_EVEN must be
-    // in-place because they're working directly on the real buffer,
-    // but pretending it's complex
+    // working directly on the real buffer, but pretending it's
+    // complex
 
     NodeMetaData cfftPlanData(this);
     cfftPlanData.dimension = dimension;
     cfftPlanData.length    = *realLength;
     cfftPlanData.length[0] = cfftPlanData.length[0] / 2;
     auto cfftPlan          = NodeFactory::CreateExplicitNode(cfftPlanData, this, determined_scheme);
-    // cfftPlan works in-place on the input buffer for R2C, on the
-    // output buffer for C2R
-    cfftPlan->allowOutofplace = false; // force it to be inplace
     // NB: the buffer is real, but we treat it as complex
     cfftPlan->RecursiveBuildTree((noSolution) ? nullptr : child_scheme_trees[fft_node_id].get());
 
@@ -281,22 +276,13 @@ void RealTransEvenNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
     {
         // real-to-complex transform: in-place complex transform then post-process
 
-        // insert a node that's prepared to apply the user's
-        // callback, since the callback would expect reals and this
-        // plan would otherwise pretend it's complex
-        auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
-        applyCallback->dimension = dimension;
-        applyCallback->length    = *realLength;
-
         if(try_fuse_pre_post_processing)
         {
-            cfftPlan->ebtype          = EmbeddedType::Real2C_POST;
-            cfftPlan->allowOutofplace = true; // re-enable out-of-place
-            cfftPlan->outputLength    = cfftPlan->length;
+            cfftPlan->ebtype       = EmbeddedType::Real2C_POST;
+            cfftPlan->outputLength = cfftPlan->length;
             cfftPlan->outputLength.front() += 1;
         }
 
-        childNodes.emplace_back(std::move(applyCallback));
         childNodes.emplace_back(std::move(cfftPlan));
 
         // add separate post-processing if we couldn't fuse
@@ -336,19 +322,10 @@ void RealTransEvenNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
         }
         else
         {
-            cfftPlan->ebtype          = EmbeddedType::C2Real_PRE;
-            cfftPlan->allowOutofplace = true; // re-enable out-of-place
+            cfftPlan->ebtype = EmbeddedType::C2Real_PRE;
         }
 
-        // insert a node that's prepared to apply the user's
-        // callback, since the callback would expect reals and this
-        // plan would otherwise pretend it's complex
-        auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
-        applyCallback->dimension = dimension;
-        applyCallback->length    = outputLength;
-
         childNodes.emplace_back(std::move(cfftPlan));
-        childNodes.emplace_back(std::move(applyCallback));
         break;
     }
     default:
@@ -360,22 +337,15 @@ void RealTransEvenNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 
 void RealTransEvenNode::AssignParams_internal()
 {
-    // definitely will have FFT + apply callback.  pre/post processing
+    // definitely will have FFT.  pre/post processing
     // might be fused into the FFT or separate.
-    assert(childNodes.size() == 2 || childNodes.size() == 3);
+    assert(childNodes.size() == 1 || childNodes.size() == 2);
 
     if(direction == -1)
     {
         // forward transform, r2c
 
-        // iDist is in reals, subplan->iDist is in complexes
-        auto& applyCallback      = childNodes[0];
-        applyCallback->inStride  = inStride;
-        applyCallback->iDist     = iDist;
-        applyCallback->outStride = inStride;
-        applyCallback->oDist     = iDist;
-
-        auto& fftPlan     = childNodes[1];
+        auto& fftPlan     = childNodes[0];
         fftPlan->inStride = inStride;
         for(unsigned int i = 1; i < fftPlan->inStride.size(); ++i)
         {
@@ -392,9 +362,9 @@ void RealTransEvenNode::AssignParams_internal()
         assert(fftPlan->length.size() == fftPlan->inStride.size());
         assert(fftPlan->length.size() == fftPlan->outStride.size());
 
-        if(childNodes.size() == 3)
+        if(childNodes.size() == 2)
         {
-            auto& postPlan = childNodes[2];
+            auto& postPlan = childNodes[1];
             assert(postPlan->scheme == CS_KERNEL_R_TO_CMPLX
                    || postPlan->scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE);
             postPlan->inStride = inStride;
@@ -467,12 +437,6 @@ void RealTransEvenNode::AssignParams_internal()
         TreeNode* rootPlan = this;
         while(rootPlan->parent != nullptr)
             rootPlan = rootPlan->parent;
-
-        auto& applyCallback      = childNodes.back();
-        applyCallback->inStride  = rootPlan->outStride;
-        applyCallback->iDist     = rootPlan->oDist;
-        applyCallback->outStride = rootPlan->outStride;
-        applyCallback->oDist     = rootPlan->oDist;
     }
 }
 
@@ -529,10 +493,6 @@ void Real2DEvenNode::BuildTree_internal_2D_SINGLE()
 {
     if(inArrayType == rocfft_array_type_real)
     {
-        auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
-        applyCallback->dimension = dimension;
-        applyCallback->length    = length;
-
         NodeMetaData cfftPlanData(this);
         cfftPlanData.dimension = dimension;
         cfftPlanData.length    = length;
@@ -545,7 +505,6 @@ void Real2DEvenNode::BuildTree_internal_2D_SINGLE()
         cfftPlan->outputLength    = cfftPlan->length;
         cfftPlan->outputLength.front() += 1;
 
-        childNodes.emplace_back(std::move(applyCallback));
         childNodes.emplace_back(std::move(cfftPlan));
     }
     else
@@ -559,12 +518,7 @@ void Real2DEvenNode::BuildTree_internal_2D_SINGLE()
         cfftPlan->ebtype          = EmbeddedType::C2Real_PRE;
         cfftPlan->allowOutofplace = true;
 
-        auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
-        applyCallback->dimension = dimension;
-        applyCallback->length    = outputLength;
-
         childNodes.emplace_back(std::move(cfftPlan));
-        childNodes.emplace_back(std::move(applyCallback));
     }
 }
 
@@ -811,13 +765,7 @@ void Real2DEvenNode::AssignParams_internal_2D_SINGLE()
     const bool forward = inArrayType == rocfft_array_type_real;
     if(forward)
     {
-        auto& applyCallback      = childNodes[0];
-        applyCallback->inStride  = inStride;
-        applyCallback->iDist     = iDist;
-        applyCallback->outStride = inStride;
-        applyCallback->oDist     = iDist;
-
-        auto& fused_2d     = childNodes[1];
+        auto& fused_2d     = childNodes[0];
         fused_2d->inStride = inStride;
         for(unsigned int i = 1; i < fused_2d->inStride.size(); ++i)
         {
@@ -844,23 +792,12 @@ void Real2DEvenNode::AssignParams_internal_2D_SINGLE()
         std::swap(fused_2d->outStride[0], fused_2d->outStride[1]);
 
         fused_2d->AssignParams();
-
-        // we apply callbacks on the root plan's output
-        TreeNode* rootPlan = this;
-        while(rootPlan->parent != nullptr)
-            rootPlan = rootPlan->parent;
-
-        auto& applyCallback      = childNodes.back();
-        applyCallback->inStride  = rootPlan->outStride;
-        applyCallback->iDist     = rootPlan->oDist;
-        applyCallback->outStride = rootPlan->outStride;
-        applyCallback->oDist     = rootPlan->oDist;
     }
 }
 
 void Real2DEvenNode::AssignParams_internal_SBCC()
 {
-    const bool forward = inArrayType == rocfft_array_type_real;
+    const bool forward = direction == -1;
     if(forward)
     {
         auto& rowPlan = childNodes[0];
@@ -1130,10 +1067,6 @@ void Real3DEvenNode::BuildTree_internal_2D_SINGLE_CC()
 
     if(forward)
     {
-        auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
-        applyCallback->dimension = dimension;
-        applyCallback->length    = length;
-
         auto xyPlan       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_2D_SINGLE, this);
         xyPlan->length    = {length[0] / 2, length[1], length[2]};
         xyPlan->dimension = 2;
@@ -1149,7 +1082,6 @@ void Real3DEvenNode::BuildTree_internal_2D_SINGLE_CC()
         sbccZ->outputLength = outputLength;
         sbccZ->dimension    = 1;
 
-        childNodes.emplace_back(std::move(applyCallback));
         childNodes.emplace_back(std::move(xyPlan));
         childNodes.emplace_back(std::move(sbccZ));
     }
@@ -1167,13 +1099,8 @@ void Real3DEvenNode::BuildTree_internal_2D_SINGLE_CC()
         xyPlan->RecursiveBuildTree();
         xyPlan->ebtype = EmbeddedType::C2Real_PRE;
 
-        auto applyCallback = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
-        applyCallback->dimension = dimension;
-        applyCallback->length    = outputLength;
-
         childNodes.emplace_back(std::move(sbccZ));
         childNodes.emplace_back(std::move(xyPlan));
-        childNodes.emplace_back(std::move(applyCallback));
     }
 }
 
@@ -1311,11 +1238,10 @@ void Real3DEvenNode::BuildTree_internal_SBCR(SchemeTreeVec& child_scheme_trees)
     // check schemes from solution map
     if(!noSolution)
     {
-        if((child_scheme_trees.size() != 4)
+        if((child_scheme_trees.size() != 3)
            || (child_scheme_trees[0]->curScheme != CS_KERNEL_STOCKHAM_BLOCK_CR)
            || (child_scheme_trees[1]->curScheme != CS_KERNEL_STOCKHAM_BLOCK_CR)
-           || (child_scheme_trees[2]->curScheme != CS_KERNEL_STOCKHAM_BLOCK_CR)
-           || (child_scheme_trees[3]->curScheme != CS_KERNEL_APPLY_CALLBACK))
+           || (child_scheme_trees[2]->curScheme != CS_KERNEL_STOCKHAM_BLOCK_CR))
         {
             throw std::runtime_error("Real3DEvenNode: Unexpected child scheme from solution map");
         }
@@ -1335,14 +1261,6 @@ void Real3DEvenNode::BuildTree_internal_SBCR(SchemeTreeVec& child_scheme_trees)
     sbcrX->length    = {outputLength[0] / 2, outputLength[1] * outputLength[2]};
     sbcrX->dimension = 1;
     childNodes.emplace_back(std::move(sbcrX));
-
-    // insert a node that's prepared to apply the user's
-    // callback, since the callback would expect reals and this
-    // plan would otherwise pretend it's complex
-    auto applyCallback       = NodeFactory::CreateNodeFromScheme(CS_KERNEL_APPLY_CALLBACK, this);
-    applyCallback->dimension = dimension;
-    applyCallback->length    = outputLength;
-    childNodes.emplace_back(std::move(applyCallback));
 }
 
 void Real3DEvenNode::BuildTree_internal_TR_pairs(SchemeTreeVec& child_scheme_trees)
@@ -1596,13 +1514,7 @@ void Real3DEvenNode::AssignParams_internal_2D_SINGLE_CC()
 
     if(forward)
     {
-        auto& applyCallback      = childNodes[0];
-        applyCallback->inStride  = inStride;
-        applyCallback->iDist     = iDist;
-        applyCallback->outStride = inStride;
-        applyCallback->oDist     = iDist;
-
-        auto& fused_2d     = childNodes[1];
+        auto& fused_2d     = childNodes[0];
         fused_2d->inStride = inStride;
         for(unsigned int i = 1; i < fused_2d->inStride.size(); ++i)
         {
@@ -1614,7 +1526,7 @@ void Real3DEvenNode::AssignParams_internal_2D_SINGLE_CC()
         fused_2d->AssignParams();
 
         // SBCC along Z dim
-        auto& sbccZ      = childNodes[2];
+        auto& sbccZ      = childNodes[1];
         sbccZ->inStride  = {outStride[2], outStride[0], outStride[1]};
         sbccZ->outStride = sbccZ->inStride;
         sbccZ->iDist     = oDist;
@@ -1644,17 +1556,6 @@ void Real3DEvenNode::AssignParams_internal_2D_SINGLE_CC()
         fused_2d->iDist = fused_2d->length.back() * fused_2d->inStride.back();
         fused_2d->oDist = fused_2d->length.back() * fused_2d->outStride.back();
         fused_2d->AssignParams();
-
-        // we apply callbacks on the root plan's output
-        TreeNode* rootPlan = this;
-        while(rootPlan->parent != nullptr)
-            rootPlan = rootPlan->parent;
-
-        auto& applyCallback      = childNodes.back();
-        applyCallback->inStride  = rootPlan->outStride;
-        applyCallback->iDist     = rootPlan->oDist;
-        applyCallback->outStride = rootPlan->outStride;
-        applyCallback->oDist     = rootPlan->oDist;
     }
 }
 
@@ -1740,8 +1641,8 @@ void Real3DEvenNode::AssignParams_internal_SBCC()
 
 void Real3DEvenNode::AssignParams_internal_SBCR()
 {
-    if(childNodes.size() != 4)
-        throw std::runtime_error("Require SBCR childNodes.size() == 4");
+    if(childNodes.size() != 3)
+        throw std::runtime_error("Require SBCR childNodes.size() == 3");
 
     auto& sbcrZ      = childNodes[0];
     sbcrZ->inStride  = {inStride[2], inStride[0]};
@@ -1772,12 +1673,6 @@ void Real3DEvenNode::AssignParams_internal_SBCR()
     TreeNode* rootPlan = this;
     while(rootPlan->parent != nullptr)
         rootPlan = rootPlan->parent;
-
-    auto& applyCallback      = childNodes.back();
-    applyCallback->inStride  = rootPlan->outStride;
-    applyCallback->iDist     = rootPlan->oDist;
-    applyCallback->outStride = rootPlan->outStride;
-    applyCallback->oDist     = rootPlan->oDist;
 }
 
 void Real3DEvenNode::AssignParams_internal_TR_pairs()

@@ -741,19 +741,11 @@ void TransformPowX(const ExecPlan&       execPlan,
                       ? data.node->compiledKernel.get().get()
                       : data.node->compiledKernelWithCallbacks.get().get();
 
-            // HACK: skip apply callback
-            if(data.node->scheme == CS_KERNEL_APPLY_CALLBACK)
-                continue;
+            if(localCompiledKernel)
+                localCompiledKernel->launch(data);
+            else
+                fn(&data, &back);
 
-            // skip apply callback kernel if there's no callback
-            if(data.node->scheme != CS_KERNEL_APPLY_CALLBACK
-               || data.get_callback_type() != CallbackType::NONE)
-            {
-                if(localCompiledKernel)
-                    localCompiledKernel->launch(data);
-                else
-                    fn(&data, &back);
-            }
             if(emit_profile_log)
                 if(hipEventRecord(stop) != hipSuccess)
                     throw std::runtime_error("hipEventRecord failure");

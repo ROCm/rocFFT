@@ -6,6 +6,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 
 ### Optimizations
 - Improved performance of some small 2D/3D real FFTs supported by 2D_SINGLE kernel.
+- Removed an extra kernel launch from even-length real-complex FFTs that use callbacks.
 
 ### Changed
 - Built kernels in solution-map to library kernel cache.

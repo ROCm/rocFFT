@@ -1262,8 +1262,21 @@ void TreeNode::RefreshTree()
         this->obIn      = first->obIn;
         this->obOut     = last->obOut;
         this->placement = (obIn == obOut) ? rocfft_placement_inplace : rocfft_placement_notinplace;
-        this->inArrayType  = first->inArrayType;
-        this->outArrayType = last->outArrayType;
+
+        // even-length real transform nodes need to have real
+        // input/output even if their first/last child treats the
+        // real data as complex
+        const bool isRealEvenNode = scheme == CS_REAL_TRANSFORM_EVEN || scheme == CS_REAL_2D_EVEN
+                                    || scheme == CS_REAL_3D_EVEN;
+        if(isRealEvenNode && direction == -1)
+            this->inArrayType = rocfft_array_type_real;
+        else
+            this->inArrayType = first->inArrayType;
+
+        if(isRealEvenNode && direction == 1)
+            this->outArrayType = rocfft_array_type_real;
+        else
+            this->outArrayType = last->outArrayType;
     }
 }
 
@@ -1654,16 +1667,14 @@ std::pair<TreeNode*, TreeNode*> ExecPlan::get_load_store_nodes() const
     const auto& seq = execSeq;
 
     // look forward for the first node that reads from input
-    auto      load_it = std::find_if(seq.begin(), seq.end(), [&](const TreeNode* n) {
-        return n->scheme != CS_KERNEL_APPLY_CALLBACK && n->obIn == rootPlan->obIn;
-    });
-    TreeNode* load    = load_it == seq.end() ? nullptr : *load_it;
+    auto load_it = std::find_if(
+        seq.begin(), seq.end(), [&](const TreeNode* n) { return n->obIn == rootPlan->obIn; });
+    TreeNode* load = load_it == seq.end() ? nullptr : *load_it;
 
     // look backward for the last node that writes to output
-    auto      store_it = std::find_if(seq.rbegin(), seq.rend(), [&](const TreeNode* n) {
-        return n->scheme != CS_KERNEL_APPLY_CALLBACK && n->obOut == rootPlan->obOut;
-    });
-    TreeNode* store    = store_it == seq.rend() ? nullptr : *store_it;
+    auto store_it = std::find_if(
+        seq.rbegin(), seq.rend(), [&](const TreeNode* n) { return n->obOut == rootPlan->obOut; });
+    TreeNode* store = store_it == seq.rend() ? nullptr : *store_it;
 
     assert(load && store);
     return std::make_pair(load, store);
@@ -2058,13 +2069,10 @@ void ProcessNode(ExecPlan& execPlan)
 
     if(execPlan.rootPlan->loadOps.enabled())
     {
-        // Load ops happen on first node that reads input, (after callbacks
-        // if you want both), so we need to get the first one that's not
-        // APPLY_CALLBACK
+        // Load ops happen on first node that reads input
         auto load_node = std::find_if(
             execPlan.execSeq.begin(), execPlan.execSeq.end(), [&execPlan](TreeNode* node) {
-                return node->obIn == execPlan.rootPlan->obIn
-                       && node->scheme != CS_KERNEL_APPLY_CALLBACK;
+                return node->obIn == execPlan.rootPlan->obIn;
             });
         (*load_node)->loadOps = execPlan.rootPlan->loadOps;
     }
@@ -2072,12 +2080,10 @@ void ProcessNode(ExecPlan& execPlan)
     if(execPlan.rootPlan->storeOps.enabled())
     {
         // Store ops happen on last node of the plan that writes
-        // output, (before callbacks if you want both), so we need to
-        // get the last one that's not APPLY_CALLBACK
+        // output
         auto store_node = std::find_if(
             execPlan.execSeq.rbegin(), execPlan.execSeq.rend(), [&execPlan](TreeNode* node) {
-                return node->obOut == execPlan.rootPlan->obOut
-                       && node->scheme != CS_KERNEL_APPLY_CALLBACK;
+                return node->obOut == execPlan.rootPlan->obOut;
             });
         (*store_node)->storeOps = execPlan.rootPlan->storeOps;
     }

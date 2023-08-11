@@ -28,8 +28,6 @@ static const TreeNode* FindFirstLeaf(const TreeNode* node, OperatingBuffer buf)
         // look at each child
         for(const auto& c : node->childNodes)
         {
-            if(c->scheme == CS_KERNEL_APPLY_CALLBACK)
-                continue;
             auto reader = FindFirstLeaf(c.get(), buf);
             if(reader)
                 return reader;
@@ -49,8 +47,6 @@ static const TreeNode* FindLastLeaf(const TreeNode* node, OperatingBuffer buf)
         // look at each child in reverse order
         for(auto c = node->childNodes.crbegin(); c != node->childNodes.crend(); ++c)
         {
-            if((*c)->scheme == CS_KERNEL_APPLY_CALLBACK)
-                continue;
             auto writer = FindLastLeaf(c->get(), buf);
             if(writer)
                 return writer;

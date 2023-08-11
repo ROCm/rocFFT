@@ -509,26 +509,25 @@ bool TransC2R_FuseShim::CheckSchemeFusable()
     // since it's possible we'll change its input buffer
     nodes.resize(3);
     nodes[1] = realEven->childNodes.front().get();
-    nodes[2] = realEven->childNodes[1]->GetFirstLeaf();
+    nodes[2] = std::find_if(realEven->childNodes.begin() + 1,
+                            realEven->childNodes.end(),
+                            [](const auto& n) { return !n->IsBluesteinChirpSetup(); })
+                   ->get();
 
     firstFusedNode = 0;
     lastFusedNode  = 1;
 
-    // if the nextLeafNode is stockham, SBCC or PAD-MUL,
+    // if the nextLeafNode is stockham, SBCC or PAD-MUL
     //   we allow the EffectivePlacement of (trans-in, c2r-out) to be inplace,
     //   then we force it to be OP, but change the nextLeafNode's input..
     // So if the nextLeafNode isn't one of these (ex, a transpose for TRTRT)
     //   then we couldn't change tranpose's input buffer
     ComputeScheme nextFFTScheme = nodes[2]->scheme;
     if(nextFFTScheme == CS_KERNEL_STOCKHAM || nextFFTScheme == CS_KERNEL_STOCKHAM_BLOCK_CC
-       || nextFFTScheme == CS_KERNEL_CHIRP)
+       || nextFFTScheme == CS_KERNEL_PAD_MUL)
         allowInplace = true;
     else
         allowInplace = false;
-
-    // if the nextLeaf is chirp, what we actually want is next sibling PAD-MUL
-    if(nextFFTScheme == CS_KERNEL_CHIRP)
-        nodes[2] = nodes[2]->parent->childNodes[1].get();
 
     return true;
 }

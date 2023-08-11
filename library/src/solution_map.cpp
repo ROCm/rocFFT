@@ -35,7 +35,7 @@ namespace fs = std::filesystem;
 
 static const char* def_solution_map_path = "rocfft_solution_map.dat";
 
-const int   solution_map::VERSION                       = 2;
+const int   solution_map::VERSION                       = 3;
 const char* solution_map::KERNEL_TOKEN_BUILTIN_KERNEL   = "kernel_token_builtin_kernel";
 const char* solution_map::LEAFNODE_TOKEN_BUILTIN_KERNEL = "leafnode_token_builtin_kernel";
 
@@ -158,6 +158,16 @@ struct FromString<SolutionNode>
             else
             {
                 FieldParser<std::string>().parse("using_scheme", scheme_str, current);
+
+                if(DescriptorFormatVersion::UsingVersion <= 2)
+                {
+                    // (version <= 2) supports scheme CS_KERNEL_APPLY_CALLBACK
+                    // to convert to later version, we change it to CS_NONE first,
+                    // and then we will remove these nodes if (scheme == CALLBACK && sol_node_type == LEAF_NODE)
+                    if(scheme_str == "CS_KERNEL_APPLY_CALLBACK")
+                        scheme_str = "CS_NONE";
+                }
+
                 ret.using_scheme = StrToComputeScheme(scheme_str);
 
                 VectorFieldParser<SolutionPtr>().parse(
@@ -266,14 +276,12 @@ bool solution_map::SolutionNodesAreEqual(const SolutionNode& lhs,
     return true;
 }
 
-bool solution_map::remove_solution_bottom_up(SolutionNodeVec& nodeVec,
-                                             SolutionNode&    node,
-                                             size_t           pos)
+bool solution_map::remove_solution_tree(SolutionNodeVec& nodeVec, SolutionNode& node, size_t pos)
 {
     node.to_be_removed = true;
 
     // this node is going to be removed, so the following elements change position.
-    // We need to update their parent_sol_ptr 's option_id
+    // We need to update their parent_sol_ptr's option_id
     size_t i = pos + 1;
     for(; i < nodeVec.size(); ++i)
     {
@@ -289,7 +297,34 @@ bool solution_map::remove_solution_bottom_up(SolutionNodeVec& nodeVec,
         auto             it  = std::find(vec.begin(), vec.end(), *parent);
         size_t           idx = it - vec.begin();
         // recursion
-        remove_solution_bottom_up(vec, *parent, idx);
+        remove_solution_tree(vec, *parent, idx);
+    }
+
+    return true;
+}
+
+bool solution_map::remove_solution_node(SolutionNodeVec& nodeVec, SolutionNode& node, size_t pos)
+{
+    node.to_be_removed = true;
+
+    SolutionPtr remove_ptr{node.parent_sol_ptrs[0]->child_token,
+                           node.parent_sol_ptrs[0]->child_option};
+    // remove node and update its parent's child_vector
+    for(auto& parent : node.parent_sol_nodes)
+    {
+        auto& children    = parent->solution_childnodes;
+        auto  it          = std::find(children.begin(), children.end(), remove_ptr);
+        it->to_be_removed = true;
+    }
+
+    // this node is going to be removed, so the following elements change position.
+    // We need to update their parent_sol_ptr 's option_id
+    size_t i = pos + 1;
+    for(; i < nodeVec.size(); ++i)
+    {
+        auto& ref_ptrs = nodeVec[i].parent_sol_ptrs;
+        for(auto& ptr : ref_ptrs)
+            ptr->child_option -= 1;
     }
 
     return true;
@@ -660,7 +695,7 @@ bool solution_map::read_solution_map_data(const fs::path& sol_map_in_path, bool 
             dst_map.emplace(probKey, solutionVec);
         }
     }
-    else if(self_version == 1)
+    else if(self_version == 1 || self_version == 2)
     {
         try
         {
@@ -817,7 +852,7 @@ bool SolutionMapConverter::remove_invalid_half_lds()
                 KernelConfig& config = node.kernel_key.kernel_config;
                 if(config.half_lds && no_half_lds.count(scheme))
                 {
-                    sol_map.remove_solution_bottom_up(solNodeVec, node, i);
+                    sol_map.remove_solution_tree(solNodeVec, node, i);
                 }
             }
             else
@@ -827,18 +862,60 @@ bool SolutionMapConverter::remove_invalid_half_lds()
         }
     }
 
-    // erase nodes, and check if any entry need removing
-    std::set<ProblemKey> to_be_removed_keys;
+    remove_all_marked(sol_map.primary_sol_map);
+    return true;
+}
+
+bool SolutionMapConverter::remove_callback_nodes()
+{
+    auto& sol_map = solution_map::get_solution_map();
+
+    // generate the parent's info for back reference
+    sol_map.generate_link_info();
+
+    // mark those nodes need removing
     for(auto& [key, value] : sol_map.primary_sol_map)
     {
         SolutionNodeVec& solNodeVec = value;
         for(size_t i = 0; i < solNodeVec.size(); ++i)
         {
             SolutionNode& node = solNodeVec[i];
+            if(node.sol_node_type == SOL_LEAF_NODE && node.using_scheme == CS_NONE)
+                sol_map.remove_solution_node(solNodeVec, node, i);
+        }
+    }
+
+    remove_all_marked(sol_map.primary_sol_map);
+    return true;
+}
+
+void SolutionMapConverter::remove_all_marked(ProbSolMap& target_map)
+{
+    // erase nodes, and check if any entry need removing
+    std::set<ProblemKey> to_be_removed_keys;
+    for(auto& [key, value] : target_map)
+    {
+        SolutionNodeVec& solNodeVec = value;
+        for(size_t i = 0; i < solNodeVec.size(); ++i)
+        {
+            // remove nodes that are marked removed
+            SolutionNode& node = solNodeVec[i];
             if(node.to_be_removed)
             {
                 solNodeVec.erase(solNodeVec.begin() + i);
                 --i; // stay at the same position after removing this element
+            }
+
+            auto& child_vec = node.solution_childnodes;
+            for(size_t child_id = 0; child_id < child_vec.size(); ++child_id)
+            {
+                // remove child_ptrs that are marked removed
+                SolutionPtr& child = child_vec[child_id];
+                if(child.to_be_removed)
+                {
+                    child_vec.erase(child_vec.begin() + child_id);
+                    --child_id; // stay at the same position after removing this element
+                }
             }
         }
         if(solNodeVec.empty())
@@ -847,9 +924,7 @@ bool SolutionMapConverter::remove_invalid_half_lds()
 
     // remove entries with zero-length sol-node-vec
     for(const auto& key : to_be_removed_keys)
-        sol_map.primary_sol_map.erase(key);
-
-    return true;
+        target_map.erase(key);
 }
 
 bool SolutionMapConverter::VersionCheckAndConvert(const std::string& in_map_path,
@@ -884,6 +959,8 @@ bool SolutionMapConverter::VersionCheckAndConvert(const std::string& in_map_path
 
         // other actions that need to make it fitting latest version
         // ---------
+        if(sol_map.self_version <= 2)
+            remove_callback_nodes();
 
         std::cout << "successfully converted solution map from version(" << sol_map.self_version
                   << ") to latest version(" << solution_map::VERSION << ").\n";

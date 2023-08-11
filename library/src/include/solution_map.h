@@ -112,6 +112,9 @@ struct SolutionPtr
 
         return child_token < rhs.child_token;
     }
+
+    // flag indicating this to be removed, we assign marks first and remove them all at once
+    bool to_be_removed = false;
 };
 
 // Implementing the ToString / FromString (data_descriptor.h)
@@ -239,7 +242,11 @@ private:
                                const std::string&  arch,
                                bool                primary_map);
 
-    bool remove_solution_bottom_up(SolutionNodeVec& nodeVec, SolutionNode& node, size_t pos);
+    // remove an entire solution tree linked to the node
+    bool remove_solution_tree(SolutionNodeVec& nodeVec, SolutionNode& node, size_t pos);
+
+    // remove a single solution node, and update its parent's child_vector
+    bool remove_solution_node(SolutionNodeVec& nodeVec, SolutionNode& node, size_t pos);
 
     void generate_link_info();
 
@@ -338,6 +345,10 @@ private:
     // ver.0 -> ver.1: remove unused and invalid/incorrect kernels
     //               : caused by using un-supported half_lds in sbrc/sbcr kernels
     bool remove_invalid_half_lds();
+
+    bool remove_callback_nodes();
+
+    void remove_all_marked(ProbSolMap& target);
 
 public:
     SolutionMapConverter()  = default;

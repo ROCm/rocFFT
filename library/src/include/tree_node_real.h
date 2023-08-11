@@ -160,7 +160,6 @@ protected:
  * CS_KERNEL_COPY_HERM_TO_CMPLX
  * CS_KERNEL_COPY_CMPLX_TO_HERM
  * CS_KERNEL_COPY_CMPLX_TO_R
- * CS_KERNEL_APPLY_CALLBACK
  *****************************************************/
 class RealTransDataCopyNode : public LeafNode
 {
@@ -177,11 +176,7 @@ protected:
         /************
         * Placement
         *************/
-        // callback node allows only in-place, others (copy) allow only out-of-place
-        if(scheme == CS_KERNEL_APPLY_CALLBACK)
-            allowOutofplace = false;
-        else
-            allowInplace = false;
+        allowInplace = false;
 
         /********************
         * Buffer and ArrayType
@@ -193,7 +188,7 @@ protected:
             allowedOutArrayTypes = {rocfft_array_type_complex_interleaved};
         }
         // should be real, but could be treated as CI (the alias type)
-        else if(scheme == CS_KERNEL_COPY_CMPLX_TO_R || scheme == CS_KERNEL_APPLY_CALLBACK)
+        else if(scheme == CS_KERNEL_COPY_CMPLX_TO_R)
         {
             allowedOutArrayTypes = {rocfft_array_type_real, rocfft_array_type_complex_interleaved};
         }

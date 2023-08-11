@@ -406,19 +406,6 @@ void build_realcomplex(CompileQueue& queue)
     }
 }
 
-void build_apply_callback(CompileQueue& queue)
-{
-    for(auto precision : {rocfft_precision_single, rocfft_precision_double})
-    {
-        auto kernel_name = apply_callback_rtc_kernel_name(precision);
-        std::function<std::string(const std::string&)> generate_src
-            = [=](const std::string& kernel_name) -> std::string {
-            return apply_callback_rtc(kernel_name, precision);
-        };
-        queue.push({kernel_name, generate_src, ""});
-    }
-}
-
 void build_twiddle(CompileQueue& queue)
 {
     const auto twiddle_kernel_types = {
@@ -811,7 +798,6 @@ int main(int argc, char** argv)
 
     build_stockham_function_pool(queue);
     build_realcomplex(queue);
-    build_apply_callback(queue);
     build_twiddle(queue);
     build_solution_kernels(queue);
 

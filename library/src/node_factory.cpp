@@ -457,7 +457,6 @@ std::unique_ptr<TreeNode> NodeFactory::CreateNodeFromScheme(ComputeScheme s, Tre
     case CS_KERNEL_COPY_HERM_TO_CMPLX:
     case CS_KERNEL_COPY_CMPLX_TO_HERM:
     case CS_KERNEL_COPY_CMPLX_TO_R:
-    case CS_KERNEL_APPLY_CALLBACK:
         return std::unique_ptr<RealTransDataCopyNode>(new RealTransDataCopyNode(parent, s));
     case CS_KERNEL_CHIRP:
     case CS_KERNEL_PAD_MUL:

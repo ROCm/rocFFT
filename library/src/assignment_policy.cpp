@@ -111,9 +111,21 @@ void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
     node->inArrayType  = this->iType;
     node->outArrayType = this->oType;
 
-    // correct array type of callback, since it could be marked as CI during the process
-    if(node->scheme == CS_KERNEL_APPLY_CALLBACK)
-        node->outArrayType = node->inArrayType = rocfft_array_type_real;
+    // Even-length internal nodes have real data for input or output but
+    // child nodes treat it as complex interleaved
+    if(node->parent
+       && (node->parent->scheme == CS_REAL_TRANSFORM_EVEN || node->parent->scheme == CS_REAL_2D_EVEN
+           || node->parent->scheme == CS_REAL_3D_EVEN))
+    {
+        // forward transform, first node (if it's a leaf) needs to treat real input as complex
+        if(node->direction == -1 && node == node->parent->childNodes.front().get()
+           && node->childNodes.empty())
+            node->inArrayType = rocfft_array_type_complex_interleaved;
+        // inverse transform, last node (if it's a leaf) needs to treat real output as complex
+        if(node->direction == 1 && node == node->parent->childNodes.back().get()
+           && node->childNodes.empty())
+            node->outArrayType = rocfft_array_type_complex_interleaved;
+    }
 
     // for nodes that uses bluestein buffer
     auto setBluesteinOffset = [node](size_t& offset) {
@@ -148,9 +160,14 @@ void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
             return;
         }
     }
-    // if we're here, then 'node' must have been the first node, or
-    // preceded only by chirp setup nodes.  use root input type.
-    node->inArrayType = execPlan.rootPlan->inArrayType;
+
+    // if we're here, then 'node' must have already been the first
+    // node (and had its input set properly), or it's preceded only
+    // by chirp setup nodes.  in that case, we'll need to use root
+    // input type since the setup nodes are disconnected from the
+    // rest of the data flow.
+    if(node->parent && node != node->parent->childNodes.front().get())
+        node->inArrayType = execPlan.rootPlan->inArrayType;
 }
 
 // test if rootArrayType == testArrayType,
@@ -298,11 +315,6 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
             && arrayType != rocfft_array_type_complex_interleaved)
     {
         test_result = false;
-    }
-    // the only restriction of APPLY_CALLBACK is that it needs to be inplace
-    else if(node.scheme == CS_KERNEL_APPLY_CALLBACK)
-    {
-        test_result = true;
     }
     // bluestein nodes must write to temp bluestein buffer
     else if(buffer == OB_TEMP_BLUESTEIN)

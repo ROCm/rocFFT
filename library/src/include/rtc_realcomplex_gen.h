@@ -78,15 +78,11 @@ struct RealComplexEvenTransposeSpecs : public RealComplexSpecs
 std::string realcomplex_rtc_kernel_name(const RealComplexSpecs& specs);
 std::string realcomplex_even_rtc_kernel_name(const RealComplexEvenSpecs& specs);
 std::string realcomplex_even_transpose_rtc_kernel_name(const RealComplexEvenTransposeSpecs& specs);
-std::string apply_callback_rtc_kernel_name(rocfft_precision precision);
 
 // generate source for RTC realcomplex kernel.
 std::string realcomplex_rtc(const std::string& kernel_name, const RealComplexSpecs& specs);
 std::string realcomplex_even_rtc(const std::string& kernel_name, const RealComplexEvenSpecs& specs);
 std::string realcomplex_even_transpose_rtc(const std::string&                   kernel_name,
                                            const RealComplexEvenTransposeSpecs& specs);
-std::string apply_callback_rtc(const std::string& kernel_name, rocfft_precision precision);
-
-static const unsigned int APPLY_REAL_CALLBACK_THREADS = 64;
 
 #endif
