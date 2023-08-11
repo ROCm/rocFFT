@@ -70,7 +70,7 @@ def runCompileClientCommand(platform, project, jobName, boolean debug=false)
 def runTestCommand (platform, project, boolean debug=false)
 {
     String sudo = auxiliary.sudo(platform.jenkinsLabel)
-    String testBinaryName = debug ? 'rocfft-test-d' : 'rocfft-test'
+    String testBinaryName = 'rocfft-test'
     String directory = debug ? 'debug' : 'release'
 
     def command = """#!/usr/bin/env bash

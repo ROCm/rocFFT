@@ -14,6 +14,7 @@ Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://ro
 - rocfft-rider and dyna-rocfft-rider have been renamed to rocfft-bench and dyna-rocfft-bench, controlled by the
   BUILD_CLIENTS_BENCH CMake option.  Links for the old file names are installed, and the old
   BUILD_CLIENTS_RIDER CMake option is accepted for compatibility but both will be removed in a future release.
+- Binaries in debug builds no longer have a "-d" suffix.
 
 ## rocFFT 1.0.24 for ROCm 5.7.0
 

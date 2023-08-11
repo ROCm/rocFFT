@@ -68,7 +68,6 @@ foreach( sample ${sample_list} )
   target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} )
 
   set_target_properties( ${sample} PROPERTIES
-    DEBUG_POSTFIX "-d"
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
   )

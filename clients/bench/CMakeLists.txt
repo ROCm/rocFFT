@@ -122,7 +122,6 @@ foreach( bench ${bench_list})
   )
 
   set_target_properties( ${bench} PROPERTIES
-    DEBUG_POSTFIX "-d"
     CXX_STANDARD_REQUIRED ON
   )
 

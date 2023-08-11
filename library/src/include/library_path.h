@@ -44,11 +44,7 @@ namespace std
 #ifdef WIN32
 static std::filesystem::path get_library_path_win32()
 {
-#ifdef DEBUG
-    static const char* ROCFFT_DLL = "rocfft-d.dll";
-#else
     static const char* ROCFFT_DLL = "rocfft.dll";
-#endif
     // get module handle for rocfft lib
     HMODULE module = GetModuleHandleA(ROCFFT_DLL);
     if(!module)

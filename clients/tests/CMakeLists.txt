@@ -247,7 +247,6 @@ if(FFTW_MULTITHREAD)
 endif( )
 
 set_target_properties( rocfft-test PROPERTIES
-  DEBUG_POSTFIX "-d"
   CXX_STANDARD_REQUIRED ON
 )
 

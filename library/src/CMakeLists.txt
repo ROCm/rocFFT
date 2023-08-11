@@ -528,7 +528,6 @@ add_custom_target( rocfft_kernel_cache_target ALL
 
 rocm_set_soversion( rocfft ${rocfft_SOVERSION} )
 set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
-set_target_properties( rocfft PROPERTIES DEBUG_POSTFIX "-d" )
 
 set_target_properties( rocfft PROPERTIES CXX_VISIBILITY_PRESET "hidden" VISIBILITY_INLINES_HIDDEN ON )
 

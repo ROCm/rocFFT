@@ -89,7 +89,6 @@ target_link_libraries(
   target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} -Wno-cpp )
 
   set_target_properties( ${sample} PROPERTIES
-    DEBUG_POSTFIX "-d"
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
   )
