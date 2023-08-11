@@ -156,6 +156,6 @@ foreach( bench ${bench_list})
     set( BENCH_OLD_NAME ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/${bench_legacy} )
   endif()
   install(
-    CODE "execute_process( COMMAND ${CMAKE_COMMAND} -E ${BENCH_LINK_COMMAND} ${BENCH_NEW_NAME} ${BENCH_OLD_NAME} )"
+    CODE "execute_process( COMMAND \"${CMAKE_COMMAND}\" -E ${BENCH_LINK_COMMAND} \"${BENCH_NEW_NAME}\" \"${BENCH_OLD_NAME}\" )"
   )
 endforeach()
