@@ -1,6 +1,5 @@
 from rocm_docs import ROCmDocs
 
-
 external_projects_current_project = "rocfft"
 
 docs_core = ROCmDocs("rocFFT Documentation")

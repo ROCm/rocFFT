@@ -26,7 +26,7 @@ rocFFT is compiled with hipcc and uses cmake.  There are a number of options
 that can be provided to cmake to customize the build, but the following
 commands will build a shared library for supported AMD GPUs:
 
-```
+```Bash
 mkdir build && cd build
 cmake -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc .. 
 make -j
@@ -41,6 +41,7 @@ those calls on older ROCm compilers, though callbacks will not work
 correctly in this configuration.
 
 There are several clients included with rocFFT:
+
 1. rocfft-bench runs general transforms and is useful for performance analysis;
 2. rocfft-test runs various regression tests; and
 3. various small samples are included.
@@ -60,7 +61,7 @@ Clients may be built separately from the main library. For example, one may buil
 all the clients with an existing rocFFT library by invoking cmake from within the 
 rocFFT-src/clients folder: 
 
-```
+```Bash
 mkdir build && cd build
 cmake -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc -DCMAKE_PREFIX_PATH=/path/to/rocFFT-lib ..
 make -j
@@ -74,16 +75,15 @@ sudo apt install libgtest-dev libfftw3-dev libboost-program-options-dev
 
 We use version 1.11 of Google Test (gtest).
 
-
 ## Library and API Documentation
 
-Please refer to the [library documentation][4] for current documentation.
+Please refer to the [library documentation][3] for current documentation.
 
 ### How to build documentation
 
 Please follow the steps below to build the documentation.
 
-```
+```Bash
 cd docs
 
 pip3 install -r .sphinx/requirements.txt
@@ -93,16 +93,14 @@ python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
 
 ## Examples
 
-A summary of the latest functionality and workflow to compute an FFT with rocFFT is available [on the ROCm documentation portal][6].
+A summary of the latest functionality and workflow to compute an FFT with rocFFT is available [on the ROCm documentation portal][3].
 
-Further examples may be found in the [clients/samples][5] subdirectory.
+Further examples may be found in the [clients/samples][4] subdirectory.
 
 [1]: https://github.com/RadeonOpenCompute
 [2]: https://rocm.docs.amd.com/en/latest/deploy/linux/install.html
-[3]: https://github.com/ROCm-Developer-Tools/HIP/blob/master/INSTALL.md#hip-clang
-[4]: https://rocfft.readthedocs.io/
-[5]: clients/samples
-[6]: https://rocm.docs.amd.com/projects/rocFFT/en/latest/
+[3]: https://rocm.docs.amd.com/projects/rocFFT/en/latest/
+[4]: clients/samples
 
 ## Contribution Rules
 

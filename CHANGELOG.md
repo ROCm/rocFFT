@@ -1,6 +1,6 @@
 # Change Log for rocFFT
 
-Full documentation for rocFFT is available at [rocfft.readthedocs.io](https://rocfft.readthedocs.io/en/latest/).
+Full documentation for rocFFT is available at [rocm.docs.amd.com](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
 
 ## rocFFT 1.0.25 for ROCm 6.0.0
 

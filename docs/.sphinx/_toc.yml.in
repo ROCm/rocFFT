@@ -1,7 +1,14 @@
 root: index
+defaults:
+  numbered: False
 subtrees:
-  - numbered: False
+  - caption: Design
     entries:
     - file: design/design
+  - caption: API
+    entries:
     - file: api
     - file: allapi
+  - caption: API
+    entries:
+    - file: license
