@@ -37,7 +37,10 @@ void StoreOps::append_args(RTCKernelArgs& kargs, TreeNode& node) const
             kargs.append_double(scale_factor);
             break;
         case rocfft_precision_half:
-            kargs.append_half(scale_factor);
+            // Convert scale factor to float first before truncating it to
+            // _Float16.  Directly truncating a double to _Float16 introduces
+            //  an unwanted symbol (__truncdfhf2) to rocFFT's lib.
+            kargs.append_half(static_cast<float>(scale_factor));
             break;
         }
     }
