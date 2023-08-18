@@ -79,6 +79,7 @@ set( rocfft-test_source
   multithread_test.cpp
   hermitian_test.cpp
   hipGraph_test.cpp
+  callback_change_type.cpp
   default_callbacks_test.cpp
   unit_test.cpp
   misc/source/test_exception.cpp

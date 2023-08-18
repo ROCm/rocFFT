@@ -590,14 +590,14 @@ void AssignmentPolicy::AssignBuffers_internal(ExecPlan& execPlan)
     availableArrayTypes.clear();
     node_buf_test_cache.clear();
 
-    // Start from a minimal requirement; // in, out buffer
-    availableBuffers.insert(execPlan.rootPlan->obIn);
+    // Start from a minimal requirement; // out buffer
     availableBuffers.insert(execPlan.rootPlan->obOut);
-    if(execPlan.rootPlan->IsRootPlanC2CTransform())
+
+    // real-inverse transforms are allowed to modify input
+    if(execPlan.rootPlan->direction == 1
+       && execPlan.rootPlan->outArrayType == rocfft_array_type_real)
     {
-        // For real-transform, USER_IN is always allowed to be modified.
-        // For c2c-transform, we should keep USER_IN read-only. So remove it if exists.
-        availableBuffers.erase(OB_USER_IN);
+        availableBuffers.insert(execPlan.rootPlan->obIn);
     }
 
     // Insert the valid ArrayTypes to use internally
@@ -1319,12 +1319,11 @@ void AssignmentPolicy::PadPlan(ExecPlan& execPlan)
                     return;
             }
 
-            // R2C/C2R changes length, which confuses padding logic
-            // if it's in-place.  So just ignore those cases.
+            // standalone real-complex kernels can't handle arbitrary
+            // strides at the moment, so exclude them from padding
             if(std::any_of(users.begin(), users.end(), [](TempBufOp& op) {
                    return (op.node.scheme == CS_KERNEL_R_TO_CMPLX
-                           || op.node.scheme == CS_KERNEL_CMPLX_TO_R)
-                          && op.node.obIn == op.node.obOut;
+                           || op.node.scheme == CS_KERNEL_CMPLX_TO_R);
                }))
                 return;
 

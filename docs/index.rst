@@ -276,7 +276,7 @@ The API supports both in-place and not in-place transforms via the :cpp:enum:`ro
 execution API, and the resulting data is written to the same buffer, overwriting the input data.  With not in-place transforms, distinct
 output buffers are provided, and the results are written into the output buffer.
 
-Note that rocFFT may still modify the input buffer even if a transform is requested to be not in-place.  Real-complex transforms in particular are more efficient if they can modify the original input.
+Note that rocFFT may overwrite input buffers on real inverse (complex-to-real) transforms, even if they are requested to not be in-place.  rocFFT is able to optimize the FFT better by doing this.
 
 Strides and Distances
 ---------------------

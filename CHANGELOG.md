@@ -10,11 +10,15 @@ Full documentation for rocFFT is available at [rocm.docs.amd.com](https://rocm.d
 
 ### Changed
 - Built kernels in solution-map to library kernel cache.
+- Real forward transforms (real-to-complex) no longer overwrite input.  rocFFT still may overwrite real inverse (complex-to-real) input, as this allows for faster performance.
 
 - rocfft-rider and dyna-rocfft-rider have been renamed to rocfft-bench and dyna-rocfft-bench, controlled by the
   BUILD_CLIENTS_BENCH CMake option.  Links for the old file names are installed, and the old
   BUILD_CLIENTS_RIDER CMake option is accepted for compatibility but both will be removed in a future release.
 - Binaries in debug builds no longer have a "-d" suffix.
+
+### Fixed
+- rocFFT now correctly handles load callbacks that convert data from a smaller data type (e.g. 16-bit integers -> 32-bit float).
 
 ## rocFFT 1.0.24 for ROCm 5.7.0
 

@@ -23,6 +23,7 @@
 
 #include "arithmetic.h"
 #include <cstdlib>
+#include <cstring>
 
 #ifndef WIN32
 #include <stdlib.h>
