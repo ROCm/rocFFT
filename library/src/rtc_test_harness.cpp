@@ -139,9 +139,11 @@ std::string test_harness_launch(const Function& f)
 
     Variable kargs{"kargs", "RTCKernelArgs"};
     Variable rtckernel{"rtckernel", "std::unique_ptr<RTCKernel>&"};
+    Variable deviceProp{"deviceProp", "const hipDeviceProp_t&"};
 
     Function launch{"launch_kernel"};
     launch.arguments.append(rtckernel);
+    launch.arguments.append(deviceProp);
 
     launch.body += Declaration{kargs};
 
@@ -173,7 +175,8 @@ std::string test_harness_launch(const Function& f)
             throw std::runtime_error("unsupported kernel arg type generating test harness");
         }
     }
-    launch.body += Call{"rtckernel->launch", {kargs, "gridDim", "blockDim", "lds_bytes"}};
+    launch.body
+        += Call{"rtckernel->launch", {kargs, "gridDim", "blockDim", "lds_bytes", deviceProp}};
     return launch.render();
 }
 
@@ -203,6 +206,9 @@ std::string test_harness_main(const Function& f)
     main.body += CommentLines{"initialize arguments, grid"};
     main.body += Call{"init_kernel", {}};
 
+    Variable deviceProp{"deviceProp", "hipDeviceProp_t"};
+    main.body += Declaration{deviceProp, CallExpr{"get_curr_device_prop", {}}};
+
     Variable trial{"trial", "unsigned int"};
     Variable num_trials{"num_trials", "unsigned int"};
     Variable start{"start", "hipEvent_t"};
@@ -223,7 +229,7 @@ std::string test_harness_main(const Function& f)
     For launch_loop{trial, 0, trial < num_trials, 1, {}};
     launch_loop.body += If{CallExpr{"hipEventRecord", {start}} != "hipSuccess",
                            {Call{"throw std::runtime_error", {"\"hipEventRecord failed\""}}}};
-    launch_loop.body += Call{"launch_kernel", {rtckernel}};
+    launch_loop.body += Call{"launch_kernel", {rtckernel, deviceProp}};
     launch_loop.body += If{CallExpr{"hipEventRecord", {stop}} != "hipSuccess",
                            {Call{"throw std::runtime_error", {"\"hipEventRecord failed\""}}}};
     launch_loop.body += If{CallExpr{"hipEventSynchronize", {stop}} != "hipSuccess",
@@ -282,6 +288,7 @@ void write_standalone_test_harness(const Function& f, const std::string& src)
 
     main_file << "#define ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS\n";
     main_file << gpubuf_h;
+    main_file << device_properties_h;
     main_file << rtc_kernel_h;
     main_file << rtc_kernel_cpp;
     main_file << rtc_test_harness_helper_cpp;

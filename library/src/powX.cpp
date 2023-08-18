@@ -742,7 +742,7 @@ void TransformPowX(const ExecPlan&       execPlan,
                       : data.node->compiledKernelWithCallbacks.get().get();
 
             if(localCompiledKernel)
-                localCompiledKernel->launch(data);
+                localCompiledKernel->launch(data, data.node->deviceProp);
             else
                 fn(&data, &back);
 

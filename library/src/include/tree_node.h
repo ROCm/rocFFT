@@ -80,21 +80,6 @@ struct GridParam
     }
 };
 
-// get device property
-static hipDeviceProp_t get_curr_device_prop()
-{
-    hipDeviceProp_t prop;
-    int             deviceId = 0;
-    if(hipGetDevice(&deviceId) != hipSuccess)
-        throw std::runtime_error("hipGetDevice failed.");
-
-    if(hipGetDeviceProperties(&prop, deviceId) != hipSuccess)
-        throw std::runtime_error("hipGetDeviceProperties failed for deviceId "
-                                 + std::to_string(deviceId));
-
-    return prop;
-}
-
 // get the arch name, as a part of key of solution map
 static std::string get_arch_name(const hipDeviceProp_t& prop)
 {

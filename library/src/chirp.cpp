@@ -48,27 +48,27 @@ void chirp_streams_cleanup()
 }
 
 template <typename Tcomplex>
-void launch_chirp_kernel(const size_t     N,
-                         rocfft_precision precision,
-                         const char*      gpu_arch,
-                         hipStream_t&     stream,
-                         Tcomplex*        output)
+void launch_chirp_kernel(const size_t           N,
+                         rocfft_precision       precision,
+                         const hipDeviceProp_t& deviceProp,
+                         hipStream_t&           stream,
+                         Tcomplex*              output)
 {
     auto blockSize = CHIRP_THREADS;
     auto numBlocks = DivRoundingUp<size_t>(N, blockSize);
 
-    auto          kernel = RTCKernelChirp::generate(gpu_arch, precision);
+    auto          kernel = RTCKernelChirp::generate(deviceProp.gcnArchName, precision);
     RTCKernelArgs kargs;
     kargs.append_size_t(N);
     kargs.append_ptr(output);
-    kernel.launch(kargs, dim3(numBlocks), dim3(blockSize), 0, stream);
+    kernel.launch(kargs, dim3(numBlocks), dim3(blockSize), 0, deviceProp, stream);
 }
 
 template <typename Tcomplex>
-gpubuf chirp_create_pr(size_t           N,
-                       rocfft_precision precision,
-                       const char*      gpu_arch,
-                       unsigned int     deviceId)
+gpubuf chirp_create_pr(size_t                 N,
+                       rocfft_precision       precision,
+                       unsigned int           deviceId,
+                       const hipDeviceProp_t& deviceProp)
 {
     gpubuf chirp;
 
@@ -91,7 +91,7 @@ gpubuf chirp_create_pr(size_t           N,
 
     auto device_chirp_ptr = static_cast<Tcomplex*>(chirp.data());
 
-    launch_chirp_kernel(N, precision, gpu_arch, stream, device_chirp_ptr);
+    launch_chirp_kernel(N, precision, deviceProp, stream, device_chirp_ptr);
 
     if(hipStreamSynchronize(stream) != hipSuccess)
         throw std::runtime_error("hipStream failure");
@@ -99,16 +99,18 @@ gpubuf chirp_create_pr(size_t           N,
     return chirp;
 }
 
-gpubuf
-    chirp_create(size_t N, rocfft_precision precision, const char* gpu_arch, unsigned int deviceId)
+gpubuf chirp_create(size_t                 N,
+                    rocfft_precision       precision,
+                    unsigned int           deviceId,
+                    const hipDeviceProp_t& deviceProp)
 {
     switch(precision)
     {
     case rocfft_precision_single:
-        return chirp_create_pr<rocfft_complex<float>>(N, precision, gpu_arch, deviceId);
+        return chirp_create_pr<rocfft_complex<float>>(N, precision, deviceId, deviceProp);
     case rocfft_precision_double:
-        return chirp_create_pr<rocfft_complex<double>>(N, precision, gpu_arch, deviceId);
+        return chirp_create_pr<rocfft_complex<double>>(N, precision, deviceId, deviceProp);
     case rocfft_precision_half:
-        return chirp_create_pr<rocfft_complex<_Float16>>(N, precision, gpu_arch, deviceId);
+        return chirp_create_pr<rocfft_complex<_Float16>>(N, precision, deviceId, deviceProp);
     }
 }

@@ -280,12 +280,8 @@ bool Single2DNode::CreateDeviceResources()
     twd_attach_halfN  = (ebtype == EmbeddedType::Real2C_POST);
     twd_attach_halfN2 = (ebtype == EmbeddedType::C2Real_PRE);
     // create one set of twiddles for each dimension
-    std::tie(twiddles, twiddles_size) = Repo::GetTwiddles2D(length[0],
-                                                            length[1],
-                                                            precision,
-                                                            deviceProp.gcnArchName,
-                                                            twd_attach_halfN,
-                                                            twd_attach_halfN2);
+    std::tie(twiddles, twiddles_size) = Repo::GetTwiddles2D(
+        length[0], length[1], precision, deviceProp, twd_attach_halfN, twd_attach_halfN2);
 
     return CreateLargeTwdTable();
 }

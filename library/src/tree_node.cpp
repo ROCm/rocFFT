@@ -64,8 +64,8 @@ bool LeafNode::CreateLargeTwdTable()
 {
     if(large1D != 0)
     {
-        std::tie(twiddles_large, twiddles_large_size) = Repo::GetTwiddles1D(
-            large1D, 0, precision, deviceProp.gcnArchName, largeTwdBase, false, {});
+        std::tie(twiddles_large, twiddles_large_size)
+            = Repo::GetTwiddles1D(large1D, 0, precision, deviceProp, largeTwdBase, false, {});
     }
 
     return true;
@@ -207,8 +207,7 @@ bool LeafNode::CreateDeviceResources()
 {
     if(need_chirp)
     {
-        std::tie(chirp, chirp_size)
-            = Repo::GetChirp(lengthBlueN, precision, deviceProp.gcnArchName);
+        std::tie(chirp, chirp_size) = Repo::GetChirp(lengthBlueN, precision, deviceProp);
     }
 
     if(need_twd_table)
@@ -219,7 +218,7 @@ bool LeafNode::CreateDeviceResources()
         std::tie(twiddles, twiddles_size) = Repo::GetTwiddles1D(twd_len,
                                                                 GetTwiddleTableLengthLimit(),
                                                                 precision,
-                                                                deviceProp.gcnArchName,
+                                                                deviceProp,
                                                                 0,
                                                                 twd_attach_halfN,
                                                                 kernelFactors);

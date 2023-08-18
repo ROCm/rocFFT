@@ -20,6 +20,7 @@
 
 #include "rtc_kernel.h"
 #include "../../shared/array_predicate.h"
+#include "../../shared/device_properties.h"
 #include "../../shared/environment.h"
 #include "device/generator/stockham_gen.h"
 
@@ -54,7 +55,7 @@ RTCKernel::RTCKernel(const std::string&       kernel_name,
 }
 
 #ifndef ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS
-void RTCKernel::launch(DeviceCallIn& data)
+void RTCKernel::launch(DeviceCallIn& data, const hipDeviceProp_t& deviceProp)
 {
     RTCKernelArgs kargs = get_launch_args(data);
 
@@ -64,13 +65,19 @@ void RTCKernel::launch(DeviceCallIn& data)
            {gp.b_x, gp.b_y, gp.b_z},
            {gp.wgs_x, gp.wgs_y, gp.wgs_z},
            gp.lds_bytes,
+           deviceProp,
            data.rocfft_stream);
 }
 #endif
 
-void RTCKernel::launch(
-    RTCKernelArgs& kargs, dim3 gridDim, dim3 blockDim, unsigned int lds_bytes, hipStream_t stream)
+void RTCKernel::launch(RTCKernelArgs&         kargs,
+                       dim3                   gridDim,
+                       dim3                   blockDim,
+                       unsigned int           lds_bytes,
+                       const hipDeviceProp_t& deviceProp,
+                       hipStream_t            stream)
 {
+    launch_limits_check(gridDim, blockDim, deviceProp);
     auto  size     = kargs.size_bytes();
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
                       kargs.data(),

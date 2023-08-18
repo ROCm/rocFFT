@@ -25,8 +25,10 @@
 #include "rocfft.h"
 #include <vector>
 
-gpubuf
-    chirp_create(size_t N, rocfft_precision precision, const char* gpu_arch, unsigned int deviceId);
+gpubuf chirp_create(size_t                 N,
+                    rocfft_precision       precision,
+                    unsigned int           deviceId,
+                    const hipDeviceProp_t& deviceProp);
 
 void chirp_streams_cleanup();
 

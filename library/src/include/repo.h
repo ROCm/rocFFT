@@ -166,18 +166,18 @@ public:
     static std::pair<void*, size_t> GetTwiddles1D(size_t                     length,
                                                   size_t                     length_limit,
                                                   rocfft_precision           precision,
-                                                  const char*                gpu_arch,
+                                                  const hipDeviceProp_t&     deviceProp,
                                                   size_t                     largeTwdBase,
                                                   bool                       attach_halfN,
                                                   const std::vector<size_t>& radices);
-    static std::pair<void*, size_t> GetTwiddles2D(size_t           length0,
-                                                  size_t           length1,
-                                                  rocfft_precision precision,
-                                                  const char*      gpu_arch,
-                                                  bool             attach_halfN1,
-                                                  bool             attach_halfN2);
+    static std::pair<void*, size_t> GetTwiddles2D(size_t                 length0,
+                                                  size_t                 length1,
+                                                  rocfft_precision       precision,
+                                                  const hipDeviceProp_t& deviceProp,
+                                                  bool                   attach_halfN1,
+                                                  bool                   attach_halfN2);
     static std::pair<void*, size_t>
-                GetChirp(size_t length, rocfft_precision precision, const char* gpu_arch);
+        GetChirp(size_t length, rocfft_precision precision, const hipDeviceProp_t& deviceProp);
     static void ReleaseTwiddle1D(void* ptr);
     static void ReleaseTwiddle2D(void* ptr);
     static void ReleaseChirp(void* ptr);

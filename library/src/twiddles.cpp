@@ -63,7 +63,7 @@ protected:
     bool attach_halfN;
 
     const rocfft_precision precision;
-    const std::string      gpu_arch;
+    hipDeviceProp_t        deviceProp;
 
     void GetKernelParams(const std::vector<size_t>& radices,
                          std::vector<size_t>&       radices_prod,
@@ -156,13 +156,14 @@ protected:
 
         auto device_data_ptr = static_cast<T*>(output.data());
 
-        auto kernel = RTCKernelTwiddle::generate(gpu_arch, TwiddleTableType::LENGTH_N, precision);
+        auto kernel = RTCKernelTwiddle::generate(
+            deviceProp.gcnArchName, TwiddleTableType::LENGTH_N, precision);
         RTCKernelArgs kargs;
         kargs.append_size_t(length_limit);
         kargs.append_size_t(N);
         kargs.append_ptr(device_data_ptr);
 
-        kernel.launch(kargs, dim3(numBlocks), dim3(blockSize), 0, stream);
+        kernel.launch(kargs, dim3(numBlocks), dim3(blockSize), 0, deviceProp, stream);
 
         if(attach_halfN)
         {
@@ -191,7 +192,8 @@ protected:
         std::copy(radices_prod.begin(), radices_prod.end(), radices_prod_device.data);
         std::copy(radices_sum_prod.begin(), radices_sum_prod.end(), radices_sum_prod_device.data);
 
-        auto kernel = RTCKernelTwiddle::generate(gpu_arch, TwiddleTableType::RADICES, precision);
+        auto kernel = RTCKernelTwiddle::generate(
+            deviceProp.gcnArchName, TwiddleTableType::RADICES, precision);
         RTCKernelArgs kargs;
         kargs.append_size_t(length_limit);
         kargs.append_size_t(num_radices);
@@ -199,14 +201,16 @@ protected:
         kargs.append_struct(radices_prod_device);
         kargs.append_struct(radices_sum_prod_device);
         kargs.append_ptr(output);
-        kernel.launch(kargs, dim3(numBlocksX, numBlocksY), dim3(blockSize, blockSize), 0, stream);
+        kernel.launch(
+            kargs, dim3(numBlocksX, numBlocksY), dim3(blockSize, blockSize), 0, deviceProp, stream);
     }
 
     void launch_half_N_kernel(hipStream_t& stream, T* output, size_t half_N, size_t N)
     {
         auto blockSize = TWIDDLES_THREADS;
 
-        auto kernel = RTCKernelTwiddle::generate(gpu_arch, TwiddleTableType::HALF_N, precision);
+        auto kernel = RTCKernelTwiddle::generate(
+            deviceProp.gcnArchName, TwiddleTableType::HALF_N, precision);
         RTCKernelArgs kargs;
         kargs.append_size_t(half_N);
         kargs.append_size_t(N);
@@ -214,20 +218,20 @@ protected:
 
         auto numBlocks_halfN = DivRoundingUp<size_t>(half_N, blockSize);
 
-        kernel.launch(kargs, dim3(numBlocks_halfN), dim3(blockSize), 0, stream);
+        kernel.launch(kargs, dim3(numBlocks_halfN), dim3(blockSize), 0, deviceProp, stream);
     }
 
 public:
-    TwiddleTable(rocfft_precision   precision,
-                 const std::string& gpu_arch,
-                 size_t             _N,
-                 size_t             _length_limit,
-                 bool               _attach_halfN)
+    TwiddleTable(rocfft_precision       precision,
+                 const hipDeviceProp_t& deviceProp,
+                 size_t                 _N,
+                 size_t                 _length_limit,
+                 bool                   _attach_halfN)
         : N(_N)
         , length_limit(_length_limit ? _length_limit : _N)
         , attach_halfN(_attach_halfN)
         , precision(precision)
-        , gpu_arch(gpu_arch)
+        , deviceProp(deviceProp)
     {
         half_N = attach_halfN ? (N + 1) / 2 : 0;
     }
@@ -249,13 +253,13 @@ private:
     bool   attach_halfN2;
 
 public:
-    TwiddleTable2D(rocfft_precision   precision,
-                   const std::string& gpu_arch,
-                   size_t             _N1,
-                   size_t             _N2,
-                   bool               _attach_halfN1,
-                   bool               _attach_halfN2)
-        : TwiddleTable<T>(precision, gpu_arch, 0, 0, false)
+    TwiddleTable2D(rocfft_precision       precision,
+                   const hipDeviceProp_t& deviceProp,
+                   size_t                 _N1,
+                   size_t                 _N2,
+                   bool                   _attach_halfN1,
+                   bool                   _attach_halfN2)
+        : TwiddleTable<T>(precision, deviceProp, 0, 0, false)
         , N1(_N1)
         , N2(_N2)
         , attach_halfN1(_attach_halfN1)
@@ -342,17 +346,17 @@ private:
     size_t tableSize;
 
     const rocfft_precision precision;
-    const std::string      gpu_arch;
+    hipDeviceProp_t        deviceProp;
 
 public:
-    TwiddleTableLarge(rocfft_precision   precision,
-                      const std::string& gpu_arch,
-                      size_t             length,
-                      size_t             base = LTWD_BASE_DEFAULT)
+    TwiddleTableLarge(rocfft_precision       precision,
+                      const hipDeviceProp_t& deviceProp,
+                      size_t                 length,
+                      size_t                 base = LTWD_BASE_DEFAULT)
         : N(length)
         , largeTwdBase(base)
         , precision(precision)
-        , gpu_arch(gpu_arch)
+        , deviceProp(deviceProp)
     {
         X         = static_cast<size_t>(1) << largeTwdBase; // ex: 2^8 = 256
         Y         = DivRoundingUp<size_t>(CeilPo2(N), largeTwdBase);
@@ -377,7 +381,8 @@ public:
         auto numBlocksX = DivRoundingUp<size_t>(X, blockSize);
         auto numBlocksY = DivRoundingUp<size_t>(Y, blockSize);
 
-        auto kernel = RTCKernelTwiddle::generate(gpu_arch, TwiddleTableType::LARGE, precision);
+        auto kernel = RTCKernelTwiddle::generate(
+            deviceProp.gcnArchName, TwiddleTableType::LARGE, precision);
         RTCKernelArgs kargs;
         kargs.append_double(phi);
         kargs.append_size_t(largeTwdBase);
@@ -385,7 +390,8 @@ public:
         kargs.append_size_t(Y);
         kargs.append_ptr(output.data());
 
-        kernel.launch(kargs, dim3(numBlocksX, numBlocksY), dim3(blockSize, blockSize), 0, stream);
+        kernel.launch(
+            kargs, dim3(numBlocksX, numBlocksY), dim3(blockSize, blockSize), 0, deviceProp, stream);
     }
 };
 
@@ -393,7 +399,7 @@ template <typename T>
 gpubuf twiddles_create_pr(size_t                     N,
                           size_t                     length_limit,
                           rocfft_precision           precision,
-                          const char*                gpu_arch,
+                          const hipDeviceProp_t&     deviceProp,
                           size_t                     largeTwdBase,
                           bool                       attach_halfN,
                           const std::vector<size_t>& radices,
@@ -417,7 +423,7 @@ gpubuf twiddles_create_pr(size_t                     N,
 
     if((N <= LARGE_TWIDDLE_THRESHOLD) && largeTwdBase == 0)
     {
-        TwiddleTable<T> twTable(precision, gpu_arch, N, length_limit, attach_halfN);
+        TwiddleTable<T> twTable(precision, deviceProp, N, length_limit, attach_halfN);
         twTable.GenerateTwiddleTable(radices, stream, twts);
     }
     else
@@ -426,13 +432,13 @@ gpubuf twiddles_create_pr(size_t                     N,
 
         if(largeTwdBase == 0)
         {
-            TwiddleTable<T> twTable(precision, gpu_arch, N, length_limit, attach_halfN);
+            TwiddleTable<T> twTable(precision, deviceProp, N, length_limit, attach_halfN);
             twTable.GenerateTwiddleTable(radices, stream, twts);
         }
         else
         {
             TwiddleTableLarge<T> twTable(
-                precision, gpu_arch, N, largeTwdBase); // does not generate radices
+                precision, deviceProp, N, largeTwdBase); // does not generate radices
             twTable.GenerateTwiddleTable(stream, twts);
         }
     }
@@ -446,7 +452,7 @@ gpubuf twiddles_create_pr(size_t                     N,
 gpubuf twiddles_create(size_t                     N,
                        size_t                     length_limit,
                        rocfft_precision           precision,
-                       const char*                gpu_arch,
+                       const hipDeviceProp_t&     deviceProp,
                        size_t                     largeTwdBase,
                        bool                       attach_halfN,
                        const std::vector<size_t>& radices,
@@ -456,24 +462,24 @@ gpubuf twiddles_create(size_t                     N,
     {
     case rocfft_precision_single:
         return twiddles_create_pr<rocfft_complex<float>>(
-            N, length_limit, precision, gpu_arch, largeTwdBase, attach_halfN, radices, deviceId);
+            N, length_limit, precision, deviceProp, largeTwdBase, attach_halfN, radices, deviceId);
     case rocfft_precision_double:
         return twiddles_create_pr<rocfft_complex<double>>(
-            N, length_limit, precision, gpu_arch, largeTwdBase, attach_halfN, radices, deviceId);
+            N, length_limit, precision, deviceProp, largeTwdBase, attach_halfN, radices, deviceId);
     case rocfft_precision_half:
         return twiddles_create_pr<rocfft_complex<_Float16>>(
-            N, length_limit, precision, gpu_arch, largeTwdBase, attach_halfN, radices, deviceId);
+            N, length_limit, precision, deviceProp, largeTwdBase, attach_halfN, radices, deviceId);
     }
 }
 
 template <typename T>
-gpubuf twiddles_create_2D_pr(size_t           N1,
-                             size_t           N2,
-                             rocfft_precision precision,
-                             const char*      gpu_arch,
-                             bool             attach_halfN,
-                             bool             attach_halfN2,
-                             unsigned int     deviceId)
+gpubuf twiddles_create_2D_pr(size_t                 N1,
+                             size_t                 N2,
+                             rocfft_precision       precision,
+                             const hipDeviceProp_t& deviceProp,
+                             bool                   attach_halfN,
+                             bool                   attach_halfN2,
+                             unsigned int           deviceId)
 {
     auto                kernel = function_pool::get_kernel(FMKey(N1, N2, precision));
     std::vector<size_t> radices1, radices2;
@@ -500,7 +506,7 @@ gpubuf twiddles_create_2D_pr(size_t           N1,
             throw std::runtime_error("hipStreamCreate failure");
     }
 
-    TwiddleTable2D<T> twTable(precision, gpu_arch, N1, N2, attach_halfN, attach_halfN2);
+    TwiddleTable2D<T> twTable(precision, deviceProp, N1, N2, attach_halfN, attach_halfN2);
     twTable.GenerateTwiddleTable(radices1, radices2, stream, twts);
 
     if(hipStreamSynchronize(stream) != hipSuccess)
@@ -509,24 +515,24 @@ gpubuf twiddles_create_2D_pr(size_t           N1,
     return twts;
 }
 
-gpubuf twiddles_create_2D(size_t           N1,
-                          size_t           N2,
-                          rocfft_precision precision,
-                          const char*      gpu_arch,
-                          bool             attach_halfN,
-                          bool             attach_halfN2,
-                          unsigned int     deviceId)
+gpubuf twiddles_create_2D(size_t                 N1,
+                          size_t                 N2,
+                          rocfft_precision       precision,
+                          const hipDeviceProp_t& deviceProp,
+                          bool                   attach_halfN,
+                          bool                   attach_halfN2,
+                          unsigned int           deviceId)
 {
     switch(precision)
     {
     case rocfft_precision_single:
         return twiddles_create_2D_pr<rocfft_complex<float>>(
-            N1, N2, precision, gpu_arch, attach_halfN, attach_halfN2, deviceId);
+            N1, N2, precision, deviceProp, attach_halfN, attach_halfN2, deviceId);
     case rocfft_precision_double:
         return twiddles_create_2D_pr<rocfft_complex<double>>(
-            N1, N2, precision, gpu_arch, attach_halfN, attach_halfN2, deviceId);
+            N1, N2, precision, deviceProp, attach_halfN, attach_halfN2, deviceId);
     case rocfft_precision_half:
         return twiddles_create_2D_pr<rocfft_complex<_Float16>>(
-            N1, N2, precision, gpu_arch, attach_halfN, attach_halfN2, deviceId);
+            N1, N2, precision, deviceProp, attach_halfN, attach_halfN2, deviceId);
     }
 }

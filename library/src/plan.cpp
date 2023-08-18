@@ -21,6 +21,7 @@
 #include "plan.h"
 #include "../../shared/arithmetic.h"
 #include "../../shared/array_predicate.h"
+#include "../../shared/device_properties.h"
 #include "../../shared/environment.h"
 #include "../../shared/precision_type.h"
 #include "../../shared/ptrdiff.h"

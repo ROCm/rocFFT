@@ -38,6 +38,7 @@
 #include "../shared/arithmetic.h"
 #include "../shared/array_validator.h"
 #include "../shared/data_gen.h"
+#include "../shared/device_properties.h"
 #include "../shared/printbuffer.h"
 #include "../shared/ptrdiff.h"
 
@@ -160,7 +161,8 @@ inline void set_input(std::vector<gpubuf>&       input,
                       const Tint1&               whole_length,
                       const Tint1&               istride,
                       const size_t               idist,
-                      const size_t               nbatch)
+                      const size_t               nbatch,
+                      const hipDeviceProp_t&     deviceProp)
 {
     auto isize = count_iters(whole_length) * nbatch;
 
@@ -169,15 +171,14 @@ inline void set_input(std::vector<gpubuf>&       input,
     case fft_array_type_complex_interleaved:
     case fft_array_type_hermitian_interleaved:
     {
-
         auto ibuffer = (rocfft_complex<Tfloat>*)input[0].data();
-        generate_interleaved_data(whole_length, idist, isize, istride, ibuffer);
+        generate_interleaved_data(whole_length, idist, isize, istride, ibuffer, deviceProp);
 
         if(itype == fft_array_type_hermitian_interleaved)
         {
             auto ibuffer_2 = (rocfft_complex<Tfloat>*)input[0].data();
             impose_hermitian_symmetry_interleaved(
-                length, ilength, stride, idist, nbatch, ibuffer_2);
+                length, ilength, stride, idist, nbatch, ibuffer_2, deviceProp);
         }
 
         break;
@@ -188,11 +189,12 @@ inline void set_input(std::vector<gpubuf>&       input,
         auto ibuffer_real = (Tfloat*)input[0].data();
         auto ibuffer_imag = (Tfloat*)input[1].data();
 
-        generate_planar_data(whole_length, idist, isize, istride, ibuffer_real, ibuffer_imag);
+        generate_planar_data(
+            whole_length, idist, isize, istride, ibuffer_real, ibuffer_imag, deviceProp);
 
         if(itype == fft_array_type_hermitian_planar)
             impose_hermitian_symmetry_planar(
-                length, ilength, stride, idist, nbatch, ibuffer_real, ibuffer_imag);
+                length, ilength, stride, idist, nbatch, ibuffer_real, ibuffer_imag, deviceProp);
 
         break;
     }
@@ -200,7 +202,7 @@ inline void set_input(std::vector<gpubuf>&       input,
     {
         auto ibuffer = (Tfloat*)input[0].data();
 
-        generate_real_data(whole_length, idist, isize, istride, ibuffer);
+        generate_real_data(whole_length, idist, isize, istride, ibuffer, deviceProp);
 
         break;
     }
@@ -217,13 +219,22 @@ inline void set_input(std::vector<gpubuf>&       input,
                       const std::vector<size_t>& ilength,
                       const std::vector<size_t>& istride,
                       const size_t               idist,
-                      const size_t               nbatch)
+                      const size_t               nbatch,
+                      const hipDeviceProp_t&     deviceProp)
 {
     switch(length.size())
     {
     case 1:
-        set_input<Tfloat>(
-            input, itype, length, ilength, istride, ilength[0], istride[0], idist, nbatch);
+        set_input<Tfloat>(input,
+                          itype,
+                          length,
+                          ilength,
+                          istride,
+                          ilength[0],
+                          istride[0],
+                          idist,
+                          nbatch,
+                          deviceProp);
         break;
     case 2:
         set_input<Tfloat>(input,
@@ -234,7 +245,8 @@ inline void set_input(std::vector<gpubuf>&       input,
                           std::make_tuple(ilength[0], ilength[1]),
                           std::make_tuple(istride[0], istride[1]),
                           idist,
-                          nbatch);
+                          nbatch,
+                          deviceProp);
         break;
     case 3:
         set_input<Tfloat>(input,
@@ -245,7 +257,8 @@ inline void set_input(std::vector<gpubuf>&       input,
                           std::make_tuple(ilength[0], ilength[1], ilength[2]),
                           std::make_tuple(istride[0], istride[1], istride[2]),
                           idist,
-                          nbatch);
+                          nbatch,
+                          deviceProp);
         break;
     default:
         abort();
@@ -1243,16 +1256,19 @@ public:
     // Given a data type and dimensions, fill the buffer, imposing Hermitian symmetry if necessary.
     inline void compute_input(std::vector<gpubuf>& input)
     {
+        auto deviceProp = get_curr_device_prop();
+
         switch(precision)
         {
         case fft_precision_half:
-            set_input<_Float16>(input, itype, length, ilength(), istride, idist, nbatch);
+            set_input<_Float16>(
+                input, itype, length, ilength(), istride, idist, nbatch, deviceProp);
             break;
         case fft_precision_double:
-            set_input<double>(input, itype, length, ilength(), istride, idist, nbatch);
+            set_input<double>(input, itype, length, ilength(), istride, idist, nbatch, deviceProp);
             break;
         case fft_precision_single:
-            set_input<float>(input, itype, length, ilength(), istride, idist, nbatch);
+            set_input<float>(input, itype, length, ilength(), istride, idist, nbatch, deviceProp);
             break;
         }
     }

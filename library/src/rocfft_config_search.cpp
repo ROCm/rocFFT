@@ -201,11 +201,12 @@ struct device_data_t
 };
 
 // run the kernel, returning the median execution time
-float launch_kernel(RTCKernel&     kernel,
-                    unsigned int   blocks,
-                    unsigned int   wgs,
-                    unsigned int   lds_bytes,
-                    device_data_t& data)
+float launch_kernel(RTCKernel&             kernel,
+                    unsigned int           blocks,
+                    unsigned int           wgs,
+                    unsigned int           lds_bytes,
+                    const hipDeviceProp_t& prop,
+                    device_data_t&         data)
 {
     RTCKernelArgs kargs;
     kargs.append_ptr(data.fake_twiddles.data());
@@ -236,7 +237,7 @@ float launch_kernel(RTCKernel&     kernel,
 
         if(hipEventRecord(data.start) != hipSuccess)
             throw std::runtime_error("hipEventRecord start failed");
-        kernel.launch(kargs, {blocks}, {wgs}, lds_bytes);
+        kernel.launch(kargs, {blocks}, {wgs}, lds_bytes, prop);
         if(hipEventRecord(data.stop) != hipSuccess)
             throw std::runtime_error("hipEventRecord stop failed");
         if(hipEventSynchronize(data.stop) != hipSuccess)
@@ -406,6 +407,7 @@ int main(int argc, char** argv)
                                     DivRoundingUp<unsigned int>(data.batch, transforms_per_block),
                                     tpt * transforms_per_block,
                                     get_lds_bytes(length, transforms_per_block, half_lds),
+                                    device_prop,
                                     data);
 
                                 // print median time for this length

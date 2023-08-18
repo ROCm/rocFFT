@@ -20,6 +20,7 @@
 * THE SOFTWARE.
 *******************************************************************************/
 
+#include "../../shared/device_properties.h"
 #include "../../shared/environment.h"
 #include "../../shared/rocfft_hip.h"
 #include "logging.h"

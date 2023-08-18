@@ -139,13 +139,14 @@ struct RTCKernel
     void operator=(const RTCKernel&) = delete;
 
     // normal launch from within rocFFT execution plan
-    void launch(DeviceCallIn& data);
+    void launch(DeviceCallIn& data, const hipDeviceProp_t& deviceProp);
     // direct launch with kernel args
-    void launch(RTCKernelArgs& kargs,
-                dim3           gridDim,
-                dim3           blockDim,
-                unsigned int   lds_bytes,
-                hipStream_t    stream = nullptr);
+    void launch(RTCKernelArgs&         kargs,
+                dim3                   gridDim,
+                dim3                   blockDim,
+                unsigned int           lds_bytes,
+                const hipDeviceProp_t& deviceProp,
+                hipStream_t            stream = nullptr);
 
     // normal launch from within rocFFT execution plan
     bool get_occupancy(dim3 blockDim, unsigned int lds_bytes, int& occupancy);
