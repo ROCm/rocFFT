@@ -54,8 +54,8 @@ struct rocfft_plan_description_t
     rocfft_array_type inArrayType  = rocfft_array_type_unset;
     rocfft_array_type outArrayType = rocfft_array_type_unset;
 
-    std::array<size_t, 3> inStrides  = {0, 0, 0};
-    std::array<size_t, 3> outStrides = {0, 0, 0};
+    std::vector<size_t> inStrides;
+    std::vector<size_t> outStrides;
 
     size_t inDist  = 0;
     size_t outDist = 0;
@@ -72,17 +72,16 @@ struct rocfft_plan_description_t
     // type of transform it will be for.  Once that's known, we can
     // initialize default values for in/out type, stride, dist if they're
     // unspecified.
-    void init_defaults(rocfft_transform_type        transformType,
-                       rocfft_result_placement      placement,
-                       size_t                       rank,
-                       const std::array<size_t, 3>& lengths);
+    void init_defaults(rocfft_transform_type      transformType,
+                       rocfft_result_placement    placement,
+                       const std::vector<size_t>& lengths);
 };
 
 struct rocfft_plan_t
 {
-    size_t                rank    = 1;
-    std::array<size_t, 3> lengths = {1, 1, 1};
-    size_t                batch   = 1;
+    size_t              rank = 1;
+    std::vector<size_t> lengths;
+    size_t              batch = 1;
 
     rocfft_result_placement placement      = rocfft_placement_inplace;
     rocfft_transform_type   transformType  = rocfft_transform_type_complex_forward;
