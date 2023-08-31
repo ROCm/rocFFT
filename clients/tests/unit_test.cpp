@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 #include "../../shared/concurrency.h"
 #include "../../shared/environment.h"

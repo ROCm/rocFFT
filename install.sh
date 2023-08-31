@@ -279,7 +279,7 @@ group_num=false
 manual_small_arg=false
 manual_large_arg=false
 build_address_sanitizer=false
-build_freorg_bkwdcomp=true
+build_freorg_bkwdcomp=false
 solmap_data_folder=false
 
 # #################################################

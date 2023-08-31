@@ -28,7 +28,7 @@ namespace po = boost::program_options;
 
 #include <hip/hip_runtime_api.h>
 #include <hip/hip_vector_types.h>
-#include <rocfft.h>
+#include <rocfft/rocfft.h>
 
 #include "examplekernels.h"
 #include "exampleutils.h"

@@ -34,7 +34,7 @@
 #include "../../shared/concurrency.h"
 #include "../../shared/environment.h"
 #include "../../shared/work_queue.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "rocfft_accuracy_test.h"
 #include "test_params.h"
 

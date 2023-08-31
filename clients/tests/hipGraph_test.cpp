@@ -22,7 +22,7 @@
 #include "../../shared/gpubuf.h"
 #include "../../shared/rocfft_params.h"
 #include "accuracy_test.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "rocfft_against_fftw.h"
 #include <gtest/gtest.h>
 #include <hip/hip_runtime.h>

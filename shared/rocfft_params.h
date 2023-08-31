@@ -23,7 +23,7 @@
 
 #include "../shared/fft_params.h"
 #include "../shared/gpubuf.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 // Return the string of the rocfft_status code
 static std::string rocfft_status_to_string(const rocfft_status ret)

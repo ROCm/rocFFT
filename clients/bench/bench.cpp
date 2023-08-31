@@ -26,7 +26,7 @@
 #include "../../shared/gpubuf.h"
 #include "../../shared/rocfft_params.h"
 #include "bench.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <boost/program_options.hpp>
 namespace po = boost::program_options;
 

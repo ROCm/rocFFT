@@ -20,7 +20,7 @@
 * THE SOFTWARE.
 *******************************************************************************/
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <hip/hip_complex.h>
 #include <hip/hip_runtime.h>
 #include <hip/hip_vector_types.h>

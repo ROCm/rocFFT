@@ -22,7 +22,7 @@
 #ifndef TESTCONSTANTS_H
 #define TESTCONSTANTS_H
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 #include <stdexcept>
 

@@ -23,7 +23,7 @@
 #include "../samples/rocfft/examplekernels.h"
 #include "../samples/rocfft/exampleutils.h"
 #include "accuracy_test.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <functional>
 #include <gtest/gtest.h>
 #include <hip/hip_runtime_api.h>

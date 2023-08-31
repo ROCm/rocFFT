@@ -24,7 +24,7 @@
 #include <math.h>
 #include <vector>
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <hip/hip_runtime_api.h>
 #include <hip/hip_vector_types.h>
 

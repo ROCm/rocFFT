@@ -29,7 +29,7 @@
 
 #include "../../shared/gpubuf.h"
 #include "fftw_transform.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "rocfft_against_fftw.h"
 
 void fft_vs_reference(rocfft_params& params, bool round_trip)

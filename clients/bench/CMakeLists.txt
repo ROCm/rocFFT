@@ -111,7 +111,7 @@ foreach( bench ${bench_list})
     # We need to include both rocfft.h and rocfft-export.h
     target_include_directories( ${bench}
       PRIVATE
-      ${CMAKE_BINARY_DIR}/include/rocfft
+      ${CMAKE_BINARY_DIR}/include
       ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
       ${HIP_CLANG_ROOT}/include
       )

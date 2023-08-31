@@ -28,7 +28,7 @@
 
 #include "../../shared/rocfft_params.h"
 #include "fftw_transform.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 // -------------------------------------
 // default load callback definitions
