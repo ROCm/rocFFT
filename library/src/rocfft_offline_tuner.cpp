@@ -203,6 +203,7 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
 
     static const double max_double = std::numeric_limits<double>().max();
 
+    bool                     csv_is_created    = false;
     double                   overall_best_time = max_double;
     std::vector<int>         winner_phases     = std::vector<int>(num_nodes, 0);
     std::vector<int>         winner_ids        = std::vector<int>(num_nodes, 0);
@@ -254,11 +255,24 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
 
                 // skip low occupancy test...simple output gflops 0, and a max double as ms
                 BenchmarkInfo info = offline_tuner->GetCurrBenchmarkInfo();
-                if(info.occupancy == 1 || info.occupancy < 0)
+                // we allow 2D_SINGLE kernels with occupancy 1
+                if(info.threads_per_trans[1] != 0)
                 {
-                    std::cout << "\nOccupancy 1 or -1, Skipped" << std::endl;
-                    offline_tuner->UpdateCurrBenchResult(max_double, 0);
-                    continue;
+                    if(info.occupancy < 0)
+                    {
+                        std::cout << "\nOccupancy -1 (unable to gen kernel), Skipped" << std::endl;
+                        offline_tuner->UpdateCurrBenchResult(max_double, 0);
+                        continue;
+                    }
+                }
+                else
+                {
+                    if(info.occupancy == 1 || info.occupancy < 0)
+                    {
+                        std::cout << "\nOccupancy 1 or -1, Skipped" << std::endl;
+                        offline_tuner->UpdateCurrBenchResult(max_double, 0);
+                        continue;
+                    }
                 }
 
                 params.execute(pibuffer.data(), pobuffer.data());
@@ -328,8 +342,9 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
             bool is_last_node  = (node_id == num_nodes - 1);
 
             // output data of this turn to csv
-            if(!offline_tuner->ExportCSV(node_id > 0 || curr_phase > 0))
-                std::cout << "Write CSV Failed." << std::endl;
+            csv_is_created = offline_tuner->ExportCSV(csv_is_created) || csv_is_created;
+            if(!csv_is_created)
+                std::cout << "CSV is not created or is written failed." << std::endl;
 
             // pass the target factors to next phase with permutation
             if(!is_last_phase)

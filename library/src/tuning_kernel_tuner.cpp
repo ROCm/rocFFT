@@ -28,8 +28,10 @@
 #include "tuning_helper.h"
 #include "twiddles.h"
 
+#include <algorithm>
 #include <iterator>
 #include <random>
+#include <regex>
 #include <set>
 
 static const char* candidates_folder = "TuningCandidates";
@@ -37,9 +39,9 @@ static const char* candidates_folder = "TuningCandidates";
 static const std::vector<size_t> supported_factors = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 16, 17};
 
 // TODO- support half precision
-static const size_t LDS_BYTE_LIMIT   = 32 * 1024;
-static const size_t BYTES_PER_FLOAT2 = 8;
-static const size_t BYTES_PER_FLOAT4 = 16;
+static const size_t LDS_BYTE_LIMIT    = 32 * 1024;
+static const size_t BYTES_PER_FLOAT2  = sizeof(float) * 2;
+static const size_t BYTES_PER_DOUBLE2 = sizeof(double) * 2;
 
 // use_ltwd_3steps: if use_ltwd_3steps and ltwd_base < 8, then ltwd table will take some lds ,
 // tpt: threads_per_transform
@@ -53,7 +55,7 @@ size_t DeriveMaxTPB(size_t length,
                     size_t tpt,
                     size_t wgs_bound)
 {
-    size_t bytes_per_elem  = (is_single) ? BYTES_PER_FLOAT2 : BYTES_PER_FLOAT4;
+    size_t bytes_per_elem  = (is_single) ? BYTES_PER_FLOAT2 : BYTES_PER_DOUBLE2;
     size_t bytes_per_batch = length * bytes_per_elem;
 
     if(half_lds)
@@ -81,7 +83,7 @@ size_t DeriveMaxTPB(size_t length,
 
 size_t ConservativeMaxTPB(size_t length, bool is_single)
 {
-    size_t bytes_per_elem  = (is_single) ? BYTES_PER_FLOAT2 : BYTES_PER_FLOAT4;
+    size_t bytes_per_elem  = (is_single) ? BYTES_PER_FLOAT2 : BYTES_PER_DOUBLE2;
     size_t bytes_per_batch = length * bytes_per_elem;
 
     // [reduce search space]:
@@ -223,25 +225,26 @@ std::string FactorsToString(const std::vector<size_t>& factors)
     return factors_str;
 }
 
+void StringToFactors(const std::string& factors_str, std::vector<size_t>& factors)
+{
+    static const std::regex vector_delims{"[^,\\[\\]\\s]+", std::regex_constants::optimize};
+
+    for(std::sregex_token_iterator tok{factors_str.begin(), factors_str.end(), vector_delims, 0};
+        tok != std::sregex_token_iterator();
+        ++tok)
+    {
+        factors.push_back(std::stoi(tok->str()));
+    }
+}
+
 // [reduce search space]
 // using permutation or shifting...
 std::set<std::vector<size_t>>
-    GetTotalFactorizationsForPhase1(size_t                         node_id,
-                                    std::set<std::vector<size_t>>& all_umpermuted_factors)
+    GetAllFactorizationsForPhase1(std::set<std::vector<size_t>>& target_factors)
 {
     std::set<std::vector<size_t>> ret;
-
-    auto& target_factors = TuningBenchmarker::GetSingleton().GetPacket()->target_factors;
-    assert(!target_factors.empty());
-
-    for(auto factorization : all_umpermuted_factors)
+    for(auto good_factors : target_factors)
     {
-        std::string factor_str = FactorsToString(factorization);
-        // this is not our target factorization in phase 1, ignore it
-        if(target_factors[node_id].count(factor_str) == 0)
-            continue;
-
-        std::vector<size_t>& good_factors = factorization;
         // std::cout << "for um-permuted good_factor: " << FactorsToString(good_factors) << std::endl;
 
         // try to peek the permutation results, if the num-of-permu is too large
@@ -296,6 +299,164 @@ std::set<std::vector<size_t>>
     return ret;
 }
 
+std::set<KernelConfig> Supported2DKernelConfigs(size_t len0, size_t len1, size_t node_id)
+{
+    std::set<KernelConfig> configs;
+
+    // we reserve some configurations with wgs greater than MAX_WGS
+    // in case the MAX_WGS yield nothing.
+    // the vector stores configurations with (wgs < 512), (wgs < 768), (wgs < 1024)
+    std::vector<std::set<KernelConfig>> configs_larger_wgs(3);
+
+    auto   factorizations_0   = Factorize(len0);
+    auto   factorizations_1   = Factorize(len1);
+    size_t max_radices_size_0 = GetMaxRadicesSize(factorizations_0);
+    size_t max_radices_size_1 = GetMaxRadicesSize(factorizations_1);
+
+    bool        print_reject = !rocfft_getenv("PRINT_REJECT_REASON").empty();
+    std::string max_wgs_str  = rocfft_getenv("MAX_WGS");
+    size_t      max_wgs      = max_wgs_str.empty() ? 768 : std::atoi(max_wgs_str.c_str());
+
+    // if PHASE-0 : Run without permutating the factors
+    // if PHASE-1 : Permute a few good factorizations passed from PHASE-0
+    bool  is_phase1      = TuningBenchmarker::GetSingleton().GetPacket()->tuning_phase == 1;
+    auto& target_factors = TuningBenchmarker::GetSingleton().GetPacket()->target_factors;
+    std::set<std::vector<size_t>> umpermuted_target_factors_d0, umpermuted_target_factors_d1;
+    if(is_phase1)
+    {
+        assert(!target_factors.empty());
+
+        // convert the "factors_strings" set to "target_factors" set
+        // and then separate the factors_2kernels to two factors (one for each dim)
+        for(const auto& factors_str : target_factors[node_id])
+        {
+            std::vector<size_t> factors_2kernels, factors_d0, factors_d1;
+            StringToFactors(factors_str, factors_2kernels);
+
+            // decompose the factors to 2 radices set
+            int    count               = 0;
+            size_t cummulative_product = 1;
+            while(cummulative_product != len0)
+                cummulative_product *= factors_2kernels[count++];
+
+            factors_d0.insert(
+                factors_d0.cbegin(), factors_2kernels.cbegin(), factors_2kernels.cbegin() + count);
+            factors_d1.insert(
+                factors_d1.cbegin(), factors_2kernels.cbegin() + count, factors_2kernels.cend());
+            // ---
+
+            umpermuted_target_factors_d0.insert(factors_d0);
+            umpermuted_target_factors_d1.insert(factors_d1);
+        }
+
+        // This includes only the permuted factors
+        factorizations_0 = GetAllFactorizationsForPhase1(umpermuted_target_factors_d0);
+        factorizations_1 = GetAllFactorizationsForPhase1(umpermuted_target_factors_d1);
+
+        // we need to do this for 2D-kernel, that is, also include the factors we've already seen in phase 0
+        // even if the factors (of dim1 or dim2) are seen before, but the combination might be new.
+        factorizations_0.insert(umpermuted_target_factors_d0.begin(),
+                                umpermuted_target_factors_d0.end());
+        factorizations_1.insert(umpermuted_target_factors_d1.begin(),
+                                umpermuted_target_factors_d1.end());
+    }
+
+    for(auto factors_0 : factorizations_0)
+    {
+        if(factors_0.size() > max_radices_size_0)
+        {
+            PrintRejectionMsg("reject: using too many radices in factors_0\n", print_reject);
+            continue;
+        }
+
+        // for each factors, we try uwide / wide mode only.
+        size_t tpt0_uwide = len0 / (*std::min_element(factors_0.begin(), factors_0.end()));
+        size_t tpt0_wide  = len0 / (*std::max_element(factors_0.begin(), factors_0.end()));
+
+        for(auto factors_1 : factorizations_1)
+        {
+            if(factors_1.size() > max_radices_size_1)
+            {
+                PrintRejectionMsg("reject: using too many radices in factors_1\n", print_reject);
+                continue;
+            }
+
+            if(is_phase1)
+            {
+                // in phase-1, we can skip the factorizations we've already tuned in phase-0
+                // check this by testing if both factors are umpermuted
+                if(umpermuted_target_factors_d0.count(factors_0) != 0
+                   && umpermuted_target_factors_d1.count(factors_1) != 0)
+                    continue;
+            }
+
+            // for each factors, we try uwide / wide mode only.
+            size_t tpt1_uwide = len1 / (*std::min_element(factors_1.begin(), factors_1.end()));
+            size_t tpt1_wide  = len1 / (*std::max_element(factors_1.begin(), factors_1.end()));
+
+            for(size_t tpt0 : {tpt0_uwide, tpt0_wide})
+            {
+                for(size_t tpt1 : {tpt1_uwide, tpt1_wide})
+                {
+                    // wgs_0 = tpt0 * len1; wgs_1 = tpt1 * len0
+                    size_t wgs = max(tpt0 * len1, tpt1 * len0);
+
+                    KernelConfig config;
+                    config.direct_to_from_reg    = false;
+                    config.intrinsic_buffer_inst = false;
+                    config.half_lds              = false;
+                    config.threads_per_transform = {(int)tpt0, (int)tpt1};
+                    config.transforms_per_block  = 1;
+                    config.workgroup_size        = wgs;
+                    config.use_3steps_large_twd  = false;
+                    config.factors               = factors_0;
+                    // combined two factors vectors as one
+                    std::copy(
+                        factors_1.begin(), factors_1.end(), std::back_inserter(config.factors));
+
+                    if(wgs > max_wgs)
+                    {
+                        PrintRejectionMsg("reject: wgs(" + std::to_string(wgs) + ") > MAX_WGS("
+                                              + std::to_string(max_wgs) + ")\n",
+                                          print_reject);
+
+                        // save in preparation pool
+                        if(wgs <= 512)
+                            configs_larger_wgs[0].insert(config);
+                        else if(wgs <= 768)
+                            configs_larger_wgs[1].insert(config);
+                        else if(wgs <= 1024)
+                            configs_larger_wgs[2].insert(config);
+
+                        continue;
+                    }
+
+                    configs.insert(config);
+                }
+            }
+        }
+    }
+
+    // if no valid configs, it may caused by MAX_WGS,
+    // so we check if we can draw some from preparation pool
+    if(configs.empty())
+    {
+        for(auto& set : configs_larger_wgs)
+        {
+            if(!set.empty())
+            {
+                if(LOG_TUNING_ENABLED())
+                    (*LogSingleton::GetInstance().GetTuningOS())
+                        << "no valid candidate meets MAX_WGS, extend the limitation." << std::endl;
+                std::copy(set.begin(), set.end(), std::inserter(configs, configs.end()));
+                break;
+            }
+        }
+    }
+
+    return configs;
+}
+
 std::set<KernelConfig> SupportedKernelConfigs(size_t length,
                                               size_t node_id,
                                               bool   is_single,
@@ -331,9 +492,9 @@ std::set<KernelConfig> SupportedKernelConfigs(size_t length,
     min_wgs = (min_wgs % 64 == 0) ? min_wgs : std::max((size_t)0, min_wgs - (min_wgs % 64));
     max_wgs = (max_wgs % 64 == 0) ? max_wgs : max_wgs - (max_wgs % 64);
 
-    auto& target_factors = TuningBenchmarker::GetSingleton().GetPacket()->target_factors;
-    bool  is_phase0      = (target_factors.empty());
-    bool  no_permutation = is_phase0;
+    auto& target_factors_strs = TuningBenchmarker::GetSingleton().GetPacket()->target_factors;
+    bool  is_phase0           = (target_factors_strs.empty());
+    bool  no_permutation      = is_phase0;
 
     // avoid 336 from expanding to 5 factors
     if(length == 336)
@@ -343,7 +504,17 @@ std::set<KernelConfig> SupportedKernelConfigs(size_t length,
     {
         // manually permute in phase-1
         no_permutation = true;
-        factorizations = GetTotalFactorizationsForPhase1(node_id, factorizations);
+
+        // convert the "factors_strings" set to "target_factors" set
+        std::set<std::vector<size_t>> target_factors;
+        for(const auto& factors_str : target_factors_strs[node_id])
+        {
+            std::vector<size_t> factors;
+            StringToFactors(factors_str, factors);
+            target_factors.insert(factors);
+        }
+
+        factorizations = GetAllFactorizationsForPhase1(target_factors);
     }
 
     for(auto factorization : factorizations)
@@ -602,17 +773,18 @@ void EnumerateKernelConfigs(const ExecPlan& execPlan)
     std::string kernel_token;
     for(size_t node_id = 0; node_id < execPlan.execSeq.size(); node_id++)
     {
-        // TODO- 2D tuning
+        auto& curNode = execPlan.execSeq[node_id];
+
         size_t bench_ssn = 0;
         bool   check_dup = false;
-        size_t len       = execPlan.execSeq[node_id]->length[0];
-        bool   is_single = (execPlan.rootPlan->precision == rocfft_precision_single);
-        bool   is_sbcc   = (execPlan.execSeq[node_id]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC);
-        bool   is_sbrc   = (execPlan.execSeq[node_id]->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC);
-        bool   is_sbcr   = (execPlan.execSeq[node_id]->scheme == CS_KERNEL_STOCKHAM_BLOCK_CR);
-        bool   is_2d     = (execPlan.execSeq[node_id]->scheme == CS_KERNEL_2D_SINGLE);
-        size_t large1D   = execPlan.execSeq[node_id]->large1D;
-        auto   base_key  = execPlan.execSeq[node_id]->GetKernelKey();
+        bool   is_single = execPlan.rootPlan->precision == rocfft_precision_single;
+        size_t len       = curNode->length[0];
+        bool   is_2D     = curNode->scheme == CS_KERNEL_2D_SINGLE;
+        bool   is_sbcc   = curNode->scheme == CS_KERNEL_STOCKHAM_BLOCK_CC;
+        bool   is_sbrc   = curNode->scheme == CS_KERNEL_STOCKHAM_BLOCK_RC;
+        bool   is_sbcr   = curNode->scheme == CS_KERNEL_STOCKHAM_BLOCK_CR;
+        size_t large1D   = curNode->large1D;
+        auto   base_key  = curNode->GetKernelKey();
 
         // if this kernel is an internal built-in one, we are not tunining it yet, (transpose..etc)
         // but we will plan to tune it in the future.
@@ -629,22 +801,6 @@ void EnumerateKernelConfigs(const ExecPlan& execPlan)
             continue;
         }
 
-        // TODO- remove this when tuning 2D_SINGLE is implemented
-        if(is_2d)
-        {
-            check_dup = true;
-            GetKernelToken(base_key, kernel_token);
-            ProblemKey probKey_kernel(archName, kernel_token);
-            TuningBenchmarker::GetSingleton().GetBindingSolutionMap()->add_solution(
-                probKey_kernel, FMKey::EmptyFMKey(), check_dup);
-
-            // pretend 2d_single is builtin-kernel, we just borrow the builtin-kernel logic to skip tuning it.
-            tuningPacket->tuning_kernel_tokens[node_id] = kernel_token;
-            tuningPacket->is_builtin_kernel[node_id]    = true;
-            tuningPacket->total_candidates[node_id]     = bench_ssn;
-            continue;
-        }
-
         // In init stage, save the default kernel token (without extra info)
         GetKernelToken(base_key, kernel_token);
         tuningPacket->tuning_kernel_tokens[node_id] = kernel_token;
@@ -656,8 +812,10 @@ void EnumerateKernelConfigs(const ExecPlan& execPlan)
         ProblemKey probKey_kernel(archName, kernel_token);
 
         // enumerate !
-        auto kernel_configs
-            = SupportedKernelConfigs(len, node_id, is_single, is_sbcc, is_sbrc, is_sbcr, large1D);
+        auto kernel_configs = (is_2D)
+                                  ? Supported2DKernelConfigs(len, curNode->length[1], node_id)
+                                  : SupportedKernelConfigs(
+                                      len, node_id, is_single, is_sbcc, is_sbrc, is_sbcr, large1D);
         for(KernelConfig config : kernel_configs)
         {
             // We can set the ebType and direction here. But we still don't know static_dim, aryType,

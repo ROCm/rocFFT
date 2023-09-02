@@ -105,6 +105,7 @@ bool GetTuningKernelInfo(ExecPlan& execPlan)
         GridParam    gp                  = execPlan.gridParam[i];
         FMKey        key                 = curNode->GetKernelKey();
         auto         lengths             = key.lengths;
+        auto         scheme              = key.scheme;
         KernelConfig config              = key.kernel_config;
 
         // get occupancy: 0 means it's compiled (AOT)
@@ -147,11 +148,16 @@ bool GetTuningKernelInfo(ExecPlan& execPlan)
         util_rate /= config.factors.size();
         util_ss << std::fixed << util_rate << "]";
 
+        // 2D_SINGLE can get this value easily, others are not that naive
+        tuningPacket->globalRW_per_thread[i]
+            = (scheme == CS_KERNEL_2D_SINGLE) ? (lengths[0] * lengths[1]) / config.workgroup_size
+                                              : -1;
         tuningPacket->num_of_blocks[i] = gp.b_x;
         tuningPacket->lds_bytes[i]     = gp.lds_bytes;
         tuningPacket->occupancy[i]     = occupancy;
         tuningPacket->wgs[i]           = config.workgroup_size;
-        tuningPacket->tpt[i]           = config.threads_per_transform[0];
+        tuningPacket->tpt0[i]          = config.threads_per_transform[0];
+        tuningPacket->tpt1[i]          = config.threads_per_transform[1];
         tuningPacket->tpb[i]           = config.transforms_per_block;
         tuningPacket->util_rate[i]     = util_ss.str();
         tuningPacket->factors_str[i]   = factors_str;

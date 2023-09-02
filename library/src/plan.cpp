@@ -625,6 +625,11 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
 
         execPlan.rootPlan = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
 
+        // FIXME: some solutions require the problems to be unit_stride, otherwise the
+        //   scheme-tree may not be applicable. In this case, we can't apply the solutions.
+        //   Currently, it happens on Real3DEven with REAL_2D_SINGLE kernels. This needs to
+        //   be detected.
+
         // If we are doing tuning initialzing now, we shouldn't apply any solution,
         // since we are trying enumerating solutions now
         if(TuningBenchmarker::GetSingleton().IsInitializingTuning() == false)
@@ -1876,9 +1881,6 @@ std::unique_ptr<SchemeTree>
         std::string& kernel_token   = sol_node.solution_childnodes[0].child_token;
         size_t       kernel_option  = sol_node.solution_childnodes[0].child_option;
         bool         tunable_kernel = (kernel_token != solution_map::KERNEL_TOKEN_BUILTIN_KERNEL);
-
-        // TODO- to remove after we can tuning 2D_SIGNEL
-        tunable_kernel = tunable_kernel && (sol_node.using_scheme != CS_KERNEL_2D_SINGLE);
 
         // When tuning, we're runing through each bench
         // so we use the elaborated token (_leafnode_id_phase_id)

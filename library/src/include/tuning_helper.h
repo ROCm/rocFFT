@@ -32,23 +32,24 @@
 
 struct BenchmarkInfo
 {
-    std::string prob_token;
-    std::string kernel_name;
-    std::string factors_str; // factors string as "[a, b, c]" as a feild in CSV
-    std::string util_rate; // utilization is define as "how many butterflies per thread does"
-    int         tuning_phase; // phase-0/1, see comments of PropagateBestFactorsToNextPhase()
-    int         SSN; // the serial number of the kernel-candidate
-    int         num_blocks; // following is information of current kernel execution
-    int         workgroup_size;
-    int         threads_per_trans;
-    int         trans_per_block;
-    int         LDS_bytes;
-    int         occupancy;
-    int         numCUs;
-    double      milli_seconds;
-    double      gflops;
-    double      granularity;
-    double      bw_eff;
+    std::string        prob_token;
+    std::string        kernel_name;
+    std::string        factors_str; // factors string as "[a, b, c]" as a feild in CSV
+    std::string        util_rate; // utilization is define as "how many butterflies per thread does"
+    int                tuning_phase; // phase-0/1, see comments of PropagateBestFactorsToNextPhase()
+    int                SSN; // the serial number of the kernel-candidate
+    int                num_blocks; // following is information of current kernel execution
+    int                workgroup_size;
+    std::array<int, 2> threads_per_trans;
+    int                trans_per_block;
+    int                LDS_bytes;
+    int                globalRW_per_thread;
+    int                occupancy;
+    int                numCUs;
+    double             milli_seconds;
+    double             gflops;
+    double             granularity;
+    double             bw_eff;
 };
 
 struct rocfft_tuning_packet
@@ -65,9 +66,11 @@ struct rocfft_tuning_packet
     std::vector<double>      bw_effs;
     std::vector<size_t>      num_of_blocks;
     std::vector<size_t>      wgs;
-    std::vector<size_t>      tpt;
+    std::vector<size_t>      tpt0;
+    std::vector<size_t>      tpt1;
     std::vector<size_t>      tpb;
     std::vector<size_t>      lds_bytes;
+    std::vector<int>         globalRW_per_thread; // 2D-kernel
     std::vector<int>         occupancy; // we allow -1, indicating the RTC kernel compiled failed
     int                      numCUs;
 

@@ -31,11 +31,7 @@
 // Some problems are not supported yet.
 // NB:
 //   if root-problem is one of the followings, then we don't tune the problem.
-//   But we still need to take care when sub-problem is a 2D_SINGLE,
-//   in that case, we don't tune the kernel and use the default one.
-//   (bluestein is not possible to be a sub-problem)
-static const std::set<ComputeScheme> not_supported_tuning_prob_schemes
-    = {CS_BLUESTEIN, CS_KERNEL_2D_SINGLE};
+static const std::set<ComputeScheme> not_supported_tuning_prob_schemes = {CS_BLUESTEIN};
 
 // return size_t: the "option_id" of the return node in its sol-vector
 size_t SerializeTree(TreeNode*                         node,

@@ -115,9 +115,11 @@ void TuningBenchmarker::ResetKernelInfo()
     packet->bw_effs.clear();
     packet->num_of_blocks.clear();
     packet->wgs.clear();
-    packet->tpt.clear();
+    packet->tpt0.clear();
+    packet->tpt1.clear();
     packet->tpb.clear();
     packet->lds_bytes.clear();
+    packet->globalRW_per_thread.clear();
     packet->occupancy.clear();
 
     packet->kernel_names.resize(num_nodes);
@@ -126,9 +128,11 @@ void TuningBenchmarker::ResetKernelInfo()
     packet->bw_effs.resize(num_nodes);
     packet->num_of_blocks.resize(num_nodes);
     packet->wgs.resize(num_nodes);
-    packet->tpt.resize(num_nodes);
+    packet->tpt0.resize(num_nodes);
+    packet->tpt1.resize(num_nodes);
     packet->tpb.resize(num_nodes);
     packet->lds_bytes.resize(num_nodes);
+    packet->globalRW_per_thread.resize(num_nodes);
     packet->occupancy.resize(num_nodes);
 }
 
@@ -184,20 +188,22 @@ BenchmarkInfo TuningBenchmarker::GetCurrBenchmarkInfo()
     auto& bench_infos_vec  = benchmark_infos_of_node[tuning_node_id];
 
     BenchmarkInfo info;
-    info.tuning_phase      = curr_phase;
-    info.SSN               = kernel_config_id;
-    info.prob_token        = packet->tuning_problem_name;
-    info.kernel_name       = packet->kernel_names[tuning_node_id];
-    info.factors_str       = packet->factors_str[tuning_node_id];
-    info.util_rate         = packet->util_rate[tuning_node_id];
-    info.num_blocks        = packet->num_of_blocks[tuning_node_id];
-    info.workgroup_size    = packet->wgs[tuning_node_id];
-    info.threads_per_trans = packet->tpt[tuning_node_id];
-    info.trans_per_block   = packet->tpb[tuning_node_id];
-    info.LDS_bytes         = packet->lds_bytes[tuning_node_id];
-    info.occupancy         = packet->occupancy[tuning_node_id];
-    info.numCUs            = packet->numCUs;
-    info.granularity       = (double)info.num_blocks / info.numCUs;
+    info.tuning_phase         = curr_phase;
+    info.SSN                  = kernel_config_id;
+    info.prob_token           = packet->tuning_problem_name;
+    info.kernel_name          = packet->kernel_names[tuning_node_id];
+    info.factors_str          = packet->factors_str[tuning_node_id];
+    info.util_rate            = packet->util_rate[tuning_node_id];
+    info.num_blocks           = packet->num_of_blocks[tuning_node_id];
+    info.workgroup_size       = packet->wgs[tuning_node_id];
+    info.threads_per_trans[0] = packet->tpt0[tuning_node_id];
+    info.threads_per_trans[1] = packet->tpt1[tuning_node_id];
+    info.trans_per_block      = packet->tpb[tuning_node_id];
+    info.LDS_bytes            = packet->lds_bytes[tuning_node_id];
+    info.globalRW_per_thread  = packet->globalRW_per_thread[tuning_node_id];
+    info.occupancy            = packet->occupancy[tuning_node_id];
+    info.numCUs               = packet->numCUs;
+    info.granularity          = (double)info.num_blocks / info.numCUs;
 
     bench_infos_vec.push_back(info);
 
@@ -289,9 +295,11 @@ void TuningBenchmarker::PropagateBestFactorsToNextPhase()
             best_factors.push_back(info.factors_str);
         }
     }
+
     // we will focus on the best 3 factors (at most) in the next phase tuning (permuting)
-    if(best_factors.size() > 3)
-        best_factors.resize(3);
+    size_t num_target_factors = 3;
+    if(best_factors.size() > num_target_factors)
+        best_factors.resize(num_target_factors);
 
     for(auto& factor : best_factors)
         packet->target_factors[curr_tuning_node_id].insert(factor);
@@ -408,13 +416,14 @@ void TuningBenchmarker::GetOutputSolutionMapPath(std::string& out_path)
     out_path = packet->output_solution_map_path;
 }
 
+// return bool: if csv is created/written or not
 bool TuningBenchmarker::ExportCSV(bool append_data)
 {
     int curr_tuning_node_id = packet->tuning_node_id;
 
     // skip the kernel-node with #-candidates = 0
     if(packet->total_candidates[curr_tuning_node_id] == 0)
-        return true;
+        return false;
 
     auto&       bench_infos_vec  = benchmark_infos_of_node[curr_tuning_node_id];
     std::string filename         = bench_infos_vec[0].prob_token + ".csv";
@@ -437,16 +446,16 @@ bool TuningBenchmarker::ExportCSV(bool append_data)
     if(append_data)
         outfile << std::endl << std::endl;
 
-    outfile << "SSN, Problem, MS, GFLOPS, NumBlocks, WGS, TPT, TPB, LDS_Bytes, Util_Rate, "
-               "Factors, Occupancy, "
-               "NumCUs, Granularity, BW_EFF, KernelName"
+    outfile << "SSN, Problem, MS, GFLOPS, NumBlocks, WGS, TPT_0, TPT_1, TPB, LDS_Bytes, GRW_PT, "
+               "Util_Rate, Factors, Occupancy, NumCUs, Granularity, BW_EFF, KernelName"
             << std::endl;
 
     for(auto& info : bench_infos_vec)
     {
         outfile << info.SSN << "," << info.prob_token << "," << info.milli_seconds << ","
                 << info.gflops << "," << info.num_blocks << "," << info.workgroup_size << ","
-                << info.threads_per_trans << "," << info.trans_per_block << "," << info.LDS_bytes
+                << info.threads_per_trans[0] << "," << info.threads_per_trans[1] << ","
+                << info.trans_per_block << "," << info.LDS_bytes << "," << info.globalRW_per_thread
                 << ","
                 << "\"" << info.util_rate << "\""
                 << ","
@@ -465,14 +474,14 @@ bool TuningBenchmarker::MergingSolutionsMaps(const std::string& base_map_path,
                                              const std::string& probKeyStr,
                                              const std::string& out_map_path)
 {
-    // read the existing solutions to primary map, primary = true
-    if(binding_solution_map->read_solution_map_data(base_map_path) == false)
-        return false;
-
     static const std::string sep = ":";
 
     try
     {
+        // read the existing solutions to primary map, primary = true
+        if(binding_solution_map->read_solution_map_data(base_map_path) == false)
+            std::cout << "\t\tBase solution map file is not existing, will create a new one\n";
+
         std::string token = probKeyStr;
         size_t      pos   = token.find(sep);
         if(pos == std::string::npos)

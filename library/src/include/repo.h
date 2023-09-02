@@ -66,9 +66,11 @@ class Repo
     // key structure for 2D twiddles
     struct repo_twd_key_2D_t
     {
-        size_t           length0   = 0;
-        size_t           length1   = 0;
-        rocfft_precision precision = rocfft_precision_single;
+        size_t              length0   = 0;
+        size_t              length1   = 0;
+        rocfft_precision    precision = rocfft_precision_single;
+        std::vector<size_t> radices1;
+        std::vector<size_t> radices2;
         // buffers are in device memory, so we need per-device
         // twiddles
         int deviceId = 0;
@@ -81,6 +83,10 @@ class Repo
                 return length1 < other.length1;
             if(precision != other.precision)
                 return precision < other.precision;
+            if(radices1 != other.radices1)
+                return radices1 < other.radices1;
+            if(radices2 != other.radices2)
+                return radices2 < other.radices2;
             return deviceId < other.deviceId;
         }
     };
@@ -170,12 +176,14 @@ public:
                                                   size_t                     largeTwdBase,
                                                   bool                       attach_halfN,
                                                   const std::vector<size_t>& radices);
-    static std::pair<void*, size_t> GetTwiddles2D(size_t                 length0,
-                                                  size_t                 length1,
-                                                  rocfft_precision       precision,
-                                                  const hipDeviceProp_t& deviceProp,
-                                                  bool                   attach_halfN1,
-                                                  bool                   attach_halfN2);
+    static std::pair<void*, size_t> GetTwiddles2D(size_t                     length0,
+                                                  size_t                     length1,
+                                                  rocfft_precision           precision,
+                                                  const hipDeviceProp_t&     deviceProp,
+                                                  bool                       attach_halfN1,
+                                                  bool                       attach_halfN2,
+                                                  const std::vector<size_t>& radices1,
+                                                  const std::vector<size_t>& radices2);
     static std::pair<void*, size_t>
         GetChirp(size_t length, rocfft_precision precision, const hipDeviceProp_t& deviceProp);
     static void ReleaseTwiddle1D(void* ptr);

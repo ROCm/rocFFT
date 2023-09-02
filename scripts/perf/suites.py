@@ -808,6 +808,21 @@ def tuning_example():
                                      max_wgs=256)
 
 
+def tuning_2D_example():
+    """tuning 3 examples problems"""
+
+    lengths = [(81, 32), (81, 25), (125, 32)]
+
+    yield from default_length_params("2D_SINGLE",
+                                     lengths,
+                                     10000,
+                                     directions=[-1],
+                                     precisions=['single'],
+                                     inplaces=[False],
+                                     reals=[False],
+                                     max_wgs=1024)
+
+
 def tuning_suite():
     """tuning"""
 
@@ -865,9 +880,7 @@ def tuning_suite():
                                      reals=[False],
                                      max_wgs=256)
 
-    # for length3 in lengths['md']:
-    for length3 in [(100, 100, 100), (200, 200, 200), (208, 100, 100),
-                    (108, 108, 80), (128, 128, 256)]:
+    for length3 in lengths['md']:
         for direction in [-1, 1]:
             yield Problem(length3,
                           tag=mktag('qa3md', 3, 'single', direction, False,

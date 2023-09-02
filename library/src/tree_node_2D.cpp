@@ -277,11 +277,31 @@ void RC2DNode::AssignParams_internal()
  *****************************************************/
 bool Single2DNode::CreateDeviceResources()
 {
+    // we need to put radices1/2 into key for twd_table, since when offline tuning,
+    // we are generating kernels with different radices, so for different radices,
+    // twd_table can't be shared
+    std::vector<size_t> radices1, radices2;
+
+    int    count               = 0;
+    size_t cummulative_product = 1;
+    while(cummulative_product != length[0])
+    {
+        cummulative_product *= kernelFactors[count++];
+    }
+    radices1.insert(radices1.cbegin(), kernelFactors.cbegin(), kernelFactors.cbegin() + count);
+    radices2.insert(radices2.cbegin(), kernelFactors.cbegin() + count, kernelFactors.cend());
+
     twd_attach_halfN  = (ebtype == EmbeddedType::Real2C_POST);
     twd_attach_halfN2 = (ebtype == EmbeddedType::C2Real_PRE);
     // create one set of twiddles for each dimension
-    std::tie(twiddles, twiddles_size) = Repo::GetTwiddles2D(
-        length[0], length[1], precision, deviceProp, twd_attach_halfN, twd_attach_halfN2);
+    std::tie(twiddles, twiddles_size) = Repo::GetTwiddles2D(length[0],
+                                                            length[1],
+                                                            precision,
+                                                            deviceProp,
+                                                            twd_attach_halfN,
+                                                            twd_attach_halfN2,
+                                                            radices1,
+                                                            radices2);
 
     return CreateLargeTwdTable();
 }
