@@ -20,6 +20,7 @@
 
 #include "../../shared/arithmetic.h"
 #include "../../shared/gpubuf.h"
+#include "../../shared/hip_object_wrapper.h"
 #include "../../shared/rocfft_params.h"
 #include "accuracy_test.h"
 #include "rocfft/rocfft.h"
@@ -270,9 +271,6 @@ static void compare_data(const std::vector<rocfft_complex<float>>& original_host
 
 TEST(rocfft_UnitTest, DISABLED_hipGraph_execution)
 {
-    hipStream_t stream       = nullptr;
-    hipStream_t other_stream = nullptr;
-
     hipGraph_t     graph      = nullptr;
     hipGraphExec_t graph_exec = nullptr;
 
@@ -314,8 +312,10 @@ TEST(rocfft_UnitTest, DISABLED_hipGraph_execution)
 
     EXPECT_EQ(hipDeviceSynchronize(), hipSuccess);
 
-    ASSERT_EQ(hipStreamCreate(&stream), hipSuccess);
-    ASSERT_EQ(hipStreamCreate(&other_stream), hipSuccess);
+    hipStream_wrapper_t stream;
+    hipStream_wrapper_t other_stream;
+    stream.alloc();
+    other_stream.alloc();
 
     ASSERT_EQ(hipStreamBeginCapture(stream, hipStreamCaptureModeGlobal), hipSuccess);
 

@@ -26,6 +26,7 @@
 
 #include <hip/hip_runtime.h>
 
+#include "../../shared/hip_object_wrapper.h"
 #include "../../shared/rocfft_params.h"
 #include "fftw_transform.h"
 #include "rocfft/rocfft.h"
@@ -241,8 +242,8 @@ struct Test_Callback
             ASSERT_EQ(hipMalloc(&work_buffer, work_buffer_size), hipSuccess);
         }
 
-        hipStream_t stream = nullptr;
-        ASSERT_EQ(hipStreamCreate(&stream), hipSuccess);
+        hipStream_wrapper_t stream;
+        stream.alloc();
 
         rocfft_execution_info info;
         ASSERT_EQ(rocfft_execution_info_create(&info), rocfft_status_success);

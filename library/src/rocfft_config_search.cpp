@@ -20,6 +20,7 @@
 
 #include "../../shared/arithmetic.h"
 #include "../../shared/gpubuf.h"
+#include "../../shared/hip_object_wrapper.h"
 #include "device/generator/stockham_gen.h"
 #include "rtc_compile.h"
 #include "rtc_stockham_gen.h"
@@ -185,19 +186,15 @@ struct device_data_t
     gpubuf_t<size_t>                   stride_in;
     gpubuf_t<size_t>                   stride_out;
     size_t                             batch;
-    hipEvent_t                         start;
-    hipEvent_t                         stop;
+    hipEvent_wrapper_t                 start;
+    hipEvent_wrapper_t                 stop;
 
     device_data_t()
     {
-        if(hipEventCreate(&start) != hipSuccess || hipEventCreate(&stop) != hipSuccess)
-            throw std::runtime_error("hipEventCreate failed");
+        start.alloc();
+        stop.alloc();
     }
-    ~device_data_t()
-    {
-        (void)hipEventDestroy(start);
-        (void)hipEventDestroy(stop);
-    }
+    ~device_data_t() = default;
 };
 
 // run the kernel, returning the median execution time

@@ -28,6 +28,7 @@
 
 #include "../../shared/environment.h"
 #include "../../shared/gpubuf.h"
+#include "../../shared/hip_object_wrapper.h"
 #include "../../shared/rocfft_params.h"
 #include "option_util.h"
 #include "rocfft.h"
@@ -280,9 +281,9 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
                 // Run the transform several times and record the execution time:
                 std::vector<double> gpu_time(ntrial);
 
-                hipEvent_t start, stop;
-                HIP_V_THROW(hipEventCreate(&start), "hipEventCreate failed");
-                HIP_V_THROW(hipEventCreate(&stop), "hipEventCreate failed");
+                hipEvent_wrapper_t start, stop;
+                start.alloc();
+                stop.alloc();
                 for(unsigned int itrial = 0; itrial < gpu_time.size(); ++itrial)
                 {
                     HIP_V_THROW(hipEventRecord(start), "hipEventRecord failed");
@@ -312,8 +313,6 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
                     std::cout << " " << gflops;
                 }
                 std::cout << std::endl;
-                HIP_V_THROW(hipEventDestroy(start), "hipEventDestroy failed");
-                HIP_V_THROW(hipEventDestroy(stop), "hipEventDestroy failed");
 
                 // get median, if odd, get middle one, else get avg(middle twos)
                 std::sort(gpu_time.begin(), gpu_time.end());

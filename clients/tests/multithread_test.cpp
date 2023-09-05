@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "../../shared/gpubuf.h"
+#include "../../shared/hip_object_wrapper.h"
 #include "../../shared/rocfft_params.h"
 #include "accuracy_test.h"
 #include "rocfft/rocfft.h"
@@ -86,12 +87,11 @@ struct Test_Transform
     Test_Transform(const Test_Transform&) = delete;
     void operator=(const Test_Transform&) = delete;
     Test_Transform(Test_Transform&& other)
-        : stream(other.stream)
+        : stream(std::move(other.stream))
         , work_buffer(other.work_buffer)
         , device_mem_in(std::move(other.device_mem_in))
         , device_mem_out(std::move(other.device_mem_out))
     {
-        other.stream      = nullptr;
         other.work_buffer = nullptr;
         host_mem_in.swap(other.host_mem_in);
         host_mem_out.swap(other.host_mem_out);
@@ -130,7 +130,7 @@ struct Test_Transform
             ASSERT_EQ(hipMalloc(&work_buffer, work_buffer_size), hipSuccess);
         }
 
-        ASSERT_EQ(hipStreamCreate(&stream), hipSuccess);
+        stream.alloc();
         rocfft_execution_info info;
         ASSERT_EQ(rocfft_execution_info_create(&info), rocfft_status_success);
         ASSERT_EQ(rocfft_execution_info_set_stream(info, stream), rocfft_status_success);
@@ -172,8 +172,7 @@ struct Test_Transform
         if(stream)
         {
             ASSERT_EQ(hipStreamSynchronize(stream), hipSuccess);
-            ASSERT_EQ(hipStreamDestroy(stream), hipSuccess);
-            stream = nullptr;
+            stream.free();
         }
 
         ASSERT_EQ(hipFree(work_buffer), hipSuccess);
@@ -235,10 +234,10 @@ struct Test_Transform
     {
         do_cleanup();
     }
-    size_t                             N                = 0;
-    size_t                             dim              = 0;
-    uint32_t                           seed             = 0;
-    hipStream_t                        stream           = nullptr;
+    size_t                             N    = 0;
+    size_t                             dim  = 0;
+    uint32_t                           seed = 0;
+    hipStream_wrapper_t                stream;
     rocfft_plan                        plan             = nullptr;
     rocfft_plan                        plan_inv         = nullptr;
     size_t                             work_buffer_size = 0;

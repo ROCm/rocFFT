@@ -22,7 +22,7 @@
 
 #include "twiddles.h"
 #include "../../shared/arithmetic.h"
-#include "../../shared/hipstream_wrapper.h"
+#include "../../shared/hip_object_wrapper.h"
 #include "../../shared/rocfft_hip.h"
 #include "function_pool.h"
 #include "rtc_cache.h"
@@ -413,13 +413,10 @@ gpubuf twiddles_create_pr(size_t                     N,
         twiddle_streams.resize(deviceId + 1);
     if(twiddle_streams[deviceId] == nullptr)
         twiddle_streams[deviceId].alloc();
-    hipStream_t stream = twiddle_streams[deviceId];
+    hipStream_wrapper_t& stream = twiddle_streams[deviceId];
 
-    if(stream == nullptr)
-    {
-        if(hipStreamCreate(&stream) != hipSuccess)
-            throw std::runtime_error("hipStreamCreate failure");
-    }
+    if(!stream)
+        stream.alloc();
 
     if((N <= LARGE_TWIDDLE_THRESHOLD) && largeTwdBase == 0)
     {
@@ -486,15 +483,9 @@ gpubuf twiddles_create_2D_pr(size_t                     N1,
     gpubuf twts;
     if(deviceId >= twiddle_streams.size())
         twiddle_streams.resize(deviceId + 1);
-    if(twiddle_streams[deviceId] == nullptr)
-        twiddle_streams[deviceId].alloc();
-    hipStream_t stream = twiddle_streams[deviceId];
-
-    if(stream == nullptr)
-    {
-        if(hipStreamCreate(&stream) != hipSuccess)
-            throw std::runtime_error("hipStreamCreate failure");
-    }
+    hipStream_wrapper_t& stream = twiddle_streams[deviceId];
+    if(!stream)
+        stream.alloc();
 
     TwiddleTable2D<T> twTable(precision, deviceProp, N1, N2, attach_halfN, attach_halfN2);
     twTable.GenerateTwiddleTable(radices1, radices2, stream, twts);

@@ -38,6 +38,7 @@
 #endif
 
 #include "../../shared/gpubuf.h"
+#include "../../shared/hip_object_wrapper.h"
 #include "../../shared/rocfft_params.h"
 #include "bench.h"
 #include "rocfft/rocfft.h"
@@ -270,9 +271,9 @@ float run_plan(
     auto procfft_execute
         = (decltype(&rocfft_execute))rocfft_lib_symbol(libhandle, "rocfft_execute");
 
-    hipEvent_t start, stop;
-    HIP_V_THROW(hipEventCreate(&start), "hipEventCreate failed");
-    HIP_V_THROW(hipEventCreate(&stop), "hipEventCreate failed");
+    hipEvent_wrapper_t start, stop;
+    start.alloc();
+    stop.alloc();
 
     HIP_V_THROW(hipEventRecord(start), "hipEventRecord failed");
 
@@ -284,9 +285,6 @@ float run_plan(
     float time;
     HIP_V_THROW(hipEventElapsedTime(&time, start, stop), "hipEventElapsedTime failed");
     return time;
-
-    HIP_V_THROW(hipEventDestroy(start), "hipEventDestroy failed");
-    HIP_V_THROW(hipEventDestroy(stop), "hipEventDestroy failed");
 }
 
 // Load python library with RTLD_GLOBAL so that rocfft is free to

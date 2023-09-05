@@ -20,46 +20,67 @@
 * THE SOFTWARE.
 *******************************************************************************/
 
-#ifndef ROCFFT_HIPSTREAM_WRAPPER_H
-#define ROCFFT_HIPSTREAM_WRAPPER_H
+#ifndef ROCFFT_HIP_OBJ_WRAPPER_H
+#define ROCFFT_HIP_OBJ_WRAPPER_H
 
 #include "rocfft_hip.h"
 
-// RAII wrapper around hipStream_t
-struct hipStream_wrapper_t
+// RAII wrapper around HIP objects
+template <typename T, auto TCreate, auto TDestroy>
+struct hip_object_wrapper_t
 {
-    hipStream_wrapper_t()
-        : stream(nullptr)
+    hip_object_wrapper_t()
+        : obj(nullptr)
     {
     }
 
     void alloc()
     {
-        if(stream == nullptr && hipStreamCreate(&stream) != hipSuccess)
-            throw std::runtime_error("hipStreamCreate failure");
+        if(obj == nullptr && TCreate(&obj) != hipSuccess)
+            throw std::runtime_error("hip create failure");
     }
 
-    operator hipStream_t()
+    void free()
     {
-        return stream;
+        if(obj)
+        {
+            (void)TDestroy(obj);
+            obj = nullptr;
+        }
     }
 
-    ~hipStream_wrapper_t()
+    operator const T&() const
     {
-        if(stream)
-            (void)hipStreamDestroy(stream);
+        return obj;
+    }
+    operator T&()
+    {
+        return obj;
     }
 
-    hipStream_wrapper_t(const hipStream_wrapper_t&) = delete;
-    hipStream_wrapper_t& operator=(const hipStream_wrapper_t&) = delete;
-    hipStream_wrapper_t(hipStream_wrapper_t&& other)
-        : stream(other.stream)
+    operator bool() const
     {
-        other.stream = nullptr;
+        return obj != nullptr;
+    }
+
+    ~hip_object_wrapper_t()
+    {
+        free();
+    }
+
+    hip_object_wrapper_t(const hip_object_wrapper_t&) = delete;
+    hip_object_wrapper_t& operator=(const hip_object_wrapper_t&) = delete;
+    hip_object_wrapper_t(hip_object_wrapper_t&& other)
+        : obj(other.obj)
+    {
+        other.obj = nullptr;
     }
 
 private:
-    hipStream_t stream;
+    T obj;
 };
 
-#endif // ROCFFT_HIPSTREAM_WRAPPER_H
+typedef hip_object_wrapper_t<hipStream_t, hipStreamCreate, hipStreamDestroy> hipStream_wrapper_t;
+typedef hip_object_wrapper_t<hipEvent_t, hipEventCreate, hipEventDestroy>    hipEvent_wrapper_t;
+
+#endif // ROCFFT_HIP_OBJ_WRAPPER_H

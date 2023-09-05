@@ -22,7 +22,7 @@
 
 #include "chirp.h"
 #include "../../shared/arithmetic.h"
-#include "../../shared/hipstream_wrapper.h"
+#include "../../shared/hip_object_wrapper.h"
 #include "../../shared/rocfft_complex.h"
 #include "../../shared/rocfft_hip.h"
 #include "rtc_cache.h"
@@ -79,15 +79,9 @@ gpubuf chirp_create_pr(size_t                 N,
 
     if(deviceId >= chirp_streams.size())
         chirp_streams.resize(deviceId + 1);
-    if(chirp_streams[deviceId] == nullptr)
-        chirp_streams[deviceId].alloc();
-    hipStream_t stream = chirp_streams[deviceId];
-
-    if(stream == nullptr)
-    {
-        if(hipStreamCreate(&stream) != hipSuccess)
-            throw std::runtime_error("hipStreamCreate failure");
-    }
+    hipStream_wrapper_t& stream = chirp_streams[deviceId];
+    if(!stream)
+        stream.alloc();
 
     auto device_chirp_ptr = static_cast<Tcomplex*>(chirp.data());
 

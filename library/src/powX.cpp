@@ -44,6 +44,7 @@
 
 #include "../../shared/array_predicate.h"
 #include "../../shared/environment.h"
+#include "../../shared/hip_object_wrapper.h"
 #include "../../shared/precision_type.h"
 #include "../../shared/printbuffer.h"
 #include "../../shared/ptrdiff.h"
@@ -501,13 +502,13 @@ void TransformPowX(const ExecPlan&       execPlan,
     bool emit_profile_log  = (processing_tuning || LOG_PROFILE_ENABLED()) && !info->rocfft_stream;
     bool emit_kernelio_log = LOG_KERNELIO_ENABLED();
 
-    rocfft_ostream* kernelio_stream = nullptr;
-    float           max_memory_bw   = 0.0;
-    hipEvent_t      start, stop;
+    rocfft_ostream*    kernelio_stream = nullptr;
+    float              max_memory_bw   = 0.0;
+    hipEvent_wrapper_t start, stop;
     if(emit_profile_log)
     {
-        if(hipEventCreate(&start) != hipSuccess || hipEventCreate(&stop) != hipSuccess)
-            throw std::runtime_error("hipEventCreate failure");
+        start.alloc();
+        stop.alloc();
         max_memory_bw = max_memory_bandwidth_GB_per_s();
     }
 
@@ -838,10 +839,5 @@ void TransformPowX(const ExecPlan&       execPlan,
                          execPlan.rootPlan->oOffset,
                          execPlan.rootPlan->batch);
         *kernelio_stream << std::endl;
-    }
-    if(emit_profile_log)
-    {
-        (void)hipEventDestroy(start);
-        (void)hipEventDestroy(stop);
     }
 }
