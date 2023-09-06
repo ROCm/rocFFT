@@ -37,7 +37,8 @@
 
 #include "../shared/arithmetic.h"
 #include "../shared/array_validator.h"
-#include "../shared/data_gen.h"
+#include "../shared/data_gen_device.h"
+#include "../shared/data_gen_host.h"
 #include "../shared/device_properties.h"
 #include "../shared/printbuffer.h"
 #include "../shared/ptrdiff.h"
@@ -86,6 +87,34 @@ static std::istream& operator>>(std::istream& str, fft_precision& precision)
     return str;
 }
 
+// fft_input_generator: linearly spaced sequence in [-0.5,0.5]
+// fft_input_random_generator: pseudo-random sequence in [-0.5,0.5]
+enum fft_input_generator
+{
+    fft_input_random_generator_device,
+    fft_input_random_generator_host,
+    fft_input_generator_device,
+    fft_input_generator_host,
+};
+
+static std::istream& operator>>(std::istream& str, fft_input_generator& gen)
+{
+    std::string word;
+    str >> word;
+
+    if(word == "0")
+        gen = fft_input_random_generator_device;
+    else if(word == "1")
+        gen = fft_input_random_generator_host;
+    else if(word == "2")
+        gen = fft_input_generator_device;
+    else if(word == "3")
+        gen = fft_input_generator_host;
+    else
+        throw std::runtime_error("Invalid input generator specified");
+    return str;
+}
+
 enum fft_array_type
 {
     fft_array_type_complex_interleaved,
@@ -130,36 +159,17 @@ inline Tsize var_size(const fft_precision precision, const fft_array_type type)
     }
     return var_size;
 }
-
-// count the number of total iterations for 1-, 2-, and 3-D dimensions
-template <typename T1>
-size_t count_iters(const T1& i)
-{
-    return i;
-}
-
-template <typename T1>
-size_t count_iters(const std::tuple<T1, T1>& i)
-{
-    return std::get<0>(i) * std::get<1>(i);
-}
-
-template <typename T1>
-size_t count_iters(const std::tuple<T1, T1, T1>& i)
-{
-    return std::get<0>(i) * std::get<1>(i) * std::get<2>(i);
-}
-
 // Given an array type and transform length, strides, etc, load random floats in [0,1]
 // into the input array of floats/doubles or complex floats/doubles gpu buffers.
 template <typename Tfloat, typename Tint1>
 inline void set_input(std::vector<gpubuf>&       input,
+                      const fft_input_generator  igen,
                       const fft_array_type       itype,
                       const std::vector<size_t>& length,
                       const std::vector<size_t>& ilength,
-                      const std::vector<size_t>& stride,
+                      const std::vector<size_t>& istride,
                       const Tint1&               whole_length,
-                      const Tint1&               istride,
+                      const Tint1&               whole_stride,
                       const size_t               idist,
                       const size_t               nbatch,
                       const hipDeviceProp_t&     deviceProp)
@@ -172,13 +182,19 @@ inline void set_input(std::vector<gpubuf>&       input,
     case fft_array_type_hermitian_interleaved:
     {
         auto ibuffer = (rocfft_complex<Tfloat>*)input[0].data();
-        generate_interleaved_data(whole_length, idist, isize, istride, ibuffer, deviceProp);
+
+        if(igen == fft_input_generator_device)
+            generate_interleaved_data(
+                whole_length, idist, isize, whole_stride, nbatch, ibuffer, deviceProp);
+        else if(igen == fft_input_random_generator_device)
+            generate_random_interleaved_data(
+                whole_length, idist, isize, whole_stride, ibuffer, deviceProp);
 
         if(itype == fft_array_type_hermitian_interleaved)
         {
             auto ibuffer_2 = (rocfft_complex<Tfloat>*)input[0].data();
             impose_hermitian_symmetry_interleaved(
-                length, ilength, stride, idist, nbatch, ibuffer_2, deviceProp);
+                length, ilength, istride, idist, nbatch, ibuffer_2, deviceProp);
         }
 
         break;
@@ -189,12 +205,22 @@ inline void set_input(std::vector<gpubuf>&       input,
         auto ibuffer_real = (Tfloat*)input[0].data();
         auto ibuffer_imag = (Tfloat*)input[1].data();
 
-        generate_planar_data(
-            whole_length, idist, isize, istride, ibuffer_real, ibuffer_imag, deviceProp);
+        if(igen == fft_input_generator_device)
+            generate_planar_data(whole_length,
+                                 idist,
+                                 isize,
+                                 whole_stride,
+                                 nbatch,
+                                 ibuffer_real,
+                                 ibuffer_imag,
+                                 deviceProp);
+        else if(igen == fft_input_random_generator_device)
+            generate_random_planar_data(
+                whole_length, idist, isize, whole_stride, ibuffer_real, ibuffer_imag, deviceProp);
 
         if(itype == fft_array_type_hermitian_planar)
             impose_hermitian_symmetry_planar(
-                length, ilength, stride, idist, nbatch, ibuffer_real, ibuffer_imag, deviceProp);
+                length, ilength, istride, idist, nbatch, ibuffer_real, ibuffer_imag, deviceProp);
 
         break;
     }
@@ -202,7 +228,68 @@ inline void set_input(std::vector<gpubuf>&       input,
     {
         auto ibuffer = (Tfloat*)input[0].data();
 
-        generate_real_data(whole_length, idist, isize, istride, ibuffer, deviceProp);
+        if(igen == fft_input_generator_device)
+            generate_real_data(
+                whole_length, idist, isize, whole_stride, nbatch, ibuffer, deviceProp);
+        else if(igen == fft_input_random_generator_device)
+            generate_random_real_data(
+                whole_length, idist, isize, whole_stride, ibuffer, deviceProp);
+
+        break;
+    }
+    default:
+        throw std::runtime_error("Input layout format not yet supported");
+    }
+}
+
+template <typename Tfloat, typename Tint1>
+inline void set_input(std::vector<hostbuf>&      input,
+                      const fft_input_generator  igen,
+                      const fft_array_type       itype,
+                      const std::vector<size_t>& length,
+                      const std::vector<size_t>& ilength,
+                      const std::vector<size_t>& istride,
+                      const Tint1&               whole_length,
+                      const Tint1&               whole_stride,
+                      const size_t               idist,
+                      const size_t               nbatch,
+                      const hipDeviceProp_t&     deviceProp)
+{
+    switch(itype)
+    {
+    case fft_array_type_complex_interleaved:
+    case fft_array_type_hermitian_interleaved:
+    {
+        if(igen == fft_input_generator_host)
+            generate_interleaved_data<Tfloat>(input, whole_length, whole_stride, idist, nbatch);
+        else if(igen == fft_input_random_generator_host)
+            generate_random_interleaved_data<Tfloat>(
+                input, whole_length, whole_stride, idist, nbatch);
+
+        if(itype == fft_array_type_hermitian_interleaved)
+            impose_hermitian_symmetry_interleaved<Tfloat>(input, length, istride, idist, nbatch);
+
+        break;
+    }
+    case fft_array_type_complex_planar:
+    case fft_array_type_hermitian_planar:
+    {
+        if(igen == fft_input_generator_host)
+            generate_planar_data<Tfloat>(input, whole_length, whole_stride, idist, nbatch);
+        else if(igen == fft_input_random_generator_host)
+            generate_random_planar_data<Tfloat>(input, whole_length, whole_stride, idist, nbatch);
+
+        if(itype == fft_array_type_hermitian_planar)
+            impose_hermitian_symmetry_planar<Tfloat>(input, length, istride, idist, nbatch);
+
+        break;
+    }
+    case fft_array_type_real:
+    {
+        if(igen == fft_input_generator_host)
+            generate_real_data<Tfloat>(input, whole_length, whole_stride, idist, nbatch);
+        else if(igen == fft_input_random_generator_host)
+            generate_random_real_data<Tfloat>(input, whole_length, whole_stride, idist, nbatch);
 
         break;
     }
@@ -212,8 +299,9 @@ inline void set_input(std::vector<gpubuf>&       input,
 }
 
 // unroll set_input for dimension 1, 2, 3
-template <typename Tfloat>
-inline void set_input(std::vector<gpubuf>&       input,
+template <typename Tbuff, typename Tfloat>
+inline void set_input(std::vector<Tbuff>&        input,
+                      const fft_input_generator  igen,
                       const fft_array_type       itype,
                       const std::vector<size_t>& length,
                       const std::vector<size_t>& ilength,
@@ -226,6 +314,7 @@ inline void set_input(std::vector<gpubuf>&       input,
     {
     case 1:
         set_input<Tfloat>(input,
+                          igen,
                           itype,
                           length,
                           ilength,
@@ -238,6 +327,7 @@ inline void set_input(std::vector<gpubuf>&       input,
         break;
     case 2:
         set_input<Tfloat>(input,
+                          igen,
                           itype,
                           length,
                           ilength,
@@ -250,6 +340,7 @@ inline void set_input(std::vector<gpubuf>&       input,
         break;
     case 3:
         set_input<Tfloat>(input,
+                          igen,
                           itype,
                           length,
                           ilength,
@@ -275,6 +366,7 @@ public:
     std::vector<size_t>  ostride;
     size_t               nbatch         = 1;
     fft_precision        precision      = fft_precision_single;
+    fft_input_generator  igen           = fft_input_random_generator_device;
     fft_transform_type   transform_type = fft_transform_type_complex_forward;
     fft_result_placement placement      = fft_placement_inplace;
     size_t               idist          = 0;
@@ -1254,21 +1346,24 @@ public:
     }
 
     // Given a data type and dimensions, fill the buffer, imposing Hermitian symmetry if necessary.
-    inline void compute_input(std::vector<gpubuf>& input)
+    template <typename Tbuff>
+    inline void compute_input(std::vector<Tbuff>& input)
     {
         auto deviceProp = get_curr_device_prop();
 
         switch(precision)
         {
         case fft_precision_half:
-            set_input<_Float16>(
-                input, itype, length, ilength(), istride, idist, nbatch, deviceProp);
+            set_input<Tbuff, _Float16>(
+                input, igen, itype, length, ilength(), istride, idist, nbatch, deviceProp);
             break;
         case fft_precision_double:
-            set_input<double>(input, itype, length, ilength(), istride, idist, nbatch, deviceProp);
+            set_input<Tbuff, double>(
+                input, igen, itype, length, ilength(), istride, idist, nbatch, deviceProp);
             break;
         case fft_precision_single:
-            set_input<float>(input, itype, length, ilength(), istride, idist, nbatch, deviceProp);
+            set_input<Tbuff, float>(
+                input, igen, itype, length, ilength(), istride, idist, nbatch, deviceProp);
             break;
         }
     }
@@ -1623,95 +1718,6 @@ std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits
     return stream;
 }
 
-// Work out how many partitions to break our iteration problem into
-template <typename T1>
-static size_t compute_partition_count(T1 length)
-{
-#ifdef _OPENMP
-    // we seem to get contention from too many threads, which slows
-    // things down.  particularly noticeable with mix_3D tests
-    static const size_t MAX_PARTITIONS = 8;
-    size_t              iters          = count_iters(length);
-    size_t hw_threads = std::min(MAX_PARTITIONS, static_cast<size_t>(omp_get_num_procs()));
-    if(!hw_threads)
-        return 1;
-
-    // don't bother threading problem sizes that are too small. pick
-    // an arbitrary number of iterations and ensure that each thread
-    // has at least that many iterations to process
-    static const size_t MIN_ITERS_PER_THREAD = 2048;
-
-    // either use the whole CPU, or use ceil(iters/iters_per_thread)
-    return std::min(hw_threads, (iters + MIN_ITERS_PER_THREAD + 1) / MIN_ITERS_PER_THREAD);
-#else
-    return 1;
-#endif
-}
-
-// Break a scalar length into some number of pieces, returning
-// [(start0, end0), (start1, end1), ...]
-template <typename T1>
-std::vector<std::pair<T1, T1>> partition_base(const T1& length, size_t num_parts)
-{
-    static_assert(std::is_integral<T1>::value, "Integral required.");
-
-    // make sure we don't exceed the length
-    num_parts = std::min(length, num_parts);
-
-    std::vector<std::pair<T1, T1>> ret(num_parts);
-    auto                           partition_size = length / num_parts;
-    T1                             cur_partition  = 0;
-    for(size_t i = 0; i < num_parts; ++i, cur_partition += partition_size)
-    {
-        ret[i].first  = cur_partition;
-        ret[i].second = cur_partition + partition_size;
-    }
-    // last partition might not divide evenly, fix it up
-    ret.back().second = length;
-    return ret;
-}
-
-// Returns pairs of startindex, endindex, for 1D, 2D, 3D lengths
-template <typename T1>
-std::vector<std::pair<T1, T1>> partition_rowmajor(const T1& length)
-{
-    return partition_base(length, compute_partition_count(length));
-}
-
-// Partition on the leftmost part of the tuple, for row-major indexing
-template <typename T1>
-std::vector<std::pair<std::tuple<T1, T1>, std::tuple<T1, T1>>>
-    partition_rowmajor(const std::tuple<T1, T1>& length)
-{
-    auto partitions = partition_base(std::get<0>(length), compute_partition_count(length));
-    std::vector<std::pair<std::tuple<T1, T1>, std::tuple<T1, T1>>> ret(partitions.size());
-    for(size_t i = 0; i < partitions.size(); ++i)
-    {
-        std::get<0>(ret[i].first)  = partitions[i].first;
-        std::get<1>(ret[i].first)  = 0;
-        std::get<0>(ret[i].second) = partitions[i].second;
-        std::get<1>(ret[i].second) = std::get<1>(length);
-    }
-    return ret;
-}
-template <typename T1>
-std::vector<std::pair<std::tuple<T1, T1, T1>, std::tuple<T1, T1, T1>>>
-    partition_rowmajor(const std::tuple<T1, T1, T1>& length)
-{
-    auto partitions = partition_base(std::get<0>(length), compute_partition_count(length));
-    std::vector<std::pair<std::tuple<T1, T1, T1>, std::tuple<T1, T1, T1>>> ret(partitions.size());
-    for(size_t i = 0; i < partitions.size(); ++i)
-    {
-        std::get<0>(ret[i].first)  = partitions[i].first;
-        std::get<1>(ret[i].first)  = 0;
-        std::get<2>(ret[i].first)  = 0;
-        std::get<0>(ret[i].second) = partitions[i].second;
-        std::get<1>(ret[i].second) = std::get<1>(length);
-        std::get<2>(ret[i].second) = std::get<2>(length);
-    }
-    return ret;
-}
-
 // Returns pairs of startindex, endindex, for 1D, 2D, 3D lengths
 template <typename T1>
 std::vector<std::pair<T1, T1>> partition_colmajor(const T1& length)
@@ -1751,34 +1757,6 @@ std::vector<std::pair<std::tuple<T1, T1, T1>, std::tuple<T1, T1, T1>>>
         std::get<0>(ret[i].second) = std::get<0>(length);
     }
     return ret;
-}
-
-// Specialized computation of index given 1-, 2-, 3- dimension length + stride
-template <typename T1, typename T2>
-size_t compute_index(T1 length, T2 stride, size_t base)
-{
-    return (length * stride) + base;
-}
-
-template <typename T1, typename T2>
-size_t
-    compute_index(const std::tuple<T1, T1>& length, const std::tuple<T2, T2>& stride, size_t base)
-{
-    static_assert(std::is_integral<T1>::value, "Integral required.");
-    static_assert(std::is_integral<T2>::value, "Integral required.");
-    return (std::get<0>(length) * std::get<0>(stride)) + (std::get<1>(length) * std::get<1>(stride))
-           + base;
-}
-
-template <typename T1, typename T2>
-size_t compute_index(const std::tuple<T1, T1, T1>& length,
-                     const std::tuple<T2, T2, T2>& stride,
-                     size_t                        base)
-{
-    static_assert(std::is_integral<T1>::value, "Integral required.");
-    static_assert(std::is_integral<T2>::value, "Integral required.");
-    return (std::get<0>(length) * std::get<0>(stride)) + (std::get<1>(length) * std::get<1>(stride))
-           + (std::get<2>(length) * std::get<2>(stride)) + base;
 }
 
 // Copy data of dimensions length with strides istride and length idist between batches to

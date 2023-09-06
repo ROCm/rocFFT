@@ -21,7 +21,7 @@
 #ifndef EXAMPLEKERNELS_H
 #define EXAMPLEKERNELS_H
 
-#include "../../../shared/data_gen.h"
+#include "../../../shared/data_gen_device.h"
 #include <hip/hip_complex.h>
 #include <hip/hip_runtime.h>
 #include <iostream>
@@ -256,7 +256,7 @@ void impose_hermitian_symmetry_cm(const std::vector<size_t>& length,
     {
     case 1:
     {
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1<hipDoubleComplex>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1D_kernel<hipDoubleComplex>,
                            dim3(1),
                            dim3(1),
                            0,
@@ -271,7 +271,7 @@ void impose_hermitian_symmetry_cm(const std::vector<size_t>& length,
     }
     case 2:
     {
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2<hipDoubleComplex>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2D_kernel<hipDoubleComplex>,
                            dim3(256),
                            dim3(ceildiv(ceildiv(ilength[1], 2), 256)),
                            0,
@@ -289,7 +289,7 @@ void impose_hermitian_symmetry_cm(const std::vector<size_t>& length,
     }
     case 3:
     {
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3<hipDoubleComplex>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3D_kernel<hipDoubleComplex>,
                            dim3(64, 64),
                            dim3(ceildiv(ilength[1], 64), ceildiv(ceildiv(ilength[2], 2), 64)),
                            0,
@@ -329,7 +329,7 @@ void init_hermitiancomplex_cm(const std::vector<size_t>& length,
         const dim3 griddim(ceildiv(ilength[0], blockdim.x));
         hipLaunchKernelGGL(
             initcdata1, blockdim, griddim, 0, 0, (hipDoubleComplex*)gpu_in, ilength[0], stride[0]);
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1<hipDoubleComplex>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1D_kernel<hipDoubleComplex>,
                            dim3(1),
                            dim3(1),
                            0,
@@ -356,7 +356,7 @@ void init_hermitiancomplex_cm(const std::vector<size_t>& length,
                            ilength[1],
                            stride[0],
                            stride[1]);
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2<hipDoubleComplex>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2D_kernel<hipDoubleComplex>,
                            dim3(256),
                            dim3(ceildiv(ceildiv(ilength[1], 2), 256)),
                            0,
@@ -392,7 +392,7 @@ void init_hermitiancomplex_cm(const std::vector<size_t>& length,
                            stride[1],
                            stride[2]);
 
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3<hipDoubleComplex>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3D_kernel<hipDoubleComplex>,
                            dim3(64, 64),
                            dim3(ceildiv(ilength[1], 64), ceildiv(ceildiv(ilength[2], 2), 64)),
                            0,

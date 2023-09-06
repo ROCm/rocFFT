@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef DATA_GEN_H
-#define DATA_GEN_H
+#ifndef DATA_GEN_DEVICE_H
+#define DATA_GEN_DEVICE_H
 
 // rocRAND can generate warnings if inline asm is not available for
 // some architectures.  data generation isn't performance-critical,
@@ -29,6 +29,7 @@
 #include "../shared/arithmetic.h"
 #include "../shared/device_properties.h"
 #include "../shared/gpubuf.h"
+#include "../shared/increment.h"
 #include "../shared/rocfft_complex.h"
 #include <hip/hip_runtime.h>
 #include <hip/hip_runtime_api.h>
@@ -120,6 +121,24 @@ static inline input_val_3D<T> make_zero_length(const input_val_3D<T>& whole_leng
 }
 
 template <typename T>
+static inline input_val_1D<T> make_unit_stride(const input_val_1D<T>& whole_length)
+{
+    return input_val_1D<T>{1};
+}
+
+template <typename T>
+static inline input_val_2D<T> make_unit_stride(const input_val_2D<T>& whole_length)
+{
+    return input_val_2D<T>{1, whole_length.val1};
+}
+
+template <typename T>
+static inline input_val_3D<T> make_unit_stride(const input_val_3D<T>& whole_length)
+{
+    return input_val_3D<T>{1, whole_length.val1, whole_length.val1 * whole_length.val2};
+}
+
+template <typename T>
 __device__ static input_val_1D<T> get_length(const size_t i, const input_val_1D<T>& whole_length)
 {
     auto xlen = whole_length.val1;
@@ -127,16 +146,6 @@ __device__ static input_val_1D<T> get_length(const size_t i, const input_val_1D<
     auto xidx = i % xlen;
 
     return input_val_1D<T>{xidx};
-}
-
-template <typename T>
-__device__ static size_t get_batch(const size_t i, const input_val_1D<T>& whole_length)
-{
-    auto xlen = whole_length.val1;
-
-    auto yidx = i / xlen;
-
-    return yidx;
 }
 
 template <typename T>
@@ -149,17 +158,6 @@ __device__ static input_val_2D<T> get_length(const size_t i, const input_val_2D<
     auto yidx = i / xlen % ylen;
 
     return input_val_2D<T>{xidx, yidx};
-}
-
-template <typename T>
-__device__ static size_t get_batch(const size_t i, const input_val_2D<T>& whole_length)
-{
-    auto xlen = whole_length.val1;
-    auto ylen = whole_length.val2;
-
-    auto zidx = i / xlen / ylen;
-
-    return zidx;
 }
 
 template <typename T>
@@ -177,6 +175,27 @@ __device__ static input_val_3D<T> get_length(const size_t i, const input_val_3D<
 }
 
 template <typename T>
+__device__ static size_t get_batch(const size_t i, const input_val_1D<T>& whole_length)
+{
+    auto xlen = whole_length.val1;
+
+    auto yidx = i / xlen;
+
+    return yidx;
+}
+
+template <typename T>
+__device__ static size_t get_batch(const size_t i, const input_val_2D<T>& whole_length)
+{
+    auto xlen = whole_length.val1;
+    auto ylen = whole_length.val2;
+
+    auto zidx = i / xlen / ylen;
+
+    return zidx;
+}
+
+template <typename T>
 __device__ static size_t get_batch(const size_t i, const input_val_3D<T>& length)
 {
     auto xlen = length.val1;
@@ -188,13 +207,58 @@ __device__ static size_t get_batch(const size_t i, const input_val_3D<T>& length
     return widx;
 }
 
+__device__ static double make_random_val(hiprandStatePhilox4_32_10* gen_state, double offset)
+{
+    return (hiprand_uniform_double(gen_state) + offset);
+}
+
+__device__ static float make_random_val(hiprandStatePhilox4_32_10* gen_state, float offset)
+{
+    return (hiprand_uniform(gen_state) + offset);
+}
+
+__device__ static _Float16 make_random_val(hiprandStatePhilox4_32_10* gen_state, _Float16 offset)
+{
+    return (hiprand_uniform(gen_state) + offset);
+}
+
+template <typename Tint, typename Treal>
+__global__ static void __launch_bounds__(DATA_GEN_THREADS)
+    generate_random_interleaved_data_kernel(const Tint             whole_length,
+                                            const Tint             zero_length,
+                                            const size_t           idist,
+                                            const size_t           isize,
+                                            const Tint             istride,
+                                            rocfft_complex<Treal>* data)
+{
+    auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
+                   + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
+    static_assert(sizeof(i) >= sizeof(isize));
+    if(i < isize)
+    {
+        auto i_length = get_length(i, whole_length);
+        auto i_batch  = get_batch(i, whole_length);
+        auto i_base   = i_batch * idist;
+
+        auto seed = compute_index(zero_length, istride, i_base);
+        auto idx  = compute_index(i_length, istride, i_base);
+
+        hiprandStatePhilox4_32_10 gen_state;
+        hiprand_init(seed, idx, 0, &gen_state);
+
+        data[idx].x = make_random_val(&gen_state, static_cast<Treal>(-0.5));
+        data[idx].y = make_random_val(&gen_state, static_cast<Treal>(-0.5));
+    }
+}
+
 template <typename Tint, typename Treal>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
     generate_interleaved_data_kernel(const Tint             whole_length,
-                                     const Tint             zero_length,
-                                     size_t                 idist,
-                                     size_t                 isize,
+                                     const size_t           idist,
+                                     const size_t           isize,
                                      const Tint             istride,
+                                     const Tint             ustride,
+                                     const Treal            inv_scale,
                                      rocfft_complex<Treal>* data)
 {
     auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
@@ -202,30 +266,28 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
     static_assert(sizeof(i) >= sizeof(isize));
     if(i < isize)
     {
-        auto i_length = get_length(i, whole_length);
-        auto i_batch  = get_batch(i, whole_length);
-        auto i_base   = i_batch * idist;
+        const auto i_length = get_length(i, whole_length);
+        const auto i_batch  = get_batch(i, whole_length);
+        const auto i_base   = i_batch * idist;
 
-        auto seed = compute_index(zero_length, istride, i_base);
-        auto idx  = compute_index(i_length, istride, i_base);
+        const auto val = -0.5 + static_cast<Treal>(compute_index(i_length, ustride, 0)) * inv_scale;
 
-        hiprandStatePhilox4_32_10 gen_state;
-        hiprand_init(seed, idx, 0, &gen_state);
+        const auto idx = compute_index(i_length, istride, i_base);
 
-        data[idx].x = hiprand_uniform_double(&gen_state) - 0.5;
-        data[idx].y = hiprand_uniform_double(&gen_state) - 0.5;
+        data[idx].x = val;
+        data[idx].y = val;
     }
 }
 
 template <typename Tint, typename Treal>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_planar_data_kernel(const Tint whole_length,
-                                const Tint zero_length,
-                                size_t     idist,
-                                size_t     isize,
-                                const Tint istride,
-                                Treal*     real_data,
-                                Treal*     imag_data)
+    generate_random_planar_data_kernel(const Tint   whole_length,
+                                       const Tint   zero_length,
+                                       const size_t idist,
+                                       const size_t isize,
+                                       const Tint   istride,
+                                       Treal*       real_data,
+                                       Treal*       imag_data)
 {
     auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
                    + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
@@ -242,19 +304,48 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         hiprandStatePhilox4_32_10 gen_state;
         hiprand_init(seed, idx, 0, &gen_state);
 
-        real_data[idx] = hiprand_uniform_double(&gen_state) - 0.5;
-        imag_data[idx] = hiprand_uniform_double(&gen_state) - 0.5;
+        real_data[idx] = make_random_val(&gen_state, static_cast<Treal>(-0.5));
+        imag_data[idx] = make_random_val(&gen_state, static_cast<Treal>(-0.5));
     }
 }
 
 template <typename Tint, typename Treal>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    generate_real_data_kernel(const Tint whole_length,
-                              const Tint zero_length,
-                              size_t     idist,
-                              size_t     isize,
-                              const Tint istride,
-                              Treal*     data)
+    generate_planar_data_kernel(const Tint   whole_length,
+                                const size_t idist,
+                                const size_t isize,
+                                const Tint   istride,
+                                const Tint   ustride,
+                                const Treal  inv_scale,
+                                Treal*       real_data,
+                                Treal*       imag_data)
+{
+    auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
+                   + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
+    static_assert(sizeof(i) >= sizeof(isize));
+    if(i < isize)
+    {
+        const auto i_length = get_length(i, whole_length);
+        const auto i_batch  = get_batch(i, whole_length);
+        const auto i_base   = i_batch * idist;
+
+        const auto val = -0.5 + static_cast<Treal>(compute_index(i_length, ustride, 0)) * inv_scale;
+
+        const auto idx = compute_index(i_length, istride, i_base);
+
+        real_data[idx] = val;
+        imag_data[idx] = val;
+    }
+}
+
+template <typename Tint, typename Treal>
+__global__ static void __launch_bounds__(DATA_GEN_THREADS)
+    generate_random_real_data_kernel(const Tint   whole_length,
+                                     const Tint   zero_length,
+                                     const size_t idist,
+                                     const size_t isize,
+                                     const Tint   istride,
+                                     Treal*       data)
 {
     auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
                    + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
@@ -271,7 +362,34 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         hiprandStatePhilox4_32_10 gen_state;
         hiprand_init(seed, idx, 0, &gen_state);
 
-        data[idx] = hiprand_uniform_double(&gen_state) - 0.5;
+        data[idx] = make_random_val(&gen_state, static_cast<Treal>(-0.5));
+    }
+}
+
+template <typename Tint, typename Treal>
+__global__ static void __launch_bounds__(DATA_GEN_THREADS)
+    generate_real_data_kernel(const Tint   whole_length,
+                              const size_t idist,
+                              const size_t isize,
+                              const Tint   istride,
+                              const Tint   ustride,
+                              const Treal  inv_scale,
+                              Treal*       data)
+{
+    auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
+                   + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
+    static_assert(sizeof(i) >= sizeof(isize));
+    if(i < isize)
+    {
+        const auto i_length = get_length(i, whole_length);
+        const auto i_batch  = get_batch(i, whole_length);
+        const auto i_base   = i_batch * idist;
+
+        const auto val = -0.5 + static_cast<Treal>(compute_index(i_length, ustride, 0)) * inv_scale;
+
+        const auto idx = compute_index(i_length, istride, i_base);
+
+        data[idx] = val;
     }
 }
 
@@ -286,17 +404,17 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
 // Below are some example kernels which impose Hermitian symmetry on a complex array
 // of the given dimensions.
 
-// Kernels for imposing Hermitian symmetry on 1D
-// complex (interleaved/planar) data on the GPU.
+// Functions for imposing Hermitian symmetry on 1D
+// complex (interleaved/planar) data.
 
 template <typename Tcomplex>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    impose_hermitian_symmetry_interleaved_1(Tcomplex*    x,
-                                            const size_t Nx,
-                                            const size_t xstride,
-                                            const size_t dist,
-                                            const size_t nbatch,
-                                            const bool   Nxeven)
+    impose_hermitian_symmetry_interleaved_1D_kernel(Tcomplex*    x,
+                                                    const size_t Nx,
+                                                    const size_t xstride,
+                                                    const size_t dist,
+                                                    const size_t nbatch,
+                                                    const bool   Nxeven)
 {
     auto idx = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     static_assert(sizeof(idx) == sizeof(size_t));
@@ -319,13 +437,13 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
 
 template <typename Tfloat>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    impose_hermitian_symmetry_planar_1(Tfloat*      xreal,
-                                       Tfloat*      ximag,
-                                       const size_t Nx,
-                                       const size_t xstride,
-                                       const size_t dist,
-                                       const size_t nbatch,
-                                       const bool   Nxeven)
+    impose_hermitian_symmetry_planar_1D_kernel(Tfloat*      xreal,
+                                               Tfloat*      ximag,
+                                               const size_t Nx,
+                                               const size_t xstride,
+                                               const size_t dist,
+                                               const size_t nbatch,
+                                               const bool   Nxeven)
 {
     auto idx = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     static_assert(sizeof(idx) == sizeof(size_t));
@@ -346,20 +464,17 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
     }
 }
 
-// Kernels for imposing Hermitian symmetry on 2D
-// complex (interleaved/planar) data on the GPU.
-
 template <typename Tcomplex>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
-    impose_hermitian_symmetry_interleaved_2(Tcomplex*    x,
-                                            const size_t Nx,
-                                            const size_t Ny,
-                                            const size_t xstride,
-                                            const size_t ystride,
-                                            const size_t dist,
-                                            const size_t nbatch,
-                                            const bool   Nxeven,
-                                            const bool   Nyeven)
+    impose_hermitian_symmetry_interleaved_2D_kernel(Tcomplex*    x,
+                                                    const size_t Nx,
+                                                    const size_t Ny,
+                                                    const size_t xstride,
+                                                    const size_t ystride,
+                                                    const size_t dist,
+                                                    const size_t nbatch,
+                                                    const bool   Nxeven,
+                                                    const bool   Nyeven)
 {
     auto       idx = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
     const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -415,16 +530,16 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
 
 template <typename Tfloat>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
-    impose_hermitian_symmetry_planar_2(Tfloat*      xreal,
-                                       Tfloat*      ximag,
-                                       const size_t Nx,
-                                       const size_t Ny,
-                                       const size_t xstride,
-                                       const size_t ystride,
-                                       const size_t dist,
-                                       const size_t nbatch,
-                                       const bool   Nxeven,
-                                       const bool   Nyeven)
+    impose_hermitian_symmetry_planar_2D_kernel(Tfloat*      xreal,
+                                               Tfloat*      ximag,
+                                               const size_t Nx,
+                                               const size_t Ny,
+                                               const size_t xstride,
+                                               const size_t ystride,
+                                               const size_t dist,
+                                               const size_t nbatch,
+                                               const bool   Nxeven,
+                                               const bool   Nyeven)
 {
     auto       idx = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
     const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
@@ -482,23 +597,20 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
     }
 }
 
-// Kernels for imposing Hermitian symmetry on 3D
-// complex (interleaved/planar) data on the GPU.
-
 template <typename Tcomplex>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DATA_GEN_THREADS)
-    impose_hermitian_symmetry_interleaved_3(Tcomplex*    x,
-                                            const size_t Nx,
-                                            const size_t Ny,
-                                            const size_t Nz,
-                                            const size_t xstride,
-                                            const size_t ystride,
-                                            const size_t zstride,
-                                            const size_t dist,
-                                            const size_t nbatch,
-                                            const bool   Nxeven,
-                                            const bool   Nyeven,
-                                            const bool   Nzeven)
+    impose_hermitian_symmetry_interleaved_3D_kernel(Tcomplex*    x,
+                                                    const size_t Nx,
+                                                    const size_t Ny,
+                                                    const size_t Nz,
+                                                    const size_t xstride,
+                                                    const size_t ystride,
+                                                    const size_t zstride,
+                                                    const size_t dist,
+                                                    const size_t nbatch,
+                                                    const bool   Nxeven,
+                                                    const bool   Nyeven,
+                                                    const bool   Nzeven)
 {
     const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     const auto idz = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
@@ -634,19 +746,19 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DAT
 
 template <typename Tfloat>
 __global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DATA_GEN_THREADS)
-    impose_hermitian_symmetry_planar_3(Tfloat*      xreal,
-                                       Tfloat*      ximag,
-                                       const size_t Nx,
-                                       const size_t Ny,
-                                       const size_t Nz,
-                                       const size_t xstride,
-                                       const size_t ystride,
-                                       const size_t zstride,
-                                       const size_t dist,
-                                       const size_t nbatch,
-                                       const bool   Nxeven,
-                                       const bool   Nyeven,
-                                       const bool   Nzeven)
+    impose_hermitian_symmetry_planar_3D_kernel(Tfloat*      xreal,
+                                               Tfloat*      ximag,
+                                               const size_t Nx,
+                                               const size_t Ny,
+                                               const size_t Nz,
+                                               const size_t xstride,
+                                               const size_t ystride,
+                                               const size_t zstride,
+                                               const size_t dist,
+                                               const size_t nbatch,
+                                               const bool   Nxeven,
+                                               const bool   Nyeven,
+                                               const bool   Nzeven)
 {
     const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
     const auto idz = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
@@ -800,16 +912,54 @@ static dim3 generate_data_gridDim(const size_t isize)
 }
 
 template <typename Tint, typename Treal>
-inline void generate_interleaved_data(const Tint&            whole_length,
-                                      const size_t           idist,
-                                      const size_t           isize,
-                                      const Tint&            istride,
-                                      rocfft_complex<Treal>* input_data,
-                                      const hipDeviceProp_t& deviceProp)
+static void generate_random_interleaved_data(const Tint&            whole_length,
+                                             const size_t           idist,
+                                             const size_t           isize,
+                                             const Tint&            whole_stride,
+                                             rocfft_complex<Treal>* input_data,
+                                             const hipDeviceProp_t& deviceProp)
 {
     auto input_length = get_input_val(whole_length);
     auto zero_length  = make_zero_length(input_length);
-    auto input_stride = get_input_val(istride);
+    auto input_stride = get_input_val(whole_stride);
+
+    dim3 gridDim = generate_data_gridDim(isize);
+    dim3 blockDim{DATA_GEN_THREADS};
+
+    launch_limits_check(gridDim, blockDim, deviceProp);
+
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(generate_random_interleaved_data_kernel<decltype(input_length), Treal>),
+        gridDim,
+        blockDim,
+        0, // sharedMemBytes
+        0, // stream
+        input_length,
+        zero_length,
+        idist,
+        isize,
+        input_stride,
+        input_data);
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("generate_random_interleaved_data_kernel launch failure: "
+                                 + std::string(hipGetErrorName(err)));
+}
+
+template <typename Tint, typename Treal>
+static void generate_interleaved_data(const Tint&            whole_length,
+                                      const size_t           idist,
+                                      const size_t           isize,
+                                      const Tint&            whole_stride,
+                                      const size_t           nbatch,
+                                      rocfft_complex<Treal>* input_data,
+                                      const hipDeviceProp_t& deviceProp)
+{
+    const auto input_length = get_input_val(whole_length);
+    const auto input_stride = get_input_val(whole_stride);
+    const auto unit_stride  = make_unit_stride(input_length);
+
+    const auto inv_scale = 1.0 / static_cast<Treal>(isize / nbatch - 1);
 
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
@@ -823,10 +973,11 @@ inline void generate_interleaved_data(const Tint&            whole_length,
         0, // sharedMemBytes
         0, // stream
         input_length,
-        zero_length,
         idist,
         isize,
         input_stride,
+        unit_stride,
+        inv_scale,
         input_data);
     auto err = hipGetLastError();
     if(err != hipSuccess)
@@ -835,17 +986,57 @@ inline void generate_interleaved_data(const Tint&            whole_length,
 }
 
 template <typename Tint, typename Treal>
-inline void generate_planar_data(const Tint&            whole_length,
+static void generate_random_planar_data(const Tint&            whole_length,
+                                        const size_t           idist,
+                                        const size_t           isize,
+                                        const Tint&            whole_stride,
+                                        Treal*                 real_data,
+                                        Treal*                 imag_data,
+                                        const hipDeviceProp_t& deviceProp)
+{
+    const auto input_length = get_input_val(whole_length);
+    const auto zero_length  = make_zero_length(input_length);
+    const auto input_stride = get_input_val(whole_stride);
+
+    dim3 gridDim = generate_data_gridDim(isize);
+    dim3 blockDim{DATA_GEN_THREADS};
+
+    launch_limits_check(gridDim, blockDim, deviceProp);
+
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(generate_random_planar_data_kernel<decltype(input_length), Treal>),
+        gridDim,
+        blockDim,
+        0, // sharedMemBytes
+        0, // stream
+        input_length,
+        zero_length,
+        idist,
+        isize,
+        input_stride,
+        real_data,
+        imag_data);
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("generate_random_planar_data_kernel launch failure: "
+                                 + std::string(hipGetErrorName(err)));
+}
+
+template <typename Tint, typename Treal>
+static void generate_planar_data(const Tint&            whole_length,
                                  const size_t           idist,
                                  const size_t           isize,
-                                 const Tint&            istride,
+                                 const Tint&            whole_stride,
+                                 const size_t           nbatch,
                                  Treal*                 real_data,
                                  Treal*                 imag_data,
                                  const hipDeviceProp_t& deviceProp)
 {
-    auto input_length = get_input_val(whole_length);
-    auto zero_length  = make_zero_length(input_length);
-    auto input_stride = get_input_val(istride);
+    const auto input_length = get_input_val(whole_length);
+    const auto input_stride = get_input_val(whole_stride);
+    const auto unit_stride  = make_unit_stride(input_length);
+
+    const auto inv_scale = 1.0 / static_cast<Treal>(isize / nbatch - 1);
 
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
@@ -858,10 +1049,11 @@ inline void generate_planar_data(const Tint&            whole_length,
                        0, // sharedMemBytes
                        0, // stream
                        input_length,
-                       zero_length,
                        idist,
                        isize,
                        input_stride,
+                       unit_stride,
+                       inv_scale,
                        real_data,
                        imag_data);
     auto err = hipGetLastError();
@@ -871,16 +1063,54 @@ inline void generate_planar_data(const Tint&            whole_length,
 }
 
 template <typename Tint, typename Treal>
-inline void generate_real_data(const Tint&            whole_length,
+static void generate_random_real_data(const Tint&            whole_length,
+                                      const size_t           idist,
+                                      const size_t           isize,
+                                      const Tint&            whole_stride,
+                                      Treal*                 input_data,
+                                      const hipDeviceProp_t& deviceProp)
+{
+    const auto input_length = get_input_val(whole_length);
+    const auto zero_length  = make_zero_length(input_length);
+    const auto input_stride = get_input_val(whole_stride);
+
+    dim3 gridDim = generate_data_gridDim(isize);
+    dim3 blockDim{DATA_GEN_THREADS};
+
+    launch_limits_check(gridDim, blockDim, deviceProp);
+
+    hipLaunchKernelGGL(
+        HIP_KERNEL_NAME(generate_random_real_data_kernel<decltype(input_length), Treal>),
+        gridDim,
+        blockDim,
+        0, // sharedMemBytes
+        0, // stream
+        input_length,
+        zero_length,
+        idist,
+        isize,
+        input_stride,
+        input_data);
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("generate_random_real_data_kernel launch failure: "
+                                 + std::string(hipGetErrorName(err)));
+}
+
+template <typename Tint, typename Treal>
+static void generate_real_data(const Tint&            whole_length,
                                const size_t           idist,
                                const size_t           isize,
-                               const Tint&            istride,
+                               const Tint&            whole_stride,
+                               const size_t           nbatch,
                                Treal*                 input_data,
                                const hipDeviceProp_t& deviceProp)
 {
-    auto input_length = get_input_val(whole_length);
-    auto zero_length  = make_zero_length(input_length);
-    auto input_stride = get_input_val(istride);
+    const auto input_length = get_input_val(whole_length);
+    const auto input_stride = get_input_val(whole_stride);
+    const auto unit_stride  = make_unit_stride(input_length);
+
+    const auto inv_scale = 1.0 / static_cast<Treal>(isize / nbatch - 1);
 
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
@@ -893,10 +1123,11 @@ inline void generate_real_data(const Tint&            whole_length,
                        0, // sharedMemBytes
                        0, // stream
                        input_length,
-                       zero_length,
                        idist,
                        isize,
                        input_stride,
+                       unit_stride,
+                       inv_scale,
                        input_data);
     auto err = hipGetLastError();
     if(err != hipSuccess)
@@ -905,13 +1136,13 @@ inline void generate_real_data(const Tint&            whole_length,
 }
 
 template <typename Tcomplex>
-void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& length,
-                                           const std::vector<size_t>& ilength,
-                                           const std::vector<size_t>& stride,
-                                           size_t                     dist,
-                                           size_t                     batch,
-                                           Tcomplex*                  input_data,
-                                           const hipDeviceProp_t&     deviceProp)
+static void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& length,
+                                                  const std::vector<size_t>& ilength,
+                                                  const std::vector<size_t>& stride,
+                                                  const size_t               dist,
+                                                  const size_t               batch,
+                                                  Tcomplex*                  input_data,
+                                                  const hipDeviceProp_t&     deviceProp)
 {
     auto blockSize = DATA_GEN_THREADS;
 
@@ -924,7 +1155,7 @@ void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& length,
 
         launch_limits_check(gridDim, blockDim, deviceProp);
 
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1<Tcomplex>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1D_kernel<Tcomplex>,
                            gridDim,
                            blockDim,
                            0,
@@ -946,7 +1177,7 @@ void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& length,
 
         launch_limits_check(gridDim, blockDim, deviceProp);
 
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2<Tcomplex>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2D_kernel<Tcomplex>,
                            gridDim,
                            blockDim,
                            0,
@@ -972,7 +1203,7 @@ void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& length,
 
         launch_limits_check(gridDim, blockDim, deviceProp);
 
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3<Tcomplex>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3D_kernel<Tcomplex>,
                            gridDim,
                            blockDim,
                            0,
@@ -996,19 +1227,19 @@ void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& length,
     }
     auto err = hipGetLastError();
     if(err != hipSuccess)
-        throw std::runtime_error("impose_hermitian_symmetry_interleaved launch failure: "
+        throw std::runtime_error("impose_hermitian_symmetry_interleaved_kernel launch failure: "
                                  + std::string(hipGetErrorName(err)));
 }
 
 template <typename Tfloat>
-void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
-                                      const std::vector<size_t>& ilength,
-                                      const std::vector<size_t>& stride,
-                                      size_t                     dist,
-                                      size_t                     batch,
-                                      Tfloat*                    input_data_real,
-                                      Tfloat*                    input_data_imag,
-                                      const hipDeviceProp_t&     deviceProp)
+static void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
+                                             const std::vector<size_t>& ilength,
+                                             const std::vector<size_t>& stride,
+                                             const size_t               dist,
+                                             const size_t               batch,
+                                             Tfloat*                    input_data_real,
+                                             Tfloat*                    input_data_imag,
+                                             const hipDeviceProp_t&     deviceProp)
 {
     auto blockSize = DATA_GEN_THREADS;
 
@@ -1021,7 +1252,7 @@ void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
 
         launch_limits_check(gridDim, blockDim, deviceProp);
 
-        hipLaunchKernelGGL(impose_hermitian_symmetry_planar_1<Tfloat>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_planar_1D_kernel<Tfloat>,
                            gridDim,
                            blockDim,
                            0,
@@ -1044,7 +1275,7 @@ void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
 
         launch_limits_check(gridDim, blockDim, deviceProp);
 
-        hipLaunchKernelGGL(impose_hermitian_symmetry_planar_2<Tfloat>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_planar_2D_kernel<Tfloat>,
                            gridDim,
                            blockDim,
                            0,
@@ -1071,7 +1302,7 @@ void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
 
         launch_limits_check(gridDim, blockDim, deviceProp);
 
-        hipLaunchKernelGGL(impose_hermitian_symmetry_planar_3<Tfloat>,
+        hipLaunchKernelGGL(impose_hermitian_symmetry_planar_3D_kernel<Tfloat>,
                            gridDim,
                            blockDim,
                            0,
@@ -1096,8 +1327,8 @@ void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
     }
     auto err = hipGetLastError();
     if(err != hipSuccess)
-        throw std::runtime_error("impose_hermitian_symmetry_planar launch failure: "
+        throw std::runtime_error("impose_hermitian_symmetry_planar_kernel launch failure: "
                                  + std::string(hipGetErrorName(err)));
 }
 
-#endif // DATA_GEN_H
+#endif // DATA_GEN_DEVICE_H

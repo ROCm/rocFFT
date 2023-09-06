@@ -368,6 +368,12 @@ int main(int argc, char* argv[])
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
         ("double", "Double precision transform (deprecated: use --precision double)")
         ("precision", po::value<fft_precision>(&params.precision), "Transform precision: single (default), double, half")
+        ("inputGen,g", po::value<fft_input_generator>(&params.igen)
+        ->default_value(fft_input_random_generator_device),
+        "Input data generation:\n0) PRNG sequence (device)\n"
+        "1) PRNG sequence (host)\n"
+        "2) linearly-spaced sequence (device)\n"
+        "3) linearly-spaced sequence (host)")
         ("transformType,t", po::value<fft_transform_type>(&params.transform_type)
          ->default_value(fft_transform_type_complex_forward),
          "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
@@ -627,24 +633,57 @@ int main(int argc, char* argv[])
         pibuffer[i] = ibuffer[i].data();
     }
 
-    // Input data:
-    params.compute_input(ibuffer);
+    // CPU input buffer
+    std::vector<hostbuf> ibuffer_cpu;
 
-    if(verbose > 1)
+    auto is_device_gen = (params.igen == fft_input_generator_device
+                          || params.igen == fft_input_random_generator_device);
+    auto is_host_gen   = (params.igen == fft_input_generator_host
+                        || params.igen == fft_input_random_generator_host);
+
+    if(is_device_gen)
     {
-        // Copy input to CPU
-        auto cpu_input = allocate_host_buffer(params.precision, params.itype, params.isize);
-        for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
+        // Input data:
+        params.compute_input(ibuffer);
+
+        if(verbose > 1)
         {
-            HIP_V_THROW(hipMemcpy(cpu_input.at(idx).data(),
-                                  ibuffer[idx].data(),
-                                  ibuffer_sizes[idx],
-                                  hipMemcpyDeviceToHost),
-                        "hipMemcpy failed");
+            // Copy input to CPU
+            ibuffer_cpu = allocate_host_buffer(params.precision, params.itype, params.isize);
+            for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
+            {
+                HIP_V_THROW(hipMemcpy(ibuffer_cpu.at(idx).data(),
+                                      ibuffer[idx].data(),
+                                      ibuffer_sizes[idx],
+                                      hipMemcpyDeviceToHost),
+                            "hipMemcpy failed");
+            }
+
+            std::cout << "GPU input:\n";
+            params.print_ibuffer(ibuffer_cpu);
+        }
+    }
+
+    if(is_host_gen)
+    {
+        // Input data:
+        ibuffer_cpu = allocate_host_buffer(params.precision, params.itype, params.isize);
+        params.compute_input(ibuffer_cpu);
+
+        if(verbose > 1)
+        {
+            std::cout << "GPU input:\n";
+            params.print_ibuffer(ibuffer_cpu);
         }
 
-        std::cout << "GPU input:\n";
-        params.print_ibuffer(cpu_input);
+        for(unsigned int idx = 0; idx < ibuffer_cpu.size(); ++idx)
+        {
+            HIP_V_THROW(hipMemcpy(pibuffer[idx],
+                                  ibuffer_cpu[idx].data(),
+                                  ibuffer_cpu[idx].size(),
+                                  hipMemcpyHostToDevice),
+                        "hipMemcpy failed");
+        }
     }
 
     // GPU output buffer:
@@ -738,7 +777,22 @@ int main(int argc, char* argv[])
     {
         const int idx = testcase[itest];
 
-        params.compute_input(ibuffer);
+        if(is_device_gen)
+        {
+            params.compute_input(ibuffer);
+        }
+
+        if(is_host_gen)
+        {
+            for(unsigned int idx = 0; idx < ibuffer_cpu.size(); ++idx)
+            {
+                HIP_V_THROW(hipMemcpy(pibuffer[idx],
+                                      ibuffer_cpu[idx].data(),
+                                      ibuffer_cpu[idx].size(),
+                                      hipMemcpyHostToDevice),
+                            "hipMemcpy failed");
+            }
+        }
 
         // Run the plan using its associated rocFFT library:
         time[idx].push_back(
