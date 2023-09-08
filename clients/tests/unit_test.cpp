@@ -508,8 +508,15 @@ TEST(rocfft_UnitTest, rtc_test_harness)
 
     // extra scope to control lifetime of env vars
     {
+        // rtc test harness writes to system's temp directory
+        auto tmp_path = fs::temp_directory_path();
+
         // activate writing of rtc test harnesses
         EnvironmentSetTemp env_harness("ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS", "1");
+
+        // set path for writing rtc test harnesses source files
+        EnvironmentSetTemp env_harness_path("ROCFFT_DEBUG_KERNEL_HARNESS_PATH",
+                                            tmp_path.string().c_str());
 
         // ensure every kernel gets compiled once
         EnvironmentSetTemp env_cache("ROCFFT_RTC_CACHE_PATH", ":memory:");
@@ -520,7 +527,7 @@ TEST(rocfft_UnitTest, rtc_test_harness)
         // ensure stale files from previous runs of this test won't cause
         // problems - clean up any rocfft_kernel_harness_*.cpp files that
         // might be left behind
-        for(const auto& entry : std::filesystem::directory_iterator{"."})
+        for(const auto& entry : std::filesystem::directory_iterator{tmp_path})
         {
             auto filename = entry.path().filename();
             if(filename.string().compare(0, 22, "rocfft_kernel_harness_") == 0
@@ -581,7 +588,7 @@ TEST(rocfft_UnitTest, rtc_test_harness)
         for(;; ++i)
         {
             // construct name of main file
-            fs::path main_file = "rocfft_kernel_harness_" + std::to_string(i) + ".cpp";
+            fs::path main_file = tmp_path / ("rocfft_kernel_harness_" + std::to_string(i) + ".cpp");
 
             if(!fs::exists(main_file))
                 break;

@@ -23,6 +23,18 @@
 #include "device/generator/generator.h"
 #include "device/kernel-generator-embed.h"
 
+#if __has_include(<filesystem>)
+#include <filesystem>
+#else
+#include <experimental/filesystem>
+namespace std
+{
+    namespace filesystem = experimental::filesystem;
+}
+#endif
+
+namespace fs = std::filesystem;
+
 #include <atomic>
 #include <fstream>
 
@@ -267,8 +279,15 @@ void write_standalone_test_harness(const Function& f, const std::string& src)
     // give each kernel its own numbered source file - plans contain
     // multiple kernels, and kernels are compiled in parallel, so we
     // need to make sure they all have unique names
-    auto          cur_file_index = file_index.fetch_add(1);
-    std::ofstream main_file("rocfft_kernel_harness_" + std::to_string(cur_file_index) + ".cpp");
+    auto cur_file_index = file_index.fetch_add(1);
+
+    auto env_user_path = rocfft_getenv("ROCFFT_DEBUG_KERNEL_HARNESS_PATH");
+    auto user_path     = env_user_path.empty() ? fs::current_path() : fs::path(env_user_path);
+
+    auto file_name = ("rocfft_kernel_harness_" + std::to_string(cur_file_index) + ".cpp");
+    auto file_path = user_path / file_name;
+
+    std::ofstream main_file(file_path.string());
 
     main_file << "// standalone test harness for kernel " << name << ".\n";
     main_file << "// edit init_kernel to set args + grid.\n\n";
