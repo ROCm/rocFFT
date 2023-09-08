@@ -23,7 +23,7 @@
 
 #include "callback.h"
 #include "common.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 //-----------------------------------------------------------------------------
 // To support planar format with template, we have the below simple conventions.

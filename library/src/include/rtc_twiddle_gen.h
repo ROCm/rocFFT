@@ -21,7 +21,7 @@
 #ifndef RTC_TWIDDLE_GEN
 #define RTC_TWIDDLE_GEN
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <hip/hip_runtime_api.h>
 #include <string>
 

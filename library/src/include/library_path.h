@@ -21,7 +21,7 @@
 #ifndef ROCFFT_LIBRARY_PATH
 #define ROCFFT_LIBRARY_PATH
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 #ifdef WIN32
 #define WIN32_LEAN_AND_MEAN

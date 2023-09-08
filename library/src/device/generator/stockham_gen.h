@@ -22,7 +22,7 @@
 
 #pragma once
 #include "../../../../shared/arithmetic.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <string>
 #include <vector>
 

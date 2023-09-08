@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 // declare things that RTC needs to link a standalone executable
 // without the rest of rocFFT

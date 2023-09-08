@@ -21,7 +21,7 @@
 #include "tuning_helper.h"
 #include "../../shared/environment.h"
 #include "function_pool.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "solution_map.h"
 #include "twiddles.h"
 

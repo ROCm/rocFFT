@@ -28,7 +28,7 @@
 #include "../../shared/array_predicate.h"
 #include "logging.h"
 #include "plan.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "transform.h"
 
 rocfft_status rocfft_execution_info_create(rocfft_execution_info* info)

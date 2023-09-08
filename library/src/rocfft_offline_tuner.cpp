@@ -31,7 +31,7 @@
 #include "../../shared/hip_object_wrapper.h"
 #include "../../shared/rocfft_params.h"
 #include "option_util.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "tuning_helper.h"
 
 inline void

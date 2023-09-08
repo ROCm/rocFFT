@@ -23,6 +23,7 @@
 
 #include "../shared/hostbuf.h"
 #include "../shared/increment.h"
+#include <complex>
 #include <limits>
 #include <random>
 #include <tuple>

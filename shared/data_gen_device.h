@@ -209,17 +209,17 @@ __device__ static size_t get_batch(const size_t i, const input_val_3D<T>& length
 
 __device__ static double make_random_val(hiprandStatePhilox4_32_10* gen_state, double offset)
 {
-    return (hiprand_uniform_double(gen_state) + offset);
+    return hiprand_uniform_double(gen_state) + offset;
 }
 
 __device__ static float make_random_val(hiprandStatePhilox4_32_10* gen_state, float offset)
 {
-    return (hiprand_uniform(gen_state) + offset);
+    return hiprand_uniform(gen_state) + offset;
 }
 
 __device__ static _Float16 make_random_val(hiprandStatePhilox4_32_10* gen_state, _Float16 offset)
 {
-    return (hiprand_uniform(gen_state) + offset);
+    return static_cast<_Float16>(hiprand_uniform(gen_state)) + offset;
 }
 
 template <typename Tint, typename Treal>
@@ -270,7 +270,10 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         const auto i_batch  = get_batch(i, whole_length);
         const auto i_base   = i_batch * idist;
 
-        const auto val = -0.5 + static_cast<Treal>(compute_index(i_length, ustride, 0)) * inv_scale;
+        const auto val = static_cast<Treal>(-0.5)
+                         + static_cast<Treal>(
+                               static_cast<unsigned long long>(compute_index(i_length, ustride, 0)))
+                               * inv_scale;
 
         const auto idx = compute_index(i_length, istride, i_base);
 
@@ -329,7 +332,10 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         const auto i_batch  = get_batch(i, whole_length);
         const auto i_base   = i_batch * idist;
 
-        const auto val = -0.5 + static_cast<Treal>(compute_index(i_length, ustride, 0)) * inv_scale;
+        const auto val = static_cast<Treal>(-0.5)
+                         + static_cast<Treal>(
+                               static_cast<unsigned long long>(compute_index(i_length, ustride, 0)))
+                               * inv_scale;
 
         const auto idx = compute_index(i_length, istride, i_base);
 
@@ -385,7 +391,10 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
         const auto i_batch  = get_batch(i, whole_length);
         const auto i_base   = i_batch * idist;
 
-        const auto val = -0.5 + static_cast<Treal>(compute_index(i_length, ustride, 0)) * inv_scale;
+        const auto val = static_cast<Treal>(-0.5)
+                         + static_cast<Treal>(
+                               static_cast<unsigned long long>(compute_index(i_length, ustride, 0)))
+                               * inv_scale;
 
         const auto idx = compute_index(i_length, istride, i_base);
 
@@ -959,7 +968,9 @@ static void generate_interleaved_data(const Tint&            whole_length,
     const auto input_stride = get_input_val(whole_stride);
     const auto unit_stride  = make_unit_stride(input_length);
 
-    const auto inv_scale = 1.0 / static_cast<Treal>(isize / nbatch - 1);
+    const auto inv_scale
+        = static_cast<Treal>(1.0)
+          / static_cast<Treal>(static_cast<unsigned long long>(isize) / nbatch - 1);
 
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
@@ -1036,7 +1047,9 @@ static void generate_planar_data(const Tint&            whole_length,
     const auto input_stride = get_input_val(whole_stride);
     const auto unit_stride  = make_unit_stride(input_length);
 
-    const auto inv_scale = 1.0 / static_cast<Treal>(isize / nbatch - 1);
+    const auto inv_scale
+        = static_cast<Treal>(1.0)
+          / static_cast<Treal>(static_cast<unsigned long long>(isize) / nbatch - 1);
 
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
@@ -1110,7 +1123,9 @@ static void generate_real_data(const Tint&            whole_length,
     const auto input_stride = get_input_val(whole_stride);
     const auto unit_stride  = make_unit_stride(input_length);
 
-    const auto inv_scale = 1.0 / static_cast<Treal>(isize / nbatch - 1);
+    const auto inv_scale
+        = static_cast<Treal>(1.0)
+          / static_cast<Treal>(static_cast<unsigned long long>(isize) / nbatch - 1);
 
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};

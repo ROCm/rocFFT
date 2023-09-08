@@ -21,7 +21,7 @@
 #ifndef ROCFFT_PRECISION_TYPE_H
 #define ROCFFT_PRECISION_TYPE_H
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 static size_t real_type_size(rocfft_precision precision)
 {

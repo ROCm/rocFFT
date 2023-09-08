@@ -27,7 +27,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 #include "logging.h"
 #include "plan.h"

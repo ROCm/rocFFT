@@ -22,7 +22,7 @@
 #define TWIDDLES_H
 
 #include "../../../shared/gpubuf.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <vector>
 
 static const size_t       LTWD_BASE_DEFAULT       = 8;

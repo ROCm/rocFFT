@@ -41,7 +41,7 @@
 #include <unordered_map>
 #include <utility>
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 /************************************************************************************
  * Profile kernel arguments

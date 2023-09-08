@@ -21,7 +21,7 @@
 #ifndef ROCFFT_RTC_CACHE_H
 #define ROCFFT_RTC_CACHE_H
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "rtc_generator.h"
 #include "sqlite3.h"
 #include <array>

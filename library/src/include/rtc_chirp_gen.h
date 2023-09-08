@@ -21,7 +21,7 @@
 #ifndef RTC_CHIRP_GEN
 #define RTC_CHIRP_GEN
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <hip/hip_runtime_api.h>
 #include <string>
 

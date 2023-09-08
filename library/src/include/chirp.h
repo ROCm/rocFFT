@@ -22,7 +22,7 @@
 #define CHIRP_H
 
 #include "../../../shared/gpubuf.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <vector>
 
 gpubuf chirp_create(size_t                 N,

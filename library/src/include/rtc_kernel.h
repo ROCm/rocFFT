@@ -21,7 +21,7 @@
 #ifndef ROCFFT_RTC_H
 #define ROCFFT_RTC_H
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <hip/hip_runtime_api.h>
 
 #include <algorithm>

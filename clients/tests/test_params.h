@@ -22,8 +22,6 @@
 #ifndef TESTCONSTANTS_H
 #define TESTCONSTANTS_H
 
-#include "rocfft/rocfft.h"
-
 #include <stdexcept>
 
 extern int    verbose;

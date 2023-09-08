@@ -31,7 +31,7 @@
 #include "../../../shared/rocfft_hip.h"
 #include "../device/kernels/callback.h"
 #include "kargs.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "tree_node.h"
 #include <iostream>
 

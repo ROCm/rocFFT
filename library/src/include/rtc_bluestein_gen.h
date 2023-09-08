@@ -24,7 +24,7 @@
 #include "../device/kernels/callback.h"
 #include "compute_scheme.h"
 #include "load_store_ops.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include <vector>
 
 // single kernel bluestein

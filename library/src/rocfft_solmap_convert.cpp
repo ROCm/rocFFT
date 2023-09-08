@@ -27,7 +27,7 @@
 
 #include "../../shared/environment.h"
 #include "option_util.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "solution_map.h"
 
 int main(int argc, char* argv[])

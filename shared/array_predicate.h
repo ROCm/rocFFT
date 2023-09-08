@@ -21,7 +21,7 @@
 #ifndef ROCFFT_ARRAY_PREDICATE_H
 #define ROCFFT_ARRAY_PREDICATE_H
 
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 namespace
 {

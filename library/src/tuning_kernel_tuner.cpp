@@ -23,7 +23,7 @@
 #include "../../shared/environment.h"
 #include "function_pool.h"
 #include "logging.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "solution_map.h"
 #include "tuning_helper.h"
 #include "twiddles.h"

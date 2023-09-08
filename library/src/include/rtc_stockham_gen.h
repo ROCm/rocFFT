@@ -26,7 +26,7 @@
 #include "../device/generator/stockham_gen.h"
 #include "compute_scheme.h"
 #include "load_store_ops.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 #include "rtc_kernel.h"
 
 #include "../device/kernels/common.h"

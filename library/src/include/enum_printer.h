@@ -25,7 +25,7 @@
 
 #include "../../../shared/rocfft_complex.h"
 #include "../device/kernels/common.h"
-#include "rocfft.h"
+#include "rocfft/rocfft.h"
 
 enum OperatingBuffer
 {
