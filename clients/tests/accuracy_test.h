@@ -1200,6 +1200,10 @@ struct StoreCPUDataToCache
 template <class Tfloat, class Tparams>
 inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
 {
+    // Call hipGetLastError to reset any errors
+    // returned by previous HIP runtime API calls.
+    hipError_t hip_status = hipGetLastError();
+
     // Make sure that the parameters make sense:
     ASSERT_TRUE(params.valid(verbose));
 
@@ -1335,7 +1339,7 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     std::vector<void*>  pibuffer(ibuffer_sizes.size());
     for(unsigned int i = 0; i < ibuffer.size(); ++i)
     {
-        auto hip_status = ibuffer[i].alloc(ibuffer_sizes[i]);
+        hip_status = ibuffer[i].alloc(ibuffer_sizes[i]);
         if(hip_status != hipSuccess)
         {
             std::stringstream ss;
@@ -1516,10 +1520,10 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             // Copy input to CPU
             for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
             {
-                auto hip_status = hipMemcpy(gpu_input_data.at(idx).data(),
-                                            ibuffer[idx].data(),
-                                            ibuffer_sizes[idx],
-                                            hipMemcpyDeviceToHost);
+                hip_status = hipMemcpy(gpu_input_data.at(idx).data(),
+                                       ibuffer[idx].data(),
+                                       ibuffer_sizes[idx],
+                                       hipMemcpyDeviceToHost);
                 if(hip_status != hipSuccess)
                 {
                     ++n_hip_failures;
@@ -1553,10 +1557,10 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             // Copy input to CPU
             for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
             {
-                auto hip_status = hipMemcpy(cpu_input.at(idx).data(),
-                                            ibuffer[idx].data(),
-                                            ibuffer_sizes[idx],
-                                            hipMemcpyDeviceToHost);
+                hip_status = hipMemcpy(cpu_input.at(idx).data(),
+                                       ibuffer[idx].data(),
+                                       ibuffer_sizes[idx],
+                                       hipMemcpyDeviceToHost);
                 if(hip_status != hipSuccess)
                 {
                     ++n_hip_failures;
@@ -1605,10 +1609,10 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         // Copy input to GPU
         for(unsigned int idx = 0; idx < gpu_input->size(); ++idx)
         {
-            auto hip_status = hipMemcpy(ibuffer[idx].data(),
-                                        gpu_input->at(idx).data(),
-                                        ibuffer_sizes[idx],
-                                        hipMemcpyHostToDevice);
+            hip_status = hipMemcpy(ibuffer[idx].data(),
+                                   gpu_input->at(idx).data(),
+                                   ibuffer_sizes[idx],
+                                   hipMemcpyHostToDevice);
 
             if(hip_status != hipSuccess)
             {
@@ -1671,7 +1675,7 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         obuffer_data.resize(obuffer_sizes.size());
         for(unsigned int i = 0; i < obuffer_data.size(); ++i)
         {
-            auto hip_status = obuffer_data[i].alloc(obuffer_sizes[i]);
+            hip_status = obuffer_data[i].alloc(obuffer_sizes[i]);
             if(hip_status != hipSuccess)
             {
                 ++n_hip_failures;
