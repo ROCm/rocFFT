@@ -306,6 +306,7 @@ void write_standalone_test_harness(const Function& f, const std::string& src)
     main_file << "#include <vector>\n";
 
     main_file << "#define ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS\n";
+    main_file << rocfft_hip_h;
     main_file << gpubuf_h;
     main_file << device_properties_h;
     main_file << rtc_kernel_h;

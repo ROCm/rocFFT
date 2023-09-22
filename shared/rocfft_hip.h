@@ -22,5 +22,31 @@
 #define __ROCFFT_HIP_H__
 
 #include <hip/hip_runtime_api.h>
+#include <stdexcept>
+
+class rocfft_scoped_device
+{
+public:
+    rocfft_scoped_device(int device)
+    {
+        if(hipGetDevice(&orig_device) != hipSuccess)
+            throw std::runtime_error("hipGetDevice failure");
+
+        if(hipSetDevice(device) != hipSuccess)
+            throw std::runtime_error("hipSetDevice failure");
+    }
+    ~rocfft_scoped_device()
+    {
+        (void)hipSetDevice(orig_device);
+    }
+
+    // not copyable or movable
+    rocfft_scoped_device(const rocfft_scoped_device&) = delete;
+    rocfft_scoped_device(rocfft_scoped_device&&)      = delete;
+    rocfft_scoped_device& operator=(const rocfft_scoped_device&) = delete;
+
+private:
+    int orig_device;
+};
 
 #endif // __ROCFFT_HIP_H__

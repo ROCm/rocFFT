@@ -21,6 +21,7 @@
 #ifndef ROCFFT_PRECISION_TYPE_H
 #define ROCFFT_PRECISION_TYPE_H
 
+#include "array_predicate.h"
 #include "rocfft/rocfft.h"
 
 static size_t real_type_size(rocfft_precision precision)
@@ -52,5 +53,11 @@ static const char* precision_name(rocfft_precision precision)
     case rocfft_precision_double:
         return "double";
     }
+}
+
+static size_t element_size(rocfft_precision precision, rocfft_array_type array_type)
+{
+    return array_type_is_complex(array_type) ? complex_type_size(precision)
+                                             : real_type_size(precision);
 }
 #endif

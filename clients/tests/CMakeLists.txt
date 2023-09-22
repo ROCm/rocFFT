@@ -77,6 +77,7 @@ set( rocfft-test_source
   accuracy_test_callback.cpp
   accuracy_test_checkstride.cpp
   multithread_test.cpp
+  multi_device_test.cpp
   hermitian_test.cpp
   hipGraph_test.cpp
   callback_change_type.cpp

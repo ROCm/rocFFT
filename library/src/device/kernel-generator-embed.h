@@ -48,6 +48,7 @@ extern const char* radix_16_h;
 extern const char* radix_17_h;
 
 extern const char* device_properties_h;
+extern const char* rocfft_hip_h;
 extern const char* gpubuf_h;
 extern const char* rtc_kernel_h;
 extern const char* rtc_kernel_cpp;

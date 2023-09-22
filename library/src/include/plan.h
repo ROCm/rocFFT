@@ -23,8 +23,10 @@
 
 #include <array>
 #include <cstring>
+#include <list>
 #include <vector>
 
+#include "../../../shared/array_predicate.h"
 #include "function_pool.h"
 #include "load_store_ops.h"
 #include "tree_node.h"
@@ -49,6 +51,49 @@ static inline bool IsPow(size_t u)
     return (u > 0 && max % u == 0);
 }
 
+struct rocfft_brick_t
+{
+    // all vectors here are column-major, with same length as FFT
+    // dimension + 1 (for batch dimension)
+
+    // inclusive lower bound of brick
+    std::vector<size_t> lower;
+    // exclusive upper bound of brick
+    std::vector<size_t> upper;
+    // stride of brick in memory
+    std::vector<size_t> stride;
+
+    // compute the length of this brick
+    std::vector<size_t> length() const
+    {
+        std::vector<size_t> ret;
+        for(size_t i = 0; i < lower.size(); ++i)
+            ret.push_back(upper[i] - lower[i]);
+        return ret;
+    }
+
+    // functions and operators
+
+    // compute the number of elements in this brick
+    size_t count_elems() const;
+    bool   is_contiguous() const;
+    // return strides for this brick, if it were transposed to be
+    // contiguous.
+    std::vector<size_t> contiguous_strides() const;
+
+    // compute offset of this brick, given the field's stride + dist
+    size_t offset_in_field(const std::vector<size_t>& fieldStride, size_t fieldDist) const;
+
+    // location of the brick
+    int rank   = 0;
+    int device = 0;
+};
+
+struct rocfft_field_t
+{
+    std::vector<rocfft_brick_t> bricks;
+};
+
 struct rocfft_plan_description_t
 {
     rocfft_array_type inArrayType  = rocfft_array_type_unset;
@@ -63,6 +108,9 @@ struct rocfft_plan_description_t
     std::array<size_t, 2> inOffset  = {0, 0};
     std::array<size_t, 2> outOffset = {0, 0};
 
+    std::vector<rocfft_field_t> inFields;
+    std::vector<rocfft_field_t> outFields;
+
     LoadOps  loadOps;
     StoreOps storeOps;
 
@@ -75,6 +123,21 @@ struct rocfft_plan_description_t
     void init_defaults(rocfft_transform_type      transformType,
                        rocfft_result_placement    placement,
                        const std::vector<size_t>& lengths);
+
+    // Count the number of pointers required for either input or output
+    // - planar data requires two pointers, real + complex require one.
+    // But if fields are declared then the number of pointers is the
+    // number of bricks in the fields.
+    static size_t count_pointers(const std::vector<rocfft_field_t>& fields,
+                                 rocfft_array_type                  arrayType)
+    {
+        if(fields.empty())
+            return array_type_is_planar(arrayType) ? 2 : 1;
+        size_t fieldPtrs = 0;
+        for(auto& f : fields)
+            fieldPtrs += f.bricks.size();
+        return fieldPtrs;
+    }
 };
 
 struct rocfft_plan_t
@@ -83,16 +146,13 @@ struct rocfft_plan_t
     std::vector<size_t> lengths;
     size_t              batch = 1;
 
-    rocfft_result_placement placement      = rocfft_placement_inplace;
-    rocfft_transform_type   transformType  = rocfft_transform_type_complex_forward;
-    rocfft_precision        precision      = rocfft_precision_single;
-    size_t                  base_type_size = sizeof(float);
+    rocfft_result_placement placement     = rocfft_placement_inplace;
+    rocfft_transform_type   transformType = rocfft_transform_type_complex_forward;
+    rocfft_precision        precision     = rocfft_precision_single;
 
     rocfft_plan_description_t desc;
 
     rocfft_plan_t() = default;
-
-    ExecPlan execPlan;
 
     // Users can provide lengths+strides in any order, but we'll
     // construct the most sensible plans if they're in row-major order.
@@ -101,9 +161,75 @@ struct rocfft_plan_t
     // This should be done when the plan parameters are known, but
     // before we start creating any child nodes from the root plan.
     void sort();
+
+    // Add a multi-plan item for execution.  Returns the index of the
+    // new item in the overall multi-rank/GPU plan.  Also provide a
+    // vector of indexes of other items that must complete before this
+    // item can run.
+    size_t AddMultiPlanItem(std::unique_ptr<MultiPlanItem>&& item,
+                            const std::vector<size_t>&       antecedents);
+
+    // Add a new antecedent for an existing item index
+    void AddAntecedent(size_t itemIdx, size_t antecedentIdx);
+
+    // Execute the multi-rank/GPU plan.
+    void Execute(rocfft_rank_t         currentRank,
+                 void*                 in_buffer[],
+                 void*                 out_buffer[],
+                 rocfft_execution_info info);
+
+    size_t WorkBufBytes() const;
+
+    // Insert core execPlan into multi-item plan, surrounding it with
+    // sufficient items to gather/scatter to/from a single device if
+    // the plan needs it.  Gathering all the data to a single device is
+    // suboptimal but is a first step towards proper multi-device
+    // logic.
+    void AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlan);
+
+    // check log level, log the topologically sorted plan if plan
+    // logging is enabled
+    void LogSortedPlan(const std::vector<size_t>& sortedIdx) const;
+
+    // log field layout at plan level
+    static void LogFields(const char* description, const std::vector<rocfft_field_t>& fields);
+
+private:
+    // Multi-node or multi-GPU plan is built up from a vector of plan
+    // items.  Items can launch kernels on a rank + device, or move
+    // data between ranks + devices.
+    std::vector<std::unique_ptr<MultiPlanItem>> multiPlan;
+
+    // Adjacency list describing dependencies between multiPlan items.
+    // Size of this vector == multiPlan.size().
+    //
+    // The size_t's at multiPlanAdjacency[i] are the indexes in
+    // multiPlan that need to complete before multiPlan[i] can run
+    // (i.e. its antecedents).
+    std::vector<std::vector<size_t>> multiPlanAdjacency;
+
+    // Return a stack of multiPlan indexes that are in topological
+    // order.  Traverse this vector in reverse order to follow the
+    // sorting.
+    std::vector<size_t> MultiPlanTopologicalSort() const;
+
+    // Recursive utility function to do depth-first search.  tracks
+    // visited indexes as it goes along.
+    void TopologicalSortDFS(size_t               idx,
+                            std::vector<bool>&   visited,
+                            std::vector<size_t>& sorted) const;
+
+    // Temp buffers allocated during plan creation for multi-device
+    // plans are remembered here.  Individual plan items can have
+    // void*'s that point to these buffers.
+    //
+    // use a std::list for convenience so that existing references to
+    // buffers never get invalidated when new buffers are added
+    std::list<gpubuf> tempBuffers;
 };
 
 bool PlanPowX(ExecPlan& execPlan);
 bool GetTuningKernelInfo(ExecPlan& execPlan);
+void RuntimeCompilePlan(ExecPlan& execPlan);
 
 #endif // PLAN_H

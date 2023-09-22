@@ -15,11 +15,6 @@ are available for each release on the releases tab.
 
 * `sudo apt update && sudo apt install rocfft`
 
-## Dependencies
-
-rocFFT requires python3 libraries to be present at runtime.  These are
-typically present by default in most Linux distributions.
-
 ## Building from source
 
 rocFFT is compiled with hipcc and uses cmake.  There are a number of options

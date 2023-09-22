@@ -381,6 +381,49 @@ public:
 
     size_t workbuffersize = 0;
 
+    struct fft_brick
+    {
+        // all vectors here are row-major, with same length as FFT
+        // dimension + 1 (for batch dimension)
+
+        // inclusive lower bound of brick
+        std::vector<size_t> lower;
+        // exclusive upper bound of brick
+        std::vector<size_t> upper;
+        // stride of brick in memory
+        std::vector<size_t> stride;
+
+        // compute the length of this brick
+        std::vector<size_t> length() const
+        {
+            std::vector<size_t> ret;
+            for(size_t i = 0; i < lower.size(); ++i)
+                ret.push_back(upper[i] - lower[i]);
+            return ret;
+        }
+
+        // compute offset of lower bound in a field with the given
+        // stride + dist (batch stride is separate)
+        size_t lower_field_offset(std::vector<size_t> stride, size_t dist) const
+        {
+            // brick strides include batch, so adjust our input accordingly
+            stride.insert(stride.begin(), dist);
+
+            return std::inner_product(lower.begin(), lower.end(), stride.begin(), 0);
+        }
+
+        // location of the brick
+        int device = 0;
+    };
+
+    struct fft_field
+    {
+        std::vector<fft_brick> bricks;
+    };
+    // optional brick decomposition of inputs/outputs
+    std::vector<fft_field> ifields;
+    std::vector<fft_field> ofields;
+
     // run testing load/store callbacks
     bool                    run_callbacks   = false;
     static constexpr double load_cb_scalar  = 0.457813941;
@@ -1303,6 +1346,14 @@ public:
         set_odist();
         compute_isize();
         compute_osize();
+
+        validate_fields();
+    }
+
+    virtual void validate_fields() const
+    {
+        if(!ifields.empty() || !ofields.empty())
+            throw std::runtime_error("input/output fields are unsupported");
     }
 
     // Column-major getters:
@@ -1693,6 +1744,20 @@ public:
 
         scale_factor = 1 / params_forward.scale_factor;
     }
+
+    // prepare for multi-GPU transform.  Generated input is in ibuffer.
+    // pibuffer, pobuffer are the pointers that will be passed to the
+    // FFT library's "execute" API.
+    virtual void multi_gpu_prepare(std::vector<gpubuf>& ibuffer,
+                                   std::vector<void*>&  pibuffer,
+                                   std::vector<void*>&  pobuffer)
+    {
+    }
+
+    // finalize multi-GPU transform.  pobuffers are the pointers
+    // provided to the FFT library's "execute" API.  obuffer is the
+    // buffer where transform output needs to go for validation
+    virtual void multi_gpu_finalize(std::vector<gpubuf>& obuffer, std::vector<void*>& pobuffer) {}
 };
 
 // This is used with the program_options class so that the user can type an integer on the

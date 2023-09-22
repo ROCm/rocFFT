@@ -318,6 +318,77 @@ to the buffers during the transform.
 
 These policies apply to both input and output buffers, because :ref:`not in-place transforms may overwrite input data<resultplacement>`.
 
+Input and Output Fields
+-----------------------
+
+By default, rocFFT inputs and outputs are on the same device, and the layouts of
+each are described using a set of strides passed to
+:cpp:func:`rocfft_plan_description_set_data_layout`.
+
+rocFFT optionally allows for inputs and outputs to be described as **fields**,
+each of which is decomposed into multiple **bricks**, where each brick can
+reside on a different device and have its own layout parameters.
+
+.. note::
+
+   The rocFFT APIs to declare fields and bricks are currently experimental and
+   subject to change in future releases.  We welcome feedback and questions
+   about these interfaces.  Please open issues on the `rocFFT issue tracker
+   <https://github.com/ROCmSoftwarePlatform/rocFFT/issues>`_ with questions and
+   comments.
+
+The workflow for fields is as follows:
+
+#. Allocate a :cpp:type:`rocfft_field` struct by calling :cpp:func:`rocfft_field_create`.
+
+#. Add one or more bricks to the field by calling
+   :cpp:func:`rocfft_field_add_brick`.  The brick's dimensions are
+   defined in terms of lower and upper coordinates in the field's index space.
+
+   Note that the lower coordinate is inclusive (contained within the brick) and
+   the upper coordinate is exclusive (first index past the end of the brick).
+
+   The device on which the brick resides is also specified at this time, along
+   with the strides of the brick in device memory.
+
+   All coordinates and strides provided here also include batch dimensions.
+
+#. Set the field as an input or output for the transform by calling either
+   :cpp:func:`rocfft_plan_description_add_infield` or
+   :cpp:func:`rocfft_plan_description_add_outfield` on a plan description that
+   has already been allocated.  The plan description must then be provided to
+   :cpp:func:`rocfft_plan_create`.
+
+   Offsets, strides, and distances as specified by
+   :cpp:func:`rocfft_plan_description_set_data_layout` for input or output are
+   ignored when a field is set for the corresponding input or output.
+
+   If the same field layout is used for both input and output, the same
+   :cpp:type:`rocfft_field` struct may be passed to both
+   :cpp:func:`rocfft_plan_description_add_infield` and
+   :cpp:func:`rocfft_plan_description_add_outfield`.
+
+   For in-place transforms, only call
+   :cpp:func:`rocfft_plan_description_add_infield` and do not call
+   :cpp:func:`rocfft_plan_description_add_outfield`.
+
+#. Deallocate the field by calling :cpp:func:`rocfft_field_destroy`.
+
+#. Create the plan by calling :cpp:func:`rocfft_plan_create`.  Pass the plan
+   description that has already been allocated.
+
+#. Execute the plan by calling :cpp:func:`rocfft_execute`.  This function takes
+   arrays of pointers for input and output.  If fields have been set for input
+   or output, then the arrays must contain pointers to each brick in the input
+   or output.
+
+   The pointers must be provided in the same order in which the bricks were
+   added to the field (via calls to :cpp:func:`rocfft_field_add_brick`), and
+   must point to memory on the device that was specified at that time.
+
+   For in-place transforms, only pass input pointers and do not pass output
+   pointers.
+
 Transforms of real data
 -----------------------
 

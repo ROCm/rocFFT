@@ -26,6 +26,8 @@
 #include "repo.h"
 #include "twiddles.h"
 
+#include <sstream>
+
 TreeNode::~TreeNode()
 {
     if(twiddles)
@@ -412,4 +414,215 @@ bool TreeNode::IsBluesteinChirpSetup()
     }
 
     throw std::runtime_error("unexpected bluestein plan shape");
+}
+
+std::string MultiPlanItem::PrintBufferPtrOffset(OperatingBuffer buf, const void* ptr, size_t offset)
+{
+    std::stringstream ss;
+    ss << PrintOperatingBuffer(buf);
+    if(ptr)
+        ss << " (" << ptr << ")";
+    ss << " offset " << offset << " elems";
+    return ss.str();
+}
+
+// offset a pointer by a number of elements, given the elements'
+// precision and type (complex or not)
+static void* ptr_offset(void* p, size_t elems, rocfft_precision precision, rocfft_array_type type)
+{
+    return static_cast<char*>(p) + elems * element_size(precision, type);
+}
+
+void CommScatter::ExecuteAsync(const rocfft_plan     plan,
+                               const rocfft_rank_t   rank,
+                               void*                 in_buffer[],
+                               void*                 out_buffer[],
+                               rocfft_execution_info info)
+{
+    rocfft_scoped_device dev(srcDeviceID);
+    stream.alloc();
+    event.alloc();
+
+    // init srcPtr with user pointer if it wasn't
+    // allocated at plan create time
+    if(!srcPtr)
+        srcPtr = in_buffer[0];
+
+    for(auto& op : ops)
+    {
+        CheckAccess(srcDeviceID, op.destDeviceID);
+
+        auto memSize = op.numElems * element_size(precision, arrayType);
+
+        // init destPtr with user pointer if it wasn't
+        // allocated at plan create time
+        if(!op.destPtr)
+        {
+            op.destPtr = *out_buffer;
+            ++out_buffer;
+        }
+
+        auto srcWithOffset  = ptr_offset(srcPtr, op.srcOffset, precision, arrayType);
+        auto destWithOffset = ptr_offset(op.destPtr, op.destOffset, precision, arrayType);
+
+        hipError_t err = hipSuccess;
+        if(srcDeviceID == op.destDeviceID)
+            err = hipMemcpyAsync(
+                destWithOffset, srcWithOffset, memSize, hipMemcpyDeviceToDevice, stream);
+        else
+            err = hipMemcpyPeerAsync(
+                destWithOffset, op.destDeviceID, srcWithOffset, srcDeviceID, memSize, stream);
+
+        if(err != hipSuccess)
+            throw std::runtime_error("hipMemcpy failed");
+    }
+    // all work is enqueued to the stream, record the event on
+    // the stream
+    if(hipEventRecord(event, stream) != hipSuccess)
+        throw std::runtime_error("hipEventRecord failed");
+}
+
+void CommScatter::Wait()
+{
+    if(hipEventSynchronize(event) != hipSuccess)
+        throw std::runtime_error("hipEventSynchronize failed");
+}
+
+void CommScatter::Print(rocfft_ostream& os, const int indent) const
+{
+    std::string indentStr;
+    int         i = indent;
+    while(i--)
+        indentStr += "    ";
+
+    os << indentStr << "CommScatter " << precision_name(precision) << " "
+       << PrintArrayType(arrayType) << ":" << std::endl;
+    os << indentStr << "  srcRank: " << srcRank << std::endl;
+    os << indentStr << "  srcDeviceID: " << srcDeviceID << std::endl;
+    os << std::endl;
+
+    for(size_t i = 0; i < ops.size(); ++i)
+    {
+        const auto& op = ops[i];
+        os << indentStr << "    destRank: " << op.destRank << std::endl;
+        os << indentStr << "    destDeviceID: " << op.destDeviceID << std::endl;
+        os << indentStr << "    srcBuf: " << PrintBufferPtrOffset(srcBuf, srcPtr, op.srcOffset)
+           << std::endl;
+        os << indentStr
+           << "    destBuf: " << PrintBufferPtrOffset(op.destBuf, op.destPtr, op.destOffset)
+           << std::endl;
+        os << indentStr << "    numElems: " << op.numElems << std::endl;
+        os << std::endl;
+    }
+}
+
+void CommGather::ExecuteAsync(const rocfft_plan     plan,
+                              const rocfft_rank_t   rank,
+                              void*                 in_buffer[],
+                              void*                 out_buffer[],
+                              rocfft_execution_info info)
+{
+    // init destPtr with user pointer if it wasn't
+    // allocated at plan create time
+    if(!destPtr)
+        destPtr = out_buffer[0];
+
+    streams.resize(ops.size());
+    events.resize(ops.size());
+
+    for(unsigned int i = 0; i < ops.size(); ++i)
+    {
+        auto& op     = ops[i];
+        auto& stream = streams[i];
+        auto& event  = events[i];
+
+        CheckAccess(op.srcDeviceID, destDeviceID);
+
+        rocfft_scoped_device dev(op.srcDeviceID);
+        stream.alloc();
+        event.alloc();
+
+        auto memSize = op.numElems * element_size(precision, arrayType);
+
+        // init srcPtr with user pointer if it wasn't
+        // allocated at plan create time
+        if(!op.srcPtr)
+        {
+            op.srcPtr = *in_buffer;
+            ++in_buffer;
+        }
+
+        auto srcWithOffset  = ptr_offset(op.srcPtr, op.srcOffset, precision, arrayType);
+        auto destWithOffset = ptr_offset(destPtr, op.destOffset, precision, arrayType);
+
+        hipError_t err = hipSuccess;
+        if(op.srcDeviceID == destDeviceID)
+            err = hipMemcpyAsync(
+                destWithOffset, srcWithOffset, memSize, hipMemcpyDeviceToDevice, stream);
+        else
+            err = hipMemcpyPeerAsync(
+                destWithOffset, destDeviceID, srcWithOffset, op.srcDeviceID, memSize, stream);
+
+        if(err != hipSuccess)
+            throw std::runtime_error("hipMemcpy failed");
+
+        // all work for this stream is enqueued, record the event on
+        // the stream
+        if(hipEventRecord(event, stream) != hipSuccess)
+            throw std::runtime_error("hipEventRecord failed");
+    }
+}
+
+void CommGather::Wait()
+{
+    for(auto& event : events)
+    {
+        if(hipEventSynchronize(event) != hipSuccess)
+            throw std::runtime_error("hipEventSynchronize failed");
+    }
+}
+
+void CommGather::Print(rocfft_ostream& os, const int indent) const
+{
+    std::string indentStr;
+    int         i = indent;
+    while(i--)
+        indentStr += "    ";
+
+    os << indentStr << "CommGather " << precision_name(precision) << " "
+       << PrintArrayType(arrayType) << ":" << std::endl;
+    os << indentStr << "  destRank: " << destRank << std::endl;
+    os << indentStr << "  destDeviceID: " << destDeviceID << std::endl;
+    os << std::endl;
+
+    for(size_t i = 0; i < ops.size(); ++i)
+    {
+        const auto& op = ops[i];
+        os << indentStr << "    srcRank: " << op.srcRank << std::endl;
+        os << indentStr << "    srcDeviceID: " << op.srcDeviceID << std::endl;
+        os << indentStr << "    destBuf: " << PrintBufferPtrOffset(destBuf, destPtr, op.destOffset)
+           << std::endl;
+        os << indentStr
+           << "    srcBuf: " << PrintBufferPtrOffset(op.srcBuf, op.srcPtr, op.srcOffset)
+           << std::endl;
+        os << indentStr << "    numElems: " << op.numElems << std::endl;
+        os << std::endl;
+    }
+}
+
+void ExecPlan::Print(rocfft_ostream& os, const int indent) const
+{
+    std::string indentStr;
+    int         i = indent;
+    while(i--)
+        indentStr += "    ";
+    os << indentStr << "ExecPlan:" << std::endl;
+    os << indentStr << "  rank: " << rank << std::endl;
+    os << indentStr << "  deviceID: " << deviceID << std::endl;
+    if(inputPtr)
+        os << indentStr << "  inputPtr: " << inputPtr << std::endl;
+    if(outputPtr)
+        os << indentStr << "  outputPtr: " << outputPtr << std::endl;
+
+    PrintNode(os, *this, indent);
 }

@@ -704,6 +704,7 @@ template <class Tparams>
 inline void execute_gpu_fft(Tparams&              params,
                             std::vector<void*>&   pibuffer,
                             std::vector<void*>&   pobuffer,
+                            std::vector<gpubuf>&  obuffer,
                             std::vector<hostbuf>& gpu_output,
                             bool                  round_trip_inverse = false)
 {
@@ -822,7 +823,9 @@ inline void execute_gpu_fft(Tparams&              params,
     if(!fftw_compare)
         return;
 
-    // copy GPU output back
+    // finalize a multi-GPU transform
+    params.multi_gpu_finalize(obuffer, pobuffer);
+
     ASSERT_TRUE(!gpu_output.empty()) << "no output buffers";
     for(unsigned int idx = 0; idx < gpu_output.size(); ++idx)
     {
@@ -1066,10 +1069,7 @@ inline void run_round_trip_inverse(Tparams&              params,
     }
 
     // execute GPU transform
-    //
-    // limited scope for local variables
-
-    execute_gpu_fft(params, pibuffer, pobuffer, gpu_output, true);
+    execute_gpu_fft(params, pibuffer, pobuffer, obuffer, gpu_output, true);
 }
 
 // compare rocFFT inverse transform with forward transform input
@@ -1760,13 +1760,15 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             }
         });
 
+    // scatter data out to multi-GPUs if this is a multi-GPU test
+    params.multi_gpu_prepare(ibuffer, pibuffer, pobuffer);
+
     // execute GPU transform
-    //
-    // limited scope for local variables
     std::vector<hostbuf> gpu_output
         = allocate_host_buffer(params.precision, params.otype, params.osize);
 
-    execute_gpu_fft(params, pibuffer, pobuffer, gpu_output);
+    execute_gpu_fft(params, pibuffer, pobuffer, *obuffer, gpu_output);
+
     params.free();
 
     if(params.check_output_strides)

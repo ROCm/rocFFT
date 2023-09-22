@@ -273,6 +273,49 @@ void rocfft_plan_t::sort()
     }
 }
 
+size_t rocfft_plan_t::AddMultiPlanItem(std::unique_ptr<MultiPlanItem>&& item,
+                                       const std::vector<size_t>&       antecedents)
+{
+    // ensure antecedents all exist
+    if(std::any_of(
+           antecedents.begin(), antecedents.end(), [=](size_t i) { return i >= multiPlan.size(); }))
+        throw std::runtime_error("antecedent does not exist");
+
+    multiPlan.emplace_back(std::move(item));
+    multiPlanAdjacency.emplace_back(antecedents);
+    // return index of new item
+    return multiPlan.size() - 1;
+}
+
+void rocfft_plan_t::AddAntecedent(size_t itemIdx, size_t antecedentIdx)
+{
+    // we're not implementing full dependency cycle checks but at least
+    // we can check for obvious errors
+    if(itemIdx >= multiPlan.size() || antecedentIdx >= multiPlan.size() || itemIdx == antecedentIdx)
+        throw std::runtime_error("invalid antecedent during plan creation");
+
+    auto& antecedents = multiPlanAdjacency[itemIdx];
+    if(std::find(antecedents.begin(), antecedents.end(), antecedentIdx) == antecedents.end())
+        antecedents.push_back(antecedentIdx);
+}
+
+size_t rocfft_plan_t::WorkBufBytes() const
+{
+    auto base_type_size = real_type_size(precision);
+
+    // Something wants to know how much work buffer to allocate, but
+    // our plan could span multiple ranks and devices.  For now, just
+    // get the largest work buf size of any item in the
+    // multi-rank/device plan.
+    size_t workBufBytes = 0;
+    for(const auto& i : multiPlan)
+    {
+        if(i)
+            workBufBytes = std::max(workBufBytes, i->WorkBufBytes(base_type_size));
+    }
+    return workBufBytes;
+}
+
 rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description description,
                                                       const rocfft_array_type in_array_type,
                                                       const rocfft_array_type out_array_type,
@@ -359,6 +402,130 @@ rocfft_status rocfft_plan_description_destroy(rocfft_plan_description descriptio
     log_trace(__func__, "description", description);
     if(description != nullptr)
         delete description;
+    return rocfft_status_success;
+}
+
+rocfft_status rocfft_field_create(rocfft_field* field)
+{
+    *field = new rocfft_field_t;
+    log_trace(__func__, "field", *field);
+    return rocfft_status_success;
+}
+
+rocfft_status rocfft_field_destroy(rocfft_field field)
+{
+    log_trace(__func__, "field", field);
+    delete field;
+    return rocfft_status_success;
+}
+
+// check if brick is empty
+
+size_t rocfft_brick_t::count_elems() const
+{
+    auto len = length();
+    return product(len.begin(), len.end());
+}
+
+std::vector<size_t> rocfft_brick_t::contiguous_strides() const
+{
+    std::vector<size_t> ret{1};
+    size_t              dist = 1;
+
+    auto len = length();
+    for(size_t i = 1; i < len.size(); ++i)
+    {
+        ret.push_back(dist * len[i]);
+        dist *= len[i];
+    }
+    return ret;
+}
+
+bool rocfft_brick_t::is_contiguous() const
+{
+    auto contiguous = contiguous_strides();
+
+    auto len = length();
+    // only care about dimensions whose length is greater than 1
+    for(size_t i = 1; i < len.size(); ++i)
+    {
+        if(len[i] > 1)
+        {
+            if(contiguous[i] != stride[i])
+                return false;
+        }
+    }
+    return true;
+}
+
+size_t rocfft_brick_t::offset_in_field(const std::vector<size_t>& fieldStride,
+                                       size_t                     fieldDist) const
+{
+    // brick indexes include batch so create a set of comparable field strides
+    auto fieldStrideWithBatch = fieldStride;
+    fieldStrideWithBatch.push_back(fieldDist);
+
+    auto len = length();
+    return std::inner_product(len.begin(), len.end(), fieldStrideWithBatch.begin(), 0);
+}
+
+rocfft_status rocfft_field_add_brick(rocfft_field      field,
+                                     const size_t*     field_lower,
+                                     const size_t*     field_upper,
+                                     const size_t*     brick_stride,
+                                     size_t            dim,
+                                     int               deviceID,
+                                     rocfft_brick_type brick_type)
+{
+    log_trace(__func__,
+              "field",
+              field,
+              "field_lower",
+              field_lower,
+              "field_upper",
+              field_upper,
+              "brick_stride",
+              brick_stride,
+              "dim",
+              dim,
+              "deviceID",
+              deviceID,
+              "brick_type",
+              brick_type);
+
+    if(!field)
+        return rocfft_status_invalid_arg_value;
+
+    // enforce reserved values
+    if(brick_type != rocfft_brick_type_normal)
+        return rocfft_status_invalid_arg_value;
+
+    auto& brick = field->bricks.emplace_back();
+    std::copy_n(field_lower, dim, std::back_inserter(brick.lower));
+    std::copy_n(field_upper, dim, std::back_inserter(brick.upper));
+    std::copy_n(brick_stride, dim, std::back_inserter(brick.stride));
+
+    brick.device = deviceID;
+    return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_description_add_infield(rocfft_plan_description description,
+                                                  rocfft_field            field)
+{
+    log_trace(__func__, "description", description, "field", field);
+    if(!description || !field || field->bricks.empty())
+        return rocfft_status_invalid_arg_value;
+    description->inFields.push_back(*field);
+    return rocfft_status_success;
+}
+
+rocfft_status rocfft_plan_description_add_outfield(rocfft_plan_description description,
+                                                   rocfft_field            field)
+{
+    log_trace(__func__, "description", description, "field", field);
+    if(!description || !field || field->bricks.empty())
+        return rocfft_status_invalid_arg_value;
+    description->outFields.push_back(*field);
     return rocfft_status_success;
 }
 
@@ -506,6 +673,118 @@ void set_bluestein_strides(const rocfft_plan plan, NodeMetaData& planData)
     planData.oDistBlue = outDistBlue;
 }
 
+void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
+{
+    // the smart pointer will be moved into the multi-plan during this
+    // function, so keep a plain non-owning pointer
+    auto execPlan = execPlanPtr.get();
+
+    // if we have no input/output fields, then the single ExecPlan is
+    // exactly what we need to do
+    if(desc.inFields.empty() && desc.outFields.empty())
+    {
+        AddMultiPlanItem(std::move(execPlanPtr), {});
+        return;
+    }
+
+    // ensure fields are interleaved - real and planar are not supported
+    if((!desc.inFields.empty() && !array_type_is_interleaved(desc.inArrayType))
+       || (!desc.outFields.empty() && !array_type_is_interleaved(desc.outArrayType)))
+    {
+        throw std::runtime_error("fields must be interleaved");
+    }
+
+    // code in here assumes that an input gather buf can be reused for
+    // output scattering, which means we have to be doing
+    // complex-complex FFT.  Assert that now.
+    if(!execPlan->rootPlan->IsRootPlanC2CTransform())
+        throw std::runtime_error("expecting c2c transform in multi-device plan");
+
+    const auto elem_size = element_size(precision, rocfft_array_type_complex_interleaved);
+
+    // indexes in the multi-plan of work to gather/unpack the
+    // inFields to the current device
+    std::vector<size_t> inFieldGatherIndexes;
+    std::vector<size_t> unpackIndexes;
+
+    // need a buffer on device 0 to do the actual FFT
+    auto& fftBuf = tempBuffers.emplace_back();
+    (void)fftBuf.alloc(compute_ptrdiff(lengths, desc.inStrides, batch, desc.inDist) * elem_size);
+
+    // also need a temp buffer for gathering data to
+    auto& gatherBuf = fftBuf; //tempBuffers.emplace_back();
+
+    for(const auto& inField : desc.inFields)
+    {
+        // indexes in the multi-plan of work to pack this field's
+        // data before gathering
+        std::vector<size_t> packIndexes;
+
+        // create gather operation for this field
+        auto gather          = std::make_unique<CommGather>();
+        gather->precision    = execPlan->rootPlan->precision;
+        gather->arrayType    = execPlan->rootPlan->inArrayType;
+        gather->destRank     = 0;
+        gather->destDeviceID = 0;
+        gather->destBuf      = OB_USER_OUT;
+
+        // offset into the receive buffer
+        size_t contiguousOffset = 0;
+
+        for(const auto& b : inField.bricks)
+        {
+            gather->ops.emplace_back(
+                b.rank, b.device, OB_USER_IN, nullptr, 0, contiguousOffset, b.count_elems());
+            contiguousOffset += b.count_elems();
+        }
+
+        // contiguousOffset at this point is the total space that all
+        // of the gathered items needed, so allocate space for that
+        // on this device and set the gather to write there
+        // (void)gatherBuf.alloc(contiguousOffset * elem_size);
+        gather->destPtr = gatherBuf.data();
+
+        // all bricks are packed, now gather data to this device
+        inFieldGatherIndexes.push_back(AddMultiPlanItem(std::move(gather), packIndexes));
+    }
+
+    // data is gathered and unpacked, run the core FFT plan we started with
+    execPlan->inputPtr  = fftBuf.data();
+    execPlan->outputPtr = fftBuf.data();
+    auto fftIdx         = AddMultiPlanItem(std::move(execPlanPtr),
+                                   unpackIndexes.empty() ? inFieldGatherIndexes : unpackIndexes);
+
+    // scatter data back out
+    for(const auto& outField : desc.outFields)
+    {
+        // offset into the pack buffer
+        size_t contiguousOffset = 0;
+
+        auto scatterPtr = std::make_unique<CommScatter>();
+        auto scatter    = scatterPtr.get();
+        // added scatter to the multi-plan, use a non-owning pointer
+        // to the item so we can continue to work with it while
+        // knowing its index in the multi-plan
+        //        auto scatterIdx =
+        AddMultiPlanItem(std::move(scatterPtr), {fftIdx});
+
+        scatter->precision   = execPlan->rootPlan->precision;
+        scatter->arrayType   = execPlan->rootPlan->inArrayType;
+        scatter->srcRank     = 0;
+        scatter->srcDeviceID = 0;
+        scatter->srcBuf      = OB_USER_OUT;
+        scatter->srcPtr      = fftBuf.data();
+
+        for(const auto& b : outField.bricks)
+        {
+            const auto brickLen = b.length();
+            scatter->ops.emplace_back(
+                b.rank, b.device, OB_USER_OUT, nullptr, contiguousOffset, 0, b.count_elems());
+            contiguousOffset += b.count_elems();
+        }
+    }
+}
+
 rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
                                           const rocfft_result_placement placement,
                                           const rocfft_transform_type   transform_type,
@@ -521,11 +800,10 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     rocfft_plan p = plan;
     p->rank       = dimensions;
     std::copy(lengths, lengths + dimensions, std::back_inserter(p->lengths));
-    p->batch          = number_of_transforms;
-    p->placement      = placement;
-    p->precision      = precision;
-    p->base_type_size = real_type_size(precision);
-    p->transformType  = transform_type;
+    p->batch         = number_of_transforms;
+    p->placement     = placement;
+    p->precision     = precision;
+    p->transformType = transform_type;
 
     if(description != nullptr)
     {
@@ -605,6 +883,13 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
         rootPlanData.oDist = plan->desc.outDist;
 
         rootPlanData.placement = plan->placement;
+
+        // If fields are specified, currently that means we're
+        // gathering the data to one device and doing FFT there.  So
+        // the FFT becomes in-place.
+        if(!plan->desc.inFields.empty() && !plan->desc.outFields.empty())
+            rootPlanData.placement = rocfft_placement_inplace;
+
         rootPlanData.precision = plan->precision;
         if((plan->transformType == rocfft_transform_type_complex_forward)
            || (plan->transformType == rocfft_transform_type_real_forward))
@@ -619,7 +904,10 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
 
         set_bluestein_strides(plan, rootPlanData);
 
-        ExecPlan& execPlan      = plan->execPlan;
+        auto      execPlanMultiItem = std::make_unique<ExecPlan>();
+        ExecPlan& execPlan          = *execPlanMultiItem;
+        if(hipGetDevice(&execPlan.deviceID) != hipSuccess)
+            throw std::runtime_error("hipGetDevice failed");
         execPlan.deviceProp     = get_curr_device_prop();
         rootPlanData.deviceProp = execPlan.deviceProp;
 
@@ -711,6 +999,8 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
                 throw std::runtime_error("Unable to get the solution info.");
         }
 
+        p->AddMainExecPlan(std::move(execPlanMultiItem));
+
         return rocfft_status_success;
     }
     catch(std::exception& e)
@@ -787,7 +1077,7 @@ rocfft_status rocfft_plan_get_work_buffer_size(const rocfft_plan plan, size_t* s
     if(!plan)
         return rocfft_status_failure;
 
-    *size_in_bytes = plan->execPlan.WorkBufBytes(plan->base_type_size);
+    *size_in_bytes = plan->WorkBufBytes();
     log_trace(__func__, "plan", plan, "size_in_bytes ptr", size_in_bytes, "val", *size_in_bytes);
     return rocfft_status_success;
 }
@@ -1556,7 +1846,7 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
             children_p->Print(os, indent + 1);
         }
     }
-    std::cout << std::flush;
+    os << std::flush;
 }
 
 void TreeNode::RecursiveFindChildNodes(const ComputeScheme&    findScheme,
@@ -2094,9 +2384,15 @@ void ProcessNode(ExecPlan& execPlan)
     execPlan.chirpWorkBufSize = chirpSize;
 }
 
-void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan)
+void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan, const int indent)
 {
-    os << "**********************************************************************"
+    std::string indentStr;
+    int         i = indent;
+    while(i--)
+        indentStr += "    ";
+
+    os << indentStr
+       << "**********************************************************************"
           "*********"
        << std::endl;
 
@@ -2104,21 +2400,25 @@ void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan)
                                      execPlan.rootPlan->length.end(),
                                      execPlan.rootPlan->batch,
                                      std::multiplies<size_t>());
-    os << "Work buffer size: " << execPlan.workBufSize << std::endl;
-    os << "Work buffer ratio: " << (double)execPlan.workBufSize / (double)N << std::endl;
-    os << "Assignment strategy: " << PrintOptimizeStrategy(execPlan.assignOptStrategy) << std::endl;
+    os << indentStr << "Work buffer size: " << execPlan.workBufSize << std::endl;
+    os << indentStr << "Work buffer ratio: " << (double)execPlan.workBufSize / (double)N
+       << std::endl;
+    os << indentStr << "Assignment strategy: " << PrintOptimizeStrategy(execPlan.assignOptStrategy)
+       << std::endl;
 
-    execPlan.rootPlan->Print(os, 0);
+    execPlan.rootPlan->Print(os, indent);
 
-    os << "GridParams\n";
+    os << indentStr << "GridParams\n";
     for(const auto& gp : execPlan.gridParam)
     {
-        os << "  b[" << gp.b_x << "," << gp.b_y << "," << gp.b_z << "] wgs[" << gp.wgs_x << ","
-           << gp.wgs_y << "," << gp.wgs_z << "], dy_lds bytes " << gp.lds_bytes << "\n";
+        os << indentStr << "  b[" << gp.b_x << "," << gp.b_y << "," << gp.b_z << "] wgs["
+           << gp.wgs_x << "," << gp.wgs_y << "," << gp.wgs_z << "], dy_lds bytes " << gp.lds_bytes
+           << "\n";
     }
-    os << "End GridParams\n";
+    os << indentStr << "End GridParams\n";
 
-    os << "======================================================================"
+    os << indentStr
+       << "======================================================================"
           "========="
        << std::endl
        << std::endl;

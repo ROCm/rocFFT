@@ -103,6 +103,7 @@ set( kgen_embed_files
 
      # extra files for generating standalone test harnesses for kernels
      ${CMAKE_SOURCE_DIR}/shared/device_properties.h
+     ${CMAKE_SOURCE_DIR}/shared/rocfft_hip.h
      ${CMAKE_SOURCE_DIR}/shared/gpubuf.h
      ${CMAKE_SOURCE_DIR}/library/src/include/rtc_kernel.h
      ${CMAKE_SOURCE_DIR}/library/src/rtc_kernel.cpp

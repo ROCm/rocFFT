@@ -64,8 +64,6 @@ to the :cpp:func:`rocfft_plan_create` function.
 
 .. doxygenfunction:: rocfft_plan_description_set_data_layout
 
-.. comment doxygenfunction:: rocfft_plan_description_set_devices
-
 Execution
 ---------
 

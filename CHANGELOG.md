@@ -4,6 +4,22 @@ Full documentation for rocFFT is available at [rocm.docs.amd.com](https://rocm.d
 
 ## rocFFT 1.0.25 for ROCm 6.0.0
 
+### Added
+- Implemented experimental APIs to allow computing FFTs on data distributed across multiple devices in a single process.
+
+  `rocfft_field` is a new type that can be added to a plan description, to describe layout of FFT input or output.  `rocfft_field_add_brick` can be called one or more times to describe a brick decomposition of an FFT field, where each brick can be assigned a different device.
+
+  These interfaces are still experimental and subject to change.  We are interested to hear feedback on them.  Questions and concerns may be raised by opening issues on the [rocFFT issue tracker](https://github.com/ROCmSoftwarePlatform/rocFFT/issues).
+
+  Note that at this time, multi-device FFTs have several limitations:
+
+  * Real-complex (forward or inverse) FFTs are not currently supported.
+  * Planar format fields are not currently supported.
+  * Batch (i.e. `number_of_transforms` provided to `rocfft_plan_create`) must be 1.
+  * The FFT input is gathered to the current device at execute time, so all of the FFT data must fit on that device.
+
+  We expect these limitations to be removed in future releases.
+
 ### Optimizations
 - Improved performance of some small 2D/3D real FFTs supported by 2D_SINGLE kernel. gfx90a gets more optimization
   by offline tuning.

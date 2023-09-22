@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -21,8 +21,8 @@
 #ifndef ROCFFT_GPUBUF_H
 #define ROCFFT_GPUBUF_H
 
+#include "rocfft_hip.h"
 #include <cstdlib>
-#include <hip/hip_runtime_api.h>
 
 // Simple RAII class for GPU buffers.  T is the type of pointer that
 // data() returns
@@ -36,11 +36,13 @@ public:
     {
         std::swap(buf, other.buf);
         std::swap(bsize, other.bsize);
+        std::swap(device, other.device);
     }
     gpubuf_t& operator=(gpubuf_t&& other)
     {
         std::swap(buf, other.buf);
         std::swap(bsize, other.bsize);
+        std::swap(device, other.device);
         return *this;
     }
     gpubuf_t(const gpubuf_t&) = delete;
@@ -58,10 +60,16 @@ public:
 
     hipError_t alloc(const size_t size)
     {
+        // remember the device that was current as of alloc, so we can
+        // free on the correct device
+        auto ret = hipGetDevice(&device);
+        if(ret != hipSuccess)
+            return ret;
+
         bsize                     = size;
         static bool alloc_managed = use_alloc_managed();
         free();
-        auto ret = alloc_managed ? hipMallocManaged(&buf, bsize) : hipMalloc(&buf, bsize);
+        ret = alloc_managed ? hipMallocManaged(&buf, bsize) : hipMalloc(&buf, bsize);
         if(ret != hipSuccess)
         {
             buf   = nullptr;
@@ -79,9 +87,20 @@ public:
     {
         if(buf != nullptr)
         {
+            // free on the device we allocated on
+            rocfft_scoped_device dev(device);
             (void)hipFree(buf);
-            buf = nullptr;
+            buf   = nullptr;
+            bsize = 0;
         }
+    }
+
+    // return a pointer to the allocated memory, offset by the
+    // specified number of bytes
+    T* data_offset(size_t offset_bytes = 0) const
+    {
+        void* ptr = static_cast<char*>(buf) + offset_bytes;
+        return static_cast<T*>(ptr);
     }
 
     T* data() const
@@ -105,8 +124,9 @@ public:
 
 private:
     // The GPU buffer
-    void*  buf   = nullptr;
-    size_t bsize = 0;
+    void*  buf    = nullptr;
+    size_t bsize  = 0;
+    int    device = 0;
 };
 
 // default gpubuf that gives out void* pointers

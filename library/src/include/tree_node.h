@@ -30,6 +30,7 @@
 #include <vector>
 
 #include "../../../shared/gpubuf.h"
+#include "../../../shared/hip_object_wrapper.h"
 #include "../../../shared/rocfft_complex.h"
 #include "../device/kernels/callback.h"
 #include "../device/kernels/common.h"
@@ -695,8 +696,231 @@ public:
     }
 };
 
-struct ExecPlan
+// identifier for an MPI/rccl rank.
+typedef int rocfft_rank_t;
+// identifier for a device (HIP device ID)
+typedef int rocfft_deviceid_t;
+
+// abstract base class for all items in a multi-node/device plan
+struct MultiPlanItem
 {
+    MultiPlanItem()                     = default;
+    virtual ~MultiPlanItem()            = default;
+    MultiPlanItem(const MultiPlanItem&) = delete;
+    MultiPlanItem& operator=(const MultiPlanItem&) = delete;
+
+    // Does this item run on the specified rank?  This could
+    // mean that the item needs to run kernels on a device on that rank,
+    // or that it's either sending or receiving data to/from that rank.
+    virtual bool RunsOnRank(const rocfft_rank_t rank) const = 0;
+
+    // Allocate this object's stream and queue work onto it.  This
+    // object's event is allocated and recorded on the stream when
+    // the last piece of work is queued, so callers can wait on that
+    // event to know when the work is complete.
+    virtual void ExecuteAsync(const rocfft_plan     plan,
+                              const rocfft_rank_t   rank,
+                              void*                 in_buffer[],
+                              void*                 out_buffer[],
+                              rocfft_execution_info info)
+        = 0;
+
+    // wait for async operations to finish
+    virtual void Wait() = 0;
+
+    // Get work buffer requirements for this item.  Only ExecPlans
+    // should need this, as data movement shouldn't need temp buffers.
+    virtual size_t WorkBufBytes(size_t base_type_size) const
+    {
+        return 0;
+    }
+
+    // Utility function to check HIP memcpy accessibility between two
+    // devices.  Throws std::runtime_error if access is not possible.
+    static void CheckAccess(rocfft_deviceid_t src, rocfft_deviceid_t dest)
+    {
+        // allow same device, since we'll do normal memcpy instead of
+        // peer memcpy in that case
+        if(src == dest)
+            return;
+        int canAccessPeer = 0;
+        if(hipDeviceCanAccessPeer(&canAccessPeer, src, dest) != hipSuccess)
+            throw std::runtime_error("hipDeviceCanAccessPeer failed");
+        if(!canAccessPeer)
+            throw std::runtime_error("Unable to perform peer-to-peer GPU-direct copies");
+    }
+
+    // print a description of this item to the plan log
+    virtual void Print(rocfft_ostream& os, const int indent) const = 0;
+
+    // utility function to print a buffer enum with a (nullable)
+    // pointer value and offset
+    static std::string PrintBufferPtrOffset(OperatingBuffer buf, const void* ptr, size_t offset);
+};
+
+// communication operations
+
+// This struct has a vector of ranks to scatter to.  Executing can
+// create an MPI group with those ranks.
+struct CommScatter : public MultiPlanItem
+{
+    rocfft_precision  precision;
+    rocfft_array_type arrayType;
+
+    rocfft_rank_t     srcRank;
+    rocfft_deviceid_t srcDeviceID;
+    OperatingBuffer   srcBuf;
+    void*             srcPtr = nullptr;
+
+    // one or more ranks to send data to
+    struct ScatterOp
+    {
+        ScatterOp(rocfft_rank_t     destRank,
+                  rocfft_deviceid_t destDeviceID,
+                  OperatingBuffer   destBuf,
+                  void*             destPtr,
+                  size_t            srcOffset,
+                  size_t            destOffset,
+                  size_t            numElems)
+            : destRank(destRank)
+            , destDeviceID(destDeviceID)
+            , destBuf(destBuf)
+            , destPtr(destPtr)
+            , srcOffset(srcOffset)
+            , destOffset(destOffset)
+            , numElems(numElems)
+        {
+        }
+
+        rocfft_rank_t     destRank;
+        rocfft_deviceid_t destDeviceID;
+        OperatingBuffer   destBuf;
+        void*             destPtr = nullptr;
+
+        size_t srcOffset;
+        size_t destOffset;
+
+        // number of elements to copy
+        size_t numElems;
+    };
+    std::vector<ScatterOp> ops;
+
+    bool RunsOnRank(const rocfft_rank_t rank) const override
+    {
+        return true;
+    }
+    void ExecuteAsync(const rocfft_plan     plan,
+                      const rocfft_rank_t   rank,
+                      void*                 in_buffer[],
+                      void*                 out_buffer[],
+                      rocfft_execution_info info) override;
+    void Wait() override;
+
+    void Print(rocfft_ostream& os, const int indent) const override;
+
+private:
+    // Stream to run the async operations in
+    hipStream_wrapper_t stream;
+    // Event to signal when the async operations are finished.
+    hipEvent_wrapper_t event;
+};
+
+// This struct has a vector of ranks to gather from.  Executing can
+// create an MPI group with those ranks.
+struct CommGather : public MultiPlanItem
+{
+    rocfft_precision  precision;
+    rocfft_array_type arrayType;
+
+    rocfft_rank_t     destRank;
+    rocfft_deviceid_t destDeviceID;
+    OperatingBuffer   destBuf;
+    void*             destPtr = nullptr;
+
+    // one or more ranks to get data from
+    struct GatherOp
+    {
+        GatherOp(rocfft_rank_t     srcRank,
+                 rocfft_deviceid_t srcDeviceID,
+                 OperatingBuffer   srcBuf,
+                 void*             srcPtr,
+                 size_t            srcOffset,
+                 size_t            destOffset,
+                 size_t            numElems)
+            : srcRank(srcRank)
+            , srcDeviceID(srcDeviceID)
+            , srcBuf(srcBuf)
+            , srcPtr(srcPtr)
+            , srcOffset(srcOffset)
+            , destOffset(destOffset)
+            , numElems(numElems)
+        {
+        }
+
+        rocfft_rank_t     srcRank;
+        rocfft_deviceid_t srcDeviceID;
+        OperatingBuffer   srcBuf;
+        void*             srcPtr = nullptr;
+
+        size_t srcOffset;
+        size_t destOffset;
+
+        // number of elements to copy
+        size_t numElems;
+    };
+    std::vector<GatherOp> ops;
+
+    bool RunsOnRank(const rocfft_rank_t rank) const override
+    {
+        return true;
+    }
+    void ExecuteAsync(const rocfft_plan     plan,
+                      const rocfft_rank_t   rank,
+                      void*                 in_buffer[],
+                      void*                 out_buffer[],
+                      rocfft_execution_info info) override;
+    void Wait() override;
+
+    void Print(rocfft_ostream& os, const int indent) const override;
+
+    // Streams to run the async operations in - since each memcpy is
+    // coming from a different source device, each needs a separate
+    // stream
+    std::vector<hipStream_wrapper_t> streams;
+    // Events to signal when the async operations are finished.
+    std::vector<hipEvent_wrapper_t> events;
+};
+
+// Tree-structured FFT plan.  This is specific to a single device on
+// a single rank, since the TreeNodes inside here will have device
+// memory allocated for things like kernel arguments and twiddles.
+struct ExecPlan : public MultiPlanItem
+{
+
+    // rank+device where this work will be executed
+    rocfft_rank_t     rank;
+    rocfft_deviceid_t deviceID;
+
+    // Normally, input/output are provided by users.  In a multi-device
+    // plan, we might use temp buffers for input/output.  If so, these
+    // are pointers to those temp buffers.
+    void* inputPtr  = nullptr;
+    void* outputPtr = nullptr;
+
+    bool RunsOnRank(const rocfft_rank_t rank) const override
+    {
+        return true;
+    }
+    void ExecuteAsync(const rocfft_plan     plan,
+                      const rocfft_rank_t   rank,
+                      void*                 in_buffer[],
+                      void*                 out_buffer[],
+                      rocfft_execution_info info) override;
+
+    void Wait() override;
+
+    void Print(rocfft_ostream& os, const int indent) const override;
+
     // shared pointer allows for ExecPlans to be copyable
     std::shared_ptr<TreeNode> rootPlan;
 
@@ -747,7 +971,7 @@ struct ExecPlan
     // OB_IN refers to iStride, OB_OUT refers to oStride
     std::map<OperatingBuffer, bool> isUnitStride;
 
-    size_t WorkBufBytes(size_t base_type_size) const
+    size_t WorkBufBytes(size_t base_type_size) const override
     {
         // base type is the size of one real, work buf counts in
         // complex numbers
@@ -757,6 +981,13 @@ struct ExecPlan
     // for callbacks, work out which nodes of the plan are loading data
     // from global memory, and storing data to global memory
     std::pair<TreeNode*, TreeNode*> get_load_store_nodes() const;
+
+private:
+    // Stream to run the async operations in - might be unallocated
+    // if the user gave us a stream to use
+    hipStream_wrapper_t stream;
+    // Event to signal when the async operations are finished.
+    hipEvent_wrapper_t event;
 };
 
 std::unique_ptr<SchemeTree> ApplySolution(ExecPlan& execPlan);
@@ -764,7 +995,7 @@ std::unique_ptr<SchemeTree> ApplySolution(ExecPlan& execPlan);
 // get a min_token (without batch, stride, offset...) of a node, for generating a prob-key
 void GetNodeToken(const TreeNode& probNode, std::string& min_token, std::string& full_token);
 void ProcessNode(ExecPlan& execPlan);
-void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan);
+void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan, const int indent = 0);
 bool BufferIsUnitStride(ExecPlan& execPlan, OperatingBuffer buf);
 
 #endif // TREE_NODE_H

@@ -9,6 +9,6 @@ subtrees:
     entries:
     - file: api
     - file: allapi
-  - caption: API
+  - caption: License
     entries:
     - file: license

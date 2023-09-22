@@ -56,6 +56,15 @@ typedef struct rocfft_plan_description_t* rocfft_plan_description;
  *  */
 typedef struct rocfft_execution_info_t* rocfft_execution_info;
 
+/*! @brief Pointer type to a rocFFT field structure.
+ *
+ *  @details rocFFT fields are used to hold data decomposition information which is then passed to a
+ *  \ref rocfft_plan via a \ref rocfft_plan_description
+ *
+ *  @warning Experimental!  This feature is part of an experimental API preview.
+ *  */
+typedef struct rocfft_field_t* rocfft_field;
+
 /*! @brief rocFFT status/error codes */
 typedef enum rocfft_status_e
 {
@@ -109,6 +118,17 @@ typedef enum rocfft_array_type_e
     rocfft_array_type_hermitian_planar,
     rocfft_array_type_unset,
 } rocfft_array_type;
+
+/*! @brief Brick decomposition properties.
+ *
+ *  @details The rocfft_brick_type enum type specifies properties of the brick decomposition.
+ *
+ *  @warning Experimental!  This feature is part of an experimental API preview.
+*/
+typedef enum rocfft_brick_type_e
+{
+    rocfft_brick_type_normal,
+} rocfft_brick_type;
 
 #if 0
 /*! @brief Execution mode */
@@ -178,11 +198,15 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_create(rocfft_plan*                  pla
  *  the output buffer parameter can be set to NULL. For not in-place
  *  transforms, output buffers have to be specified.
  *
- *  Input and output buffer are arrays of pointers.  Interleaved
+ *  Input and output buffers are arrays of pointers.  Interleaved
  *  array formats are the default, and require just one pointer per
  *  input or output buffer.  Planar array formats require two
  *  pointers per input or output buffer - real and imaginary
  *  pointers, in that order.
+ *
+ *  If fields have been set for transform input or output, these
+ *  arrays have one pointer per brick in the input or output field,
+ *  provided in the order that the bricks were added to the field.
  *
  *  Note that input buffers may still be overwritten during execution
  *  of a transform, even if the transform is not in-place.
@@ -193,9 +217,10 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_create(rocfft_plan*                  pla
  *
  *  @param[in] plan plan handle
  *  @param[in,out] in_buffer array (of size 1 for interleaved data, of size 2
- * for planar data) of input buffers
+ * for planar data, or one per brick if an input field is set) of input buffers
  *  @param[in,out] out_buffer array (of size 1 for interleaved data, of size 2
- * for planar data) of output buffers, ignored for in-place transforms
+ * for planar data, or one per brick if an output field is set) of output buffers,
+ * ignored for in-place transforms
  *  @param[in] info execution info handle created by
  * rocfft_execution_info_create
  *  */
@@ -245,6 +270,10 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_scale_factor(
  *  Not all combinations of array types are supported and error codes
  *  will be returned for unsupported cases.
  *
+ *  Offset, stride, and distance for either input or output provided
+ *  here is ignored if a field is set for the corresponding input or
+ *  output.
+ * 
  *  @param[in, out] description description handle
  *  @param[in] in_array_type array type of input buffer
  *  @param[in] out_array_type array type of output buffer
@@ -273,6 +302,21 @@ ROCFFT_EXPORT rocfft_status
                                             const size_t*           out_strides,
                                             const size_t            out_distance);
 
+/*! @brief Create a rocfft field struct.
+ *
+ *  @warning Experimental!  This feature is part of an experimental API preview.
+ */
+ROCFFT_EXPORT rocfft_status rocfft_field_create(rocfft_field* field);
+
+/*! @brief Destroy a rocfft field struct
+ * 
+ * The field struct can be destroyed after being added to the plan description; it is not used for
+ * plan execution.
+ *
+ *  @warning Experimental!  This feature is part of an experimental API preview.
+ */
+ROCFFT_EXPORT rocfft_status rocfft_field_destroy(rocfft_field field);
+
 /*! @brief Get library version string
  *
  * @param[in, out] buf buffer that receives the version string
@@ -280,15 +324,73 @@ ROCFFT_EXPORT rocfft_status
  */
 ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, size_t len);
 
-#if 0
-/*! @brief Set devices in plan description
- *  @details This is one of plan description functions to specify optional additional plan properties using the description handle. This API specifies what compute devices to target.
- *  @param[in] description description handle
- *  @param[in] devices array of device identifiers
- *  @param[in] number_of_devices number of devices (size of devices array)
- *  */
-ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_devices( rocfft_plan_description description, void *devices, size_t number_of_devices );
-#endif
+/*! @brief Add a brick decomposition to a field.
+ *
+ * Fields can contain a full-dimensional data distribution.  The
+ * decomposition is specified by providing a lower coordinate and an
+ * upper coordinate in the field's index space.  The lower coordinate
+ * is inclusive (contained within the brick) and the upper coordinate
+ * is exclusive (first index past the end of the brick).
+ *
+ * One must also provide a stride for the brick data which specifies
+ * how the brick's data is arranged in memory.
+ *
+ * All coordinates and strides include batch dimensions.
+ *
+ * A HIP device ID is also provided - each brick may reside on a
+ * different device.
+ *
+ * All arrays may be re-used or freed immediately after the function returns.
+ *
+ * Note that the order in which the bricks are added is significant;
+ * the pointers provided for each brick to ::rocfft_execute are in
+ * the same order that the bricks were added to the field.
+ * 
+ * @param[in, out] field: \ref rocfft_field struct which holds the brick decomposition.
+ * @param[in] field_lower: array of length dim specifying the lower index (inclusive) for the brick in the
+ * field's index space.
+ * @param[in] field_upper: array of length dim specifying the upper index (exclusive) for the brick in the
+ * field's index space.
+ * @param[in] brick_stride: array of length dim specifying the brick's stride in memory
+ * @param[in] dim length of brick: includes lengths and batch dimension; must match the dimension of
+ * the lengths + batch dimension of the transform.
+ * @param[in] deviceID: HIP device ID for the device on which the brick's data is resident.
+ * @param[in] brick_type: a \ref rocfft_brick_type_e enum value to specify brick properties.  Current
+ * allowed values are: rocfft_brick_type_normal
+ *
+ *  @warning Experimental!  This feature is part of an experimental API preview.
+ */
+ROCFFT_EXPORT rocfft_status rocfft_field_add_brick(rocfft_field      field,
+                                                   const size_t*     field_lower,
+                                                   const size_t*     field_upper,
+                                                   const size_t*     brick_stride,
+                                                   size_t            dim,
+                                                   int               deviceID,
+                                                   rocfft_brick_type brick_type);
+
+/*! @brief Add a \ref rocfft_field to a \ref rocfft_plan_description as an input.
+ *
+ * The field may be reused or freed immediately after the function returns.
+ *
+ * @param[in, out] description: \ref rocfft_plan_description that will pass the field information to plan creation
+ * @param[in] field: \ref rocfft_field struct added as an input field
+ *
+ *  @warning Experimental!  This feature is part of an experimental API preview.
+ */
+ROCFFT_EXPORT rocfft_status rocfft_plan_description_add_infield(rocfft_plan_description description,
+                                                                rocfft_field            field);
+
+/*! @brief Add a \ref rocfft_field to a \ref rocfft_plan_description as an output.
+ *
+ * The field may be reused or freed immediately after the function returns.
+ * 
+ * @param[in, out] description: \ref rocfft_plan_description  that will pass the field information to plan creation
+ * @param[in] field: \ref rocfft_field struct added as an output field
+ *
+ *  @warning Experimental!  This feature is part of an experimental API preview.
+ */
+ROCFFT_EXPORT rocfft_status
+    rocfft_plan_description_add_outfield(rocfft_plan_description description, rocfft_field field);
 
 /*! @brief Get work buffer size
  *  @details Get the work buffer size required for a plan.

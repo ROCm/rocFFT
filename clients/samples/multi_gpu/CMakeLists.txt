@@ -1,5 +1,5 @@
 # #############################################################################
-# Copyright (C) 2016 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -32,7 +32,6 @@ else( )
     "Install path prefix, prepended onto install directories" )
 endif( )
 
-
 # This has to be initialized before the project() command appears
 # Set the default of CMAKE_BUILD_TYPE to be release, unless user
 # specifies with -D.  MSVC_IDE does not use CMAKE_BUILD_TYPE
@@ -41,17 +40,82 @@ if( NOT DEFINED CMAKE_CONFIGURATION_TYPES AND NOT DEFINED CMAKE_BUILD_TYPE )
     "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." )
 endif()
 
-set( ROCFFT_CLIENTS_SAMPLES_BUILD_SCOPE ON )
-
-project( rocfft-clients-samples LANGUAGES CXX )
+project( rocfft-clients-samples-multi_gpu LANGUAGES CXX )
 
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
-list( APPEND samples_subdirs "fixed-16" )
-list( APPEND samples_subdirs "fixed-large" )
-list( APPEND samples_subdirs "rocfft" )
-list( APPEND samples_subdirs "multi_gpu" )
+if( NOT TARGET rocfft )
+  find_package( rocfft REQUIRED CONFIG PATHS )
+endif( )
 
-foreach( client ${samples_subdirs} )
-  add_subdirectory( ${client} )
+if( NOT HIP_FOUND )
+  find_package( HIP REQUIRED )
+endif()
+
+if( NOT hiprand_FOUND )
+  find_package( hiprand REQUIRED )
+endif()
+
+find_package( Boost COMPONENTS program_options REQUIRED)
+set( Boost_DEBUG ON )
+set( Boost_USE_MULTITHREADED ON )
+
+if(NOT Boost_LIBRARIES)
+  # Fixes a bug in Boost's CMAKE where Boost_LIBRARIES is not set.
+  set(Boost_LIBRARIES Boost::program_options)
+endif()
+
+set( sample_list mgpu_complex)
+
+foreach( sample ${sample_list} )
+
+  add_executable( ${sample} ${sample}.cpp )
+
+  target_include_directories(
+    ${sample}
+    PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
+    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
+  )
+
+target_link_libraries(
+  ${sample}
+  PRIVATE roc::rocfft
+  hip::hiprand
+  ${Boost_LIBRARIES}
+  )
+
+  target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} -Wno-cpp )
+
+  set_target_properties( ${sample} PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+  )
+
+  if( ROCFFT_BUILD_SCOPE )
+    set( SAMPLES_ROCFFT_OUT_DIR "/../../staging" )
+  elseif( ROCFFT_CLIENTS_BUILD_SCOPE )
+    set( SAMPLES_ROCFFT_OUT_DIR "/../../bin" )
+  elseif( ROCFFT_CLIENTS_SAMPLES_BUILD_SCOPE )
+    set( SAMPLES_ROCFFT_OUT_DIR "/../bin" )
+  else()
+    set( SAMPLES_ROCFFT_OUT_DIR "/bin" )
+  endif()
+  string( CONCAT SAMPLES_ROCFFT_OUT_DIR "${PROJECT_BINARY_DIR}" ${SAMPLES_ROCFFT_OUT_DIR} )
+
+  set_target_properties(${sample}
+                        PROPERTIES 
+                        RUNTIME_OUTPUT_DIRECTORY 
+                        ${SAMPLES_ROCFFT_OUT_DIR})
+
+  if( CUDA_FOUND )
+    target_include_directories( ${sample}
+      PRIVATE
+        $<BUILD_INTERFACE:${CUDA_INCLUDE_DIRS}>
+        $<BUILD_INTERFACE:${hip_INCLUDE_DIRS}>
+      )
+    target_compile_definitions( ${sample} PRIVATE __HIP_PLATFORM_NVCC__ )
+  endif( )
+  target_link_libraries( ${sample} PRIVATE ${ROCFFT_CLIENTS_HOST_LINK_LIBS} ${ROCFFT_CLIENTS_DEVICE_LINK_LIBS} )
+
 endforeach( )

@@ -57,10 +57,17 @@ public:
         free();
     }
 
-    void alloc(const size_t size)
+    void alloc(size_t size)
     {
         bsize = size;
         free();
+
+        // we're aligning to multiples of 64 bytes, so round the
+        // allocation size up to the nearest 64 to keep ASAN happy
+        if(size % 64)
+        {
+            size += 64 - size % 64;
+        }
 
         // FFTW requires aligned allocations to use faster SIMD instructions.
         // If enabling hugepages, align to 2 MiB. Otherwise, aligning to
