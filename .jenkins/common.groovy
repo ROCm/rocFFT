@@ -67,16 +67,22 @@ def runCompileClientCommand(platform, project, jobName, boolean debug=false)
     platform.runCommand(this, command)
 }
 
-def runTestCommand (platform, project, boolean debug=false)
+def runTestCommand (platform, project, boolean debug=false, gfilter='')
 {
     String sudo = auxiliary.sudo(platform.jenkinsLabel)
     String testBinaryName = 'rocfft-test'
     String directory = debug ? 'debug' : 'release'
 
+    String gfilterArg = ''
+    if (gfilter)
+    {
+        gfilterArg = "--gtest_filter=${gfilter}"
+    }
+
     def command = """#!/usr/bin/env bash
                 set -ex
                 cd ${project.paths.project_build_prefix}/build/${directory}/clients/staging
-                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --precompile=rocfft-test-precompile.db --gtest_color=yes --R 80
+                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --precompile=rocfft-test-precompile.db ${gfilterArg} --gtest_color=yes --R 80
             """
     platform.runCommand(this, command)
 }

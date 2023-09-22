@@ -13,7 +13,7 @@ def runCI =
 {
     nodeDetails, jobName->
 
-    def prj  = new rocProject('rocFFT-internal', 'PreCheckin')
+    def prj  = new rocProject('rocFFT-internal', 'multigpu')
 
     prj.defaults.ccache = true
     prj.timeout.compile = 600
@@ -40,7 +40,7 @@ def runCI =
     {
         platform, project->
 
-        commonGroovy.runTestCommand(platform, project, false, "-*multi_gpu*")
+        commonGroovy.runTestCommand(platform, project, false, "*multi_gpu*")
     }
 
     def packageCommand =
@@ -56,10 +56,10 @@ def runCI =
 ci: { 
     String urlJobName = auxiliary.getTopJobName(env.BUILD_URL)
 
-    def propertyList = ["compute-rocm-dkms-no-npi-hipclang":[pipelineTriggers([cron('0 1 * * 0')])]]
+    def propertyList = ["main":[pipelineTriggers([cron('0 1 * * 0')])]]
     propertyList = auxiliary.appendPropertyList(propertyList)
 
-    def jobNameList = ["compute-rocm-dkms-no-npi-hipclang":([ubuntu18:['gfx900'],centos7:['gfx906'],centos8:['gfx906'],sles15sp1:['gfx908']])]
+    def jobNameList = ["main":([ubuntu20:['8gfx90a']])]
     jobNameList = auxiliary.appendJobNameList(jobNameList)
 
     propertyList.each 
@@ -83,7 +83,7 @@ ci: {
     {
         properties(auxiliary.addCommonProperties([pipelineTriggers([cron('0 1 * * *')])]))
         stage(urlJobName) {
-            runCI([ubuntu18:['gfx906']], urlJobName)
+            runCI([ubuntu20:['8gfx90a']], urlJobName)
         }
     }
 }
