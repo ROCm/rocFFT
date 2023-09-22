@@ -724,7 +724,6 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
         auto gather          = std::make_unique<CommGather>();
         gather->precision    = execPlan->rootPlan->precision;
         gather->arrayType    = execPlan->rootPlan->inArrayType;
-        gather->destRank     = 0;
         gather->destDeviceID = 0;
         gather->destBuf      = OB_USER_OUT;
 
@@ -734,7 +733,7 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
         for(const auto& b : inField.bricks)
         {
             gather->ops.emplace_back(
-                b.rank, b.device, OB_USER_IN, nullptr, 0, contiguousOffset, b.count_elems());
+                b.device, OB_USER_IN, nullptr, 0, contiguousOffset, b.count_elems());
             contiguousOffset += b.count_elems();
         }
 
@@ -770,7 +769,6 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
 
         scatter->precision   = execPlan->rootPlan->precision;
         scatter->arrayType   = execPlan->rootPlan->inArrayType;
-        scatter->srcRank     = 0;
         scatter->srcDeviceID = 0;
         scatter->srcBuf      = OB_USER_OUT;
         scatter->srcPtr      = fftBuf.data();
@@ -779,7 +777,7 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
         {
             const auto brickLen = b.length();
             scatter->ops.emplace_back(
-                b.rank, b.device, OB_USER_OUT, nullptr, contiguousOffset, 0, b.count_elems());
+                b.device, OB_USER_OUT, nullptr, contiguousOffset, 0, b.count_elems());
             contiguousOffset += b.count_elems();
         }
     }

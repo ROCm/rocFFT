@@ -434,7 +434,6 @@ static void* ptr_offset(void* p, size_t elems, rocfft_precision precision, rocff
 }
 
 void CommScatter::ExecuteAsync(const rocfft_plan     plan,
-                               const rocfft_rank_t   rank,
                                void*                 in_buffer[],
                                void*                 out_buffer[],
                                rocfft_execution_info info)
@@ -497,14 +496,12 @@ void CommScatter::Print(rocfft_ostream& os, const int indent) const
 
     os << indentStr << "CommScatter " << precision_name(precision) << " "
        << PrintArrayType(arrayType) << ":" << std::endl;
-    os << indentStr << "  srcRank: " << srcRank << std::endl;
     os << indentStr << "  srcDeviceID: " << srcDeviceID << std::endl;
     os << std::endl;
 
     for(size_t i = 0; i < ops.size(); ++i)
     {
         const auto& op = ops[i];
-        os << indentStr << "    destRank: " << op.destRank << std::endl;
         os << indentStr << "    destDeviceID: " << op.destDeviceID << std::endl;
         os << indentStr << "    srcBuf: " << PrintBufferPtrOffset(srcBuf, srcPtr, op.srcOffset)
            << std::endl;
@@ -517,7 +514,6 @@ void CommScatter::Print(rocfft_ostream& os, const int indent) const
 }
 
 void CommGather::ExecuteAsync(const rocfft_plan     plan,
-                              const rocfft_rank_t   rank,
                               void*                 in_buffer[],
                               void*                 out_buffer[],
                               rocfft_execution_info info)
@@ -591,14 +587,12 @@ void CommGather::Print(rocfft_ostream& os, const int indent) const
 
     os << indentStr << "CommGather " << precision_name(precision) << " "
        << PrintArrayType(arrayType) << ":" << std::endl;
-    os << indentStr << "  destRank: " << destRank << std::endl;
     os << indentStr << "  destDeviceID: " << destDeviceID << std::endl;
     os << std::endl;
 
     for(size_t i = 0; i < ops.size(); ++i)
     {
         const auto& op = ops[i];
-        os << indentStr << "    srcRank: " << op.srcRank << std::endl;
         os << indentStr << "    srcDeviceID: " << op.srcDeviceID << std::endl;
         os << indentStr << "    destBuf: " << PrintBufferPtrOffset(destBuf, destPtr, op.destOffset)
            << std::endl;
@@ -617,7 +611,6 @@ void ExecPlan::Print(rocfft_ostream& os, const int indent) const
     while(i--)
         indentStr += "    ";
     os << indentStr << "ExecPlan:" << std::endl;
-    os << indentStr << "  rank: " << rank << std::endl;
     os << indentStr << "  deviceID: " << deviceID << std::endl;
     if(inputPtr)
         os << indentStr << "  inputPtr: " << inputPtr << std::endl;

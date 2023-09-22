@@ -696,8 +696,6 @@ public:
     }
 };
 
-// identifier for an MPI/rccl rank.
-typedef int rocfft_rank_t;
 // identifier for a device (HIP device ID)
 typedef int rocfft_deviceid_t;
 
@@ -709,17 +707,11 @@ struct MultiPlanItem
     MultiPlanItem(const MultiPlanItem&) = delete;
     MultiPlanItem& operator=(const MultiPlanItem&) = delete;
 
-    // Does this item run on the specified rank?  This could
-    // mean that the item needs to run kernels on a device on that rank,
-    // or that it's either sending or receiving data to/from that rank.
-    virtual bool RunsOnRank(const rocfft_rank_t rank) const = 0;
-
     // Allocate this object's stream and queue work onto it.  This
     // object's event is allocated and recorded on the stream when
     // the last piece of work is queued, so callers can wait on that
     // event to know when the work is complete.
     virtual void ExecuteAsync(const rocfft_plan     plan,
-                              const rocfft_rank_t   rank,
                               void*                 in_buffer[],
                               void*                 out_buffer[],
                               rocfft_execution_info info)
@@ -767,7 +759,6 @@ struct CommScatter : public MultiPlanItem
     rocfft_precision  precision;
     rocfft_array_type arrayType;
 
-    rocfft_rank_t     srcRank;
     rocfft_deviceid_t srcDeviceID;
     OperatingBuffer   srcBuf;
     void*             srcPtr = nullptr;
@@ -775,15 +766,13 @@ struct CommScatter : public MultiPlanItem
     // one or more ranks to send data to
     struct ScatterOp
     {
-        ScatterOp(rocfft_rank_t     destRank,
-                  rocfft_deviceid_t destDeviceID,
+        ScatterOp(rocfft_deviceid_t destDeviceID,
                   OperatingBuffer   destBuf,
                   void*             destPtr,
                   size_t            srcOffset,
                   size_t            destOffset,
                   size_t            numElems)
-            : destRank(destRank)
-            , destDeviceID(destDeviceID)
+            : destDeviceID(destDeviceID)
             , destBuf(destBuf)
             , destPtr(destPtr)
             , srcOffset(srcOffset)
@@ -792,7 +781,6 @@ struct CommScatter : public MultiPlanItem
         {
         }
 
-        rocfft_rank_t     destRank;
         rocfft_deviceid_t destDeviceID;
         OperatingBuffer   destBuf;
         void*             destPtr = nullptr;
@@ -805,12 +793,7 @@ struct CommScatter : public MultiPlanItem
     };
     std::vector<ScatterOp> ops;
 
-    bool RunsOnRank(const rocfft_rank_t rank) const override
-    {
-        return true;
-    }
     void ExecuteAsync(const rocfft_plan     plan,
-                      const rocfft_rank_t   rank,
                       void*                 in_buffer[],
                       void*                 out_buffer[],
                       rocfft_execution_info info) override;
@@ -832,7 +815,6 @@ struct CommGather : public MultiPlanItem
     rocfft_precision  precision;
     rocfft_array_type arrayType;
 
-    rocfft_rank_t     destRank;
     rocfft_deviceid_t destDeviceID;
     OperatingBuffer   destBuf;
     void*             destPtr = nullptr;
@@ -840,15 +822,13 @@ struct CommGather : public MultiPlanItem
     // one or more ranks to get data from
     struct GatherOp
     {
-        GatherOp(rocfft_rank_t     srcRank,
-                 rocfft_deviceid_t srcDeviceID,
+        GatherOp(rocfft_deviceid_t srcDeviceID,
                  OperatingBuffer   srcBuf,
                  void*             srcPtr,
                  size_t            srcOffset,
                  size_t            destOffset,
                  size_t            numElems)
-            : srcRank(srcRank)
-            , srcDeviceID(srcDeviceID)
+            : srcDeviceID(srcDeviceID)
             , srcBuf(srcBuf)
             , srcPtr(srcPtr)
             , srcOffset(srcOffset)
@@ -857,7 +837,6 @@ struct CommGather : public MultiPlanItem
         {
         }
 
-        rocfft_rank_t     srcRank;
         rocfft_deviceid_t srcDeviceID;
         OperatingBuffer   srcBuf;
         void*             srcPtr = nullptr;
@@ -870,12 +849,7 @@ struct CommGather : public MultiPlanItem
     };
     std::vector<GatherOp> ops;
 
-    bool RunsOnRank(const rocfft_rank_t rank) const override
-    {
-        return true;
-    }
     void ExecuteAsync(const rocfft_plan     plan,
-                      const rocfft_rank_t   rank,
                       void*                 in_buffer[],
                       void*                 out_buffer[],
                       rocfft_execution_info info) override;
@@ -897,8 +871,7 @@ struct CommGather : public MultiPlanItem
 struct ExecPlan : public MultiPlanItem
 {
 
-    // rank+device where this work will be executed
-    rocfft_rank_t     rank;
+    // device where this work will be executed
     rocfft_deviceid_t deviceID;
 
     // Normally, input/output are provided by users.  In a multi-device
@@ -907,12 +880,7 @@ struct ExecPlan : public MultiPlanItem
     void* inputPtr  = nullptr;
     void* outputPtr = nullptr;
 
-    bool RunsOnRank(const rocfft_rank_t rank) const override
-    {
-        return true;
-    }
     void ExecuteAsync(const rocfft_plan     plan,
-                      const rocfft_rank_t   rank,
                       void*                 in_buffer[],
                       void*                 out_buffer[],
                       rocfft_execution_info info) override;

@@ -85,7 +85,6 @@ struct rocfft_brick_t
     size_t offset_in_field(const std::vector<size_t>& fieldStride, size_t fieldDist) const;
 
     // location of the brick
-    int rank   = 0;
     int device = 0;
 };
 
@@ -163,7 +162,7 @@ struct rocfft_plan_t
     void sort();
 
     // Add a multi-plan item for execution.  Returns the index of the
-    // new item in the overall multi-rank/GPU plan.  Also provide a
+    // new item in the overall multi-GPU plan.  Also provide a
     // vector of indexes of other items that must complete before this
     // item can run.
     size_t AddMultiPlanItem(std::unique_ptr<MultiPlanItem>&& item,
@@ -172,11 +171,8 @@ struct rocfft_plan_t
     // Add a new antecedent for an existing item index
     void AddAntecedent(size_t itemIdx, size_t antecedentIdx);
 
-    // Execute the multi-rank/GPU plan.
-    void Execute(rocfft_rank_t         currentRank,
-                 void*                 in_buffer[],
-                 void*                 out_buffer[],
-                 rocfft_execution_info info);
+    // Execute the multi-GPU plan.
+    void Execute(void* in_buffer[], void* out_buffer[], rocfft_execution_info info);
 
     size_t WorkBufBytes() const;
 
@@ -196,8 +192,8 @@ struct rocfft_plan_t
 
 private:
     // Multi-node or multi-GPU plan is built up from a vector of plan
-    // items.  Items can launch kernels on a rank + device, or move
-    // data between ranks + devices.
+    // items.  Items can launch kernels on a device, or move
+    // data between devices.
     std::vector<std::unique_ptr<MultiPlanItem>> multiPlan;
 
     // Adjacency list describing dependencies between multiPlan items.

@@ -146,7 +146,6 @@ void rocfft_plan_t::LogFields(const char* description, const std::vector<rocfft_
         {
             const auto& b = f.bricks[brickIdx];
             os << "  brick " << brickIdx << ":" << std::endl;
-            os << "    rank: " << b.rank << std::endl;
             os << "    device: " << b.device << std::endl;
             os << "    lower bound:";
             for(auto i : b.lower)
@@ -213,10 +212,7 @@ void rocfft_plan_t::LogSortedPlan(const std::vector<size_t>& sortedIdx) const
     }
 }
 
-void rocfft_plan_t::Execute(rocfft_rank_t         currentRank,
-                            void*                 in_buffer[],
-                            void*                 out_buffer[],
-                            rocfft_execution_info info)
+void rocfft_plan_t::Execute(void* in_buffer[], void* out_buffer[], rocfft_execution_info info)
 {
     // vector of topologically sorted indexes to the items in multiPlan
     auto sortedIdx = MultiPlanTopologicalSort();
@@ -234,10 +230,6 @@ void rocfft_plan_t::Execute(rocfft_rank_t         currentRank,
             continue;
 
         auto& item = *multiPlan[idx];
-        if(!item.RunsOnRank(currentRank))
-            continue;
-
-        // so now we have an item that involves this rank somehow
 
         for(auto antecedentIdx : multiPlanAdjacency[idx])
         {
@@ -246,8 +238,6 @@ void rocfft_plan_t::Execute(rocfft_rank_t         currentRank,
 
             // check if antecedent involved us
             auto& antecedent = *multiPlan[antecedentIdx];
-            if(!antecedent.RunsOnRank(currentRank))
-                continue;
 
             // the antecedent involved us somehow, wait for it
             antecedent.Wait();
@@ -256,7 +246,7 @@ void rocfft_plan_t::Execute(rocfft_rank_t         currentRank,
         // done waiting for all our antecedents, so this item can now proceed
 
         // launch this item async
-        item.ExecuteAsync(this, currentRank, in_buffer, out_buffer, info);
+        item.ExecuteAsync(this, in_buffer, out_buffer, info);
     }
 
     // finished executing all items, wait for outstanding work to complete
@@ -285,7 +275,7 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
 
     try
     {
-        plan->Execute(0, in_buffer, out_buffer, info);
+        plan->Execute(in_buffer, out_buffer, info);
     }
     catch(std::exception& e)
     {
@@ -303,7 +293,6 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
 }
 
 void ExecPlan::ExecuteAsync(const rocfft_plan     plan,
-                            const rocfft_rank_t   rank,
                             void*                 in_buffer[],
                             void*                 out_buffer[],
                             rocfft_execution_info info)
