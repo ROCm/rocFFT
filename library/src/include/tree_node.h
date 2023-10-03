@@ -874,6 +874,11 @@ struct ExecPlan : public MultiPlanItem
     // device where this work will be executed
     rocfft_deviceid_t deviceID;
 
+    // In a multi-device plan, this flag is set to true to allow
+    // the recording and synchronization of events, as well as
+    // the creation of required temporary buffers
+    bool mgpuPlan = false;
+
     // Normally, input/output are provided by users.  In a multi-device
     // plan, we might use temp buffers for input/output.  If so, these
     // are pointers to those temp buffers.

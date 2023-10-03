@@ -305,36 +305,52 @@ void ExecPlan::ExecuteAsync(const rocfft_plan     plan,
         exec_info = *info;
 
     // allocate stream for async operations if necessary
-    if(!exec_info.rocfft_stream)
+    // for a single-device plan, we don't need to create
+    // additional streams or events
+    if(mgpuPlan)
     {
-        this->stream.alloc();
-        exec_info.rocfft_stream = this->stream;
+        if(!exec_info.rocfft_stream)
+        {
+            this->stream.alloc();
+            exec_info.rocfft_stream = this->stream;
+        }
+        event.alloc();
     }
-    event.alloc();
 
     // TransformPowX below needs in_buffer, out_buffer to work with.
     // But we need to potentially override pointers in those arrays.
     // So copy them to temporary vectors.
+    // This is not necessary for single-device plans.
     std::vector<void*> in_buffer_copy;
-    std::copy_n(in_buffer,
-                plan->desc.count_pointers(plan->desc.inFields, plan->desc.inArrayType),
-                std::back_inserter(in_buffer_copy));
+    std::vector<void*> out_buffer_copy;
 
-    // if input/output are overridden, override now
-    if(inputPtr)
-        in_buffer_copy[0] = inputPtr;
-
-    std::vector<void*> out_buffer_copy = in_buffer_copy;
-    if(rootPlan->placement == rocfft_placement_notinplace)
+    if(mgpuPlan)
     {
-        out_buffer_copy.clear();
-        std::copy_n(out_buffer,
-                    plan->desc.count_pointers(plan->desc.outFields, plan->desc.outArrayType),
-                    std::back_inserter(out_buffer_copy));
+        std::copy_n(in_buffer,
+                    plan->desc.count_pointers(plan->desc.inFields, plan->desc.inArrayType),
+                    std::back_inserter(in_buffer_copy));
+
+        // if input/output are overridden, override now
+        if(inputPtr)
+            in_buffer_copy[0] = inputPtr;
+
+        out_buffer_copy = in_buffer_copy;
+        if(rootPlan->placement == rocfft_placement_notinplace)
+        {
+            out_buffer_copy.clear();
+            std::copy_n(out_buffer,
+                        plan->desc.count_pointers(plan->desc.outFields, plan->desc.outArrayType),
+                        std::back_inserter(out_buffer_copy));
+        }
+
+        if(outputPtr)
+            out_buffer_copy[0] = outputPtr;
     }
 
-    if(outputPtr)
-        out_buffer_copy[0] = outputPtr;
+    // select the input and output buffers based on whether
+    // we have a single or multi device plan.
+    auto in_transform_ptrs  = mgpuPlan ? in_buffer_copy.data() : in_buffer;
+    auto out_transform_ptrs = mgpuPlan ? out_buffer_copy.data() : out_buffer;
 
     gpubuf autoAllocWorkBuf;
 
@@ -367,14 +383,17 @@ void ExecPlan::ExecuteAsync(const rocfft_plan     plan,
     try
     {
         TransformPowX(*this,
-                      in_buffer_copy.data(),
-                      (rootPlan->placement == rocfft_placement_inplace) ? in_buffer_copy.data()
-                                                                        : out_buffer_copy.data(),
+                      in_transform_ptrs,
+                      (rootPlan->placement == rocfft_placement_inplace) ? in_transform_ptrs
+                                                                        : out_transform_ptrs,
                       &exec_info);
         // all work is enqueued to the stream, record the event on
-        // the stream
-        if(hipEventRecord(event, exec_info.rocfft_stream) != hipSuccess)
-            throw std::runtime_error("hipEventRecord failed");
+        // the stream. Not needed for single-device plans.
+        if(mgpuPlan)
+        {
+            if(hipEventRecord(event, exec_info.rocfft_stream) != hipSuccess)
+                throw std::runtime_error("hipEventRecord failed");
+        }
     }
     catch(std::exception& e)
     {
@@ -388,6 +407,11 @@ void ExecPlan::ExecuteAsync(const rocfft_plan     plan,
 
 void ExecPlan::Wait()
 {
-    if(hipEventSynchronize(event) != hipSuccess)
-        throw std::runtime_error("hipEventSynchronize failed");
+    // for a single-device plan, we don't need to synchronize
+    // events
+    if(mgpuPlan)
+    {
+        if(hipEventSynchronize(event) != hipSuccess)
+            throw std::runtime_error("hipEventSynchronize failed");
+    }
 }

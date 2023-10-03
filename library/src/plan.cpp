@@ -687,6 +687,9 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
         return;
     }
 
+    // code below this line is only required for multi-device plans
+    execPlan->mgpuPlan = true;
+
     // ensure fields are interleaved - real and planar are not supported
     if((!desc.inFields.empty() && !array_type_is_interleaved(desc.inArrayType))
        || (!desc.outFields.empty() && !array_type_is_interleaved(desc.outArrayType)))
