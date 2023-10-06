@@ -273,8 +273,7 @@ public:
                                       upper_cm.data(), // field_upper
                                       stride_cm.data(), // brick_stride
                                       lower_cm.size(), // dim
-                                      b.device, // deviceID
-                                      rocfft_brick_type_normal) // brick_type
+                                      b.device)
                != rocfft_status_success)
                 throw std::runtime_error("rocfft_field_add_brick failed");
         }

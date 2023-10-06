@@ -119,17 +119,6 @@ typedef enum rocfft_array_type_e
     rocfft_array_type_unset,
 } rocfft_array_type;
 
-/*! @brief Brick decomposition properties.
- *
- *  @details The rocfft_brick_type enum type specifies properties of the brick decomposition.
- *
- *  @warning Experimental!  This feature is part of an experimental API preview.
-*/
-typedef enum rocfft_brick_type_e
-{
-    rocfft_brick_type_normal,
-} rocfft_brick_type;
-
 #if 0
 /*! @brief Execution mode */
 typedef enum rocfft_execution_mode_e
@@ -355,18 +344,15 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, size_t len);
  * @param[in] dim length of brick: includes lengths and batch dimension; must match the dimension of
  * the lengths + batch dimension of the transform.
  * @param[in] deviceID: HIP device ID for the device on which the brick's data is resident.
- * @param[in] brick_type: a \ref rocfft_brick_type_e enum value to specify brick properties.  Current
- * allowed values are: rocfft_brick_type_normal
  *
  *  @warning Experimental!  This feature is part of an experimental API preview.
  */
-ROCFFT_EXPORT rocfft_status rocfft_field_add_brick(rocfft_field      field,
-                                                   const size_t*     field_lower,
-                                                   const size_t*     field_upper,
-                                                   const size_t*     brick_stride,
-                                                   size_t            dim,
-                                                   int               deviceID,
-                                                   rocfft_brick_type brick_type);
+ROCFFT_EXPORT rocfft_status rocfft_field_add_brick(rocfft_field  field,
+                                                   const size_t* field_lower,
+                                                   const size_t* field_upper,
+                                                   const size_t* brick_stride,
+                                                   size_t        dim,
+                                                   int           deviceID);
 
 /*! @brief Add a \ref rocfft_field to a \ref rocfft_plan_description as an input.
  *

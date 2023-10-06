@@ -115,15 +115,13 @@ int main(int argc, char* argv[])
                            inbrick0_upper.data(),
                            brick_stride.data(),
                            inbrick0_lower.size(),
-                           devices[0], // device id
-                           rocfft_brick_type_normal);
+                           devices[0]); // device id
     rocfft_field_add_brick(infield,
                            inbrick1_lower.data(),
                            inbrick1_upper.data(),
                            brick_stride.data(),
                            inbrick1_lower.size(),
-                           devices[1], // device id
-                           rocfft_brick_type_normal);
+                           devices[1]); // device id
     rocfft_plan_description_add_infield(description, infield);
 
     // Allocate and initialize GPU input
@@ -161,15 +159,14 @@ int main(int argc, char* argv[])
                            outbrick0_upper.data(),
                            brick_stride.data(),
                            outbrick0_lower.size(),
-                           devices[0], // device id
-                           rocfft_brick_type_normal);
+                           devices[0]); // device id
+
     rocfft_field_add_brick(outfield,
                            outbrick1_lower.data(),
                            outbrick1_upper.data(),
                            brick_stride.data(),
                            outbrick1_lower.size(),
-                           devices[1], // device id
-                           rocfft_brick_type_normal);
+                           devices[1]); // device id
     rc = rocfft_plan_description_add_outfield(description, outfield);
 
     // Allocate GPU output

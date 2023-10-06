@@ -469,13 +469,12 @@ size_t rocfft_brick_t::offset_in_field(const std::vector<size_t>& fieldStride,
     return std::inner_product(len.begin(), len.end(), fieldStrideWithBatch.begin(), 0);
 }
 
-rocfft_status rocfft_field_add_brick(rocfft_field      field,
-                                     const size_t*     field_lower,
-                                     const size_t*     field_upper,
-                                     const size_t*     brick_stride,
-                                     size_t            dim,
-                                     int               deviceID,
-                                     rocfft_brick_type brick_type)
+rocfft_status rocfft_field_add_brick(rocfft_field  field,
+                                     const size_t* field_lower,
+                                     const size_t* field_upper,
+                                     const size_t* brick_stride,
+                                     size_t        dim,
+                                     int           deviceID)
 {
     log_trace(__func__,
               "field",
@@ -489,15 +488,9 @@ rocfft_status rocfft_field_add_brick(rocfft_field      field,
               "dim",
               dim,
               "deviceID",
-              deviceID,
-              "brick_type",
-              brick_type);
+              deviceID);
 
     if(!field)
-        return rocfft_status_invalid_arg_value;
-
-    // enforce reserved values
-    if(brick_type != rocfft_brick_type_normal)
         return rocfft_status_invalid_arg_value;
 
     auto& brick = field->bricks.emplace_back();
