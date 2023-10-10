@@ -53,6 +53,17 @@ set(CMAKE_CXX_STANDARD 17)
 
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
+if( NOT ROCM_FOUND )
+  find_package( ROCM 0.7.3 REQUIRED )
+endif()
+
+include( ROCMInstallTargets )
+
+# Adding Version File to rocfft-client, this avoids empty rocfft-client package
+file ( WRITE "${PROJECT_BINARY_DIR}/package/client-version"
+             "${rocfft_VERSION_MAJOR}.${rocfft_VERSION_MINOR}.${rocfft_VERSION_PATCH}-${BUILD_ID}\n" )
+rocm_install ( FILES ${PROJECT_BINARY_DIR}/package/client-version DESTINATION .info COMPONENT clients)
+
 
 # This option only works for make/nmake and the ninja generators, but
 # no reason it shouldn't be on all the time.
