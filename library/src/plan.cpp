@@ -469,16 +469,25 @@ size_t rocfft_brick_t::offset_in_field(const std::vector<size_t>& fieldStride,
     return std::inner_product(len.begin(), len.end(), fieldStrideWithBatch.begin(), 0);
 }
 
-rocfft_status rocfft_field_add_brick(rocfft_field  field,
-                                     const size_t* field_lower,
-                                     const size_t* field_upper,
-                                     const size_t* brick_stride,
-                                     size_t        dim,
-                                     int           deviceID)
+rocfft_status rocfft_field_add_brick(rocfft_field field, rocfft_brick brick)
+{
+    log_trace(__func__, "field", field, "brick", brick);
+    if(!field || !brick)
+        return rocfft_status_invalid_arg_value;
+    field->bricks.emplace_back(*brick);
+    return rocfft_status_success;
+}
+
+rocfft_status rocfft_brick_create(rocfft_brick* brick,
+                                  const size_t* field_lower,
+                                  const size_t* field_upper,
+                                  const size_t* brick_stride,
+                                  size_t        dim,
+                                  int           deviceID)
 {
     log_trace(__func__,
-              "field",
-              field,
+              "brick",
+              brick,
               "field_lower",
               field_lower,
               "field_upper",
@@ -489,16 +498,23 @@ rocfft_status rocfft_field_add_brick(rocfft_field  field,
               dim,
               "deviceID",
               deviceID);
-
-    if(!field)
+    if(!brick)
         return rocfft_status_invalid_arg_value;
 
-    auto& brick = field->bricks.emplace_back();
-    std::copy_n(field_lower, dim, std::back_inserter(brick.lower));
-    std::copy_n(field_upper, dim, std::back_inserter(brick.upper));
-    std::copy_n(brick_stride, dim, std::back_inserter(brick.stride));
+    auto brick_ptr = std::make_unique<rocfft_brick_t>();
+    std::copy_n(field_lower, dim, std::back_inserter(brick_ptr->lower));
+    std::copy_n(field_upper, dim, std::back_inserter(brick_ptr->upper));
+    std::copy_n(brick_stride, dim, std::back_inserter(brick_ptr->stride));
 
-    brick.device = deviceID;
+    brick_ptr->device = deviceID;
+    *brick            = brick_ptr.release();
+    return rocfft_status_success;
+}
+
+rocfft_status rocfft_brick_destroy(rocfft_brick brick)
+{
+    log_trace(__func__, "brick", brick);
+    delete brick;
     return rocfft_status_success;
 }
 

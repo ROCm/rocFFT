@@ -65,6 +65,14 @@ typedef struct rocfft_execution_info_t* rocfft_execution_info;
  *  */
 typedef struct rocfft_field_t* rocfft_field;
 
+/*! @brief Pointer type to a rocFFT brick structure.
+ *
+ *  @details rocFFT bricks are used to describe the data decomposition of fields.
+ *
+ *  @warning Experimental!  This feature is part of an experimental API preview.
+ *  */
+typedef struct rocfft_brick_t* rocfft_brick;
+
 /*! @brief rocFFT status/error codes */
 typedef enum rocfft_status_e
 {
@@ -313,7 +321,7 @@ ROCFFT_EXPORT rocfft_status rocfft_field_destroy(rocfft_field field);
  */
 ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, size_t len);
 
-/*! @brief Add a brick decomposition to a field.
+/*! @brief Define a brick as part of a decomposition of a field.
  *
  * Fields can contain a full-dimensional data distribution.  The
  * decomposition is specified by providing a lower coordinate and an
@@ -331,11 +339,7 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, size_t len);
  *
  * All arrays may be re-used or freed immediately after the function returns.
  *
- * Note that the order in which the bricks are added is significant;
- * the pointers provided for each brick to ::rocfft_execute are in
- * the same order that the bricks were added to the field.
- * 
- * @param[in, out] field: \ref rocfft_field struct which holds the brick decomposition.
+ * @param[out] brick: brick structure
  * @param[in] field_lower: array of length dim specifying the lower index (inclusive) for the brick in the
  * field's index space.
  * @param[in] field_upper: array of length dim specifying the upper index (exclusive) for the brick in the
@@ -347,12 +351,34 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, size_t len);
  *
  *  @warning Experimental!  This feature is part of an experimental API preview.
  */
-ROCFFT_EXPORT rocfft_status rocfft_field_add_brick(rocfft_field  field,
-                                                   const size_t* field_lower,
-                                                   const size_t* field_upper,
-                                                   const size_t* brick_stride,
-                                                   size_t        dim,
-                                                   int           deviceID);
+ROCFFT_EXPORT rocfft_status rocfft_brick_create(rocfft_brick* brick,
+                                                const size_t* field_lower,
+                                                const size_t* field_upper,
+                                                const size_t* brick_stride,
+                                                size_t        dim,
+                                                int           deviceID);
+
+/*! @brief Deallocate a brick created with rocfft_brick_create.
+ *
+ *  @warning Experimental!  This feature is part of an experimental API preview.
+ */
+ROCFFT_EXPORT rocfft_status rocfft_brick_destroy(rocfft_brick brick);
+
+/*! @brief Add a brick to a field.
+ *
+ * Note that the order in which the bricks are added is significant;
+ * the pointers provided for each brick to ::rocfft_execute are in
+ * the same order that the bricks were added to the field.
+ *
+ * The brick may be added to another field or destroyed any time
+ * after this function returns.
+ * 
+ * @param[in, out] field: \ref rocfft_field struct which holds the brick decomposition.
+ * @param[in] brick: \ref rocfft_brick struct to add to the field.
+ *
+ *  @warning Experimental!  This feature is part of an experimental API preview.
+ */
+ROCFFT_EXPORT rocfft_status rocfft_field_add_brick(rocfft_field field, rocfft_brick brick);
 
 /*! @brief Add a \ref rocfft_field to a \ref rocfft_plan_description as an input.
  *

@@ -341,17 +341,24 @@ The workflow for fields is as follows:
 
 #. Allocate a :cpp:type:`rocfft_field` struct by calling :cpp:func:`rocfft_field_create`.
 
-#. Add one or more bricks to the field by calling
-   :cpp:func:`rocfft_field_add_brick`.  The brick's dimensions are
-   defined in terms of lower and upper coordinates in the field's index space.
+#. Add one or more bricks to the field:
 
-   Note that the lower coordinate is inclusive (contained within the brick) and
-   the upper coordinate is exclusive (first index past the end of the brick).
+   #. Allocate a :cpp:type:`rocfft_brick` by calling
+      :cpp:func:`rocfft_brick_create`.  The brick's dimensions are
+      defined in terms of lower and upper coordinates in the field's
+      index space.
 
-   The device on which the brick resides is also specified at this time, along
-   with the strides of the brick in device memory.
+      Note that the lower coordinate is inclusive (contained within the brick) and
+      the upper coordinate is exclusive (first index past the end of the brick).
 
-   All coordinates and strides provided here also include batch dimensions.
+      The device on which the brick resides is also specified at this time, along
+      with the strides of the brick in device memory.
+
+      All coordinates and strides provided here also include batch dimensions.
+
+   #. Add the brick to the field by calling :cpp:func:`rocfft_field_add_brick`.
+
+   #. Deallocate the brick by calling :cpp:func:`rocfft_brick_destroy`.
 
 #. Set the field as an input or output for the transform by calling either
    :cpp:func:`rocfft_plan_description_add_infield` or

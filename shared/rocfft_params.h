@@ -268,14 +268,20 @@ public:
             std::vector<size_t> stride_cm;
             std::copy(b.stride.rbegin(), b.stride.rend(), std::back_inserter(stride_cm));
 
-            if(rocfft_field_add_brick(rfield, // field
-                                      lower_cm.data(), // field_lower
-                                      upper_cm.data(), // field_upper
-                                      stride_cm.data(), // brick_stride
-                                      lower_cm.size(), // dim
-                                      b.device)
+            rocfft_brick rbrick = nullptr;
+            if(rocfft_brick_create(&rbrick,
+                                   lower_cm.data(), // field_lower
+                                   upper_cm.data(), // field_upper
+                                   stride_cm.data(), // brick_stride
+                                   lower_cm.size(), // dim
+                                   b.device) // deviceID
                != rocfft_status_success)
+                throw std::runtime_error("rocfft_brick_create failed");
+
+            if(rocfft_field_add_brick(rfield, rbrick) != rocfft_status_success)
                 throw std::runtime_error("rocfft_field_add_brick failed");
+
+            rocfft_brick_destroy(rbrick);
         }
         return rfield;
     }

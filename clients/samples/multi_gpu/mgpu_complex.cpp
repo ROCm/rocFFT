@@ -110,18 +110,29 @@ int main(int argc, char* argv[])
 
     rocfft_field infield = nullptr;
     rocfft_field_create(&infield);
-    rocfft_field_add_brick(infield,
-                           inbrick0_lower.data(),
-                           inbrick0_upper.data(),
-                           brick_stride.data(),
-                           inbrick0_lower.size(),
-                           devices[0]); // device id
-    rocfft_field_add_brick(infield,
-                           inbrick1_lower.data(),
-                           inbrick1_upper.data(),
-                           brick_stride.data(),
-                           inbrick1_lower.size(),
-                           devices[1]); // device id
+
+    rocfft_brick inbrick0 = nullptr;
+    rocfft_brick_create(&inbrick0,
+                        inbrick0_lower.data(),
+                        inbrick0_upper.data(),
+                        brick_stride.data(),
+                        inbrick0_lower.size(),
+                        devices[0]); // device id
+    rocfft_field_add_brick(infield, inbrick0);
+    rocfft_brick_destroy(inbrick0);
+    inbrick0 = nullptr;
+
+    rocfft_brick inbrick1 = nullptr;
+    rocfft_brick_create(&inbrick1,
+                        inbrick1_lower.data(),
+                        inbrick1_upper.data(),
+                        brick_stride.data(),
+                        inbrick1_lower.size(),
+                        devices[1]); // device id
+    rocfft_field_add_brick(infield, inbrick1);
+    rocfft_brick_destroy(inbrick1);
+    inbrick1 = nullptr;
+
     rocfft_plan_description_add_infield(description, infield);
 
     // Allocate and initialize GPU input
@@ -154,19 +165,28 @@ int main(int argc, char* argv[])
     std::vector<size_t> outbrick1_lower = {0, length[0] / deviceCount, 0, 0};
     std::vector<size_t> outbrick1_upper = {1, length[0], length[1], length[2]};
 
-    rocfft_field_add_brick(outfield,
-                           outbrick0_lower.data(),
-                           outbrick0_upper.data(),
-                           brick_stride.data(),
-                           outbrick0_lower.size(),
-                           devices[0]); // device id
+    rocfft_brick outbrick0 = nullptr;
+    rocfft_brick_create(&outbrick0,
+                        outbrick0_lower.data(),
+                        outbrick0_upper.data(),
+                        brick_stride.data(),
+                        outbrick0_lower.size(),
+                        devices[0]); // device id
+    rocfft_field_add_brick(outfield, outbrick0);
+    rocfft_brick_destroy(outbrick0);
+    outbrick0 = nullptr;
 
-    rocfft_field_add_brick(outfield,
-                           outbrick1_lower.data(),
-                           outbrick1_upper.data(),
-                           brick_stride.data(),
-                           outbrick1_lower.size(),
-                           devices[1]); // device id
+    rocfft_brick outbrick1 = nullptr;
+    rocfft_brick_create(&outbrick1,
+                        outbrick1_lower.data(),
+                        outbrick1_upper.data(),
+                        brick_stride.data(),
+                        outbrick1_lower.size(),
+                        devices[1]); // device id
+    rocfft_field_add_brick(outfield, outbrick1);
+    rocfft_brick_destroy(outbrick1);
+    outbrick1 = nullptr;
+
     rc = rocfft_plan_description_add_outfield(description, outfield);
 
     // Allocate GPU output
