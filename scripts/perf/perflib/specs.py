@@ -80,60 +80,87 @@ def search(pattern, string):
     return None
 
 
-def get_machine_specs(devicenum):
+def get_machine_specs(devicenum, type='default'):
 
-    cpuinfo = path('/proc/cpuinfo').read_text()
-    meminfo = path('/proc/meminfo').read_text()
-    version = path('/proc/version').read_text()
-    os_release = path('/etc/os-release').read_text()
-    if os.path.isfile('/opt/rocm/.info/version-utils'):
-        rocm_info = path('/opt/rocm/.info/version-utils').read_text()
-    elif os.path.isfile('/opt/rocm/.info/version'):
-        rocm_info = path('/opt/rocm/.info/version').read_text()
-    else:
-        rocm_info = "rocm info not available"
-
-    rocm_smi_found = shutil.which('rocm-smi') != None
-    if rocm_smi_found:
-        rocm_smi = run([
-            'rocm-smi', '--showvbios', '--showid', '--showproductname',
-            '--showperflevel', '--showclocks', '--showmeminfo', 'vram'
-        ])
-    else:
-        rocm_smi = ""
-
-    device = rf'^GPU\[{devicenum}\]\s*: '
-
-    hostname = socket.gethostname()
-    cpu = search(r'^model name\s*: (.*?)$', cpuinfo)
-    sbios = path('/sys/class/dmi/id/bios_vendor').read_text().strip() + path(
-        '/sys/class/dmi/id/bios_version').read_text().strip()
-    kernel = search(r'version (\S*)', version)
-    ram = search(r'MemTotal:\s*(\S*)', meminfo)
-    distro = search(r'PRETTY_NAME="(.*?)"', os_release)
-    rocmversion = rocm_info.strip()
-    vbios = search(device + r'VBIOS version: (.*?)$',
-                   rocm_smi) if rocm_smi_found else "no rocm-smi"
-    gpuid = search(device + r'GPU ID: (.*?)$',
-                   rocm_smi) if rocm_smi_found else "no rocm-smi"
-    deviceinfo = search(device + r'Card series:\s*(.*?)$',
-                        rocm_smi) if rocm_smi_found else "no rocm-smi"
-    vram = search(device + r'.... Total Memory .B.: (\d+)$',
-                  rocm_smi) if rocm_smi_found else 0
-    perflevel = search(device + r'Performance Level: (.*?)$',
-                       rocm_smi) if rocm_smi_found else "no rocm-smi"
-    mclk = search(device +
-                  r'mclk.*\((.*?)\)$', rocm_smi) if rocm_smi_found else 0
-    sclk = search(device +
-                  r'sclk.*\((.*?)\)$', rocm_smi) if rocm_smi_found else 0
-
-    ram = '{:.2f} GiB'.format(float(ram) / 1024**2)
-    vram = '{:.2f} GiB'.format(float(vram) / 1024**3 if vram else 0)
-
+    # host info var
+    hostname = None
+    cpu = None
+    sbios = None
+    kernel = None
+    ram = None
+    distro = None
+    rocmversion = None
+    # device info var
+    vbios = None
+    gpuid = None
+    deviceinfo = None
+    vram = None
+    perflevel = None
+    mclk = None
+    sclk = None
     bandwidth = None
-    if gpuid == '0x66af':
-        # radeon7: float: 13.8 TFLOPs, double: 3.46 TFLOPs, 1024 GB/s
-        bandwidth = (13.8, 3.46, 1024)
+
+    if type == 'host' or type == 'default':
+        hostname = socket.gethostname()
+
+        version = path('/proc/version').read_text()
+        kernel = search(r'version (\S*)', version)
+
+        cpuinfo = path('/proc/cpuinfo').read_text()
+        cpu = search(r'^model name\s*: (.*?)$', cpuinfo)
+
+        meminfo = path('/proc/meminfo').read_text()
+        ram = search(r'MemTotal:\s*(\S*)', meminfo)
+        ram = '{:.2f} GiB'.format(float(ram) / 1024**2)
+
+        os_release = path('/etc/os-release').read_text()
+        distro = search(r'PRETTY_NAME="(.*?)"', os_release)
+
+        sbios = path('/sys/class/dmi/id/bios_vendor').read_text().strip(
+        ) + path('/sys/class/dmi/id/bios_version').read_text().strip()
+
+        # Todo: check the fixed path, maybe set the rocm path as a variable,
+        #       the same as rocm-smi.
+        if os.path.isfile('/opt/rocm/.info/version-utils'):
+            rocm_info = path('/opt/rocm/.info/version-utils').read_text()
+        elif os.path.isfile('/opt/rocm/.info/version'):
+            rocm_info = path('/opt/rocm/.info/version').read_text()
+        else:
+            rocm_info = "rocm info not available"
+        rocmversion = rocm_info.strip()
+
+    if type == 'device' or type == 'default':
+        rocm_smi_found = shutil.which('rocm-smi') != None
+        if rocm_smi_found:
+            rocm_smi = run([
+                'rocm-smi', '--showvbios', '--showid', '--showproductname',
+                '--showperflevel', '--showclocks', '--showmeminfo', 'vram'
+            ])
+        else:
+            rocm_smi = ""
+
+        device = rf'^GPU\[{devicenum}\]\s*: '
+
+        vbios = search(device + r'VBIOS version: (.*?)$',
+                       rocm_smi) if rocm_smi_found else "no rocm-smi"
+        gpuid = search(device + r'GPU ID: (.*?)$',
+                       rocm_smi) if rocm_smi_found else "no rocm-smi"
+        deviceinfo = search(device + r'Card series:\s*(.*?)$',
+                            rocm_smi) if rocm_smi_found else "no rocm-smi"
+        vram = search(device + r'.... Total Memory .B.: (\d+)$',
+                      rocm_smi) if rocm_smi_found else 0
+        perflevel = search(device + r'Performance Level: (.*?)$',
+                           rocm_smi) if rocm_smi_found else "no rocm-smi"
+        mclk = search(device +
+                      r'mclk.*\((.*?)\)$', rocm_smi) if rocm_smi_found else 0
+        sclk = search(device +
+                      r'sclk.*\((.*?)\)$', rocm_smi) if rocm_smi_found else 0
+
+        vram = '{:.2f} GiB'.format(float(vram) / 1024**3 if vram else 0)
+
+        if gpuid == '0x66af':
+            # radeon7: float: 13.8 TFLOPs, double: 3.46 TFLOPs, 1024 GB/s
+            bandwidth = (13.8, 3.46, 1024)
 
     return MachineSpecs(hostname, cpu, sbios, kernel, ram, distro, rocmversion,
                         vbios, gpuid, deviceinfo, vram, perflevel, mclk, sclk,

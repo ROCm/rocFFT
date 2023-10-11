@@ -168,7 +168,9 @@ def command_test(arguments):
     all_runs = perflib.utils.read_runs(outdirs, verbose)
 
     if len(all_runs) != 2:
-        print("Error: one must provide exactly two runs for statistical comparison")
+        print(
+            "Error: one must provide exactly two runs for statistical comparison"
+        )
         sys.exit(1)
 
     import numpy
@@ -180,7 +182,6 @@ def command_test(arguments):
 
     runs = perflib.utils.by_dat(all_runs)
     refdir, testdir = outdirs
-
 
     # In order to do the Bonferroni correction, We need to adjust the
     # significance threshold based on the number of tests, so count
@@ -221,7 +222,7 @@ def command_test(arguments):
                         faster.append(token)
                     else:
                         slower.append(token)
-            elif  arguments.method == 'mwu':
+            elif arguments.method == 'mwu':
                 _, pval = scipy.stats.mannwhitneyu(Avals, Bvals)
                 if pval < significance:
                     if statistics.median(Avals) > statistics.median(Bvals):
@@ -255,7 +256,8 @@ def generate_mdat(dat, measure, confidence):
         elif measure == "mean":
             median = numpy.mean(sample.times)
         low, high = perflib.analysis.confidence_interval(sample.times,
-                                                         measure=measure, confidence=confidence)
+                                                         measure=measure,
+                                                         confidence=confidence)
         vals.append([sample.label, median, low, high])
     path = dat.path.with_suffix('.mdat')
     perflib.utils.write_tsv(path, vals, meta=dat.meta, overwrite=True)
@@ -370,10 +372,10 @@ def command_post(arguments):
     # median confidence intervals
     for run in all_runs:
         with Pool(None) as p:
-            p.starmap(generate_mdat,
-                      itertools.product(run.dats.values(),
-                                        [arguments.measure],
-                                        [arguments.confidence]))
+            p.starmap(
+                generate_mdat,
+                itertools.product(run.dats.values(), [arguments.measure],
+                                  [arguments.confidence]))
             p.map(generate_pts_dat, run.dats.values())
 
     # speedup and pvals
@@ -402,7 +404,8 @@ def command_post(arguments):
                     Avals = refdat.samples[token].times
                     Bvals = otherdat.samples[token].times
                     if arguments.measure == "median":
-                        speedup = statistics.median(Avals) / statistics.median(Bvals)
+                        speedup = statistics.median(Avals) / statistics.median(
+                            Bvals)
                     elif arguments.measure == "mean":
                         speedup = numpy.mean(Avals) / numpy.mean(Bvals)
                     low, high = perflib.analysis.ratio_confidence_interval(
@@ -412,7 +415,7 @@ def command_post(arguments):
                         _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
                     elif arguments.method == 'ttest':
                         _, pval = scipy.stats.ttest_ind(Avals, Bvals)
-                    elif  arguments.method == 'mwu':
+                    elif arguments.method == 'mwu':
                         _, pval = scipy.stats.mannwhitneyu(Avals, Bvals)
                     else:
                         print("unsupported statistical method")
@@ -428,10 +431,13 @@ def command_post(arguments):
                                         overwrite=True)
 
 
-
-
-def command_generate(runs=None, label=None, output=None, significance=None, bonferroni=None,
-                     type='pdf', **kwargs):
+def command_generate(runs=None,
+                     label=None,
+                     output=None,
+                     significance=None,
+                     bonferroni=None,
+                     type='pdf',
+                     **kwargs):
     """Generate PDF/HTML/DOCX from run results."""
 
     import perflib.pdf
@@ -556,7 +562,7 @@ def command_run(arguments):
     ]:
         update(attr, timer, arguments)
 
-    specs = perflib.specs.get_machine_specs(timer.device)
+    specs = perflib.specs.get_machine_specs(timer.device, arguments.specs_type)
     for out in timer.out:
         specs_file = Path(out) / 'specs.txt'
         specs_file.parent.mkdir(parents=True, exist_ok=True)
@@ -569,6 +575,7 @@ def command_run(arguments):
 
         logging.info("failed tokens: " + "\n".join(failed_tokens))
         print("failed tokens:\n" + "\n".join(failed_tokens))
+
 
 def command_autoperf(arguments):
     """Compare performance of two builds automagically."""
@@ -646,7 +653,8 @@ def command_autoperf(arguments):
         timer.timeout = timeout
         timers = [timer]
 
-    specs = perflib.specs.get_machine_specs(timers[0].device)
+    specs = perflib.specs.get_machine_specs(timers[0].device,
+                                            arguments.specs_type)
     for t in timers:
         for out in t.out:
             specs_file = Path(out) / 'specs.txt'
@@ -659,7 +667,7 @@ def command_autoperf(arguments):
     # post-process results
     arguments.runs = [build1, build2]
     arguments.output = output
-    arguments.label=[reference_label, label]
+    arguments.label = [reference_label, label]
     command_post(arguments)
 
     # generate report
@@ -694,7 +702,8 @@ def command_bweff(arguments):
 
         bench = Path(arguments.bench)
         if not bench.is_file():
-            raise RuntimeError(f"Unable to find benchmarker: {arguments.bench}")
+            raise RuntimeError(
+                f"Unable to find benchmarker: {arguments.bench}")
 
         effdat_paths = [Path(arguments.out) / (tag + '.effdat')]
         generator = perflib.generators.VerbatimGenerator(problems)
@@ -817,18 +826,24 @@ def main():
     subparsers = parser.add_subparsers(dest='command')
 
     subparsers.add_parser('overview', help='print a general usage overview')
-    subparsers.add_parser('specs', help='print machine specs')
+    specs_parser = subparsers.add_parser('specs', help='print machine specs')
 
-    run_parser   = subparsers.add_parser('run', help='run!')
-    post_parser  = subparsers.add_parser('post', help='post processing')
-    pdf_parser   = subparsers.add_parser('pdf', help='generate pdf plots')
-    html_parser  = subparsers.add_parser('html', help='generate html plots')
-    docx_parser  = subparsers.add_parser('docx', help='generate docx plots')
+    run_parser = subparsers.add_parser('run', help='run!')
+    post_parser = subparsers.add_parser('post', help='post processing')
+    pdf_parser = subparsers.add_parser('pdf', help='generate pdf plots')
+    html_parser = subparsers.add_parser('html', help='generate html plots')
+    docx_parser = subparsers.add_parser('docx', help='generate docx plots')
     test_parser = subparsers.add_parser('test', help='test for regressions')
     autoperf_parser = subparsers.add_parser(
         'autoperf',
         help='clone, build, run, post, and plot two rocFFT commits')
 
+    specs_parser.add_argument(dest='specs_type',
+                              type=str,
+                              default='default',
+                              nargs='?',
+                              choices=['default', 'host', 'device'],
+                              help="type of specs")
 
     for p in [post_parser, pdf_parser, html_parser, docx_parser]:
         p.add_argument('output', type=str)
@@ -848,13 +863,18 @@ def main():
                        choices=["moods", "ttest", "mwu"],
                        help="statistical method",
                        default="moods")
-    for p in [post_parser, pdf_parser, html_parser, docx_parser, test_parser, autoperf_parser]:
+    for p in [
+            post_parser, pdf_parser, html_parser, docx_parser, test_parser,
+            autoperf_parser
+    ]:
         p.add_argument('--measure',
                        type=str,
                        choices=["mean", "median"],
                        help="measure of central tendancy: median or mean",
                        default="median")
-    for p in [pdf_parser, html_parser, docx_parser, test_parser, autoperf_parser]:
+    for p in [
+            pdf_parser, html_parser, docx_parser, test_parser, autoperf_parser
+    ]:
         p.add_argument('--significance',
                        type=float,
                        help='moods significance threshold',
@@ -862,7 +882,8 @@ def main():
         p.add_argument('--bonferroni',
                        action='store_true',
                        help='Apply Bonferroni significance correction')
-        p.add_argument('--no-bonferroni', dest='bonferroni',
+        p.add_argument('--no-bonferroni',
+                       dest='bonferroni',
                        action='store_false')
         p.set_defaults(bonferroni=True)
         # Python 3.9+ method:
@@ -972,11 +993,10 @@ def main():
         type=int,
         help='test timeout in seconds (0 disables timeout)',
         default=600)
-    run_parser.add_argument(
-        '--sequence',
-        type=int,
-        help='dyna-bench test sequence',
-        default=0)
+    run_parser.add_argument('--sequence',
+                            type=int,
+                            help='dyna-bench test sequence',
+                            default=0)
     run_parser.add_argument('-f',
                             '--precision',
                             type=str,
@@ -986,6 +1006,12 @@ def main():
                             '--accutest',
                             type=str,
                             help='accuracy test executable path')
+    run_parser.add_argument('--specs_type',
+                            type=str,
+                            default='default',
+                            nargs='?',
+                            choices=['default', 'host', 'device'],
+                            help="type of specs")
 
     autoperf_parser.add_argument('--workdir',
                                  type=str,
@@ -1033,6 +1059,12 @@ def main():
         type=int,
         help='test timeout in seconds (0 disables timeout)',
         default=600)
+    autoperf_parser.add_argument('--specs_type',
+                                 type=str,
+                                 default='default',
+                                 nargs='?',
+                                 choices=['default', 'host', 'device'],
+                                 help="type of specs")
 
     bweff_parser = subparsers.add_parser(
         'bweff', help='bandwidth efficiency collection')
@@ -1073,7 +1105,8 @@ def main():
         console.setLevel(logging.INFO)
 
     if arguments.command == 'specs':
-        print(perflib.specs.get_machine_specs(0))
+        # Todo: find unified way to specify device id
+        print(perflib.specs.get_machine_specs(0, arguments.specs_type))
 
     if arguments.command == 'overview':
         print(globals()['__doc__'])
