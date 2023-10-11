@@ -426,13 +426,6 @@ std::string MultiPlanItem::PrintBufferPtrOffset(OperatingBuffer buf, const void*
     return ss.str();
 }
 
-// offset a pointer by a number of elements, given the elements'
-// precision and type (complex or not)
-static void* ptr_offset(void* p, size_t elems, rocfft_precision precision, rocfft_array_type type)
-{
-    return static_cast<char*>(p) + elems * element_size(precision, type);
-}
-
 void CommScatter::ExecuteAsync(const rocfft_plan     plan,
                                void*                 in_buffer[],
                                void*                 out_buffer[],

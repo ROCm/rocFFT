@@ -145,8 +145,12 @@ void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
     };
     if(node->obIn == OB_TEMP_BLUESTEIN)
         setBluesteinOffset(node->iOffset);
+    else
+        node->iOffset = 0;
     if(node->obOut == OB_TEMP_BLUESTEIN)
         setBluesteinOffset(node->oOffset);
+    else
+        node->oOffset = 0;
 
     // keep going backward to next node, skipping over chirp setup nodes
     int nextExecSeqID = execSeqID;

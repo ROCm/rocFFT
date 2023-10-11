@@ -60,4 +60,11 @@ static size_t element_size(rocfft_precision precision, rocfft_array_type array_t
     return array_type_is_complex(array_type) ? complex_type_size(precision)
                                              : real_type_size(precision);
 }
+
+// offset a pointer by a number of elements, given the elements'
+// precision and type (complex or not)
+static void* ptr_offset(void* p, size_t elems, rocfft_precision precision, rocfft_array_type type)
+{
+    return static_cast<char*>(p) + elems * element_size(precision, type);
+}
 #endif

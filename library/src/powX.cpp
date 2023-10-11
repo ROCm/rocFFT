@@ -259,7 +259,6 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
                       const std::vector<size_t>& length_cm,
                       const std::vector<size_t>& stride_cm,
                       size_t                     dist,
-                      size_t                     offset,
                       size_t                     batch)
 {
     const size_t size_elems = compute_ptrdiff(length_cm, stride_cm, batch, dist);
@@ -278,7 +277,7 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
     std::reverse(length_rm.begin(), length_rm.end());
     std::reverse(stride_rm.begin(), stride_rm.end());
     std::vector<hostbuf> bufvec;
-    std::vector<size_t>  print_offset(2, offset);
+    std::vector<size_t>  print_offset{0, 0};
     if(array_type_is_planar(type))
     {
         // separate the real/imag data, so printbuffer will print them separately
@@ -583,10 +582,9 @@ void TransformPowX(const ExecPlan&       execPlan,
             // }
             break;
         case OB_TEMP_BLUESTEIN:
-            data.bufIn[0] = (void*)((char*)info->workBuffer
-                                    + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize
-                                       + data.node->iOffset)
-                                          * complexTSize);
+            data.bufIn[0]
+                = (void*)((char*)info->workBuffer
+                          + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize) * complexTSize);
             // Bluestein mul-kernels (3 types) work well for CI->CI
             // so we only consider CI->CI now
             break;
@@ -642,15 +640,42 @@ void TransformPowX(const ExecPlan&       execPlan,
             // }
             break;
         case OB_TEMP_BLUESTEIN:
-            data.bufOut[0] = (void*)((char*)info->workBuffer
-                                     + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize
-                                        + data.node->oOffset)
-                                           * complexTSize);
+            data.bufOut[0]
+                = (void*)((char*)info->workBuffer
+                          + (execPlan.tmpWorkBufSize + execPlan.copyWorkBufSize) * complexTSize);
             // Bluestein mul-kernels (3 types) work well for CI->CI
             // so we only consider CI->CI now
             break;
         default:
             assert(false);
+        }
+
+        // apply offsets to pointers
+        if(data.node->iOffset)
+        {
+            if(data.bufIn[0])
+                data.bufIn[0] = ptr_offset(data.bufIn[0],
+                                           data.node->iOffset,
+                                           data.node->precision,
+                                           data.node->inArrayType);
+            if(data.bufIn[1])
+                data.bufIn[1] = ptr_offset(data.bufIn[1],
+                                           data.node->iOffset,
+                                           data.node->precision,
+                                           data.node->inArrayType);
+        }
+        if(data.node->oOffset)
+        {
+            if(data.bufOut[0])
+                data.bufOut[0] = ptr_offset(data.bufOut[0],
+                                            data.node->oOffset,
+                                            data.node->precision,
+                                            data.node->outArrayType);
+            if(data.bufOut[1])
+                data.bufOut[1] = ptr_offset(data.bufOut[1],
+                                            data.node->oOffset,
+                                            data.node->precision,
+                                            data.node->outArrayType);
         }
 
         // single-kernel bluestein requires a bluestein temp buffer separate from input and output
@@ -693,8 +718,6 @@ void TransformPowX(const ExecPlan&       execPlan,
                              data.node->length,
                              data.node->inStride,
                              data.node->iDist,
-                             // offset has already been added to bufIn
-                             0,
                              data.node->batch);
         }
 
@@ -828,15 +851,29 @@ void TransformPowX(const ExecPlan&       execPlan,
 
     if(emit_kernelio_log)
     {
+        // offsets have only been applied to pointers given to kernels,
+        // so apply them here for printing too
+        void* out_buffer_offset[2] = {out_buffer[0], out_buffer[1]};
+        if(execPlan.rootPlan->oOffset)
+        {
+            out_buffer_offset[0] = ptr_offset(out_buffer_offset[0],
+                                              execPlan.rootPlan->oOffset,
+                                              execPlan.rootPlan->precision,
+                                              execPlan.rootPlan->outArrayType);
+            out_buffer_offset[1] = ptr_offset(out_buffer_offset[1],
+                                              execPlan.rootPlan->oOffset,
+                                              execPlan.rootPlan->precision,
+                                              execPlan.rootPlan->outArrayType);
+        }
+
         *kernelio_stream << "final output:\n";
         DebugPrintBuffer(*kernelio_stream,
                          execPlan.rootPlan->outArrayType,
                          execPlan.rootPlan->precision,
-                         out_buffer,
+                         out_buffer_offset,
                          execPlan.oLength,
                          execPlan.rootPlan->outStride,
                          execPlan.rootPlan->oDist,
-                         execPlan.rootPlan->oOffset,
                          execPlan.rootPlan->batch);
         *kernelio_stream << std::endl;
     }
