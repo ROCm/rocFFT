@@ -511,19 +511,20 @@ int main(int argc, char* argv[])
 
 TEST(manual, vs_fftw) // MANUAL TESTS HERE
 {
+    rocfft_params params(manual_params);
+
     // Run an individual test using the provided command-line parameters.
-    manual_params.validate();
+    params.validate();
 
     std::cout << "Manual test:"
-              << "\n\t" << manual_params.str("\n\t") << "\n";
+              << "\n\t" << params.str("\n\t") << "\n";
 
-    std::cout << "Token: " << manual_params.token() << "\n";
+    std::cout << "Token: " << params.token() << "\n";
 
-    if(!manual_params.valid(verbose + 2))
+    if(!params.valid(verbose + 2))
     {
         std::cout << "manual params are not valid\n";
     }
 
-    rocfft_params params(manual_params);
     fft_vs_reference(params);
 }

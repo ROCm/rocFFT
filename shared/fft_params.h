@@ -590,23 +590,27 @@ public:
             break;
         }
 
-        ret += "len_";
+        auto append_size_vec = [&ret](const std::vector<size_t>& vec) {
+            for(auto s : vec)
+            {
+                ret += "_";
+                ret += std::to_string(s);
+            }
+        };
 
-        for(auto n : length)
-        {
-            ret += std::to_string(n);
-            ret += "_";
-        }
+        ret += "len";
+        append_size_vec(length);
+
         switch(precision)
         {
         case fft_precision_half:
-            ret += "half_";
+            ret += "_half_";
             break;
         case fft_precision_single:
-            ret += "single_";
+            ret += "_single_";
             break;
         case fft_precision_double:
-            ret += "double_";
+            ret += "_double_";
             break;
         }
 
@@ -623,13 +627,7 @@ public:
         ret += "batch_";
         ret += std::to_string(nbatch);
 
-        auto append_array_info = [&ret](const std::vector<size_t>& stride, fft_array_type type) {
-            for(auto s : stride)
-            {
-                ret += std::to_string(s);
-                ret += "_";
-            }
-
+        auto append_array_type = [&ret](fft_array_type type) {
             switch(type)
             {
             case fft_array_type_complex_interleaved:
@@ -653,29 +651,77 @@ public:
             }
         };
 
-        ret += "_istride_";
-        append_array_info(istride, itype);
+        auto append_brick_info = [&ret, &append_size_vec](const fft_brick& b) {
+            ret += "_brick";
 
-        ret += "_ostride_";
-        append_array_info(ostride, otype);
+            ret += "_lower";
+            append_size_vec(b.lower);
+            ret += "_upper";
+            append_size_vec(b.upper);
+            ret += "_stride";
+            append_size_vec(b.stride);
+            ret += "_dev_";
+            ret += std::to_string(b.device);
+        };
 
-        ret += "_idist_";
-        ret += std::to_string(idist);
-        ret += "_odist_";
-        ret += std::to_string(odist);
+        const bool have_ifields = !ifields.empty();
+        const bool have_ofields = !ofields.empty();
 
-        ret += "_ioffset";
-        for(auto n : ioffset)
+        if(have_ifields)
         {
+            for(const auto& f : ifields)
+            {
+                ret += "_ifield";
+                for(const auto& b : f.bricks)
+                    append_brick_info(b);
+            }
+        }
+        else
+        {
+            ret += "_istride";
+            append_size_vec(istride);
             ret += "_";
-            ret += std::to_string(n);
+            append_array_type(itype);
         }
 
-        ret += "_ooffset";
-        for(auto n : ooffset)
+        if(have_ofields)
         {
+            for(const auto& f : ofields)
+            {
+                ret += "_ofield";
+                for(const auto& b : f.bricks)
+                    append_brick_info(b);
+            }
+        }
+        else
+        {
+            ret += "_ostride";
+            append_size_vec(ostride);
             ret += "_";
-            ret += std::to_string(n);
+            append_array_type(otype);
+        }
+
+        if(!have_ifields)
+        {
+            ret += "_idist_";
+            ret += std::to_string(idist);
+        }
+        if(!have_ofields)
+        {
+            ret += "_odist_";
+            ret += std::to_string(odist);
+        }
+
+        if(!have_ifields)
+        {
+            ret += "_ioffset";
+            append_size_vec(ioffset);
+        }
+
+        if(!have_ofields)
+        {
+            ret += "_ooffset";
+            append_size_vec(ooffset);
         }
 
         if(run_callbacks)
@@ -703,6 +749,13 @@ public:
             }
             vals.push_back(token);
         }
+
+        auto size_parser
+            = [](const std::vector<std::string>& vals, const std::string token, size_t& pos) {
+                  if(vals[pos++] != token)
+                      throw std::runtime_error("Unable to parse token");
+                  return std::stoull(vals[pos++]);
+              };
 
         auto vector_parser
             = [](const std::vector<std::string>& vals, const std::string token, size_t& pos) {
@@ -738,6 +791,23 @@ public:
             return fft_array_type_unset;
         };
 
+        auto field_parser = [&vector_parser, &size_parser](const std::vector<std::string>& vals,
+                                                           size_t&                         pos,
+                                                           std::vector<fft_field>&         output) {
+            // skip over ifield/ofield word
+            pos++;
+            fft_field& f = output.emplace_back();
+            while(pos < vals.size() && vals[pos] == "brick")
+            {
+                fft_brick& b = f.bricks.emplace_back();
+                pos++;
+                b.lower  = vector_parser(vals, "lower", pos);
+                b.upper  = vector_parser(vals, "upper", pos);
+                b.stride = vector_parser(vals, "stride", pos);
+                b.device = size_parser(vals, "dev", pos);
+            }
+        };
+
         size_t pos = 0;
 
         bool complex = vals[pos++] == "complex";
@@ -764,31 +834,40 @@ public:
 
         placement = (vals[pos++] == "ip") ? fft_placement_inplace : fft_placement_notinplace;
 
-        if(vals[pos++] != "batch")
-            throw std::runtime_error("Unable to parse token");
-        nbatch = std::stoull(vals[pos++]);
+        nbatch = size_parser(vals, "batch", pos);
 
-        istride = vector_parser(vals, "istride", pos);
-
-        itype = type_parser(vals[pos]);
-        pos++;
-
-        ostride = vector_parser(vals, "ostride", pos);
-
-        otype = type_parser(vals[pos]);
-        pos++;
-
-        if(vals[pos++] != "idist")
-            throw std::runtime_error("Unable to parse token");
-        idist = std::stoull(vals[pos++]);
-
-        if(vals[pos++] != "odist")
-            throw std::runtime_error("Unable to parse token");
-        odist = std::stoull(vals[pos++]);
-
-        ioffset = vector_parser(vals, "ioffset", pos);
-
-        ooffset = vector_parser(vals, "ooffset", pos);
+        // strides, bricks etc are mixed in from here, so just keep
+        // looking at the next token to decide what to do
+        while(pos < vals.size())
+        {
+            const auto& next_token = vals[pos];
+            if(next_token == "istride")
+            {
+                istride = vector_parser(vals, "istride", pos);
+                itype   = type_parser(vals[pos]);
+                pos++;
+            }
+            else if(next_token == "ostride")
+            {
+                ostride = vector_parser(vals, "ostride", pos);
+                otype   = type_parser(vals[pos]);
+                pos++;
+            }
+            else if(next_token == "idist")
+                idist = size_parser(vals, "idist", pos);
+            else if(next_token == "odist")
+                odist = size_parser(vals, "odist", pos);
+            else if(next_token == "ioffset")
+                ioffset = vector_parser(vals, "ioffset", pos);
+            else if(next_token == "ooffset")
+                ooffset = vector_parser(vals, "ooffset", pos);
+            else if(next_token == "ifield")
+                field_parser(vals, pos, ifields);
+            else if(next_token == "ofield")
+                field_parser(vals, pos, ofields);
+            else
+                break;
+        }
 
         if(pos < vals.size() && vals[pos] == "CB")
         {
