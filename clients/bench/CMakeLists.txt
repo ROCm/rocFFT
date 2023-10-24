@@ -148,14 +148,21 @@ foreach( bench ${bench_list})
   string(REPLACE bench rider bench_legacy ${bench})
   if( WIN32 )
     set( BENCH_LINK_COMMAND create_hardlink )
-    set( BENCH_NEW_NAME ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/$<TARGET_FILE_BASE_NAME:${bench}>${CMAKE_EXECUTABLE_SUFFIX} )
-    set( BENCH_OLD_NAME ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/${bench_legacy}${CMAKE_EXECUTABLE_SUFFIX} )
+    set( BENCH_NEW_NAME ${BENCH_OUT_DIR}/$<TARGET_FILE_BASE_NAME:${bench}>${CMAKE_EXECUTABLE_SUFFIX} )
+    set( BENCH_OLD_NAME ${BENCH_OUT_DIR}/${bench_legacy}${CMAKE_EXECUTABLE_SUFFIX} )
   else()
     set( BENCH_LINK_COMMAND create_symlink )
     set( BENCH_NEW_NAME $<TARGET_FILE_BASE_NAME:${bench}> )
-    set( BENCH_OLD_NAME ${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_BINDIR}/${bench_legacy} )
+    set( BENCH_OLD_NAME ${BENCH_OUT_DIR}/${bench_legacy} )
   endif()
+  add_custom_command(
+      TARGET ${bench}
+      POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E ${BENCH_LINK_COMMAND} ${BENCH_NEW_NAME} ${BENCH_OLD_NAME}
+  )
   install(
-    CODE "execute_process( COMMAND \"${CMAKE_COMMAND}\" -E ${BENCH_LINK_COMMAND} \"${BENCH_NEW_NAME}\" \"${BENCH_OLD_NAME}\" )"
+    FILES ${BENCH_OLD_NAME}
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+    COMPONENT benchmarks
   )
 endforeach()
