@@ -443,66 +443,84 @@ public:
                            std::vector<void*>&  pibuffer,
                            std::vector<void*>&  pobuffer) override
     {
-        auto alloc_fields =
-            [&](const fft_params::fft_field& field, std::vector<void*>& pbuffer, bool copy_input) {
-                if(field.bricks.empty())
-                    return;
+        auto alloc_fields = [&](const fft_params::fft_field& field,
+                                std::vector<void*>&          pbuffer,
+                                bool                         copy_input) {
+            if(field.bricks.empty())
+                return;
 
-                // we have a field defined, clear the list of buffers as
-                // we'll be allocating new ones for each brick
-                pbuffer.clear();
+            // we have a field defined, clear the list of buffers as
+            // we'll be allocating new ones for each brick
+            pbuffer.clear();
 
-                for(const auto& b : field.bricks)
+            for(const auto& b : field.bricks)
+            {
+                // get brick's length - note that this includes batch
+                // dimension
+                const auto brick_len    = b.length();
+                const auto brick_stride = b.stride;
+
+                const size_t brick_size_elems = product(brick_len.begin(), brick_len.end());
+                const size_t elem_size_bytes  = var_size<size_t>(precision, itype);
+                const size_t brick_size_bytes = brick_size_elems * elem_size_bytes;
+
+                // set device for the alloc, but we want to return to the
+                // default device as the source of a following memcpy
                 {
-                    // get brick's length - note that this includes batch
-                    // dimension
-                    const auto brick_len    = b.length();
-                    const auto brick_stride = b.stride;
-
-                    const size_t brick_size_elems = product(brick_len.begin(), brick_len.end());
-                    const size_t elem_size_bytes  = var_size<size_t>(precision, itype);
-                    const size_t brick_size_bytes = brick_size_elems * elem_size_bytes;
-
-                    // set device for the alloc, but we want to return to the
-                    // default device as the source of a following memcpy
-                    {
-                        rocfft_scoped_device dev(b.device);
-                        multi_gpu_data.emplace_back();
-                        if(multi_gpu_data.back().alloc(brick_size_bytes) != hipSuccess)
-                            throw std::runtime_error("device allocation failure");
-                        pbuffer.push_back(multi_gpu_data.back().data());
-                    }
-
-                    if(copy_input)
-                    {
-                        // get this brick's starting offset in the field
-                        const size_t brick_offset
-                            = b.lower_field_offset(istride, idist) * elem_size_bytes;
-
-                        // copy from original input - note that we're
-                        // assuming interleaved data so ibuffer has only one
-                        // gpubuf
-                        if(hipMemcpy(pbuffer.back(),
-                                     ibuffer.front().data_offset(brick_offset),
-                                     brick_size_bytes,
-                                     hipMemcpyDeviceToDevice)
-                           != hipSuccess)
-                            throw std::runtime_error("hipMemcpy failure");
-                    }
+                    rocfft_scoped_device dev(b.device);
+                    multi_gpu_data.emplace_back();
+                    if(multi_gpu_data.back().alloc(brick_size_bytes) != hipSuccess)
+                        throw std::runtime_error("device allocation failure");
+                    pbuffer.push_back(multi_gpu_data.back().data());
                 }
 
-                // if we copied the input to all the other devices, and
-                // this is an out-of-place transform, we no longer
-                // need the original input
-                if(copy_input && placement == fft_placement_notinplace)
-                    ibuffer.clear();
-            };
+                if(copy_input)
+                {
+                    // For now, assume we're only splitting on highest FFT
+                    // dimension, lower-dimensional FFT data is all
+                    // contiguous, and batches are contiguous in each brick.
+                    //
+                    // That means we can express this as a 2D memcpy.
+                    const size_t unbatched_elems_per_brick
+                        = product(brick_len.begin() + 1, brick_len.end());
+                    const size_t unbatched_elems_per_fft = product(length.begin(), length.end());
+
+                    // get this brick's starting offset in the field
+                    const size_t brick_offset
+                        = b.lower_field_offset(istride, idist) * elem_size_bytes;
+
+                    // copy from original input - note that we're
+                    // assuming interleaved data so ibuffer has only one
+                    // gpubuf
+                    if(hipMemcpy2D(pbuffer.back(),
+                                   unbatched_elems_per_brick * elem_size_bytes,
+                                   ibuffer.front().data_offset(brick_offset),
+                                   unbatched_elems_per_fft * elem_size_bytes,
+                                   unbatched_elems_per_brick * elem_size_bytes,
+                                   brick_len.front(),
+                                   hipMemcpyHostToDevice)
+                       != hipSuccess)
+                        throw std::runtime_error("hipMemcpy failure");
+                }
+            }
+
+            // if we copied the input to all the other devices, and
+            // this is an out-of-place transform, we no longer
+            // need the original input
+            if(copy_input && placement == fft_placement_notinplace)
+                ibuffer.clear();
+        };
 
         // assume one input, one output field for simple cases
         if(!ifields.empty())
             alloc_fields(ifields.front(), pibuffer, true);
         if(!ofields.empty())
-            alloc_fields(ofields.front(), pobuffer, false);
+        {
+            if(placement == fft_placement_inplace)
+                pobuffer = pibuffer;
+            else
+                alloc_fields(ofields.front(), pobuffer, false);
+        }
     }
 
     // when preparing for multi-GPU transform, we need to allocate data
@@ -522,9 +540,7 @@ public:
 
             const auto brick_len = b.length();
 
-            const size_t brick_size_elems = product(brick_len.begin(), brick_len.end());
-            const size_t elem_size_bytes  = var_size<size_t>(precision, itype);
-            const size_t brick_size_bytes = brick_size_elems * elem_size_bytes;
+            const size_t elem_size_bytes = var_size<size_t>(precision, itype);
 
             // get this brick's starting offset in the field
             const size_t brick_offset = b.lower_field_offset(istride, idist) * elem_size_bytes;
@@ -532,15 +548,31 @@ public:
             // switch device to where we're copying from
             rocfft_scoped_device dev(b.device);
 
+            // For now, assume we're only splitting on highest FFT
+            // dimension, lower-dimensional FFT data is all
+            // contiguous, and batches are contiguous in each brick.
+            //
+            // That means we can express this as a 2D memcpy.
+            const size_t unbatched_elems_per_brick
+                = product(brick_len.begin() + 1, brick_len.end());
+            const size_t unbatched_elems_per_fft = product(length.begin(), length.end());
+
             // copy to original output buffer - note that
             // we're assuming interleaved data so obuffer
             // has only one gpubuf
-            if(hipMemcpy(obuffer.front().data_offset(brick_offset),
-                         brick_ptr,
-                         brick_size_bytes,
-                         hipMemcpyDeviceToDevice)
+            if(hipMemcpy2D(obuffer.front().data_offset(brick_offset),
+                           unbatched_elems_per_fft * elem_size_bytes,
+                           brick_ptr,
+                           unbatched_elems_per_brick * elem_size_bytes,
+                           unbatched_elems_per_brick * elem_size_bytes,
+                           brick_len.front(),
+                           hipMemcpyDeviceToDevice)
                != hipSuccess)
                 throw std::runtime_error("hipMemcpy failure");
+
+            // device-to-device transfers don't synchronize with the
+            // host, add explicit sync
+            (void)hipDeviceSynchronize();
         }
         pobuffer.clear();
         pobuffer.push_back(obuffer.front().data());

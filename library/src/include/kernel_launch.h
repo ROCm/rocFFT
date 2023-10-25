@@ -63,14 +63,14 @@ using log_func_t = void (*)(const char* msg);
 // FIXME: documentation
 struct DeviceCallIn
 {
-    TreeNode* node;
-    void*     bufIn[2];
-    void*     bufOut[2];
+    TreeNode* node      = nullptr;
+    void*     bufIn[2]  = {nullptr, nullptr};
+    void*     bufOut[2] = {nullptr, nullptr};
 
     // some kernels require a temp buffer that's neither input nor output
     void* bufTemp = nullptr;
 
-    hipStream_t     rocfft_stream;
+    hipStream_t     rocfft_stream = nullptr;
     GridParam       gridParam;
     hipDeviceProp_t deviceProp;
 
@@ -84,7 +84,7 @@ struct DeviceCallIn
             return CallbackType::NONE;
     }
 
-    log_func_t log_func;
+    log_func_t log_func = nullptr;
 };
 
 // FIXME: documentation

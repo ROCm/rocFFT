@@ -440,7 +440,7 @@ void CommScatter::ExecuteAsync(const rocfft_plan     plan,
     if(!srcPtr)
         srcPtr = in_buffer[0];
 
-    for(auto& op : ops)
+    for(const auto& op : ops)
     {
         CheckAccess(srcDeviceID, op.destDeviceID);
 
@@ -448,14 +448,15 @@ void CommScatter::ExecuteAsync(const rocfft_plan     plan,
 
         // init destPtr with user pointer if it wasn't
         // allocated at plan create time
+        void* destPtr = op.destPtr;
         if(!op.destPtr)
         {
-            op.destPtr = *out_buffer;
+            destPtr = *out_buffer;
             ++out_buffer;
         }
 
         auto srcWithOffset  = ptr_offset(srcPtr, op.srcOffset, precision, arrayType);
-        auto destWithOffset = ptr_offset(op.destPtr, op.destOffset, precision, arrayType);
+        auto destWithOffset = ptr_offset(destPtr, op.destOffset, precision, arrayType);
 
         hipError_t err = hipSuccess;
         if(srcDeviceID == op.destDeviceID)
@@ -521,9 +522,9 @@ void CommGather::ExecuteAsync(const rocfft_plan     plan,
 
     for(unsigned int i = 0; i < ops.size(); ++i)
     {
-        auto& op     = ops[i];
-        auto& stream = streams[i];
-        auto& event  = events[i];
+        const auto& op     = ops[i];
+        auto&       stream = streams[i];
+        auto&       event  = events[i];
 
         CheckAccess(op.srcDeviceID, destDeviceID);
 
@@ -535,13 +536,14 @@ void CommGather::ExecuteAsync(const rocfft_plan     plan,
 
         // init srcPtr with user pointer if it wasn't
         // allocated at plan create time
-        if(!op.srcPtr)
+        void* srcPtr = op.srcPtr;
+        if(!srcPtr)
         {
-            op.srcPtr = *in_buffer;
+            srcPtr = *in_buffer;
             ++in_buffer;
         }
 
-        auto srcWithOffset  = ptr_offset(op.srcPtr, op.srcOffset, precision, arrayType);
+        auto srcWithOffset  = ptr_offset(srcPtr, op.srcOffset, precision, arrayType);
         auto destWithOffset = ptr_offset(destPtr, op.destOffset, precision, arrayType);
 
         hipError_t err = hipSuccess;

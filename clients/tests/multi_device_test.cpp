@@ -40,7 +40,7 @@ std::vector<fft_params> param_generator_multi_gpu()
     std::vector<fft_params> all_params
         = param_generator_complex(multi_gpu_sizes,
                                   precision_range_sp_dp,
-                                  {1},
+                                  {1, 10},
                                   stride_generator({{1}}),
                                   stride_generator({{1}}),
                                   {{0, 0}},
@@ -83,15 +83,20 @@ std::vector<fft_params> param_generator_multi_gpu()
             field_lower.insert(field_lower.begin(), 0);
             field_upper.insert(field_upper.begin(), params.nbatch);
 
-            auto field_istride = params.istride;
-            field_istride.insert(field_istride.begin(), params.idist);
-            auto field_ostride = params.ostride;
-            field_ostride.insert(field_ostride.begin(), params.odist);
+            // bricks have contiguous strides
+            size_t              brick_dist = 1;
+            std::vector<size_t> brick_stride(field_lower.size());
+            for(size_t i = 0; i < field_lower.size(); ++i)
+            {
+                // fill strides from fastest to slowest
+                *(brick_stride.rbegin() + i) = brick_dist;
+                brick_dist *= *(field_upper.rbegin() + i) - *(field_lower.rbegin() + i);
+            }
 
             ifield.bricks.push_back(
-                fft_params::fft_brick{field_lower, field_upper, field_istride, i});
+                fft_params::fft_brick{field_lower, field_upper, brick_stride, i});
             ofield.bricks.push_back(
-                fft_params::fft_brick{field_lower, field_upper, field_ostride, i});
+                fft_params::fft_brick{field_lower, field_upper, brick_stride, i});
         }
     }
     return all_params;

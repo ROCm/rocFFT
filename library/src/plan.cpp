@@ -43,6 +43,7 @@
 #include <assert.h>
 #include <functional>
 #include <iterator>
+#include <limits>
 #include <map>
 #include <numeric>
 #include <set>
@@ -429,13 +430,13 @@ size_t rocfft_brick_t::count_elems() const
 
 std::vector<size_t> rocfft_brick_t::contiguous_strides() const
 {
-    std::vector<size_t> ret{1};
+    std::vector<size_t> ret;
     size_t              dist = 1;
 
     auto len = length();
-    for(size_t i = 1; i < len.size(); ++i)
+    for(size_t i = 0; i < len.size(); ++i)
     {
-        ret.push_back(dist * len[i]);
+        ret.push_back(dist);
         dist *= len[i];
     }
     return ret;
@@ -458,15 +459,38 @@ bool rocfft_brick_t::is_contiguous() const
     return true;
 }
 
-size_t rocfft_brick_t::offset_in_field(const std::vector<size_t>& fieldStride,
-                                       size_t                     fieldDist) const
+bool rocfft_brick_t::is_contiguous_in_field(const std::vector<size_t>& field_length,
+                                            const std::vector<size_t>& field_stride) const
 {
-    // brick indexes include batch so create a set of comparable field strides
-    auto fieldStrideWithBatch = fieldStride;
-    fieldStrideWithBatch.push_back(fieldDist);
+    const auto brick_len = length();
 
-    auto len = length();
-    return std::inner_product(len.begin(), len.end(), fieldStrideWithBatch.begin(), 0);
+    // a contiguous brick in a field is shorter than field length
+    // only on the highest dimension, ignoring dimensions of
+    // length-1, and strides must match the field for all those
+    // dimensions.
+    size_t shortDim       = std::numeric_limits<size_t>::max();
+    size_t highestNot1Dim = std::numeric_limits<size_t>::max();
+    for(size_t i = 0; i < brick_len.size(); ++i)
+    {
+        if(field_length[i] == 1)
+            continue;
+
+        highestNot1Dim = i;
+        if(brick_len[i] < field_length[i])
+        {
+            // another dim is already short?  this isn't contiguous
+            if(shortDim != std::numeric_limits<size_t>::max())
+                return false;
+            shortDim = i;
+        }
+    }
+
+    return shortDim == highestNot1Dim;
+}
+
+size_t rocfft_brick_t::offset_in_field(const std::vector<size_t>& fieldStride) const
+{
+    return std::inner_product(lower.begin(), lower.end(), fieldStride.begin(), 0);
 }
 
 rocfft_status rocfft_field_add_brick(rocfft_field field, rocfft_brick brick)
@@ -682,6 +706,427 @@ void set_bluestein_strides(const rocfft_plan plan, NodeMetaData& planData)
     planData.oDistBlue = outDistBlue;
 }
 
+// return an ExecPlan that transposes a brick
+std::unique_ptr<ExecPlan> transpose_brick(int                        deviceID,
+                                          const std::vector<size_t>& length,
+                                          rocfft_precision           precision,
+                                          void*                      inputPtr,
+                                          size_t                     offsetIn,
+                                          const std::vector<size_t>& strideIn,
+                                          void*                      outputPtr,
+                                          size_t                     offsetOut,
+                                          const std::vector<size_t>& strideOut,
+                                          std::string&&              description)
+{
+    rocfft_scoped_device dev(deviceID);
+
+    auto      execPlanMultiItem = std::make_unique<ExecPlan>();
+    ExecPlan& execPlan          = *execPlanMultiItem;
+
+    execPlan.deviceID   = deviceID;
+    execPlan.deviceProp = get_curr_device_prop();
+    execPlan.mgpuPlan   = true;
+
+    // add input buffers provided by users
+    execPlan.inputPtr  = inputPtr;
+    execPlan.outputPtr = outputPtr;
+
+    // transpose 2D
+    switch(length.size())
+    {
+    case 2:
+    {
+        execPlan.rootPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE, nullptr);
+
+        execPlan.rootPlan->deviceProp = execPlan.deviceProp;
+
+        execPlan.rootPlan->length    = length;
+        execPlan.rootPlan->dimension = 2;
+
+        execPlan.rootPlan->outStride = strideOut;
+        break;
+    }
+    case 3:
+    {
+        execPlan.rootPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, nullptr);
+
+        execPlan.rootPlan->deviceProp = execPlan.deviceProp;
+
+        execPlan.rootPlan->length    = length;
+        execPlan.rootPlan->dimension = 3;
+
+        execPlan.rootPlan->outStride = strideOut;
+        break;
+    }
+        // 4D is required if we have a 3D problem + batch
+    case 4:
+    {
+        execPlan.rootPlan = NodeFactory::CreateNodeFromScheme(CS_KERNEL_TRANSPOSE_XY_Z, nullptr);
+
+        execPlan.rootPlan->deviceProp = execPlan.deviceProp;
+
+        execPlan.rootPlan->length    = length;
+        execPlan.rootPlan->dimension = 4;
+
+        execPlan.rootPlan->outStride = strideOut;
+        break;
+    }
+    default:
+        throw std::runtime_error("unsupported transpose_brick dimension");
+    }
+
+    // Set input/output buffers - these will either be actual user
+    // input/output (when packing/unpacking for communication), or we
+    // want the kernel to use overridden pointers that we allocate
+    // during plan creation, which are also passed to look like user
+    // input/output pointers.
+    execPlan.rootPlan->obIn  = OB_USER_IN;
+    execPlan.rootPlan->obOut = OB_USER_OUT;
+
+    execPlan.oLength            = execPlan.rootPlan->length;
+    execPlan.rootPlan->inStride = strideIn;
+
+    execPlan.rootPlan->precision = precision;
+    execPlan.rootPlan->placement = rocfft_placement_notinplace;
+    execPlan.rootPlan->iOffset   = offsetIn;
+    execPlan.rootPlan->oOffset   = offsetOut;
+
+    execPlan.rootPlan->inArrayType  = rocfft_array_type_complex_interleaved;
+    execPlan.rootPlan->outArrayType = rocfft_array_type_complex_interleaved;
+
+    execPlan.execSeq.push_back(execPlan.rootPlan.get());
+    execPlan.rootPlan->CreateDevKernelArgs();
+
+    execPlan.rootPlan->comments.emplace_back(std::move(description));
+
+    // FIXME: on multi-rank plans, we should only compile for the
+    // current rank
+    RuntimeCompilePlan(execPlan);
+
+    // grid params are set during runtime compilation, put them on
+    // the execPlan so they're known at exec time
+    execPlan.devFnCall.push_back(nullptr);
+    auto& gp       = execPlan.gridParam.emplace_back();
+    dim3  gridDim  = execPlan.execSeq.front()->compiledKernel.get()->gridDim;
+    dim3  blockDim = execPlan.execSeq.front()->compiledKernel.get()->blockDim;
+    gp.b_x         = gridDim.x;
+    gp.b_y         = gridDim.y;
+    gp.b_z         = gridDim.z;
+    gp.wgs_x       = blockDim.x;
+    gp.wgs_y       = blockDim.y;
+    gp.wgs_z       = blockDim.z;
+
+    return execPlanMultiItem;
+}
+
+// RAII struct to 'lease' a temp buffer from a multimap of per-device
+// buffers.  When this struct is destroyed, the buffer is returned to
+// the map for reuse.
+struct TempBufferLease
+{
+    TempBufferLease(std::multimap<int, gpubuf>& _tempBuffers,
+                    int                         _deviceID,
+                    size_t                      _elems,
+                    size_t                      _elem_size)
+        : deviceID(_deviceID)
+        , tempBuffers(&_tempBuffers)
+    {
+        // return an existing buffer that's big enough, if one exists
+        const size_t alloc_size = _elems * _elem_size;
+        for(auto i = tempBuffers->lower_bound(deviceID); i != tempBuffers->upper_bound(deviceID);
+            ++i)
+        {
+            if(i->second.size() >= alloc_size)
+            {
+                // leasing out the temp buffer, remove it from the map
+                buf = std::move(i->second);
+                tempBuffers->erase(i);
+                return;
+            }
+        }
+        // no buffer was found, allocate a new one
+        rocfft_scoped_device dev(deviceID);
+        if(buf.alloc(alloc_size) != hipSuccess)
+            throw std::runtime_error("hipMalloc failure");
+
+        if(LOG_PLAN_ENABLED())
+            *LogSingleton::GetInstance().GetPlanOS()
+                << "temp buffer " << buf.data() << ", device " << deviceID << ", elems " << _elems
+                << ", size " << _elem_size << std::endl;
+    }
+    ~TempBufferLease()
+    {
+        // return the buffer to the map
+        tempBuffers->emplace(std::make_pair(deviceID, std::move(buf)));
+    }
+    // allow moves, disallow copies
+    TempBufferLease(TempBufferLease&& other)
+        : deviceID(other.deviceID)
+        , tempBuffers(other.tempBuffers)
+        , buf(std::move(other.buf))
+    {
+    }
+    TempBufferLease& operator=(TempBufferLease&& other)
+    {
+        deviceID    = other.deviceID;
+        tempBuffers = other.tempBuffers;
+        buf         = std::move(other.buf);
+        return *this;
+    }
+    TempBufferLease(const TempBufferLease& other) = delete;
+    TempBufferLease& operator=(const TempBufferLease& other) = delete;
+
+    void* data()
+    {
+        return buf.data();
+    }
+
+private:
+    int                         deviceID;
+    std::multimap<int, gpubuf>* tempBuffers;
+    gpubuf                      buf;
+};
+
+std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
+                                                       const std::vector<rocfft_brick_t>& bricks,
+                                                       rocfft_precision                   precision,
+                                                       rocfft_array_type                  arrayType,
+                                                       const std::vector<size_t>& field_length,
+                                                       const std::vector<size_t>& field_stride,
+                                                       void*                      output,
+                                                       const std::vector<size_t>& antecedents,
+                                                       size_t                     elem_size)
+{
+    std::vector<size_t>            outputPlanItems;
+    std::vector<TempBufferLease>   gatherPackBufs;
+    std::optional<TempBufferLease> gatherDestBuf;
+
+    // create gather operation
+    auto gatherPtr       = std::make_unique<CommGather>();
+    auto gather          = gatherPtr.get();
+    gather->precision    = precision;
+    gather->arrayType    = arrayType;
+    gather->destDeviceID = currentDevice;
+    gather->destBuf      = OB_USER_OUT;
+
+    // add gather to the plan first - we will add operations to it
+    // later
+    size_t gatherIdx = AddMultiPlanItem(std::move(gatherPtr), antecedents);
+
+    const bool gatherToTemp
+        = std::any_of(bricks.begin(), bricks.end(), [&](const rocfft_brick_t& b) {
+              return !b.is_contiguous() || !b.is_contiguous_in_field(field_length, field_stride);
+          });
+    if(gatherToTemp)
+    {
+        gatherDestBuf
+            = std::make_optional<TempBufferLease>(tempBuffers,
+                                                  currentDevice,
+                                                  product(field_length.begin(), field_length.end()),
+                                                  elem_size);
+        gather->destPtr = gatherDestBuf->data();
+    }
+    else
+    {
+        gather->destPtr = output;
+    }
+
+    // we'll be packing the brick data contiguously into the output,
+    // so keep track of how much of the output we've filled up
+    size_t contiguousOffset = 0;
+    for(size_t brickIdx = 0; brickIdx < bricks.size(); ++brickIdx)
+    {
+        const auto& b = bricks[brickIdx];
+        if(b.is_contiguous())
+        {
+            // contiguous brick, just copy the data
+            gather->ops.emplace_back(
+                b.device, OB_USER_IN, nullptr, 0, contiguousOffset, b.count_elems());
+        }
+        else
+        {
+            // allocate temp memory for the pack
+            gatherPackBufs.emplace_back(tempBuffers, b.device, b.count_elems(), elem_size);
+
+            // brick is not contiguous, insert a pack node on the brick's device
+            std::string description = "pack brick " + std::to_string(brickIdx) + " before gather";
+            auto        packIdx     = AddMultiPlanItem(transpose_brick(b.device,
+                                                            b.length(),
+                                                            precision,
+                                                            nullptr,
+                                                            0,
+                                                            b.stride,
+                                                            gatherPackBufs.back().data(),
+                                                            contiguousOffset,
+                                                            b.contiguous_strides(),
+                                                            std::move(description)),
+                                            antecedents);
+            AddAntecedent(gatherIdx, packIdx);
+
+            gather->ops.emplace_back(b.device,
+                                     OB_TEMP,
+                                     gatherPackBufs.back().data(),
+                                     0,
+                                     contiguousOffset,
+                                     b.count_elems());
+        }
+
+        // unpack if necessary
+        if(!b.is_contiguous() || !b.is_contiguous_in_field(field_length, field_stride))
+        {
+            std::string description = "unpack brick " + std::to_string(brickIdx) + " after gather";
+
+            outputPlanItems.push_back(
+                AddMultiPlanItem(transpose_brick(currentDevice,
+                                                 b.length(),
+                                                 precision,
+                                                 gatherDestBuf->data(),
+                                                 contiguousOffset,
+                                                 b.contiguous_strides(),
+                                                 output,
+                                                 b.offset_in_field(field_stride),
+                                                 field_stride,
+                                                 std::move(description)),
+                                 {gatherIdx}));
+        }
+
+        contiguousOffset += b.count_elems();
+    }
+
+    if(outputPlanItems.empty())
+    {
+        // following items in the plan just depend on the gather completing
+        outputPlanItems.push_back(gatherIdx);
+    }
+    return outputPlanItems;
+}
+
+std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                        currentDevice,
+                                                        void*                      input,
+                                                        rocfft_precision           precision,
+                                                        rocfft_array_type          arrayType,
+                                                        const std::vector<size_t>& field_length,
+                                                        const std::vector<size_t>& field_stride,
+                                                        const std::vector<rocfft_brick_t>& bricks,
+                                                        const std::vector<size_t>& antecedents,
+                                                        size_t                     elem_size)
+{
+    std::vector<size_t>            outputPlanItems;
+    std::vector<TempBufferLease>   scatterPackBufs;
+    std::optional<TempBufferLease> scatterSrcBuf;
+
+    // create scatter operation
+    auto scatterPtr = std::make_unique<CommScatter>();
+    auto scatter    = scatterPtr.get();
+
+    scatter->precision   = precision;
+    scatter->arrayType   = arrayType;
+    scatter->srcDeviceID = currentDevice;
+    scatter->srcBuf      = OB_USER_OUT;
+
+    // add scatter to the multi-plan first, add operations afterwards
+    auto scatterIdx = AddMultiPlanItem(std::move(scatterPtr), antecedents);
+
+    const bool scatterFromTemp
+        = std::any_of(bricks.begin(), bricks.end(), [&](const rocfft_brick_t& b) {
+              return !b.is_contiguous_in_field(field_length, field_stride);
+          });
+    if(scatterFromTemp)
+    {
+        scatterSrcBuf
+            = std::make_optional<TempBufferLease>(tempBuffers,
+                                                  currentDevice,
+                                                  product(field_length.begin(), field_length.end()),
+                                                  elem_size);
+        scatter->srcPtr = scatterSrcBuf->data();
+    }
+    else
+    {
+        scatter->srcPtr = input;
+    }
+
+    // we'll be packing the brick data contiguously into the output,
+    // so keep track of how much of the output we've filled up
+    size_t contiguousOffset = 0;
+    for(size_t brickIdx = 0; brickIdx < bricks.size(); ++brickIdx)
+    {
+        const auto& b = bricks[brickIdx];
+
+        if(b.is_contiguous_in_field(field_length, field_stride))
+        {
+            // contiguous brick, just copy the data
+            scatter->ops.emplace_back(
+                b.device, OB_USER_OUT, nullptr, contiguousOffset, 0, b.count_elems());
+        }
+        else
+        {
+            // pack data to be contiguous
+            std::string description = "pack brick " + std::to_string(brickIdx) + " before scatter";
+
+            const auto brickLen = b.length();
+            auto       packIdx  = AddMultiPlanItem(transpose_brick(currentDevice,
+                                                            b.length(),
+                                                            precision,
+                                                            input,
+                                                            b.offset_in_field(field_stride),
+                                                            field_stride,
+                                                            scatterSrcBuf->data(),
+                                                            contiguousOffset,
+                                                            b.contiguous_strides(),
+                                                            std::move(description)),
+                                            antecedents);
+            AddAntecedent(scatterIdx, packIdx);
+
+            // bricks are packed to be contiguous - if output is the
+            // same shape, then there's no need for unpacking
+            if(b.is_contiguous())
+            {
+                scatter->ops.emplace_back(
+                    b.device, OB_USER_OUT, nullptr, contiguousOffset, 0, b.count_elems());
+            }
+            else
+            {
+                // allocate memory for packed data
+                scatterPackBufs.emplace_back(tempBuffers, b.device, b.count_elems(), elem_size);
+
+                // send the data
+                scatter->ops.emplace_back(b.device,
+                                          OB_USER_OUT,
+                                          scatterPackBufs.back().data(),
+                                          contiguousOffset,
+                                          0,
+                                          b.count_elems());
+
+                // unpack data after sending
+                description = "unpack brick " + std::to_string(brickIdx) + " after scatter";
+
+                outputPlanItems.push_back(
+                    AddMultiPlanItem(transpose_brick(b.device,
+                                                     b.length(),
+                                                     precision,
+                                                     scatterPackBufs.back().data(),
+                                                     0,
+                                                     b.contiguous_strides(),
+                                                     nullptr,
+                                                     0,
+                                                     b.stride,
+                                                     std::move(description)),
+                                     {scatterIdx}));
+            }
+        }
+        contiguousOffset += b.count_elems();
+    }
+
+    // following items in the plan just depend on the scatter
+    // completing if no unpacking was required
+    if(outputPlanItems.empty())
+    {
+        outputPlanItems.push_back(scatterIdx);
+    }
+
+    return outputPlanItems;
+}
+
 void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
 {
     // the smart pointer will be moved into the multi-plan during this
@@ -714,84 +1159,58 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
 
     const auto elem_size = element_size(precision, rocfft_array_type_complex_interleaved);
 
-    // indexes in the multi-plan of work to gather/unpack the
-    // inFields to the current device
-    std::vector<size_t> inFieldGatherIndexes;
-    std::vector<size_t> unpackIndexes;
+    // need a buffer to do the actual FFT
+    TempBufferLease fftBuf{tempBuffers,
+                           execPlanPtr->deviceID,
+                           compute_ptrdiff(lengths, desc.inStrides, batch, desc.inDist),
+                           elem_size};
 
-    // need a buffer on device 0 to do the actual FFT
-    auto& fftBuf = tempBuffers.emplace_back();
-    (void)fftBuf.alloc(compute_ptrdiff(lengths, desc.inStrides, batch, desc.inDist) * elem_size);
-
-    // also need a temp buffer for gathering data to
-    auto& gatherBuf = fftBuf; //tempBuffers.emplace_back();
-
+    std::vector<size_t> gatherIndexes;
     for(const auto& inField : desc.inFields)
     {
-        // indexes in the multi-plan of work to pack this field's
-        // data before gathering
-        std::vector<size_t> packIndexes;
+        // brick indexes include batch so create a set of comparable field strides
+        auto fieldStrideWithBatch = desc.inStrides;
+        fieldStrideWithBatch.push_back(desc.inDist);
 
-        // create gather operation for this field
-        auto gather          = std::make_unique<CommGather>();
-        gather->precision    = execPlan->rootPlan->precision;
-        gather->arrayType    = execPlan->rootPlan->inArrayType;
-        gather->destDeviceID = 0;
-        gather->destBuf      = OB_USER_OUT;
+        auto fieldLengthWithBatch = lengths;
+        fieldLengthWithBatch.push_back(batch);
 
-        // offset into the receive buffer
-        size_t contiguousOffset = 0;
-
-        for(const auto& b : inField.bricks)
-        {
-            gather->ops.emplace_back(
-                b.device, OB_USER_IN, nullptr, 0, contiguousOffset, b.count_elems());
-            contiguousOffset += b.count_elems();
-        }
-
-        // contiguousOffset at this point is the total space that all
-        // of the gathered items needed, so allocate space for that
-        // on this device and set the gather to write there
-        // (void)gatherBuf.alloc(contiguousOffset * elem_size);
-        gather->destPtr = gatherBuf.data();
-
-        // all bricks are packed, now gather data to this device
-        inFieldGatherIndexes.push_back(AddMultiPlanItem(std::move(gather), packIndexes));
+        auto curIndexes = GatherBricksToField(execPlan->deviceID,
+                                              inField.bricks,
+                                              execPlan->rootPlan->precision,
+                                              execPlan->rootPlan->inArrayType,
+                                              fieldLengthWithBatch,
+                                              fieldStrideWithBatch,
+                                              fftBuf.data(),
+                                              {},
+                                              elem_size);
+        std::copy(curIndexes.begin(), curIndexes.end(), std::back_inserter(gatherIndexes));
     }
 
     // data is gathered and unpacked, run the core FFT plan we started with
     execPlan->inputPtr  = fftBuf.data();
     execPlan->outputPtr = fftBuf.data();
-    auto fftIdx         = AddMultiPlanItem(std::move(execPlanPtr),
-                                   unpackIndexes.empty() ? inFieldGatherIndexes : unpackIndexes);
+    auto fftIdx         = AddMultiPlanItem(std::move(execPlanPtr), gatherIndexes);
 
     // scatter data back out
     for(const auto& outField : desc.outFields)
     {
-        // offset into the pack buffer
-        size_t contiguousOffset = 0;
+        // brick indexes include batch so create a set of comparable field strides
+        auto fieldStrideWithBatch = desc.outStrides;
+        fieldStrideWithBatch.push_back(desc.outDist);
 
-        auto scatterPtr = std::make_unique<CommScatter>();
-        auto scatter    = scatterPtr.get();
-        // added scatter to the multi-plan, use a non-owning pointer
-        // to the item so we can continue to work with it while
-        // knowing its index in the multi-plan
-        //        auto scatterIdx =
-        AddMultiPlanItem(std::move(scatterPtr), {fftIdx});
+        auto fieldLengthWithBatch = lengths;
+        fieldLengthWithBatch.push_back(batch);
 
-        scatter->precision   = execPlan->rootPlan->precision;
-        scatter->arrayType   = execPlan->rootPlan->inArrayType;
-        scatter->srcDeviceID = 0;
-        scatter->srcBuf      = OB_USER_OUT;
-        scatter->srcPtr      = fftBuf.data();
-
-        for(const auto& b : outField.bricks)
-        {
-            const auto brickLen = b.length();
-            scatter->ops.emplace_back(
-                b.device, OB_USER_OUT, nullptr, contiguousOffset, 0, b.count_elems());
-            contiguousOffset += b.count_elems();
-        }
+        ScatterFieldToBricks(execPlan->deviceID,
+                             fftBuf.data(),
+                             execPlan->rootPlan->precision,
+                             execPlan->rootPlan->inArrayType,
+                             fieldLengthWithBatch,
+                             fieldStrideWithBatch,
+                             outField.bricks,
+                             {fftIdx},
+                             elem_size);
     }
 }
 

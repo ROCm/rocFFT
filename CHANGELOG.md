@@ -2,6 +2,12 @@
 
 Full documentation for rocFFT is available at [rocm.docs.amd.com](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
 
+## rocFFT 1.0.26 (Unreleased)
+
+### Changed
+
+- Multi-device FFTs now allow batch greater than 1.
+
 ## rocFFT 1.0.25 for ROCm 6.0.0
 
 ### Added
