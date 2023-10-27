@@ -95,7 +95,7 @@ def runTestCommand (platform, project, boolean debug=false)
             this,
             """
             cd ${project.paths.build_prefix}
-            git clone https://github.com/ROCmSoftwarePlatform/rocPTS.git -b release/rocpts-rel-1.1.0
+            git clone https://github.com/ROCmSoftwarePlatform/rocPTS.git -b release/rocpts-rel-1.2.0
             cd rocPTS
             python3 -m pip install build
             python3 -m build
