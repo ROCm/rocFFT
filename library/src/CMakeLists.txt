@@ -227,18 +227,18 @@ if( SQLITE_USE_SYSTEM_PACKAGE )
 else()
   include( FetchContent )
 
-  if(DEFINED ENV{SQLITE_SRC_URL})
-    set(SQLITE_SRC_URL_INIT $ENV{SQLITE_SRC_URL})
+  if(DEFINED ENV{SQLITE_3_43_2_SRC_URL})
+    set(SQLITE_3_43_2_SRC_URL_INIT $ENV{SQLITE_3_43_2_SRC_URL})
   else()
-    set(SQLITE_SRC_URL_INIT https://sqlite.org/2021/sqlite-amalgamation-3360000.zip)
+    set(SQLITE_3_43_2_SRC_URL_INIT https://www.sqlite.org/2023/sqlite-amalgamation-3430200.zip)
   endif()
-  set(SQLITE_SRC_URL ${SQLITE_SRC_URL_INIT} CACHE STRING "Location of SQLite source code")
-  set(SQLITE_SRC_SHA256 999826fe4c871f18919fdb8ed7ec9dd8217180854dd1fe21eea96aed36186729 CACHE STRING "SHA256 hash of SQLite source code")
+  set(SQLITE_3_43_2_SRC_URL ${SQLITE_3_43_2_SRC_URL_INIT} CACHE STRING "Location of SQLite source code")
+  set(SQLITE_SRC_3_43_2_SHA3_256 af02b88cc922e7506c6659737560c0756deee24e4e7741d4b315af341edd8b40 CACHE STRING "SHA3-256 hash of SQLite source code")
 
   # embed SQLite
   FetchContent_Declare(sqlite_local
-    URL ${SQLITE_SRC_URL}
-    URL_HASH SHA256=${SQLITE_SRC_SHA256}
+    URL ${SQLITE_3_43_2_SRC_URL}
+    URL_HASH SHA3_256=${SQLITE_SRC_3_43_2_SHA3_256}
   )
   FetchContent_MakeAvailable(sqlite_local)
   add_library( sqlite3 OBJECT ${sqlite_local_SOURCE_DIR}/sqlite3.c )
