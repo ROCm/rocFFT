@@ -83,7 +83,7 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     src += common_h;
     src += callback_h;
 
-    src += rtc_precision_type_decl(specs.precision);
+    src += rtc_precision_type_decl(specs.precision, array_type_is_complex(specs.inArrayType));
 
     src += rtc_const_cbtype_decl(specs.cbtype);
 

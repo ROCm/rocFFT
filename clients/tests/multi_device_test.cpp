@@ -48,12 +48,26 @@ std::vector<fft_params> param_generator_multi_gpu()
                                   {fft_placement_inplace, fft_placement_notinplace},
                                   false);
 
+    auto all_params_real = param_generator_real(multi_gpu_sizes,
+                                                precision_range_sp_dp,
+                                                {1, 10},
+                                                stride_generator({{1}}),
+                                                stride_generator({{1}}),
+                                                {{0, 0}},
+                                                {{0, 0}},
+                                                {fft_placement_notinplace},
+                                                false);
+    std::copy(all_params_real.begin(), all_params_real.end(), std::back_inserter(all_params));
+    all_params_real.clear();
+
     for(auto& params : all_params)
     {
         // split up the slowest FFT dimension among the available
         // devices
-        size_t slowLen = params.length.front();
-        if(slowLen < static_cast<unsigned int>(deviceCount))
+        size_t islowLen = params.length.front();
+        size_t oslowLen = params.olength().front();
+        if(islowLen < static_cast<unsigned int>(deviceCount)
+           || oslowLen < static_cast<unsigned int>(deviceCount))
             continue;
 
         // add input and output fields
@@ -63,40 +77,57 @@ std::vector<fft_params> param_generator_multi_gpu()
         for(int i = 0; i < deviceCount; ++i)
         {
             // start at origin
-            std::vector<size_t> field_lower(params.length.size());
-            std::vector<size_t> field_upper(params.length.size());
+            std::vector<size_t> ifield_lower(params.length.size());
+            std::vector<size_t> ifield_upper(params.length.size());
+            std::vector<size_t> ofield_lower(params.length.size());
+            std::vector<size_t> ofield_upper(params.length.size());
 
             // note: slowest FFT dim is index 1 in these coordinates
-            field_lower[0] = slowLen / deviceCount * i;
+            ifield_lower[0] = islowLen / deviceCount * i;
+            ofield_lower[0] = oslowLen / deviceCount * i;
             // last brick needs to include the whole slow len
             if(i == deviceCount - 1)
-                field_upper[0] = slowLen;
-            else
-                field_upper[0] = std::min(slowLen, field_lower[0] + slowLen / deviceCount);
-
-            for(unsigned int upperDim = 1; upperDim < field_upper.size(); ++upperDim)
             {
-                field_upper[upperDim] = params.length[upperDim];
+                ifield_upper[0] = islowLen;
+                ofield_upper[0] = oslowLen;
+            }
+            else
+            {
+                ifield_upper[0] = std::min(islowLen, ifield_lower[0] + islowLen / deviceCount);
+                ofield_upper[0] = std::min(oslowLen, ofield_lower[0] + oslowLen / deviceCount);
+            }
+
+            for(unsigned int upperDim = 1; upperDim < params.length.size(); ++upperDim)
+            {
+                ifield_upper[upperDim] = params.length[upperDim];
+                ofield_upper[upperDim] = params.olength()[upperDim];
             }
 
             // field coordinates also need to include batch
-            field_lower.insert(field_lower.begin(), 0);
-            field_upper.insert(field_upper.begin(), params.nbatch);
+            ifield_lower.insert(ifield_lower.begin(), 0);
+            ofield_lower.insert(ofield_lower.begin(), 0);
+            ifield_upper.insert(ifield_upper.begin(), params.nbatch);
+            ofield_upper.insert(ofield_upper.begin(), params.nbatch);
 
             // bricks have contiguous strides
-            size_t              brick_dist = 1;
-            std::vector<size_t> brick_stride(field_lower.size());
-            for(size_t i = 0; i < field_lower.size(); ++i)
+            size_t              brick_idist = 1;
+            size_t              brick_odist = 1;
+            std::vector<size_t> brick_istride(ifield_lower.size());
+            std::vector<size_t> brick_ostride(ofield_lower.size());
+            for(size_t i = 0; i < ifield_lower.size(); ++i)
             {
                 // fill strides from fastest to slowest
-                *(brick_stride.rbegin() + i) = brick_dist;
-                brick_dist *= *(field_upper.rbegin() + i) - *(field_lower.rbegin() + i);
+                *(brick_istride.rbegin() + i) = brick_idist;
+                brick_idist *= *(ifield_upper.rbegin() + i) - *(ifield_lower.rbegin() + i);
+
+                *(brick_ostride.rbegin() + i) = brick_odist;
+                brick_odist *= *(ofield_upper.rbegin() + i) - *(ofield_lower.rbegin() + i);
             }
 
             ifield.bricks.push_back(
-                fft_params::fft_brick{field_lower, field_upper, brick_stride, i});
+                fft_params::fft_brick{ifield_lower, ifield_upper, brick_istride, i});
             ofield.bricks.push_back(
-                fft_params::fft_brick{field_lower, field_upper, brick_stride, i});
+                fft_params::fft_brick{ofield_lower, ofield_upper, brick_ostride, i});
         }
     }
     return all_params;

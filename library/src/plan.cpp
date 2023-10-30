@@ -710,6 +710,7 @@ void set_bluestein_strides(const rocfft_plan plan, NodeMetaData& planData)
 std::unique_ptr<ExecPlan> transpose_brick(int                        deviceID,
                                           const std::vector<size_t>& length,
                                           rocfft_precision           precision,
+                                          rocfft_array_type          arrayType,
                                           void*                      inputPtr,
                                           size_t                     offsetIn,
                                           const std::vector<size_t>& strideIn,
@@ -791,8 +792,8 @@ std::unique_ptr<ExecPlan> transpose_brick(int                        deviceID,
     execPlan.rootPlan->iOffset   = offsetIn;
     execPlan.rootPlan->oOffset   = offsetOut;
 
-    execPlan.rootPlan->inArrayType  = rocfft_array_type_complex_interleaved;
-    execPlan.rootPlan->outArrayType = rocfft_array_type_complex_interleaved;
+    execPlan.rootPlan->inArrayType  = arrayType;
+    execPlan.rootPlan->outArrayType = arrayType;
 
     execPlan.execSeq.push_back(execPlan.rootPlan.get());
     execPlan.rootPlan->CreateDevKernelArgs();
@@ -953,6 +954,7 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
             auto        packIdx     = AddMultiPlanItem(transpose_brick(b.device,
                                                             b.length(),
                                                             precision,
+                                                            arrayType,
                                                             nullptr,
                                                             0,
                                                             b.stride,
@@ -980,6 +982,7 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
                 AddMultiPlanItem(transpose_brick(currentDevice,
                                                  b.length(),
                                                  precision,
+                                                 arrayType,
                                                  gatherDestBuf->data(),
                                                  contiguousOffset,
                                                  b.contiguous_strides(),
@@ -1067,6 +1070,7 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
             auto       packIdx  = AddMultiPlanItem(transpose_brick(currentDevice,
                                                             b.length(),
                                                             precision,
+                                                            arrayType,
                                                             input,
                                                             b.offset_in_field(field_stride),
                                                             field_stride,
@@ -1104,6 +1108,7 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
                     AddMultiPlanItem(transpose_brick(b.device,
                                                      b.length(),
                                                      precision,
+                                                     arrayType,
                                                      scatterPackBufs.back().data(),
                                                      0,
                                                      b.contiguous_strides(),
@@ -1144,26 +1149,29 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
     // code below this line is only required for multi-device plans
     execPlan->mgpuPlan = true;
 
-    // ensure fields are interleaved - real and planar are not supported
-    if((!desc.inFields.empty() && !array_type_is_interleaved(desc.inArrayType))
-       || (!desc.outFields.empty() && !array_type_is_interleaved(desc.outArrayType)))
+    // ensure fields are real or interleaved - planar is not supported
+    if((!desc.inFields.empty() && array_type_is_planar(desc.inArrayType))
+       || (!desc.outFields.empty() && array_type_is_planar(desc.outArrayType)))
     {
-        throw std::runtime_error("fields must be interleaved");
+        throw std::runtime_error("fields must be not be planar");
     }
 
-    // code in here assumes that an input gather buf can be reused for
-    // output scattering, which means we have to be doing
-    // complex-complex FFT.  Assert that now.
-    if(!execPlan->rootPlan->IsRootPlanC2CTransform())
-        throw std::runtime_error("expecting c2c transform in multi-device plan");
+    const auto in_elem_size = element_size(precision, desc.inArrayType);
+    // we do in-place transforms here, so allocate a buffer for the
+    // complex side of real-complex transforms, since it's bigger.
+    const size_t in_elem_count = compute_ptrdiff(lengths, desc.inStrides, batch, desc.inDist);
 
-    const auto elem_size = element_size(precision, rocfft_array_type_complex_interleaved);
-
-    // need a buffer to do the actual FFT
-    TempBufferLease fftBuf{tempBuffers,
-                           execPlanPtr->deviceID,
-                           compute_ptrdiff(lengths, desc.inStrides, batch, desc.inDist),
-                           elem_size};
+    // need buffer(s) to do the actual FFT
+    TempBufferLease fftBuf{tempBuffers, execPlanPtr->deviceID, in_elem_count, in_elem_size};
+    std::optional<TempBufferLease> fftOutBuf;
+    if(execPlan->rootPlan->placement == rocfft_placement_notinplace)
+    {
+        const auto   out_elem_size  = element_size(precision, desc.outArrayType);
+        const size_t out_elem_count = compute_ptrdiff(
+            execPlan->rootPlan->GetOutputLength(), desc.outStrides, batch, desc.outDist);
+        fftOutBuf = std::make_optional<TempBufferLease>(
+            tempBuffers, execPlanPtr->deviceID, out_elem_count, out_elem_size);
+    }
 
     std::vector<size_t> gatherIndexes;
     for(const auto& inField : desc.inFields)
@@ -1175,22 +1183,26 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
         auto fieldLengthWithBatch = lengths;
         fieldLengthWithBatch.push_back(batch);
 
-        auto curIndexes = GatherBricksToField(execPlan->deviceID,
-                                              inField.bricks,
-                                              execPlan->rootPlan->precision,
-                                              execPlan->rootPlan->inArrayType,
-                                              fieldLengthWithBatch,
-                                              fieldStrideWithBatch,
-                                              fftBuf.data(),
-                                              {},
-                                              elem_size);
+        auto curIndexes
+            = GatherBricksToField(execPlan->deviceID,
+                                  inField.bricks,
+                                  execPlan->rootPlan->precision,
+                                  execPlan->rootPlan->inArrayType,
+                                  fieldLengthWithBatch,
+                                  fieldStrideWithBatch,
+                                  fftBuf.data(),
+                                  {},
+                                  element_size(precision, execPlan->rootPlan->inArrayType));
         std::copy(curIndexes.begin(), curIndexes.end(), std::back_inserter(gatherIndexes));
     }
 
     // data is gathered and unpacked, run the core FFT plan we started with
-    execPlan->inputPtr  = fftBuf.data();
-    execPlan->outputPtr = fftBuf.data();
-    auto fftIdx         = AddMultiPlanItem(std::move(execPlanPtr), gatherIndexes);
+    execPlan->inputPtr = fftBuf.data();
+    if(execPlan->rootPlan->placement == rocfft_placement_notinplace)
+        execPlan->outputPtr = fftOutBuf->data();
+    else
+        execPlan->outputPtr = fftBuf.data();
+    auto fftIdx = AddMultiPlanItem(std::move(execPlanPtr), gatherIndexes);
 
     // scatter data back out
     for(const auto& outField : desc.outFields)
@@ -1202,15 +1214,19 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
         auto fieldLengthWithBatch = lengths;
         fieldLengthWithBatch.push_back(batch);
 
+        auto scatterSrcBuf = execPlan->rootPlan->placement == rocfft_placement_notinplace
+                                 ? fftOutBuf->data()
+                                 : fftBuf.data();
+
         ScatterFieldToBricks(execPlan->deviceID,
-                             fftBuf.data(),
+                             scatterSrcBuf,
                              execPlan->rootPlan->precision,
-                             execPlan->rootPlan->inArrayType,
+                             execPlan->rootPlan->outArrayType,
                              fieldLengthWithBatch,
                              fieldStrideWithBatch,
                              outField.bricks,
                              {fftIdx},
-                             elem_size);
+                             element_size(precision, execPlan->rootPlan->outArrayType));
     }
 }
 
@@ -1317,7 +1333,23 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
         // gathering the data to one device and doing FFT there.  So
         // the FFT becomes in-place.
         if(!plan->desc.inFields.empty() && !plan->desc.outFields.empty())
-            rootPlanData.placement = rocfft_placement_inplace;
+        {
+            // c2c can be inplace so both input/output can be
+            // contiguous without needing extra buffers
+            if(plan->transformType == rocfft_transform_type_complex_forward
+               || plan->transformType == rocfft_transform_type_complex_inverse)
+            {
+                rootPlanData.placement = rocfft_placement_inplace;
+            }
+            // real-complex would require non-contiguous data to be
+            // inplace (which likely means more packing/unpacking and
+            // extra temp buffer usage anyway), so make it
+            // not-in-place instead
+            else
+            {
+                rootPlanData.placement = rocfft_placement_notinplace;
+            }
+        }
 
         rootPlanData.precision = plan->precision;
         if((plan->transformType == rocfft_transform_type_complex_forward)

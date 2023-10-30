@@ -7,6 +7,7 @@ Full documentation for rocFFT is available at [rocm.docs.amd.com](https://rocm.d
 ### Changed
 
 - Multi-device FFTs now allow batch greater than 1.
+- Multi-device real-complex FFTs (real-complex) are now supported.
 
 ## rocFFT 1.0.25 for ROCm 6.0.0
 

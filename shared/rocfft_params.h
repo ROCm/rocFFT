@@ -444,6 +444,7 @@ public:
                            std::vector<void*>&  pobuffer) override
     {
         auto alloc_fields = [&](const fft_params::fft_field& field,
+                                fft_array_type               array_type,
                                 std::vector<void*>&          pbuffer,
                                 bool                         copy_input) {
             if(field.bricks.empty())
@@ -461,7 +462,7 @@ public:
                 const auto brick_stride = b.stride;
 
                 const size_t brick_size_elems = product(brick_len.begin(), brick_len.end());
-                const size_t elem_size_bytes  = var_size<size_t>(precision, itype);
+                const size_t elem_size_bytes  = var_size<size_t>(precision, array_type);
                 const size_t brick_size_bytes = brick_size_elems * elem_size_bytes;
 
                 // set device for the alloc, but we want to return to the
@@ -513,13 +514,13 @@ public:
 
         // assume one input, one output field for simple cases
         if(!ifields.empty())
-            alloc_fields(ifields.front(), pibuffer, true);
+            alloc_fields(ifields.front(), itype, pibuffer, true);
         if(!ofields.empty())
         {
             if(placement == fft_placement_inplace)
                 pobuffer = pibuffer;
             else
-                alloc_fields(ofields.front(), pobuffer, false);
+                alloc_fields(ofields.front(), otype, pobuffer, false);
         }
     }
 
@@ -540,10 +541,10 @@ public:
 
             const auto brick_len = b.length();
 
-            const size_t elem_size_bytes = var_size<size_t>(precision, itype);
+            const size_t elem_size_bytes = var_size<size_t>(precision, otype);
 
             // get this brick's starting offset in the field
-            const size_t brick_offset = b.lower_field_offset(istride, idist) * elem_size_bytes;
+            const size_t brick_offset = b.lower_field_offset(ostride, odist) * elem_size_bytes;
 
             // switch device to where we're copying from
             rocfft_scoped_device dev(b.device);
@@ -555,7 +556,9 @@ public:
             // That means we can express this as a 2D memcpy.
             const size_t unbatched_elems_per_brick
                 = product(brick_len.begin() + 1, brick_len.end());
-            const size_t unbatched_elems_per_fft = product(length.begin(), length.end());
+            const auto   output_length = olength();
+            const size_t unbatched_elems_per_fft
+                = product(output_length.begin(), output_length.end());
 
             // copy to original output buffer - note that
             // we're assuming interleaved data so obuffer

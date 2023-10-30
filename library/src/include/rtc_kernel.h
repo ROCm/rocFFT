@@ -232,16 +232,19 @@ static const char* rtc_precision_name(rocfft_precision precision)
     }
 }
 
-static const char* rtc_precision_type_decl(rocfft_precision precision)
+static const char* rtc_precision_type_decl(rocfft_precision precision, bool is_complex = true)
 {
     switch(precision)
     {
     case rocfft_precision_single:
-        return "typedef rocfft_complex<float> scalar_type;\n";
+        return is_complex ? "typedef rocfft_complex<float> scalar_type;\n"
+                          : "typedef float scalar_type;\n";
     case rocfft_precision_double:
-        return "typedef rocfft_complex<double> scalar_type;\n";
+        return is_complex ? "typedef rocfft_complex<double> scalar_type;\n"
+                          : "typedef double scalar_type;\n";
     case rocfft_precision_half:
-        return "typedef rocfft_complex<_Float16> scalar_type;\n";
+        return is_complex ? "typedef rocfft_complex<_Float16> scalar_type;\n"
+                          : "typedef _Float16 scalar_type;\n";
     }
 }
 
