@@ -322,6 +322,6 @@ void write_standalone_test_harness(const Function& f, const std::string& src)
 
     // write kernel source to its own file, so it can be formatted
     // easily if desired
-    std::ofstream kernel_file(name + ".h");
+    std::ofstream kernel_file(user_path / (name + ".h"));
     kernel_file << src;
 }
