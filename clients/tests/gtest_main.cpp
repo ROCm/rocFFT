@@ -137,6 +137,16 @@ void precompile_test_kernels(const std::string& precompile_file)
             {
                 name.erase(0, 8);
 
+                // Run any problem that uses brick decomposition
+                // without touching batch.  Bricks are specified with
+                // batch indexes, so arbitrarily changing batch to 1
+                // can break those cases.
+                if(name.find("_brick_") != std::string::npos)
+                {
+                    tokens.emplace_back(std::move(name));
+                    continue;
+                }
+
                 // change batch to 1, so we don't waste time creating
                 // multiple plans that differ only by batch
                 auto idx = name.find("_batch_");
