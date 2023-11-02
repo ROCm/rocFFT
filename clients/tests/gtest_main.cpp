@@ -93,6 +93,9 @@ bool fftw_compare = true;
 // Cache the last cpu fft that was requested
 last_cpu_fft_cache last_cpu_fft_data;
 
+// Number of devices to distribute the FFT to for manual tests
+int manual_devices = 1;
+
 system_memory get_system_memory()
 {
     system_memory memory_data;
@@ -332,6 +335,8 @@ int main(int argc, char* argv[])
         ("wisdomfile,W",
          po::value<std::string>(&fftw_wisdom_filename)->default_value("wisdom3.txt"),
          "FFTW3 wisdom filename")
+        ("manual_devices", po::value<int>(&manual_devices)->default_value(1),
+	  "Distribute manual test case among this many devices")
         ("scalefactor", po::value<double>(&manual_params.scale_factor), "Scale factor to apply to output.")
         ("token", po::value<std::string>(&test_token)->default_value(""), "Test token name for manual test")
         ("precompile",  po::value<std::string>(&precompile_file), "Precompile kernels to a file for all test cases before running tests");
@@ -522,6 +527,12 @@ int main(int argc, char* argv[])
 TEST(manual, vs_fftw) // MANUAL TESTS HERE
 {
     rocfft_params params(manual_params);
+
+    if(manual_devices > 1)
+    {
+        params.distribute_input(manual_devices);
+        params.distribute_output(manual_devices);
+    }
 
     // Run an individual test using the provided command-line parameters.
     params.validate();
