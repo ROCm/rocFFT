@@ -711,10 +711,10 @@ std::unique_ptr<ExecPlan> transpose_brick(int                        deviceID,
                                           const std::vector<size_t>& length,
                                           rocfft_precision           precision,
                                           rocfft_array_type          arrayType,
-                                          void*                      inputPtr,
+                                          BufferPtr                  inputPtr,
                                           size_t                     offsetIn,
                                           const std::vector<size_t>& strideIn,
-                                          void*                      outputPtr,
+                                          BufferPtr                  outputPtr,
                                           size_t                     offsetOut,
                                           const std::vector<size_t>& strideOut,
                                           std::string&&              description)
@@ -894,7 +894,7 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
                                                        rocfft_array_type                  arrayType,
                                                        const std::vector<size_t>& field_length,
                                                        const std::vector<size_t>& field_stride,
-                                                       void*                      output,
+                                                       BufferPtr                  output,
                                                        const std::vector<size_t>& antecedents,
                                                        size_t                     elem_size)
 {
@@ -908,7 +908,6 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
     gather->precision    = precision;
     gather->arrayType    = arrayType;
     gather->destDeviceID = currentDevice;
-    gather->destBuf      = OB_USER_OUT;
 
     // add gather to the plan first - we will add operations to it
     // later
@@ -925,7 +924,7 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
                                                   currentDevice,
                                                   product(field_length.begin(), field_length.end()),
                                                   elem_size);
-        gather->destPtr = gatherDestBuf->data();
+        gather->destPtr = BufferPtr::temp(gatherDestBuf->data());
     }
     else
     {
@@ -942,7 +941,7 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
         {
             // contiguous brick, just copy the data
             gather->ops.emplace_back(
-                b.device, OB_USER_IN, nullptr, 0, contiguousOffset, b.count_elems());
+                b.device, BufferPtr::user_input(brickIdx), 0, contiguousOffset, b.count_elems());
         }
         else
         {
@@ -951,23 +950,23 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
 
             // brick is not contiguous, insert a pack node on the brick's device
             std::string description = "pack brick " + std::to_string(brickIdx) + " before gather";
-            auto        packIdx     = AddMultiPlanItem(transpose_brick(b.device,
-                                                            b.length(),
-                                                            precision,
-                                                            arrayType,
-                                                            nullptr,
-                                                            0,
-                                                            b.stride,
-                                                            gatherPackBufs.back().data(),
-                                                            contiguousOffset,
-                                                            b.contiguous_strides(),
-                                                            std::move(description)),
-                                            antecedents);
+            auto        packIdx
+                = AddMultiPlanItem(transpose_brick(b.device,
+                                                   b.length(),
+                                                   precision,
+                                                   arrayType,
+                                                   BufferPtr::user_input(brickIdx),
+                                                   0,
+                                                   b.stride,
+                                                   BufferPtr::temp(gatherPackBufs.back().data()),
+                                                   contiguousOffset,
+                                                   b.contiguous_strides(),
+                                                   std::move(description)),
+                                   antecedents);
             AddAntecedent(gatherIdx, packIdx);
 
             gather->ops.emplace_back(b.device,
-                                     OB_TEMP,
-                                     gatherPackBufs.back().data(),
+                                     BufferPtr::temp(gatherPackBufs.back().data()),
                                      0,
                                      contiguousOffset,
                                      b.count_elems());
@@ -983,7 +982,7 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
                                                  b.length(),
                                                  precision,
                                                  arrayType,
-                                                 gatherDestBuf->data(),
+                                                 BufferPtr::temp(gatherDestBuf->data()),
                                                  contiguousOffset,
                                                  b.contiguous_strides(),
                                                  output,
@@ -1005,7 +1004,7 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
 }
 
 std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                        currentDevice,
-                                                        void*                      input,
+                                                        BufferPtr                  input,
                                                         rocfft_precision           precision,
                                                         rocfft_array_type          arrayType,
                                                         const std::vector<size_t>& field_length,
@@ -1025,7 +1024,6 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
     scatter->precision   = precision;
     scatter->arrayType   = arrayType;
     scatter->srcDeviceID = currentDevice;
-    scatter->srcBuf      = OB_USER_OUT;
 
     // add scatter to the multi-plan first, add operations afterwards
     auto scatterIdx = AddMultiPlanItem(std::move(scatterPtr), antecedents);
@@ -1041,7 +1039,7 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
                                                   currentDevice,
                                                   product(field_length.begin(), field_length.end()),
                                                   elem_size);
-        scatter->srcPtr = scatterSrcBuf->data();
+        scatter->srcPtr = BufferPtr::temp(scatterSrcBuf->data());
     }
     else
     {
@@ -1059,7 +1057,7 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
         {
             // contiguous brick, just copy the data
             scatter->ops.emplace_back(
-                b.device, OB_USER_OUT, nullptr, contiguousOffset, 0, b.count_elems());
+                b.device, BufferPtr::user_output(brickIdx), contiguousOffset, 0, b.count_elems());
         }
         else
         {
@@ -1074,7 +1072,7 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
                                                             input,
                                                             b.offset_in_field(field_stride),
                                                             field_stride,
-                                                            scatterSrcBuf->data(),
+                                                            BufferPtr::temp(scatterSrcBuf->data()),
                                                             contiguousOffset,
                                                             b.contiguous_strides(),
                                                             std::move(description)),
@@ -1085,8 +1083,11 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
             // same shape, then there's no need for unpacking
             if(b.is_contiguous())
             {
-                scatter->ops.emplace_back(
-                    b.device, OB_USER_OUT, nullptr, contiguousOffset, 0, b.count_elems());
+                scatter->ops.emplace_back(b.device,
+                                          BufferPtr::user_output(brickIdx),
+                                          contiguousOffset,
+                                          0,
+                                          b.count_elems());
             }
             else
             {
@@ -1095,8 +1096,7 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
 
                 // send the data
                 scatter->ops.emplace_back(b.device,
-                                          OB_USER_OUT,
-                                          scatterPackBufs.back().data(),
+                                          BufferPtr::temp(scatterPackBufs.back().data()),
                                           contiguousOffset,
                                           0,
                                           b.count_elems());
@@ -1109,10 +1109,10 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
                                                      b.length(),
                                                      precision,
                                                      arrayType,
-                                                     scatterPackBufs.back().data(),
+                                                     BufferPtr::temp(scatterPackBufs.back().data()),
                                                      0,
                                                      b.contiguous_strides(),
-                                                     nullptr,
+                                                     BufferPtr::user_output(brickIdx),
                                                      0,
                                                      b.stride,
                                                      std::move(description)),
@@ -1190,18 +1190,18 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
                                   execPlan->rootPlan->inArrayType,
                                   fieldLengthWithBatch,
                                   fieldStrideWithBatch,
-                                  fftBuf.data(),
+                                  BufferPtr::temp(fftBuf.data()),
                                   {},
                                   element_size(precision, execPlan->rootPlan->inArrayType));
         std::copy(curIndexes.begin(), curIndexes.end(), std::back_inserter(gatherIndexes));
     }
 
     // data is gathered and unpacked, run the core FFT plan we started with
-    execPlan->inputPtr = fftBuf.data();
+    execPlan->inputPtr = BufferPtr::temp(fftBuf.data());
     if(execPlan->rootPlan->placement == rocfft_placement_notinplace)
-        execPlan->outputPtr = fftOutBuf->data();
+        execPlan->outputPtr = BufferPtr::temp(fftOutBuf->data());
     else
-        execPlan->outputPtr = fftBuf.data();
+        execPlan->outputPtr = BufferPtr::temp(fftBuf.data());
     auto fftIdx = AddMultiPlanItem(std::move(execPlanPtr), gatherIndexes);
 
     // scatter data back out
@@ -1219,7 +1219,7 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
                                  : fftBuf.data();
 
         ScatterFieldToBricks(execPlan->deviceID,
-                             scatterSrcBuf,
+                             BufferPtr::temp(scatterSrcBuf),
                              execPlan->rootPlan->precision,
                              execPlan->rootPlan->outArrayType,
                              fieldLengthWithBatch,

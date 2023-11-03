@@ -699,6 +699,109 @@ public:
 // identifier for a device (HIP device ID)
 typedef int rocfft_deviceid_t;
 
+// Class representing a buffer in a multi-plan item.
+//
+// An item in a plan can work on inputs or outputs like:
+// - a specific temp buffer allocated during plan creation
+// - the Nth pointer that the user provided as input at execute time
+// - the Mth pointer that the user provided as output at execute time
+//
+// These buffers need to be set during plan creation.  While temp
+// buffers are knowable at that time, user-provided pointers are not.
+// So this class just records which logical pointer we will want.
+//
+// The get() method accepts the user-provided input/output pointers,
+// and returns the correct pointer during plan executions.
+class BufferPtr
+{
+public:
+    BufferPtr()                 = default;
+    BufferPtr(const BufferPtr&) = default;
+    BufferPtr& operator=(const BufferPtr&) = default;
+    ~BufferPtr()                           = default;
+
+    // return a new BufferPtr that points to a user input
+    static BufferPtr user_input(size_t idx = 0)
+    {
+        BufferPtr ret;
+        ret.type = PTR_USER_IN;
+        ret.idx  = idx;
+        return ret;
+    }
+
+    // return a new BufferPtr that points to a user output
+    static BufferPtr user_output(size_t idx = 0)
+    {
+        BufferPtr ret;
+        ret.type = PTR_USER_OUT;
+        ret.idx  = idx;
+        return ret;
+    }
+
+    // return a new BufferPtr that points to a temp buffer
+    static BufferPtr temp(void* ptr)
+    {
+        BufferPtr ret;
+        ret.type     = PTR_TEMP;
+        ret.temp_ptr = ptr;
+        return ret;
+    }
+
+    // Get a pointer to the buffer.  The buffer might be an
+    // user-provided input or output buffer that's only known at
+    // execute time.
+    void* get(void* in_buffer[], void* out_buffer[]) const
+    {
+        switch(type)
+        {
+        case PTR_NULL:
+            throw std::runtime_error("fetching null item pointer");
+        case PTR_USER_IN:
+            return in_buffer[idx];
+        case PTR_USER_OUT:
+            return out_buffer[idx];
+        case PTR_TEMP:
+            return temp_ptr;
+        }
+    }
+
+    std::string str() const
+    {
+        switch(type)
+        {
+        case PTR_NULL:
+            return "(null)";
+        case PTR_USER_IN:
+            return "user input buffer " + std::to_string(idx);
+        case PTR_USER_OUT:
+            return "user output buffer " + std::to_string(idx);
+        case PTR_TEMP:
+        {
+            std::stringstream ss;
+            ss << "temp buffer " << temp_ptr;
+            return ss.str();
+        }
+        }
+    }
+
+    operator bool() const
+    {
+        return type != PTR_NULL;
+    }
+
+private:
+    enum PtrType
+    {
+        PTR_NULL,
+        PTR_USER_IN,
+        PTR_USER_OUT,
+        PTR_TEMP,
+    };
+    PtrType type     = PTR_NULL;
+    size_t  idx      = 0;
+    void*   temp_ptr = nullptr;
+};
+
 // abstract base class for all items in a multi-node/device plan
 struct MultiPlanItem
 {
@@ -745,9 +848,9 @@ struct MultiPlanItem
     // print a description of this item to the plan log
     virtual void Print(rocfft_ostream& os, const int indent) const = 0;
 
-    // utility function to print a buffer enum with a (nullable)
-    // pointer value and offset
-    static std::string PrintBufferPtrOffset(OperatingBuffer buf, const void* ptr, size_t offset);
+    // utility function to print a buffer enum with a description of
+    // the pointer and an offset
+    static std::string PrintBufferPtrOffset(const BufferPtr& ptr, size_t offset);
 };
 
 // communication operations
@@ -760,20 +863,17 @@ struct CommScatter : public MultiPlanItem
     rocfft_array_type arrayType;
 
     rocfft_deviceid_t srcDeviceID;
-    OperatingBuffer   srcBuf;
-    void*             srcPtr = nullptr;
+    BufferPtr         srcPtr;
 
     // one or more ranks to send data to
     struct ScatterOp
     {
         ScatterOp(rocfft_deviceid_t destDeviceID,
-                  OperatingBuffer   destBuf,
-                  void*             destPtr,
+                  BufferPtr         destPtr,
                   size_t            srcOffset,
                   size_t            destOffset,
                   size_t            numElems)
             : destDeviceID(destDeviceID)
-            , destBuf(destBuf)
             , destPtr(destPtr)
             , srcOffset(srcOffset)
             , destOffset(destOffset)
@@ -782,8 +882,7 @@ struct CommScatter : public MultiPlanItem
         }
 
         rocfft_deviceid_t destDeviceID;
-        OperatingBuffer   destBuf;
-        void*             destPtr = nullptr;
+        BufferPtr         destPtr;
 
         size_t srcOffset;
         size_t destOffset;
@@ -816,20 +915,17 @@ struct CommGather : public MultiPlanItem
     rocfft_array_type arrayType;
 
     rocfft_deviceid_t destDeviceID;
-    OperatingBuffer   destBuf;
-    void*             destPtr = nullptr;
+    BufferPtr         destPtr;
 
     // one or more ranks to get data from
     struct GatherOp
     {
         GatherOp(rocfft_deviceid_t srcDeviceID,
-                 OperatingBuffer   srcBuf,
-                 void*             srcPtr,
+                 BufferPtr         srcPtr,
                  size_t            srcOffset,
                  size_t            destOffset,
                  size_t            numElems)
             : srcDeviceID(srcDeviceID)
-            , srcBuf(srcBuf)
             , srcPtr(srcPtr)
             , srcOffset(srcOffset)
             , destOffset(destOffset)
@@ -838,8 +934,7 @@ struct CommGather : public MultiPlanItem
         }
 
         rocfft_deviceid_t srcDeviceID;
-        OperatingBuffer   srcBuf;
-        void*             srcPtr = nullptr;
+        BufferPtr         srcPtr;
 
         size_t srcOffset;
         size_t destOffset;
@@ -882,8 +977,8 @@ struct ExecPlan : public MultiPlanItem
     // Normally, input/output are provided by users.  In a multi-device
     // plan, we might use temp buffers for input/output.  If so, these
     // are pointers to those temp buffers.
-    void* inputPtr  = nullptr;
-    void* outputPtr = nullptr;
+    BufferPtr inputPtr;
+    BufferPtr outputPtr;
 
     void ExecuteAsync(const rocfft_plan     plan,
                       void*                 in_buffer[],

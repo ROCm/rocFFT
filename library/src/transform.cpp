@@ -332,19 +332,16 @@ void ExecPlan::ExecuteAsync(const rocfft_plan     plan,
 
         // if input/output are overridden, override now
         if(inputPtr)
-            in_buffer_copy[0] = inputPtr;
+            in_buffer_copy[0] = inputPtr.get(in_buffer, out_buffer);
 
-        out_buffer_copy = in_buffer_copy;
         if(rootPlan->placement == rocfft_placement_notinplace)
         {
-            out_buffer_copy.clear();
             std::copy_n(out_buffer,
                         plan->desc.count_pointers(plan->desc.outFields, plan->desc.outArrayType),
                         std::back_inserter(out_buffer_copy));
+            if(outputPtr)
+                out_buffer_copy[0] = outputPtr.get(in_buffer, out_buffer);
         }
-
-        if(outputPtr)
-            out_buffer_copy[0] = outputPtr;
     }
 
     // select the input and output buffers based on whether

@@ -231,13 +231,13 @@ private:
                                             rocfft_array_type                  arrayType,
                                             const std::vector<size_t>&         field_length,
                                             const std::vector<size_t>&         field_stride,
-                                            void*                              output,
+                                            BufferPtr                          output,
                                             const std::vector<size_t>&         antecedents,
                                             size_t                             elem_size);
 
     // scatter a field on the current device to a set of bricks
     std::vector<size_t> ScatterFieldToBricks(int                                currentDevice,
-                                             void*                              input,
+                                             BufferPtr                          input,
                                              rocfft_precision                   precision,
                                              rocfft_array_type                  arrayType,
                                              const std::vector<size_t>&         field_length,

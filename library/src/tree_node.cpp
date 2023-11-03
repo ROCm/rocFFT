@@ -416,13 +416,10 @@ bool TreeNode::IsBluesteinChirpSetup()
     throw std::runtime_error("unexpected bluestein plan shape");
 }
 
-std::string MultiPlanItem::PrintBufferPtrOffset(OperatingBuffer buf, const void* ptr, size_t offset)
+std::string MultiPlanItem::PrintBufferPtrOffset(const BufferPtr& ptr, size_t offset)
 {
     std::stringstream ss;
-    ss << PrintOperatingBuffer(buf);
-    if(ptr)
-        ss << " (" << ptr << ")";
-    ss << " offset " << offset << " elems";
+    ss << ptr.str() << " offset " << offset << " elems";
     return ss.str();
 }
 
@@ -435,28 +432,16 @@ void CommScatter::ExecuteAsync(const rocfft_plan     plan,
     stream.alloc();
     event.alloc();
 
-    // init srcPtr with user pointer if it wasn't
-    // allocated at plan create time
-    if(!srcPtr)
-        srcPtr = in_buffer[0];
-
     for(const auto& op : ops)
     {
         CheckAccess(srcDeviceID, op.destDeviceID);
 
         auto memSize = op.numElems * element_size(precision, arrayType);
 
-        // init destPtr with user pointer if it wasn't
-        // allocated at plan create time
-        void* destPtr = op.destPtr;
-        if(!op.destPtr)
-        {
-            destPtr = *out_buffer;
-            ++out_buffer;
-        }
-
-        auto srcWithOffset  = ptr_offset(srcPtr, op.srcOffset, precision, arrayType);
-        auto destWithOffset = ptr_offset(destPtr, op.destOffset, precision, arrayType);
+        auto srcWithOffset
+            = ptr_offset(srcPtr.get(in_buffer, out_buffer), op.srcOffset, precision, arrayType);
+        auto destWithOffset = ptr_offset(
+            op.destPtr.get(in_buffer, out_buffer), op.destOffset, precision, arrayType);
 
         hipError_t err = hipSuccess;
         if(srcDeviceID == op.destDeviceID)
@@ -497,10 +482,9 @@ void CommScatter::Print(rocfft_ostream& os, const int indent) const
     {
         const auto& op = ops[i];
         os << indentStr << "    destDeviceID: " << op.destDeviceID << std::endl;
-        os << indentStr << "    srcBuf: " << PrintBufferPtrOffset(srcBuf, srcPtr, op.srcOffset)
+        os << indentStr << "    srcBuf: " << PrintBufferPtrOffset(srcPtr, op.srcOffset)
            << std::endl;
-        os << indentStr
-           << "    destBuf: " << PrintBufferPtrOffset(op.destBuf, op.destPtr, op.destOffset)
+        os << indentStr << "    destBuf: " << PrintBufferPtrOffset(op.destPtr, op.destOffset)
            << std::endl;
         os << indentStr << "    numElems: " << op.numElems << std::endl;
         os << std::endl;
@@ -512,11 +496,6 @@ void CommGather::ExecuteAsync(const rocfft_plan     plan,
                               void*                 out_buffer[],
                               rocfft_execution_info info)
 {
-    // init destPtr with user pointer if it wasn't
-    // allocated at plan create time
-    if(!destPtr)
-        destPtr = out_buffer[0];
-
     streams.resize(ops.size());
     events.resize(ops.size());
 
@@ -534,17 +513,10 @@ void CommGather::ExecuteAsync(const rocfft_plan     plan,
 
         auto memSize = op.numElems * element_size(precision, arrayType);
 
-        // init srcPtr with user pointer if it wasn't
-        // allocated at plan create time
-        void* srcPtr = op.srcPtr;
-        if(!srcPtr)
-        {
-            srcPtr = *in_buffer;
-            ++in_buffer;
-        }
-
-        auto srcWithOffset  = ptr_offset(srcPtr, op.srcOffset, precision, arrayType);
-        auto destWithOffset = ptr_offset(destPtr, op.destOffset, precision, arrayType);
+        auto srcWithOffset
+            = ptr_offset(op.srcPtr.get(in_buffer, out_buffer), op.srcOffset, precision, arrayType);
+        auto destWithOffset
+            = ptr_offset(destPtr.get(in_buffer, out_buffer), op.destOffset, precision, arrayType);
 
         hipError_t err = hipSuccess;
         if(op.srcDeviceID == destDeviceID)
@@ -589,10 +561,9 @@ void CommGather::Print(rocfft_ostream& os, const int indent) const
     {
         const auto& op = ops[i];
         os << indentStr << "    srcDeviceID: " << op.srcDeviceID << std::endl;
-        os << indentStr << "    destBuf: " << PrintBufferPtrOffset(destBuf, destPtr, op.destOffset)
+        os << indentStr << "    srcBuf: " << PrintBufferPtrOffset(op.srcPtr, op.srcOffset)
            << std::endl;
-        os << indentStr
-           << "    srcBuf: " << PrintBufferPtrOffset(op.srcBuf, op.srcPtr, op.srcOffset)
+        os << indentStr << "    destBuf: " << PrintBufferPtrOffset(destPtr, op.destOffset)
            << std::endl;
         os << indentStr << "    numElems: " << op.numElems << std::endl;
         os << std::endl;
@@ -608,9 +579,9 @@ void ExecPlan::Print(rocfft_ostream& os, const int indent) const
     os << indentStr << "ExecPlan:" << std::endl;
     os << indentStr << "  deviceID: " << deviceID << std::endl;
     if(inputPtr)
-        os << indentStr << "  inputPtr: " << inputPtr << std::endl;
+        os << indentStr << "  inputPtr: " << inputPtr.str() << std::endl;
     if(outputPtr)
-        os << indentStr << "  outputPtr: " << outputPtr << std::endl;
+        os << indentStr << "  outputPtr: " << outputPtr.str() << std::endl;
 
     PrintNode(os, *this, indent);
 }
