@@ -274,6 +274,31 @@ void rocfft_plan_t::sort()
     }
 }
 
+bool rocfft_plan_t::is_contiguous(const std::vector<size_t>& length,
+                                  const std::vector<size_t>& stride,
+                                  size_t                     dist)
+{
+    size_t expected_stride = 1;
+    auto   stride_it       = stride.begin();
+    auto   length_it       = length.begin();
+    for(; stride_it != stride.end() && length_it != length.end(); ++stride_it, ++length_it)
+    {
+        if(*stride_it != expected_stride)
+            return false;
+        expected_stride *= *length_it;
+    }
+    return expected_stride == dist;
+}
+
+bool rocfft_plan_t::is_contiguous_input()
+{
+    return is_contiguous(lengths, desc.inStrides, desc.inDist);
+}
+bool rocfft_plan_t::is_contiguous_output()
+{
+    return is_contiguous(lengths, desc.outStrides, desc.outDist);
+}
+
 size_t rocfft_plan_t::AddMultiPlanItem(std::unique_ptr<MultiPlanItem>&& item,
                                        const std::vector<size_t>&       antecedents)
 {
@@ -1161,10 +1186,27 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
     // complex side of real-complex transforms, since it's bigger.
     const size_t in_elem_count = compute_ptrdiff(lengths, desc.inStrides, batch, desc.inDist);
 
-    // need buffer(s) to do the actual FFT
-    TempBufferLease fftBuf{tempBuffers, execPlanPtr->deviceID, in_elem_count, in_elem_size};
+    // may need buffer(s) to do the actual FFT
+    std::optional<TempBufferLease> fftBuf;
     std::optional<TempBufferLease> fftOutBuf;
-    if(execPlan->rootPlan->placement == rocfft_placement_notinplace)
+
+    BufferPtr gatherBuf;
+
+    // gather to temp buf if infields were specified and output is not contiguous or is also a field
+    if(!desc.inFields.empty() && (!is_contiguous_output() || !desc.outFields.empty()))
+    {
+        fftBuf = std::make_optional<TempBufferLease>(
+            tempBuffers, execPlanPtr->deviceID, in_elem_count, in_elem_size);
+        gatherBuf = BufferPtr::temp(fftBuf->data());
+    }
+    else if(desc.inFields.empty())
+        gatherBuf = BufferPtr::user_input();
+    // else, we can gather directly to the output buffer
+    else
+        gatherBuf = BufferPtr::user_output();
+
+    // allocate another temp buf if FFT is not-in-place and outfield was specified
+    if(execPlan->rootPlan->placement == rocfft_placement_notinplace && !desc.outFields.empty())
     {
         const auto   out_elem_size  = element_size(precision, desc.outArrayType);
         const size_t out_elem_count = compute_ptrdiff(
@@ -1190,18 +1232,22 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
                                   execPlan->rootPlan->inArrayType,
                                   fieldLengthWithBatch,
                                   fieldStrideWithBatch,
-                                  BufferPtr::temp(fftBuf.data()),
+                                  gatherBuf,
                                   {},
                                   element_size(precision, execPlan->rootPlan->inArrayType));
         std::copy(curIndexes.begin(), curIndexes.end(), std::back_inserter(gatherIndexes));
     }
 
-    // data is gathered and unpacked, run the core FFT plan we started with
-    execPlan->inputPtr = BufferPtr::temp(fftBuf.data());
-    if(execPlan->rootPlan->placement == rocfft_placement_notinplace)
-        execPlan->outputPtr = BufferPtr::temp(fftOutBuf->data());
+    // data is gathered and unpacked (if necessary), run the core FFT plan we started with
+    if(gatherBuf)
+        execPlan->inputPtr = gatherBuf;
     else
-        execPlan->outputPtr = BufferPtr::temp(fftBuf.data());
+        execPlan->inputPtr = BufferPtr::user_input();
+
+    if(execPlan->rootPlan->placement == rocfft_placement_inplace)
+        execPlan->outputPtr = execPlan->inputPtr;
+    else if(fftOutBuf)
+        execPlan->outputPtr = BufferPtr::temp(fftOutBuf->data());
     auto fftIdx = AddMultiPlanItem(std::move(execPlanPtr), gatherIndexes);
 
     // scatter data back out
@@ -1216,7 +1262,7 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
 
         auto scatterSrcBuf = execPlan->rootPlan->placement == rocfft_placement_notinplace
                                  ? fftOutBuf->data()
-                                 : fftBuf.data();
+                                 : fftBuf->data();
 
         ScatterFieldToBricks(execPlan->deviceID,
                              BufferPtr::temp(scatterSrcBuf),
@@ -1329,7 +1375,7 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
 
         rootPlanData.placement = plan->placement;
 
-        // If fields are specified, currently that means we're
+        // If in+out fields are specified, currently that means we're
         // gathering the data to one device and doing FFT there.  So
         // the FFT becomes in-place.
         if(!plan->desc.inFields.empty() && !plan->desc.outFields.empty())
@@ -1349,6 +1395,24 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
             {
                 rootPlanData.placement = rocfft_placement_notinplace;
             }
+        }
+        // If we only have outfield, then there's no need to gather.  But we can't assume we can overwrite input, so the FFT will be outplace to a temp buf
+        else if(plan->desc.inFields.empty() && !plan->desc.outFields.empty())
+        {
+            rootPlanData.placement = rocfft_placement_notinplace;
+        }
+        // If we only have infield, then we must gather.
+        else if(!plan->desc.inFields.empty() && plan->desc.outFields.empty())
+        {
+            // If output is contiguous and this is c2c then we can
+            // gather to the output buf and do an inplace FFT.
+            if(plan->is_contiguous_output()
+               && (plan->transformType == rocfft_transform_type_complex_forward
+                   || plan->transformType == rocfft_transform_type_complex_inverse))
+                rootPlanData.placement = rocfft_placement_inplace;
+            // Otherwise we must gather to a temp buf and do outplace FFT to output
+            else
+                rootPlanData.placement = rocfft_placement_notinplace;
         }
 
         rootPlanData.precision = plan->precision;

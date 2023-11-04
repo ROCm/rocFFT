@@ -517,7 +517,7 @@ public:
             alloc_fields(ifields.front(), itype, pibuffer, true);
         if(!ofields.empty())
         {
-            if(placement == fft_placement_inplace)
+            if(!ifields.empty() && placement == fft_placement_inplace)
                 pobuffer = pibuffer;
             else
                 alloc_fields(ofields.front(), otype, pobuffer, false);

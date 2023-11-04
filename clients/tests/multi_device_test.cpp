@@ -62,11 +62,27 @@ std::vector<fft_params> param_generator_multi_gpu()
     auto distribute_params = [&all_params, deviceCount](const std::vector<fft_params>& params) {
         for(auto& p : params)
         {
-            // distribute both input and output
+            // run tests for:
+            // - multi-device input, normal output
+            // - multi-device output, normal input
+            // - multi-device both
+            auto p_in = p;
+            p_in.distribute_input(deviceCount);
+            auto p_out = p;
+            p_out.distribute_output(deviceCount);
             auto p_both = p;
             p_both.distribute_input(deviceCount);
             p_both.distribute_output(deviceCount);
 
+            // "placement" flag is meaningless if exactly one of
+            // input+output is a field.  So just add those cases if
+            // the flag is "out-of-place", since "in-place" is
+            // exactly the same test case.
+            if(p.placement == fft_placement_notinplace)
+            {
+                all_params.emplace_back(std::move(p_in));
+                all_params.emplace_back(std::move(p_out));
+            }
             all_params.emplace_back(std::move(p_both));
         }
     };
