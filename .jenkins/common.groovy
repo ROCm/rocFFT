@@ -23,7 +23,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
     String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
     //Set CI node's gfx arch as target if PR, otherwise use default targets of the library
     String amdgpuTargets = env.BRANCH_NAME.startsWith('PR-') ? '-DAMDGPU_TARGETS=\$gfx_arch' : ''
-    String rtcBuildCache = "-DROCFFT_BUILD_KERNEL_CACHE_PATH=\$JENKINS_HOME_DIR/rocfft_build_cache.db"
+    String rtcBuildCache = "-DROCFFT_BUILD_KERNEL_CACHE_PATH=\$JENKINS_HOME_LOCAL/rocfft_build_cache.db"
 
     def command = """#!/usr/bin/env bash
                 set -x
@@ -123,7 +123,7 @@ def runSubsetBuildCommand(platform, project, jobName, genPattern, genSmall, genL
     String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
     //Set CI node's gfx arch as target if PR, otherwise use default targets of the library
     String amdgpuTargets = env.BRANCH_NAME.startsWith('PR-') ? '-DAMDGPU_TARGETS=\$gfx_arch' : ''
-    String rtcBuildCache = "-DROCFFT_BUILD_KERNEL_CACHE_PATH=\$JENKINS_HOME_DIR/rocfft_build_cache.db"
+    String rtcBuildCache = "-DROCFFT_BUILD_KERNEL_CACHE_PATH=\$JENKINS_HOME_LOCAL/rocfft_build_cache.db"
 
     def command = """#!/usr/bin/env bash
                 set -ex

@@ -33,7 +33,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
     String warningArgs = '-DWERROR=ON'
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DROCFFT_DEVICE_FORCE_RELEASE=ON' : '-DCMAKE_BUILD_TYPE=Release'
     String buildTypeDir = debug ? 'debug' : 'release'
-    String rtcBuildCache = "-DROCFFT_BUILD_KERNEL_CACHE_PATH=\$JENKINS_HOME_DIR/rocfft_build_cache.db"
+    String rtcBuildCache = "-DROCFFT_BUILD_KERNEL_CACHE_PATH=\$JENKINS_HOME_LOCAL/rocfft_build_cache.db"
     String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
 
     def command = """#!/usr/bin/env bash
