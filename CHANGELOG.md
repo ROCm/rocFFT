@@ -1,377 +1,469 @@
-# Change Log for rocFFT
+# Changelog for rocFFT
 
-Full documentation for rocFFT is available at [rocm.docs.amd.com](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
+Documentation for rocFFT is available at
+[https://rocm.docs.amd.com/projects/rocFFT/en/latest/](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
 
-## rocFFT 1.0.26 (Unreleased)
+## rocFFT 1.0.26 (unreleased)
 
-### Changed
+### Changes
 
-- Multi-device FFTs now allow batch greater than 1.
-- Multi-device real-complex FFTs (real-complex) are now supported.
-- rocFFT now statically links libstdc++ when only std::experimental::filesystem is available, to guard against ABI incompatibilities with newer libstdc++ libraries that include std::filesystem.
+* Multi-device FFTs now allow batch greater than 1
+* Multi-device, real-complex FFTs are now supported
+* rocFFT now statically links libstdc++ when only `std::experimental::filesystem` is available (to guard
+  against ABI incompatibilities with newer libstdc++ libraries that include `std::filesystem`)
 
-## rocFFT 1.0.25 for ROCm 6.0.0
+## rocFFT 1.0.25 for ROCm 6.0.0 (unreleased)
 
-### Added
-- Implemented experimental APIs to allow computing FFTs on data distributed across multiple devices in a single process.
+### Additions
 
-  `rocfft_field` is a new type that can be added to a plan description, to describe layout of FFT input or output.  `rocfft_field_add_brick` can be called one or more times to describe a brick decomposition of an FFT field, where each brick can be assigned a different device.
+* Implemented experimental APIs to allow computing FFTs on data distributed across multiple devices
+  in a single process
 
-  These interfaces are still experimental and subject to change.  We are interested to hear feedback on them.  Questions and concerns may be raised by opening issues on the [rocFFT issue tracker](https://github.com/ROCmSoftwarePlatform/rocFFT/issues).
+  * `rocfft_field` is a new type that can be added to a plan description to describe the layout of FFT
+    input or output
+  * `rocfft_field_add_brick` can be called to describe the brick decomposition of an FFT field, where each
+    brick can be assigned a different device
 
-  Note that at this time, multi-device FFTs have several limitations:
+  These interfaces are still experimental and subject to change. We are interested in getting feedback.
+  You can raise questions and concerns by opening issues in the
+  [rocFFT issue tracker](https://github.com/ROCmSoftwarePlatform/rocFFT/issues).
 
-  * Real-complex (forward or inverse) FFTs are not currently supported.
-  * Planar format fields are not currently supported.
-  * Batch (i.e. `number_of_transforms` provided to `rocfft_plan_create`) must be 1.
-  * The FFT input is gathered to the current device at execute time, so all of the FFT data must fit on that device.
+  Note that multi-device FFTs currently have several limitations (we plan to address these in future
+  releases):
 
-  We expect these limitations to be removed in future releases.
+  * Real-complex (forward or inverse) FFTs are not supported
+  * Planar format fields are not supported
+  * Batch (the `number_of_transforms` provided to `rocfft_plan_create`) must be 1
+  * FFT input is gathered to the current device at run time, so all FFT data must fit on that device
 
 ### Optimizations
-- Improved performance of some small 2D/3D real FFTs supported by 2D_SINGLE kernel. gfx90a gets more optimization
-  by offline tuning.
-- Removed an extra kernel launch from even-length real-complex FFTs that use callbacks.
 
-### Changed
-- Built kernels in solution-map to library kernel cache.
-- Real forward transforms (real-to-complex) no longer overwrite input.  rocFFT still may overwrite real inverse (complex-to-real) input, as this allows for faster performance.
+* Improved the performance of several 2D/3D real FFTs supported by `2D_SINGLE` kernel. Offline
+  tuning provides more optimization for fx90a
+* Removed an extra kernel launch from even-length, real-complex FFTs that use callbacks
 
-- rocfft-rider and dyna-rocfft-rider have been renamed to rocfft-bench and dyna-rocfft-bench, controlled by the
-  BUILD_CLIENTS_BENCH CMake option.  Links for the old file names are installed, and the old
-  BUILD_CLIENTS_RIDER CMake option is accepted for compatibility but both will be removed in a future release.
-- Binaries in debug builds no longer have a "-d" suffix.
+### Changes
 
-### Fixed
-- rocFFT now correctly handles load callbacks that convert data from a smaller data type (e.g. 16-bit integers -> 32-bit float).
+* Built kernels in a solution map to the library kernel cache
+* Real forward transforms (real-to-complex) no longer overwrite input; rocFFT may still overwrite real
+  inverse (complex-to-real) input, as this allows for faster performance
+
+* `rocfft-rider` and `dyna-rocfft-rider` have been renamed to `rocfft-bench` and `dyna-rocfft-bench`;
+  these are controlled by the `BUILD_CLIENTS_BENCH` CMake option
+  * Links for the former file names are installed, and the former `BUILD_CLIENTS_RIDER` CMake option
+    is accepted for compatibility, but both will be removed in a future release
+* Binaries in debug builds no longer have a `-d` suffix
+
+### Fixes
+
+* rocFFT now correctly handles load callbacks that convert data from a smaller data type (e.g., 16-bit
+  integers -> 32-bit float)
 
 ## rocFFT 1.0.24 for ROCm 5.7.0
 
 ### Optimizations
-- Improved performance of complex forward/inverse 1D FFTs (2049 <= length <= 131071) that use Bluestein's algorithm.
 
-### Added
-- Implemented a solution map version converter and finish the first conversion from ver.0 to ver.1. Where version 1 removes some incorrect kernels (sbrc/sbcr using half_lds)
+* Improved the performance of complex forward/inverse 1D FFTs (2049 <= length <= 131071) that use
+  Bluestein's algorithm
 
-### Changed
+### Additions
 
-- Moved rocfft_rtc_helper executable to lib/rocFFT directory on Linux.
-- Moved library kernel cache to lib/rocFFT directory.
+* Implemented a solution map version converter and finished the first conversion from ver.0 to ver.1
+  * Version 1 removes some incorrect kernels (sbrc/sbcr using `half_lds`)
+
+### Changes
+
+* Moved `rocfft_rtc_helper` executable to the `lib/rocFFT` directory on Linux
+* Moved library kernel cache to the `lib/rocFFT` directory
 
 ## rocFFT 1.0.23 for ROCm 5.6.0
 
-### Added
-- Implemented half-precision transforms, which can be requested by passing rocfft_precision_half to rocfft_plan_create.
-- Implemented a hierarchical solution map which saves how to decompose a problem and the kernels to be used.
-- Implemented a first version of offline-tuner to support tuning kernels for C2C/Z2Z problems.
+### Additions
 
-### Changed
-- Replaced std::complex with hipComplex data types for data generator.
-- FFT plan dimensions are now sorted to be row-major internally where possible, which produces better plans if the dimensions were accidentally specified in a different order (column-major, for example).
-- Added --precision argument to benchmark/test clients.  --double is still accepted but is deprecated as a method to request a double-precision transform.
-- Improved performance test suite statistical framework.
+* Implemented half-precision transforms; these can be requested by passing `rocfft_precision_half` to
+  `rocfft_plan_create`
+* Implemented a hierarchical solution map that saves information on how to decompose a problem
+  and the kernels that are used
+* Implemented a first version of offline-tuner to support tuning kernels for C2C and Z2Z problems
 
-### Fixed
-- Fixed over-allocation of LDS in some real-complex kernels, which was resulting in kernel launch failure.
+### Changes
+
+* Replaced `std::complex` with hipComplex data types for the data generator
+* FFT plan dimensions are now sorted to be row-major internally where possible, which produces
+  better plans if the dimensions were accidentally specified in a different order (column-major, for
+  example)
+* Added the `--precision` argument to benchmark and test clients (`--double` is still accepted but is
+  deprecated as a method to request a double-precision transform)
+* Improved performance test suite statistical framework
+
+### Fixes
+
+* Fixed over-allocation of LDS in some real-complex kernels, which was resulting in kernel launch
+  failure
 
 ## rocFFT 1.0.22 for ROCm 5.5.0
 
 ### Optimizations
-- Improved performance of 1D lengths < 2048 that use Bluestein's algorithm.
-- Reduced time for generating code during plan creation.
-- Optimized 3D R2C/C2R lengths 32, 84, 128.
-- Optimized batched small 1D R2C/C2R cases.
 
-### Added
-- Added gfx1101 to default AMDGPU_TARGETS.
+* Improved the performance of 1D lengths < 2048 that use Bluestein's algorithm
+* Reduced code generation time during plan creation
+* Optimized 3D R2C and C2R lengths 32, 84, 128
+* Optimized batched small 1D R2C and C2R cases
 
-### Changed
-- Moved client programs to C++17.
-- Moved planar kernels and infrequently used Stockham kernels to be runtime-compiled.
-- Moved transpose, real-complex, Bluestein, and Stockham kernels to library kernel cache.
+### Additions
 
-### Fixed
-- Removed zero-length twiddle table allocations, which fixes errors from hipMallocManaged.
-- Fixed incorrect freeing of HIP stream handles during twiddle computation when multiple devices are present.
+* Added gfx1101 to default `AMDGPU_TARGETS`
+
+### Changes
+
+* Moved client programs to C++17
+* Moved planar kernels and infrequently used Stockham kernels to be runtime-compiled
+* Moved transpose, real-complex, Bluestein, and Stockham kernels to the library kernel cache
+
+### Fixes
+
+* Removed zero-length twiddle table allocations, which fixes errors from `hipMallocManaged`
+* Fixed incorrect freeing of HIP stream handles during twiddle computation when multiple devices are
+  present
 
 ## rocFFT 1.0.21 for ROCm 5.4.3
 
-### Fixed
-- Removed source directory from rocm_install_targets call to prevent installation of rocfft.h in an unintended location.
+### Fixes
+
+* Removed the source directory from `rocm_install_targets` to prevent the installation of `rocfft.h` in an
+  unintended location
 
 ## rocFFT 1.0.20 for ROCm 5.4.1
 
-### Fixed
-- Fixed incorrect results on strided large 1D FFTs where batch size does not equal the stride.
+### Fixes
+
+* Fixed incorrect results on strided large 1D FFTs where batch size does not equal the stride
 
 ## rocFFT 1.0.19 for ROCm 5.4.0
 
 ### Optimizations
-- Optimized some strided large 1D plans.
 
-### Added
-- Added rocfft_plan_description_set_scale_factor API to efficiently multiply each output element of a FFT by a given scaling factor.
-- Created a rocfft_kernel_cache.db file next to the installed library. SBCC/CR/RC kernels are moved to this file when built with the library, and are runtime-compiled for new GPU architectures.
-- Added gfx1100 and gfx1102 to default AMDGPU_TARGETS.
+* Optimized some strided large 1D plans
 
-### Changed
-- Moved runtime compilation cache to in-memory by default.  A default on-disk cache can encounter contention problems
-on multi-node clusters with a shared filesystem.  rocFFT can still be told to use an on-disk cache by setting the
-ROCFFT_RTC_CACHE_PATH environment variable.
+### Additions
+
+* Added the `rocfft_plan_description_set_scale_factor` API to efficiently multiply each output element of
+  an FFT by a given scaling factor
+* Created a `rocfft_kernel_cache.db` file next to the installed library; SBCC, CR, and RC kernels are
+  moved to this file when built with the library, and are runtime-compiled for new GPU architectures
+* Added gfx1100 and gfx1102 to default `AMDGPU_TARGETS`
+
+### Changes
+
+* Moved the runtime compilation cache to in-memory by default
+  * A default on-disk cache can encounter contention problems on multi-node clusters with a shared
+    filesystem
+  * rocFFT can still use an on-disk cache by setting the `ROCFFT_RTC_CACHE_PATH` environment
+    variable
 
 ## rocFFT 1.0.18 for ROCm 5.3.0
 
-### Changed
-- Runtime compilation cache now looks for environment variables XDG_CACHE_HOME (on Linux) and LOCALAPPDATA (on
-  Windows) before falling back to HOME.
-- Moved computation of the twiddle table from host to the device.
+### Changes
+
+* The runtime compilation cache now looks for environment variables `XDG_CACHE_HOME` (on Linux)
+  and `LOCALAPPDATA` (on Windows) before falling back to `HOME`
+* Moved computation of the twiddle table from the host to the device
 
 ### Optimizations
-- Optimized 2D R2C/C2R to use 2-kernel plans where possible.
-- Improved performance of the Bluestein algorithm.
-- Optimized sbcc-168 and 100 by using half-lds.
-- Optimized length-280 2D/3D transforms.
-- Added kernels for factorizable 1D lengths < 128
 
-### Fixed
-- Fixed occasional failures to parallelize runtime compilation of kernels.
-  Failures would be retried serially and ultimately succeed, but this would take extra time.
-- Fixed failures of some R2C 3D transforms that use the unsupported TILE_UNALGNED SBRC kernels.
-  An example is 98^3 R2C out-of-place.
-- Fixed bugs in SBRC_ERC type.
+* Optimized 2D R2C and C2R to use 2-kernel plans where possible
+* Improved performance of the Bluestein algorithm
+* Optimized sbcc-168 and 100 by using half-LDS
+* Optimized length-280 2D and 3D transforms
+* Added kernels for factorizable 1D lengths < 128
+
+### Fixes
+
+* Fixed occasional failures to parallelize runtime compilation of kernels (failures would be retried
+  serially and ultimately succeed, but this would take extra time)
+* Fixed failures of some R2C 3D transforms that use the unsupported `TILE_UNALGNED` SBRC kernels
+  (an example is 98^3 R2C out-of-place)
+* Fixed bugs in the `SBRC_ERC` type
 
 ## rocFFT 1.0.17 for ROCm 5.2.0
-### Added
-- Packages for test and benchmark executables on all supported OSes using CPack.
-- Added File/Folder Reorg Changes with backward compatibility support using ROCM-CMAKE wrapper functions.
 
-### Changed
-- Improved reuse of twiddle memory between plans.
-- Set a default load/store callback when only one callback
-  type is set via the API for improved performance.
-- Updated googletest dependency to version 1.11.
+### Additions
+
+* Packages for test and benchmark executables on all supported operating systems using CPack
+* Added file and folder reorganization changes, with backward compatibility support, using
+  `rocm-cmake` wrapper functions
+
+### Changes
+
+* Improved reuse of twiddle memory between plans
+* Set a default load/store callback when only one callback type is set via the API (for improved
+  performance)
+* Updated the GoogleTest dependency to version 1.11
 
 ### Optimizations
-- Introduced a new access pattern of lds (non-linear) and applied it on
-  sbcc kernels len 64 and 81 to get performance improvement.
-- Applied lds-non-linear and direct-load-to-register on sbcr kernels to
-  get performance improvement.
-- Applied lds-non-linear and direct-store-from-register on sbrc kernels to
-  get performance improvement.
 
-### Fixed
-- Fixed correctness of certain transforms with unusual strides.
-- Fixed incorrect handling of user-specified stream for runtime-compiled kernels.
-- Fixed incorrect buffer allocation in rocfft-test on in-place transforms with different input and output sizes.
+* Introduced a new access pattern of LDS (non-linear) and applied it on sbcc kernels len 64 and 81 for a
+  performance improvement
+* Applied `lds-non-linear`, `direct-load-to-register`, and `direct-store-from-register` on sbcr kernels for
+  a performance improvement
+
+### Fixes
+
+* Correctness of certain transforms with unusual strides
+* Incorrect handling of user-specified stream for runtime-compiled kernels
+* Incorrect buffer allocation in `rocfft-test` on in-place transforms with different input and output sizes
 
 ## rocFFT 1.0.16 for ROCm 5.1.0
 
-### Changed
-- Supported unaligned tile dimension for SBRC_2D kernels.
-- Improved (more RAII) test and benchmark infrastructure.
-- Enabled runtime compilation of length-2304 FFT kernel during plan creation.
-- Added tokenizer for test suite.
-- Reduce twiddle memory requirements for even-length real-complex transforms.
-- Clients can now be built separately from the main library.
+### Changes
+
+* Supported unaligned tile dimension for `SBRC_2D` kernels
+* Improved test and benchmark infrastructure by adding RAII
+* Enabled runtime compilation of length-2304 FFT kernel during plan creation
+* Added tokenizer for test suite
+* Reduce twiddle memory requirements for even-length, real-complex transforms
+* Clients can now be built separately from the main library
 
 ### Optimizations
-- Optimized more large 1D cases by using L1D_CC plan.
-- Optimized 3D 200^3 C2R case.
-- Optimized 1D 2^30 double precision on MI200.
-- Added padding to work buffer sizes to improve performance in many cases.
 
-### Fixed
-- Fixed correctness of some R2C transforms with unusual strides.
+* Optimized more large 1D cases by using `L1D_CC` plan
+* Optimized the 3D 200^3 C2R case
+* Optimized the 1D 2^30 double precision on MI200
+* Added padding to work buffer sizes to improve performance in many cases
 
-### Removed
-- The hipFFT API (header) has been removed from after a long deprecation period.  Please use the [hipFFT](https://github.com/ROCmSoftwarePlatform/hipFFT) package/repository to obtain the hipFFT API.
+### Fixes
+
+* Fixed the correctness of some R2C transforms with unusual strides
+
+### Removals
+
+* The hipFFT API (header) has been removed; use the
+  [hipFFT](https://github.com/ROCmSoftwarePlatform/hipFFT) package or repository to obtain the API
 
 ## rocFFT 1.0.15 for ROCm 5.0.0
 
-### Changed
-- Enabled runtime compilation of single FFT kernels > length 1024.
-- Re-aligned split device library into 4 roughly equal libraries.
-- Implemented the FuseShim framework to replace the original OptimizePlan
-- Implemented the generic buffer-assignment framework. The buffer assignment
-  is no longer performed by each node. We designed a generic algorithm to
-  test and pick the best assignment path.
-  With the help of FuseShim, we can achieve more kernel-fusions as possible.
-- Do not read the imaginary part of the DC and Nyquist modes for even-length
-  complex-to-real transforms.
+### Changes
+
+* Enabled runtime compilation of single FFT kernels > length 1024
+* Re-aligned the split device library into four roughly equal libraries
+* Implemented the FuseShim framework to replace the original OptimizePlan
+* Implemented the generic buffer-assignment framework
+  * The buffer assignment is no longer performed by each node--we designed a generic algorithm to
+    test and pick the best assignment path
+  * With the help of FuseShim, we can achieve the most kernel-fusions possible
+* Don't read the imaginary part of the DC and Nyquist modes for even-length complex-to-real
+  transforms
 
 ### Optimizations
-- Optimized twiddle-conjugation; complex-to-complex inverse transforms should have similar performance to foward transforms now.
-- Improved performance of single-kernel small 2D transforms.
+
+* Optimized twiddle conjugation; complex-to-complex inverse transforms should now have similar
+  performance to forward transforms
+* Improved performance of single-kernel, small 2D transforms
 
 ## rocFFT 1.0.14 for ROCm 4.5.0
 
 ### Optimizations
-- Optimized SBCC kernels of length 52, 60, 72, 80, 84, 96, 104, 108, 112, 160,
-  168, 208, 216, 224, 240 with new kernel generator.
 
-### Added
-- Added support for Windows 10 as a build target.
+* Optimized SBCC kernels of lengths 52, 60, 72, 80, 84, 96, 104, 108, 112, 160, 168, 208, 216, 224, and
+  240 with a new kernel generator
 
-### Changed
-- Packaging split into a runtime package called rocfft and a development package called rocfft-devel. The development package depends on runtime. The runtime package suggests the development package for all supported OSes except CentOS 7 to aid in the transition. The suggests feature in packaging is introduced as a deprecated feature and will be removed in a future rocm release.
+### Additions
 
-### Fixed
-- Fixed a few validation failures of even-length R2C inplace. 2D, 3D cubics sizes such as
-  100^2 (or ^3), 200^2 (or ^3), 256^2 (or ^3)...etc. We don't combine the three kernels
-  (stockham-r2c-transpose). We only combine two kernels (r2c-transpose) instead.
+* Added support for Windows 10 as a build target
 
-### Changed
-- Split 2D device code into separate libraries.
+### Changes
+
+* Packaging has been split into a runtime package (`rocfft`) and a development package
+  (`rocfft-devel`):
+  The development package depends on the runtime package. When installing the runtime package,
+  the package manager will suggest the installation of the development package to aid users
+  transitioning from the previous version's combined package. This suggestion by package manager is
+  for all supported operating systems (except CentOS 7) to aid in the transition. The `suggestion`
+  feature in the runtime package is introduced as a deprecated feature and will be removed in a future
+  ROCm release.
+
+### Fixes
+
+* Fixed validation failures for even-length R2C inplace 2D and 3D cubics sizes, such as 100^2 (or ^3),
+  200^2 (or ^3), and 256^2 (or ^3)
+  * We combine two kernels (`r2c-transpose`) instead of combining the three kernels
+    (`stockham-r2c-transpose`)
+
+### Changes
+
+* Split 2D device code into separate libraries
 
 ## rocFFT 1.0.13 for ROCm 4.4.0
 
 ### Optimizations
-- Improved many plans by removing unnecessary transpose steps.
-- Optimized scheme selection for 3D problems.
-  - Imposed less restrictions on 3D_BLOCK_RC selection. More problems can use 3D_BLOCK_RC and
-    have some performance gain.
-  - Enabled 3D_RC. Some 3D problems with SBCC-supported z-dim can use less kernels and get benefit.
-  - Force --length 336 336 56 (dp) use faster 3D_RC to avoid it from being skipped by conservative
-    threshold test.
-- Optimized some even-length R2C/C2R cases by doing more operations
-  in-place and combining pre/post processing into Stockham kernels.
-- Added radix-17.
 
-### Added
-- Added new kernel generator for select fused-2D transforms.
+* Improved plans by removing unnecessary transpose steps
+* Optimized scheme selection for 3D problems
+  * Imposed fewer restrictions on `3D_BLOCK_RC` selection (more problems can use `3D_BLOCK_RC` and
+    have performance gains)
+  * Enabled `3D_RC`; some 3D problems with SBCC-supported z-dim can use fewer kernels to get
+    benefits
+  * Forced `--length` 336 336 56 (dp) to use faster `3D_RC` to prevent it from being skipped by a
+    conservative threshold test
+* Optimized some even-length R2C/C2R cases by doing more in-place operations and combining
+  pre- and post-processing into Stockham kernels
+* Added radix-17
 
-### Fixed
-- Improved large 1D transform decompositions.
+### Additions
+
+* Added a new kernel generator for select fused 2D transforms
+
+### Fixes
+
+* Improved large 1D transform decompositions
 
 ## rocFFT 1.0.12 for ROCm 4.3.0
 
-### Changed
-  Re-split device code into single-precision, double-precision, and miscellaneous kernels.
+### Changes
 
-### Fixed
-- Fixed potential crashes in double-precision planar->planar transpose.
-- Fixed potential crashes in 3D transforms with unusual strides, for
-  SBCC-optimized sizes.
-- Improved buffer placement logic.
+* Re-split device code into single-precision, double-precision, and miscellaneous kernels
 
-### Added
-- Added new kernel generator for select lengths.  New kernels have
-  improved performance.
-- Added public `rocfft_execution_info_set_load_callback` and
-  `rocfft_execution_info_set_store_callback` API functions to allow
-  executing extra logic when loading/storing data from/to global
-  memory during a transform.
+### Fixes
 
-### Removed
-- Removed R2C pair schemes and kernels.
+* Fixed potential crashes in double-precision planar->planar transpose
+* Fixed potential crashes in 3D transforms with unusual strides for SBCC-optimized sizes
+* Improved buffer placement logic
+
+### Additions
+
+* Added a new kernel generator for select lengths; new kernels have improved performance
+* Added public `rocfft_execution_info_set_load_callback` and`rocfft_execution_info_set_store_callback`
+  API functions to allow running extra logic when loading data from and storing data to global
+  memory during a transform
+
+### Removals
+
+* Removed R2C pair schemes and kernels
 
 ### Optimizations
-- Optimized 2D/3D R2C 100 and 1D Z2Z 2500.
-- Reduced number of kernels for 2D/3D sizes where higher dimension is 64, 128, 256.
 
-### Fixed
-- Fixed potential crashes in 3D transforms with unusual strides, for
-  SBCC-optimized sizes.
+* Optimized 2D and 3D R2C 100 and 1D Z2Z 2500
+* Reduced number of kernels for 2D/3D sizes where higher dimension is 64, 128, 256
+
+### Fixes
+
+* Fixed potential crashes in 3D transforms with unusual strides, for SBCC-optimized sizes
 
 ## rocFFT 1.0.11 for ROCm 4.2.0
 
-### Changed
-  Move device code into main library.
+### Changes
+
+* Move device code into the main library
 
 ### Optimizations
-- Improved performance for single precision kernels exercising all except radix-2/7 butterfly ops.
-- Minor optimization for C2R 3D 100, 200 cube sizes.
-- Optimized some C2C/R2C 3D 64, 81, 100, 128, 200, 256 rectangular sizes.
-- When factoring, test to see if remaining length is explicitly
-  supported.
-- Explicitly add radix-7 lengths 14, 21, and 224 to list of supported
-  lengths.
-- Optimized R2C 2D/3D 128, 200, 256 cube sizes.
 
-### Fixed
-- Fixed potential crashes in small 3D transforms with unusual strides.
-  (https://github.com/ROCmSoftwarePlatform/rocFFT/issues/311)
-- Fixed potential crashes when executing transforms on multiple devices.
-  (https://github.com/ROCmSoftwarePlatform/rocFFT/issues/310)
+* Improved performance for single-precision kernels exercising all except radix-2/7 butterfly ops
+* Minor optimization for C2R 3D 100 and 200 cube sizes
+* Optimized some C2C and R2C 3D 64, 81, 100, 128, 200, and 256 rectangular sizes
+* When factoring, test to see if the remaining length is explicitly supported
+* Explicitly added radix-7 lengths 14, 21, and 224 to list of supported lengths
+* Optimized R2C 2D and 3D 128, 200, and 256 cube sizes
+
+### Known issues
+
+* Fixed potential crashes in small 3D transforms with unusual strides
+  ([issue 311](https://github.com/ROCmSoftwarePlatform/rocFFT/issues/311))
+* Fixed potential crashes when running transforms on multiple devices
+  ([issue 310](https://github.com/ROCmSoftwarePlatform/rocFFT/issues/310))
 
 ## rocFFT 1.0.10 for ROCm 4.1.0
 
-### Added
-- Explicitly specify MAX_THREADS_PER_BLOCK through _\_launch\_bounds\_ for all
-  kernels.
-- Switch to new syntax for specifying AMD GPU architecture names and features.
+### Additions
+
+* Explicitly specify `MAX_THREADS_PER_BLOCK` through `__launch_bounds_` for all kernels
+* Switched to a new syntax for specifying AMD GPU architecture names and features
 
 ### Optimizations
-- Optimized C2C/R2C 3D 64, 81, 100, 128, 200, 256 cube sizes.
-- Improved performance of the standalone out-of-place transpose kernel.
-- Optimized 1D length 40000 C2C case.
-- Enabled radix-7 for size 336.
-- New radix-11 and radix-13 kernels; used in length 11 and 13 (and some of their multiples) transforms.
 
-### Changed
-- rocFFT now automatically allocates a work buffer if the plan
-  requires one but none is provided.
-- An explicit `rocfft_status_invalid_work_buffer` error is now
-  returned when a work buffer of insufficient size is provided.
-- Updated online documentation.
-- Updated debian package name version with separated '_'.
-- Adjusted accuracy test tolerances and how they are compared.
+* Optimized C2C and R2C 3D 64, 81, 100, 128, 200, and 256 cube sizes
+* Improved the performance of the standalone out-of-place transpose kernel
+* Optimized the 1D length 40000 C2C case
+* Enabled radix-7 for size 336
+* New radix-11 and radix-13 kernels; used in length 11 and 13 (and some of their multiples)
+  transforms
 
-### Fixed
-- Fixed 4x4x8192 accuracy failure.
+### Changes
+
+* rocFFT now automatically allocates a work buffer if the plan requires one and none is provided
+* An explicit `rocfft_status_invalid_work_buffer` error is now returned when a work buffer of insufficient
+  size is provided
+* Updated online documentation
+* Updated Debian package name version with separated underscore ( _ )
+* Adjusted accuracy test tolerances and how they are compared
+
+### Fixes
+
+* Fixed a 4x4x8192 accuracy failure
 
 ## rocFFT 1.0.8 for ROCm 3.10.0
 
 ### Optimizations
-- Optimized 1D length 10000 C2C case.
 
-### Changed
-- Added BUILD_CLIENTS_ALL CMake option.
+* Optimized the 1D length 10000 C2C case
 
-### Fixed
-- Fixed correctness of SBCC/SBRC kernels with non-unit strides.
-- Fixed fused C2R kernel when a Bluestein transform follows it.
+### Changes
+
+* Added the `BUILD_CLIENTS_ALL` CMake option
+
+### Fixes
+
+* Fixed the correctness of SBCC and SBRC kernels with non-unit strides
+* Fixed fused C2R kernel when a Bluestein transform follows it
 
 ## rocFFT 1.0.7 for ROCm 3.9.0
 
 ### Optimizations
-- New R2C and C2R fused kernels to combine pre/post processing steps with transpose.
-- Enabled diagonal transpose for 1D and 2D power-of-2 cases.
-- New single kernels for small power-of-2, 3, 5 sizes.
-- Added more radix-7 kernels.
 
-### Changed
-- Explicitly disable XNACK and SRAM-ECC features on AMDGPU hardware.
+* New R2C and C2R fused kernels to combine pre- and post-processing steps with transpose
+* Enabled diagonal transpose for 1D and 2D power-of-2 cases
+* New single kernels for small power-of-2, 3, and 5 sizes
+* Added more radix-7 kernels
 
-### Fixed
-- Fixed 2D C2R transform with length 1 on one dimension.
-- Fixed potential thread unsafety in logging.
+### Changes
+
+* Explicitly disabled XNACK and SRAM-ECC features on AMDGPU hardware
+
+### Fixes
+
+* Fixed 2D C2R transform with length 1 on one dimension
+* Fixed a potential thread unsafety in logging
 
 ## rocFFT 1.0.6 for ROCm 3.8.0
 
 ### Optimizations
-- Improved performance of 1D batch-paired R2C transforms of odd length.
-- Added some radix-7 kernels.
-- Improved performance for 1D length 6561, 10000.
-- Improved performance for certain 2D transform sizes.
 
-### Changed
-- Allow static library build with BUILD_SHARED_LIBS=OFF CMake option.
-- Updated googletest dependency to version 1.10.
+* Improved the performance of 1D batch-paired R2C transforms of odd length
+* Added some radix-7 kernels
+* Improved the performance for 1D length 6561 and 10000
+* Improved the performance for certain 2D transform sizes
 
-### Fixed
-- Fixed correctness of certain large 2D sizes.
+### Changes
+
+* Allowed a static library build with `BUILD_SHARED_LIBS=OFF` CMake option
+* Updated GoogleTest dependency to version 1.10
+
+### Fixes
+
+* Correctness of certain large 2D sizes
 
 ## rocFFT 1.0.5 for ROCM 3.7.0
 
 ### Optimizations
-- Optimized C2C power-of-2 middle sizes.
 
-### Changed
-- Parallelized work in unit tests and eliminate duplicate cases.
+* Optimized C2C power-of-2 middle sizes
 
-### Fixed
-- Fixed correctness of certain large 1D, and 2D power-of-3, 5 sizes.
-- Fixed incorrect buffer assignment for some even-length R2C transforms.
-- Fixed `<cstddef>` inclusion on C compilers.
-- Fixed incorrect results on non-unit strides with SBCC/SBRC kernels.
+### Changes
+
+* Parallelized work in unit tests and eliminated duplicate cases
+
+### Fixes
+
+* Correctness of certain large 1D, and 2D power-of-3 and 5 sizes
+* Incorrect buffer assignment for some even-length R2C transforms
+* `<cstddef>` inclusion on C compilers
+* Incorrect results on non-unit strides with SBCC/SBRC kernels

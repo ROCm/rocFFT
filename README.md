@@ -1,82 +1,16 @@
 # rocFFT
 
-rocFFT is a software library for computing Fast Fourier Transforms
-(FFT) written in HIP. It is part of AMD's software ecosystem based on
-[ROCm][1]. In addition to AMD GPU devices, the library can also be
-compiled with the CUDA compiler using HIP tools for running on Nvidia
-GPU devices.
+rocFFT is a software library for computing fast Fourier transforms (FFTs) written in the HIP
+programming language. It's part of AMD's software ecosystem based on
+[ROCm](https://github.com/RadeonOpenCompute). The rocFFT library can be used with AMD and
+NVIDIA GPUs.
 
-## Installing pre-built packages
+## Documentation
 
-Download pre-built packages either from [ROCm's package servers][2]
-or by clicking the github releases tab and downloading the source,
-which could be more recent than the pre-build packages.  Release notes
-are available for each release on the releases tab.
+Documentation for rocFFT is available at
+[rocm.docs.amd.com](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
 
-* `sudo apt update && sudo apt install rocfft`
-
-## Building from source
-
-rocFFT is compiled with hipcc and uses cmake.  There are a number of options
-that can be provided to cmake to customize the build, but the following
-commands will build a shared library for supported AMD GPUs:
-
-```Bash
-mkdir build && cd build
-cmake -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc .. 
-make -j
-```
-
-A static library can be compiled by using the option `-DBUILD_SHARED_LIBS=off`
-
-rocFFT enables use of indirect function calls by default and requires
-ROCm 4.3 or higher to build successfully.
-`-DROCFFT_CALLBACKS_ENABLED=off` may be specified to cmake to disable
-those calls on older ROCm compilers, though callbacks will not work
-correctly in this configuration.
-
-There are several clients included with rocFFT:
-
-1. rocfft-bench runs general transforms and is useful for performance analysis;
-2. rocfft-test runs various regression tests; and
-3. various small samples are included.
-
-Clients are not built by default.  To build them:
-
-| Client          | CMake option                  | Dependencies                             |
-|-----------------|-------------------------------|------------------------------------------|
-| rocfft-bench    | `-DBUILD_CLIENTS_BENCH=on`    | Boost program options                    |
-| rocfft-test     | `-DBUILD_CLIENTS_TESTS=on`    | Boost program options, FFTW, Google Test |
-| samples         | `-DBUILD_CLIENTS_SAMPLES=on`  | Boost program options, FFTW              |
-
-To build all of the above clients, use `-DBUILD_CLIENTS=on`. The build process will 
-download and build Google Test and FFTW if they are not installed.
-
-Clients may be built separately from the main library. For example, one may build
-all the clients with an existing rocFFT library by invoking cmake from within the 
-rocFFT-src/clients folder: 
-
-```Bash
-mkdir build && cd build
-cmake -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc -DCMAKE_PREFIX_PATH=/path/to/rocFFT-lib ..
-make -j
-```
-
-To install the client dependencies on Ubuntu, run:
-
-```
-sudo apt install libgtest-dev libfftw3-dev libboost-program-options-dev
-```
-
-We use version 1.11 of Google Test (gtest).
-
-## Library and API Documentation
-
-Please refer to the [library documentation][3] for current documentation.
-
-### How to build documentation
-
-Please follow the steps below to build the documentation.
+To build our documentation locally, use the following code:
 
 ```Bash
 cd docs
@@ -86,21 +20,79 @@ pip3 install -r .sphinx/requirements.txt
 python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
 ```
 
+## Build and install
+
+You can install rocFFT using pre-built packages or building from source.
+
+* Installing pre-built packages:
+
+    1. Download the pre-built packages from the
+        [ROCm package servers](https://rocm.docs.amd.com/en/latest/deploy/linux/index.html) or use the
+        GitHub releases tab to download the source (this may give you a more recent version than the
+        pre-built packages).
+
+    2. Run: `sudo apt update && sudo apt install rocfft`
+
+* Building from source:
+
+    rocFFT is compiled with HIPCC and uses CMake. You can specify several options to customize your
+    build. The following commands build a shared library for supported AMD GPUs:
+
+    ```bash
+    mkdir build && cd build
+    cmake -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc ..
+    make -j
+    ```
+
+    You can compile a static library using the `-DBUILD_SHARED_LIBS=off` option.
+
+    With rocFFT, you can use indirect function calls by default; this requires ROCm 4.3 or higher. You can
+    use `-DROCFFT_CALLBACKS_ENABLED=off` with CMake to prevent these calls on older ROCm
+    compilers. Note that with this configuration, callbacks won't work correctly.
+
+    rocFFT includes the following clients:
+
+  * `rocfft-bench`: Runs general transforms and is useful for performance analysis
+  * `rocfft-test`: Runs various regression tests
+  * Various small samples
+
+    | Client | CMake option | Dependencies |
+    |:------|:-----------------|:-----------------|
+    | `rocfft-bench` | `-DBUILD_CLIENTS_BENCH=on` | Boost program options |
+    | `rocfft-test` | `-DBUILD_CLIENTS_TESTS=on` | Boost program options, Fastest Fourier Transform in the West (FFTW), GoogleTest |
+    | samples | `-DBUILD_CLIENTS_SAMPLES=on` | Boost program options, FFTW |
+
+    Clients are not built by default. To build them, use `-DBUILD_CLIENTS=on`. The build process
+    downloads and builds GoogleTest and FFTW if they are not already installed.
+
+    Clients can be built separately from the main library. For example, you can build all the clients with
+    an existing rocFFT library by invoking CMake from within the `rocFFT-src/clients` folder:
+
+    ```bash
+    mkdir build && cd build
+    cmake -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc -DCMAKE_PREFIX_PATH=/path/to/rocFFT-lib ..
+    make -j
+    ```
+
+    To install client dependencies on Ubuntu, run:
+
+    ```bash
+    sudo apt install libgtest-dev libfftw3-dev libboost-program-options-dev
+    ```
+
+    We use version 1.11 of GoogleTest.
+
 ## Examples
 
-A summary of the latest functionality and workflow to compute an FFT with rocFFT is available [on the ROCm documentation portal][3].
+A summary of the latest functionality and workflow to compute an FFT with rocFFT is available on the
+[rocFFT documentation portal](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
 
-Further examples may be found in the [clients/samples][4] subdirectory.
+You can find additional examples in the `clients/samples` subdirectory.
 
-[1]: https://github.com/RadeonOpenCompute
-[2]: https://rocm.docs.amd.com/en/latest/deploy/linux/install.html
-[3]: https://rocm.docs.amd.com/projects/rocFFT/en/latest/
-[4]: clients/samples
+## Contribute
 
-## Contribution Rules
+If you want to contribute to rocFFT, you must format your code as follows:
 
-### Source code formatting
+* C++: Format with ClangFormat (see `.clang-format`)
 
-* C++ source code must be formatted with clang-format with .clang-format
-
-* Python source code must be formatted with yapf --style pep8
+* Python: Format with `yapf --style pep8`
