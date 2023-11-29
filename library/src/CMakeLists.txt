@@ -258,6 +258,8 @@ else()
   set(ROCFFT_SQLITE_LIB sqlite3)
 endif()
 
+include( ../../cmake/std-filesystem.cmake )
+
 # RTC stuff is used by both core library and helpers, so create
 # separate libraries
 #
@@ -294,6 +296,8 @@ add_library( rocfft-rtc-cache OBJECT
   rtc_cache.cpp
 )
 target_link_libraries( rocfft-rtc-cache PUBLIC ${ROCFFT_SQLITE_LIB} )
+target_link_std_experimental_filesystem( rocfft-rtc-cache )
+
 # generating kernels from TreeNodes and launching them
 add_library( rocfft-rtc-launch OBJECT
   rtc_kernel.cpp
@@ -448,15 +452,14 @@ foreach( target rocfft rocfft_offline_tuner rocfft_solmap_convert rocfft_aot_hel
     rocfft-rtc-common
     )
 
-  if( NOT WIN32 )
-    target_link_libraries( ${target} PRIVATE -lstdc++fs )
-  endif()
+  target_link_std_experimental_filesystem(${target})
 
   target_compile_options( ${target} PRIVATE ${WARNING_FLAGS} )
   if( ${CMAKE_BUILD_TYPE} STREQUAL Debug )
     target_compile_options(${target} PRIVATE -Og)
   endif()
 endforeach()
+
 target_link_libraries( rocfft PRIVATE
   generator
   rocfft-function-pool
@@ -464,17 +467,22 @@ target_link_libraries( rocfft PRIVATE
   rocfft-solution-map
   rocfft-tuning-helper
   )
+target_link_std_experimental_filesystem( rocfft )
+
 target_link_libraries( rocfft_config_search PRIVATE
   ${ROCFFT_HOST_LINK_LIBS}
   generator
   rocfft-rtc-launch
   rocfft-function-pool
   )
+target_link_std_experimental_filesystem( rocfft_config_search )
+
 target_link_libraries( rocfft_aot_helper PRIVATE
   generator
   rocfft-function-pool
   rocfft-solution-map
   )
+target_link_std_experimental_filesystem( rocfft_aot_helper )
 
  # build executable rocfft-offline-tuner
 if( ROCFFT_BUILD_OFFLINE_TUNER )

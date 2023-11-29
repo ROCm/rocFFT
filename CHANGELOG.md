@@ -8,6 +8,7 @@ Full documentation for rocFFT is available at [rocm.docs.amd.com](https://rocm.d
 
 - Multi-device FFTs now allow batch greater than 1.
 - Multi-device real-complex FFTs (real-complex) are now supported.
+- rocFFT now statically links libstdc++ when only std::experimental::filesystem is available, to guard against ABI incompatibilities with newer libstdc++ libraries that include std::filesystem.
 
 ## rocFFT 1.0.25 for ROCm 6.0.0
 

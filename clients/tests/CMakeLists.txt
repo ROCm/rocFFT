@@ -219,6 +219,9 @@ target_link_libraries( rocfft-test
   ${rocfft-test_link_libs}
   )
 
+include( ../../cmake/std-filesystem.cmake )
+target_link_std_experimental_filesystem( rocfft-test )
+
 if( USE_CUDA )
   target_include_directories( rocfft-test
     PRIVATE
