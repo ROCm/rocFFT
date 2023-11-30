@@ -42,18 +42,12 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
 
 def runCompileClientCommand(platform, project, jobName, boolean debug=false)
 {
-    String sudo = auxiliary.sudo(platform.jenkinsLabel)
-
     project.paths.construct_build_prefix()
 
     String clientArgs = '-DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CLIENTS_BENCH=ON'
     String warningArgs = '-DWERROR=ON'
-    String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DROCFFT_DEVICE_FORCE_RELEASE=ON' : '-DCMAKE_BUILD_TYPE=Release'
-    String buildTypeDir = debug ? 'debug' : 'release'
-    //String staticArg = buildStatic ? '-DBUILD_SHARED_LIBS=off' : ''
     String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
     String amdgpuTargets = env.BRANCH_NAME.startsWith('PR-') ? '-DAMDGPU_TARGETS=\$gfx_arch' : ''
-
     String buildTypeArgClients = debug ? '-DCMAKE_BUILD_TYPE=Debug' : '-DCMAKE_BUILD_TYPE=Release'
     String cmakePrefixPathArg = "-DCMAKE_PREFIX_PATH=${project.paths.project_build_prefix}"
 
@@ -61,7 +55,7 @@ def runCompileClientCommand(platform, project, jobName, boolean debug=false)
                 set -ex
                 cd ${project.paths.project_build_prefix}/clients
                 mkdir -p build && cd build
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArgClients} ${cmakePrefixPathArg} ../
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArgClients} ${clientArgs} ${warningArgs} ${cmakePrefixPathArg} ${amdgpuTargets} ../
                 make -j\$(nproc)
             """
     platform.runCommand(this, command)
@@ -69,7 +63,6 @@ def runCompileClientCommand(platform, project, jobName, boolean debug=false)
 
 def runTestCommand (platform, project, boolean debug=false, gfilter='')
 {
-    String sudo = auxiliary.sudo(platform.jenkinsLabel)
     String testBinaryName = 'rocfft-test'
     String directory = debug ? 'debug' : 'release'
 
