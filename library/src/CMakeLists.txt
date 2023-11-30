@@ -505,7 +505,11 @@ if( ROCFFT_BUILD_OFFLINE_TUNER )
 endif()
 
 # compile kernels into the cache file we ship
-#
+
+# While useful in most situations, building the kernel cache takes a long time
+# enable a configure-time option to skip kernel cache building
+option( ROCFFT_KERNEL_CACHE_ENABLE "Enable building rocFFT kernel cache" ON)
+
 # cache file should go next to the shared object - on Windows this
 # would be the DLL, not the import library.
 if( WIN32 )
@@ -522,19 +526,22 @@ endif()
 # Only build kernels ahead-of-time for a more limited set of
 # architectures.  Less common architectures are filtered out from the
 # list and kernels for them are built at runtime instead.
-set( AMDGPU_TARGETS_AOT ${AMDGPU_TARGETS} )
-list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx803 )
-list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx900 )
-add_custom_command(
-  OUTPUT rocfft_kernel_cache.db
-  COMMAND rocfft_aot_helper \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS_AOT}
-  DEPENDS rocfft_aot_helper rocfft_rtc_helper
-  COMMENT "Compile default kernels and solution-map kernels into shipped cache file"
-)
-add_custom_target( rocfft_kernel_cache_target ALL
-  DEPENDS rocfft_kernel_cache.db
-  VERBATIM
-)
+if ( ROCFFT_KERNEL_CACHE_ENABLE )
+
+  set( AMDGPU_TARGETS_AOT ${AMDGPU_TARGETS} )
+  list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx803 )
+  list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx900 )
+  add_custom_command(
+    OUTPUT rocfft_kernel_cache.db
+    COMMAND rocfft_aot_helper \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS_AOT}
+    DEPENDS rocfft_aot_helper rocfft_rtc_helper
+    COMMENT "Compile kernels into shipped cache file"
+  )
+  add_custom_target( rocfft_kernel_cache_target ALL
+    DEPENDS rocfft_kernel_cache.db
+    VERBATIM
+  )
+endif()
 
 rocm_set_soversion( rocfft ${rocfft_SOVERSION} )
 set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
@@ -575,7 +582,7 @@ else()
   set(ROCFFT_KERNEL_CACHE_INSTALL_DIR ${ROCM_INSTALL_LIBDIR}/rocfft)
 endif()
 
-if( NOT ENABLE_ASAN_PACKAGING )
+if( NOT ENABLE_ASAN_PACKAGING AND ROCFFT_KERNEL_CACHE_ENABLE)
   rocm_install(FILES ${ROCFFT_KERNEL_CACHE_PATH}
     DESTINATION "${ROCFFT_KERNEL_CACHE_INSTALL_DIR}"
     COMPONENT runtime
