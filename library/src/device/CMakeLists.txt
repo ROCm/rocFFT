@@ -112,8 +112,10 @@ if( STATUS AND NOT STATUS EQUAL 0 )
   message( FATAL_ERROR "Kernel generator failed (list): ${STATUS}")
 endif()
 
+# stockham_aot will be having relative RUNPATH with respect to package install directory
+# Set LD_LIBRARY_PATH for running the executable from build directory
 add_custom_command(OUTPUT ${gen_headers}
-  COMMAND ${PYTHON3_EXE} ${kgen}
+  COMMAND ${CMAKE_COMMAND} -E env "LD_LIBRARY_PATH=${ROCM_PATH}/${CMAKE_INSTALL_LIBDIR}" ${PYTHON3_EXE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}

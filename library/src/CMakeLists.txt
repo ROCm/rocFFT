@@ -531,9 +531,11 @@ if ( ROCFFT_KERNEL_CACHE_ENABLE )
   set( AMDGPU_TARGETS_AOT ${AMDGPU_TARGETS} )
   list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx803 )
   list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx900 )
+  # The binary will be having relative RUNPATH with respect to install directory
+  # Set LD_LIBRARY_PATH for executing the binary from build directory.
   add_custom_command(
     OUTPUT rocfft_kernel_cache.db
-    COMMAND rocfft_aot_helper \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS_AOT}
+    COMMAND ${CMAKE_COMMAND} -E env "LD_LIBRARY_PATH=${ROCM_PATH}/${CMAKE_INSTALL_LIBDIR}" ./rocfft_aot_helper \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS_AOT}
     DEPENDS rocfft_aot_helper rocfft_rtc_helper
     COMMENT "Compile kernels into shipped cache file"
   )
