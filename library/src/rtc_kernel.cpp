@@ -41,6 +41,7 @@ RTCKernel::RTCKernel(const std::string&       kernel_name,
                      dim3                     blockDim)
     : gridDim(gridDim)
     , blockDim(blockDim)
+    , kernel_name(kernel_name)
 {
 #ifndef ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS
     // if we're only compiling, no need to actually load the code objects
@@ -77,7 +78,7 @@ void RTCKernel::launch(RTCKernelArgs&         kargs,
                        const hipDeviceProp_t& deviceProp,
                        hipStream_t            stream)
 {
-    launch_limits_check(gridDim, blockDim, deviceProp);
+    launch_limits_check(kernel_name, gridDim, blockDim, deviceProp);
     auto  size     = kargs.size_bytes();
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER,
                       kargs.data(),

@@ -43,8 +43,10 @@ static hipDeviceProp_t get_curr_device_prop()
 // check that the given grid/block dims will fit into the limits in
 // the device properties.  throws std::runtime_error if the limits
 // are exceeded.
-static void
-    launch_limits_check(const dim3 gridDim, const dim3 blockDim, const hipDeviceProp_t& deviceProp)
+static void launch_limits_check(const std::string&     kernel_name,
+                                const dim3             gridDim,
+                                const dim3             blockDim,
+                                const hipDeviceProp_t& deviceProp)
 {
     // Need lots of casting here because dim3 is unsigned but device
     // props are signed.  Cast direct comparisons to fix signedness
@@ -55,18 +57,18 @@ static void
     if(blockDim.x > static_cast<uint32_t>(deviceProp.maxThreadsDim[0])
        || blockDim.y > static_cast<uint32_t>(deviceProp.maxThreadsDim[1])
        || blockDim.z > static_cast<uint32_t>(deviceProp.maxThreadsDim[2]))
-        throw std::runtime_error("max threads per dim exceeded");
+        throw std::runtime_error("max threads per dim exceeded: " + kernel_name);
 
     // Total threads for the whole block
     if(static_cast<uint64_t>(blockDim.x) * blockDim.y * blockDim.z
        > static_cast<uint64_t>(deviceProp.maxThreadsPerBlock))
-        throw std::runtime_error("max threads per block exceeded");
+        throw std::runtime_error("max threads per block exceeded: " + kernel_name);
 
     // Grid dimension limits
     if(gridDim.x > static_cast<uint32_t>(deviceProp.maxGridSize[0])
        || gridDim.y > static_cast<uint32_t>(deviceProp.maxGridSize[1])
        || gridDim.z > static_cast<uint32_t>(deviceProp.maxGridSize[2]))
-        throw std::runtime_error("max grid size exceeded");
+        throw std::runtime_error("max grid size exceeded: " + kernel_name);
 }
 
 #endif

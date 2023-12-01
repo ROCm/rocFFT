@@ -168,6 +168,8 @@ struct RTCKernel
     dim3 gridDim;
     dim3 blockDim;
 
+    std::string kernel_name;
+
 protected:
 #ifndef ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS
     struct RTCGenerator
