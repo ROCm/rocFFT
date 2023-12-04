@@ -38,7 +38,7 @@
 #include <limits>
 #include <vector>
 
-static const unsigned int DATA_GEN_THREADS    = 32;
+static const unsigned int DATA_GEN_THREADS    = 8;
 static const unsigned int DATA_GEN_GRID_Y_MAX = 64;
 
 template <typename T>
@@ -220,6 +220,32 @@ __device__ static float make_random_val(hiprandStatePhilox4_32_10* gen_state, fl
 __device__ static _Float16 make_random_val(hiprandStatePhilox4_32_10* gen_state, _Float16 offset)
 {
     return static_cast<_Float16>(hiprand_uniform(gen_state)) + offset;
+}
+
+template <typename Tcomplex>
+__device__ static void set_imag_zero(const size_t pos, Tcomplex* x)
+{
+    x[pos].y = 0.0;
+}
+
+template <typename Tfloat>
+__device__ static void set_imag_zero(const size_t pos, Tfloat* xreal, Tfloat* ximag)
+{
+    ximag[pos] = 0.0;
+}
+
+template <typename Tcomplex>
+__device__ static void conjugate(const size_t pos, const size_t cpos, Tcomplex* x)
+{
+    x[pos].x = x[cpos].x;
+    x[pos].y = -x[cpos].y;
+}
+
+template <typename Tfloat>
+__device__ static void conjugate(const size_t pos, const size_t cpos, Tfloat* xreal, Tfloat* ximag)
+{
+    xreal[pos] = xreal[cpos];
+    ximag[pos] = -ximag[cpos];
 }
 
 template <typename Tint, typename Treal>
@@ -410,493 +436,377 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
 // * the origin and Nyquist value(s) must be real-valued
 // * some of the remaining values are still redundant, and you might get different results
 //   than you expect if the values don't agree.
-// Below are some example kernels which impose Hermitian symmetry on a complex array
-// of the given dimensions.
-
-// Functions for imposing Hermitian symmetry on 1D
-// complex (interleaved/planar) data.
 
 template <typename Tcomplex>
-__global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    impose_hermitian_symmetry_interleaved_1D_kernel(Tcomplex*    x,
-                                                    const size_t Nx,
-                                                    const size_t xstride,
-                                                    const size_t dist,
-                                                    const size_t nbatch,
-                                                    const bool   Nxeven)
+__global__ static void impose_hermitian_symmetry_interleaved_1D_kernel(Tcomplex*    x,
+                                                                       const size_t Nx,
+                                                                       const size_t xstride,
+                                                                       const size_t dist,
+                                                                       const size_t batch_total,
+                                                                       const bool   Nxeven)
 {
-    auto idx = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-    static_assert(sizeof(idx) == sizeof(size_t));
+    auto id_batch = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x;
+    static_assert(sizeof(id_batch) == sizeof(size_t));
 
-    if(idx < nbatch)
+    if(id_batch < batch_total)
     {
-        idx *= dist;
+        id_batch *= dist;
 
-        // The DC mode must be real-valued.
-        x[idx].y = 0.0;
+        set_imag_zero(id_batch, x);
 
         if(Nxeven)
+            set_imag_zero(id_batch + (Nx / 2) * xstride, x);
+    }
+}
+
+template <typename Tfloat>
+__global__ static void impose_hermitian_symmetry_planar_1D_kernel(Tfloat*      xreal,
+                                                                  Tfloat*      ximag,
+                                                                  const size_t Nx,
+                                                                  const size_t xstride,
+                                                                  const size_t dist,
+                                                                  const size_t batch_total,
+                                                                  const bool   Nxeven)
+{
+    auto id_batch = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x;
+    static_assert(sizeof(id_batch) == sizeof(size_t));
+
+    if(id_batch < batch_total)
+    {
+        id_batch *= dist;
+
+        set_imag_zero(id_batch, xreal, ximag);
+
+        if(Nxeven)
+            set_imag_zero(id_batch + (Nx / 2) * xstride, xreal, ximag);
+    }
+}
+
+template <typename Tcomplex>
+__global__ static void impose_hermitian_symmetry_interleaved_2D_kernel(Tcomplex*    x,
+                                                                       const size_t Nx,
+                                                                       const size_t Ny,
+                                                                       const size_t xstride,
+                                                                       const size_t ystride,
+                                                                       const size_t dist,
+                                                                       const size_t batch_total,
+                                                                       const size_t x_total,
+                                                                       const bool   Nxeven,
+                                                                       const bool   Nyeven)
+{
+    auto       id_batch = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x;
+    const auto id_x     = static_cast<size_t>(threadIdx.y) + blockIdx.y * blockDim.y;
+    static_assert(sizeof(id_batch) == sizeof(size_t));
+    static_assert(sizeof(id_x) == sizeof(size_t));
+
+    if(id_batch < batch_total)
+    {
+        id_batch *= dist;
+
+        if(id_x == 0)
+            set_imag_zero(id_batch, x);
+
+        if(id_x == 0 && Nxeven)
+            set_imag_zero(id_batch + (Nx / 2) * xstride, x);
+
+        if(id_x == 0 && Nyeven)
+            set_imag_zero(id_batch + ystride * (Ny / 2), x);
+
+        if(id_x == 0 && Nxeven && Nyeven)
+            set_imag_zero(id_batch + xstride * (Nx / 2) + ystride * (Ny / 2), x);
+
+        if(id_x < x_total)
         {
-            // Nyquist mode
-            auto pos = idx + (Nx / 2) * xstride;
-            x[pos].y = 0.0;
+            conjugate(id_batch + xstride * (Nx - (id_x + 1)), id_batch + xstride * (id_x + 1), x);
+
+            if(Nyeven)
+                conjugate(id_batch + xstride * (Nx - (id_x + 1)) + ystride * (Ny / 2),
+                          id_batch + xstride * (id_x + 1) + ystride * (Ny / 2),
+                          x);
         }
     }
 }
 
 template <typename Tfloat>
-__global__ static void __launch_bounds__(DATA_GEN_THREADS)
-    impose_hermitian_symmetry_planar_1D_kernel(Tfloat*      xreal,
-                                               Tfloat*      ximag,
-                                               const size_t Nx,
-                                               const size_t xstride,
-                                               const size_t dist,
-                                               const size_t nbatch,
-                                               const bool   Nxeven)
+__global__ static void impose_hermitian_symmetry_planar_2D_kernel(Tfloat*      xreal,
+                                                                  Tfloat*      ximag,
+                                                                  const size_t Nx,
+                                                                  const size_t Ny,
+                                                                  const size_t xstride,
+                                                                  const size_t ystride,
+                                                                  const size_t dist,
+                                                                  const size_t batch_total,
+                                                                  const size_t x_total,
+                                                                  const bool   Nxeven,
+                                                                  const bool   Nyeven)
 {
-    auto idx = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-    static_assert(sizeof(idx) == sizeof(size_t));
+    auto       id_batch = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x;
+    const auto id_x     = static_cast<size_t>(threadIdx.y) + blockIdx.y * blockDim.y;
+    static_assert(sizeof(id_batch) == sizeof(size_t));
+    static_assert(sizeof(id_x) == sizeof(size_t));
 
-    if(idx < nbatch)
+    if(id_batch < batch_total)
     {
-        idx *= dist;
+        id_batch *= dist;
 
-        // The DC mode must be real-valued.
-        ximag[idx] = 0;
+        if(id_x == 0)
+            set_imag_zero(id_batch, xreal, ximag);
 
-        if(Nxeven)
+        if(id_x == 0 && Nxeven)
+            set_imag_zero(id_batch + (Nx / 2) * xstride, xreal, ximag);
+
+        if(id_x == 0 && Nyeven)
+            set_imag_zero(id_batch + ystride * (Ny / 2), xreal, ximag);
+
+        if(id_x == 0 && Nxeven && Nyeven)
+            set_imag_zero(id_batch + xstride * (Nx / 2) + ystride * (Ny / 2), xreal, ximag);
+
+        if(id_x < x_total)
         {
-            // Nyquist mode
-            auto pos   = idx + (Nx / 2) * xstride;
-            ximag[pos] = 0;
+            conjugate(id_batch + xstride * (Nx - (id_x + 1)),
+                      id_batch + xstride * (id_x + 1),
+                      xreal,
+                      ximag);
+
+            if(Nyeven)
+                conjugate(id_batch + xstride * (Nx - (id_x + 1)) + ystride * (Ny / 2),
+                          id_batch + xstride * (id_x + 1) + ystride * (Ny / 2),
+                          xreal,
+                          ximag);
         }
     }
 }
 
 template <typename Tcomplex>
-__global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
-    impose_hermitian_symmetry_interleaved_2D_kernel(Tcomplex*    x,
-                                                    const size_t Nx,
-                                                    const size_t Ny,
-                                                    const size_t xstride,
-                                                    const size_t ystride,
-                                                    const size_t dist,
-                                                    const size_t nbatch,
-                                                    const bool   Nxeven,
-                                                    const bool   Nyeven)
+__global__ static void impose_hermitian_symmetry_interleaved_3D_kernel(Tcomplex*    x,
+                                                                       const size_t Nx,
+                                                                       const size_t Ny,
+                                                                       const size_t Nz,
+                                                                       const size_t xstride,
+                                                                       const size_t ystride,
+                                                                       const size_t zstride,
+                                                                       const size_t dist,
+                                                                       const size_t batch_total,
+                                                                       const size_t x_total,
+                                                                       const size_t y_total,
+                                                                       const size_t y_total_half,
+                                                                       const bool   Nxeven,
+                                                                       const bool   Nyeven,
+                                                                       const bool   Nzeven)
 {
-    auto       idx = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
-    const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-    static_assert(sizeof(idx) == sizeof(size_t));
-    static_assert(sizeof(idy) == sizeof(size_t));
+    auto       id_batch = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x;
+    const auto id_x     = static_cast<size_t>(threadIdx.y) + blockIdx.y * blockDim.y;
+    const auto id_y     = static_cast<size_t>(threadIdx.z) + blockIdx.z * blockDim.z;
+    static_assert(sizeof(id_batch) == sizeof(size_t));
+    static_assert(sizeof(id_x) == sizeof(size_t));
+    static_assert(sizeof(id_y) == sizeof(size_t));
 
-    if(idy < (Ny / 2 + 1) && idx < nbatch)
+    if(id_batch < batch_total)
     {
-        idx *= dist;
+        auto id_x_y_zero = (id_x == 0 && id_y == 0);
 
-        auto pos  = idx + idy * ystride;
-        auto cpos = idx + (idy == 0 ? 0 : (Ny - idy)) * ystride;
+        id_batch *= dist;
 
-        auto val = x[pos];
+        if(id_x_y_zero)
+            set_imag_zero(id_batch, x);
 
-        // DC mode:
-        if(idy == 0)
-            val.y = 0.0;
+        if(Nxeven && id_x_y_zero)
+            set_imag_zero(id_batch + xstride * (Nx / 2), x);
 
-        // Axes need to be symmetrized:
-        if(idy > 0 && idy < (Ny + 1) / 2)
-            val.y = -val.y;
+        if(Nyeven && id_x_y_zero)
+            set_imag_zero(id_batch + ystride * (Ny / 2), x);
 
-        // y-Nyquist
-        if(Nyeven && idy == Ny / 2)
-            val.y = 0.0;
+        if(Nzeven && id_x_y_zero)
+            set_imag_zero(id_batch + zstride * (Nz / 2), x);
 
-        x[cpos] = val;
+        if(Nxeven && Nyeven && id_x_y_zero)
+            set_imag_zero(id_batch + xstride * (Nx / 2) + ystride * (Ny / 2), x);
 
-        if(Nxeven)
+        if(Nxeven && Nzeven && id_x_y_zero)
+            set_imag_zero(id_batch + xstride * (Nx / 2) + zstride * (Nz / 2), x);
+
+        if(Nyeven && Nzeven && id_x_y_zero)
+            set_imag_zero(id_batch + ystride * (Ny / 2) + zstride * (Nz / 2), x);
+
+        if(Nxeven && Nyeven && Nzeven && id_x_y_zero)
+            set_imag_zero(id_batch + xstride * (Nx / 2) + ystride * (Ny / 2) + zstride * (Nz / 2),
+                          x);
+
+        if(id_x == 0 && id_y < y_total_half)
+            conjugate(id_batch + ystride * (Ny - (id_y + 1)), id_batch + ystride * (id_y + 1), x);
+
+        if(Nxeven && id_x == 0 && id_y < y_total_half)
+            conjugate(id_batch + xstride * (Nx / 2) + ystride * (Ny - (id_y + 1)),
+                      id_batch + xstride * (Nx / 2) + ystride * (id_y + 1),
+                      x);
+
+        if(id_x < x_total && id_y == 0)
+            conjugate(id_batch + xstride * (Nx - (id_x + 1)), id_batch + xstride * (id_x + 1), x);
+
+        if(Nyeven && id_x < x_total && id_y == 0)
+            conjugate(id_batch + xstride * (Nx - (id_x + 1)) + ystride * (Ny / 2),
+                      id_batch + xstride * (id_x + 1) + ystride * (Ny / 2),
+                      x);
+
+        if(id_x < x_total && id_y < y_total)
+            conjugate(id_batch + xstride * (Nx - (id_x + 1)) + ystride * (Ny - (id_y + 1)),
+                      id_batch + xstride * (id_x + 1) + ystride * (id_y + 1),
+                      x);
+
+        if(Nzeven)
         {
-            pos += (Nx / 2) * xstride;
-            cpos += (Nx / 2) * xstride;
+            if(id_x < x_total && id_y == 0)
+                conjugate(id_batch + xstride * (Nx - (id_x + 1)) + zstride * (Nz / 2),
+                          id_batch + xstride * (id_x + 1) + zstride * (Nz / 2),
+                          x);
 
-            val = x[pos];
+            if(Nyeven && id_x < x_total && id_y == 0)
+                conjugate(id_batch + xstride * (Nx - (id_x + 1)) + zstride * (Nz / 2),
+                          id_batch + xstride * (id_x + 1) + zstride * (Nz / 2),
+                          x);
 
-            // DC mode:
-            if(idy == 0)
-                val.y = 0;
+            if(id_x == 0 && id_y < y_total_half)
+                conjugate(id_batch + ystride * (Ny - (id_y + 1)) + zstride * (Nz / 2),
+                          id_batch + ystride * (id_y + 1) + zstride * (Nz / 2),
+                          x);
 
-            // Axes need to be symmetrized:
-            if(idy > 0 && idy < (Ny + 1) / 2)
-                val.y = -val.y;
+            if(Nxeven && id_x == 0 && id_y < y_total_half)
+                conjugate(id_batch + xstride * (Nx / 2) + ystride * (Ny - (id_y + 1))
+                              + zstride * (Nz / 2),
+                          id_batch + xstride * (Nx / 2) + ystride * (id_y + 1) + zstride * (Nz / 2),
+                          x);
 
-            // y-Nyquist
-            if(Nyeven && idy == Ny / 2)
-                val.y = 0;
-
-            x[cpos] = val;
+            if(id_x < x_total && id_y < y_total)
+                conjugate(id_batch + xstride * (Nx - (id_x + 1)) + ystride * (Ny - (id_y + 1))
+                              + zstride * (Nz / 2),
+                          id_batch + xstride * (id_x + 1) + ystride * (id_y + 1)
+                              + zstride * (Nz / 2),
+                          x);
         }
     }
 }
 
 template <typename Tfloat>
-__global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS)
-    impose_hermitian_symmetry_planar_2D_kernel(Tfloat*      xreal,
-                                               Tfloat*      ximag,
-                                               const size_t Nx,
-                                               const size_t Ny,
-                                               const size_t xstride,
-                                               const size_t ystride,
-                                               const size_t dist,
-                                               const size_t nbatch,
-                                               const bool   Nxeven,
-                                               const bool   Nyeven)
+__global__ static void impose_hermitian_symmetry_planar_3D_kernel(Tfloat*      xreal,
+                                                                  Tfloat*      ximag,
+                                                                  const size_t Nx,
+                                                                  const size_t Ny,
+                                                                  const size_t Nz,
+                                                                  const size_t xstride,
+                                                                  const size_t ystride,
+                                                                  const size_t zstride,
+                                                                  const size_t dist,
+                                                                  const size_t batch_total,
+                                                                  const size_t x_total,
+                                                                  const size_t y_total,
+                                                                  const size_t y_total_half,
+                                                                  const bool   Nxeven,
+                                                                  const bool   Nyeven,
+                                                                  const bool   Nzeven)
 {
-    auto       idx = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
-    const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-    static_assert(sizeof(idx) == sizeof(size_t));
-    static_assert(sizeof(idy) == sizeof(size_t));
+    auto       id_batch = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x;
+    const auto id_x     = static_cast<size_t>(threadIdx.y) + blockIdx.y * blockDim.y;
+    const auto id_y     = static_cast<size_t>(threadIdx.z) + blockIdx.z * blockDim.z;
+    static_assert(sizeof(id_batch) == sizeof(size_t));
+    static_assert(sizeof(id_x) == sizeof(size_t));
+    static_assert(sizeof(id_y) == sizeof(size_t));
 
-    if(idy < (Ny / 2 + 1) && idx < nbatch)
+    if(id_batch < batch_total)
     {
-        idx *= dist;
+        auto id_x_y_zero = (id_x == 0 && id_y == 0);
 
-        auto pos  = idx + idy * ystride;
-        auto cpos = idx + (idy == 0 ? 0 : (Ny - idy)) * ystride;
+        id_batch *= dist;
 
-        auto valreal = xreal[pos];
-        auto valimag = ximag[pos];
+        if(id_x_y_zero)
+            set_imag_zero(id_batch, xreal, ximag);
 
-        // DC mode:
-        if(idy == 0)
-            valimag = 0;
+        if(Nxeven && id_x_y_zero)
+            set_imag_zero(id_batch + xstride * (Nx / 2), xreal, ximag);
 
-        // Axes need to be symmetrized:
-        if(idy > 0 && idy < (Ny + 1) / 2)
-            valimag = -valimag;
+        if(Nyeven && id_x_y_zero)
+            set_imag_zero(id_batch + ystride * (Ny / 2), xreal, ximag);
 
-        // y-Nyquist
-        if(Nyeven && idy == Ny / 2)
-            valimag = 0;
+        if(Nzeven && id_x_y_zero)
+            set_imag_zero(id_batch + zstride * (Nz / 2), xreal, ximag);
 
-        xreal[cpos] = valreal;
-        ximag[cpos] = valimag;
+        if(Nxeven && Nyeven && id_x_y_zero)
+            set_imag_zero(id_batch + xstride * (Nx / 2) + ystride * (Ny / 2), xreal, ximag);
 
-        if(Nxeven)
+        if(Nxeven && Nzeven && id_x_y_zero)
+            set_imag_zero(id_batch + xstride * (Nx / 2) + zstride * (Nz / 2), xreal, ximag);
+
+        if(Nyeven && Nzeven && id_x_y_zero)
+            set_imag_zero(id_batch + ystride * (Ny / 2) + zstride * (Nz / 2), xreal, ximag);
+
+        if(Nxeven && Nyeven && Nzeven && id_x_y_zero)
+            set_imag_zero(id_batch + xstride * (Nx / 2) + ystride * (Ny / 2) + zstride * (Nz / 2),
+                          xreal,
+                          ximag);
+
+        if(id_x == 0 && id_y < y_total_half)
+            conjugate(id_batch + ystride * (Ny - (id_y + 1)),
+                      id_batch + ystride * (id_y + 1),
+                      xreal,
+                      ximag);
+
+        if(Nxeven && id_x == 0 && id_y < y_total_half)
+            conjugate(id_batch + xstride * (Nx / 2) + ystride * (Ny - (id_y + 1)),
+                      id_batch + xstride * (Nx / 2) + ystride * (id_y + 1),
+                      xreal,
+                      ximag);
+
+        if(id_x < x_total && id_y == 0)
+            conjugate(id_batch + xstride * (Nx - (id_x + 1)),
+                      id_batch + xstride * (id_x + 1),
+                      xreal,
+                      ximag);
+
+        if(Nyeven && id_x < x_total && id_y == 0)
+            conjugate(id_batch + xstride * (Nx - (id_x + 1)) + ystride * (Ny / 2),
+                      id_batch + xstride * (id_x + 1) + ystride * (Ny / 2),
+                      xreal,
+                      ximag);
+
+        if(id_x < x_total && id_y < y_total)
+            conjugate(id_batch + xstride * (Nx - (id_x + 1)) + ystride * (Ny - (id_y + 1)),
+                      id_batch + xstride * (id_x + 1) + ystride * (id_y + 1),
+                      xreal,
+                      ximag);
+
+        if(Nzeven)
         {
-            pos += (Nx / 2) * xstride;
-            cpos += (Nx / 2) * xstride;
+            if(id_x < x_total && id_y == 0)
+                conjugate(id_batch + xstride * (Nx - (id_x + 1)) + zstride * (Nz / 2),
+                          id_batch + xstride * (id_x + 1) + zstride * (Nz / 2),
+                          xreal,
+                          ximag);
 
-            valreal = xreal[pos];
-            valimag = ximag[pos];
+            if(Nyeven && id_x < x_total && id_y == 0)
+                conjugate(id_batch + xstride * (Nx - (id_x + 1)) + zstride * (Nz / 2),
+                          id_batch + xstride * (id_x + 1) + zstride * (Nz / 2),
+                          xreal,
+                          ximag);
 
-            // DC mode:
-            if(idy == 0)
-                valimag = 0;
+            if(id_x == 0 && id_y < y_total_half)
+                conjugate(id_batch + ystride * (Ny - (id_y + 1)) + zstride * (Nz / 2),
+                          id_batch + ystride * (id_y + 1) + zstride * (Nz / 2),
+                          xreal,
+                          ximag);
 
-            // Axes need to be symmetrized:
-            if(idy > 0 && idy < (Ny + 1) / 2)
-                valimag = -valimag;
+            if(Nxeven && id_x == 0 && id_y < y_total_half)
+                conjugate(id_batch + xstride * (Nx / 2) + ystride * (Ny - (id_y + 1))
+                              + zstride * (Nz / 2),
+                          id_batch + xstride * (Nx / 2) + ystride * (id_y + 1) + zstride * (Nz / 2),
+                          xreal,
+                          ximag);
 
-            // y-Nyquist
-            if(Nyeven && idy == Ny / 2)
-                valimag = 0;
-
-            xreal[cpos] = valreal;
-            ximag[cpos] = valimag;
-        }
-    }
-}
-
-template <typename Tcomplex>
-__global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DATA_GEN_THREADS)
-    impose_hermitian_symmetry_interleaved_3D_kernel(Tcomplex*    x,
-                                                    const size_t Nx,
-                                                    const size_t Ny,
-                                                    const size_t Nz,
-                                                    const size_t xstride,
-                                                    const size_t ystride,
-                                                    const size_t zstride,
-                                                    const size_t dist,
-                                                    const size_t nbatch,
-                                                    const bool   Nxeven,
-                                                    const bool   Nyeven,
-                                                    const bool   Nzeven)
-{
-    const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-    const auto idz = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
-    auto       idx = static_cast<size_t>(blockIdx.z) * blockDim.z + threadIdx.z;
-    static_assert(sizeof(idx) == sizeof(size_t));
-    static_assert(sizeof(idy) == sizeof(size_t));
-    static_assert(sizeof(idz) == sizeof(size_t));
-
-    if(idy < Ny && idz < Nz && idx < nbatch)
-    {
-        idx *= dist;
-
-        auto pos = idx + idy * ystride + idz * zstride;
-        auto cpos
-            = idx + (idy == 0 ? 0 : (Ny - idy)) * ystride + (idz == 0 ? 0 : (Nz - idz)) * zstride;
-
-        // Origin
-        if(idy == 0 && idz == 0)
-        {
-            x[pos].y = 0.0;
-        }
-
-        // y-Nyquist
-        if(Nyeven && idy == Ny / 2 && idz == 0)
-        {
-            x[pos].y = 0.0;
-        }
-
-        // z-Nyquist
-        if(Nzeven && idz == Nz / 2 && idy == 0)
-        {
-            x[pos].y = 0.0;
-        }
-
-        // yz-Nyquist
-        if(Nyeven && Nzeven && idy == Ny / 2 && idz == Nz / 2)
-        {
-            x[pos].y = 0.0;
-        }
-
-        // z-axis
-        if(idy == 0 && idz > 0 && idz < (Nz + 1) / 2)
-        {
-            x[cpos].x = x[pos].x;
-            x[cpos].y = -x[pos].y;
-        }
-
-        // y-Nyquist axis
-        if(Nyeven && idy == Ny / 2 && idz > 0 && idz < (Nz + 1) / 2)
-        {
-            x[cpos].x = x[pos].x;
-            x[cpos].y = -x[pos].y;
-        }
-
-        // y-axis
-        if(idy > 0 && idy < (Ny + 1) / 2 && idz == 0)
-        {
-            x[cpos].x = x[pos].x;
-            x[cpos].y = -x[pos].y;
-        }
-
-        // z-Nyquist axis
-        if(Nzeven && idz == Nz / 2 && idy > 0 && idy < (Ny + 1) / 2)
-        {
-            x[cpos].x = x[pos].x;
-            x[cpos].y = -x[pos].y;
-        }
-
-        // yz plane
-        if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < Nz)
-        {
-            x[cpos].x = x[pos].x;
-            x[cpos].y = -x[pos].y;
-        }
-
-        if(Nxeven)
-        {
-            pos += (Nx / 2) * xstride;
-            cpos += (Nx / 2) * xstride;
-            // Origin
-            if(idy == 0 && idz == 0)
-                x[pos].y = 0.0;
-
-            // y-Nyquist
-            if(Nyeven && idy == Ny / 2 && idz == 0)
-                x[pos].y = 0.0;
-
-            // z-Nyquist
-            if(Nzeven && idz == Nz / 2 && idy == 0)
-                x[pos].y = 0.0;
-
-            // yz-Nyquist
-            if(Nyeven && Nzeven && idy == Ny / 2 && idz == Nz / 2)
-                x[pos].y = 0.0;
-
-            // z-axis
-            if(idy == 0 && idz > 0 && idz < (Nz + 1) / 2)
-            {
-                x[cpos].x = x[pos].x;
-                x[cpos].y = -x[pos].y;
-            }
-
-            // y-Nyquist axis
-            if(Nyeven && idy == Ny / 2 && idz > 0 && idz < (Nz + 1) / 2)
-            {
-                x[cpos].x = x[pos].x;
-                x[cpos].y = -x[pos].y;
-            }
-
-            // y-axis
-            if(idy > 0 && idy < (Ny + 1) / 2 && idz == 0)
-            {
-                x[cpos].x = x[pos].x;
-                x[cpos].y = -x[pos].y;
-            }
-
-            // z-Nyquist axis
-            if(Nzeven && idz == Nz / 2 && idy > 0 && idy < (Ny + 1) / 2)
-            {
-                x[cpos].x = x[pos].x;
-                x[cpos].y = -x[pos].y;
-            }
-
-            // yz plane
-            if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < Nz)
-            {
-                x[cpos].x = x[pos].x;
-                x[cpos].y = -x[pos].y;
-            }
-        }
-    }
-}
-
-template <typename Tfloat>
-__global__ static void __launch_bounds__(DATA_GEN_THREADS* DATA_GEN_THREADS* DATA_GEN_THREADS)
-    impose_hermitian_symmetry_planar_3D_kernel(Tfloat*      xreal,
-                                               Tfloat*      ximag,
-                                               const size_t Nx,
-                                               const size_t Ny,
-                                               const size_t Nz,
-                                               const size_t xstride,
-                                               const size_t ystride,
-                                               const size_t zstride,
-                                               const size_t dist,
-                                               const size_t nbatch,
-                                               const bool   Nxeven,
-                                               const bool   Nyeven,
-                                               const bool   Nzeven)
-{
-    const auto idy = static_cast<size_t>(blockIdx.x) * blockDim.x + threadIdx.x;
-    const auto idz = static_cast<size_t>(blockIdx.y) * blockDim.y + threadIdx.y;
-    auto       idx = static_cast<size_t>(blockIdx.z) * blockDim.z + threadIdx.z;
-    static_assert(sizeof(idx) == sizeof(size_t));
-    static_assert(sizeof(idy) == sizeof(size_t));
-    static_assert(sizeof(idz) == sizeof(size_t));
-
-    if(idy < Ny && idz < Nz && idx < nbatch)
-    {
-        idx *= dist;
-
-        auto pos = idx + idy * ystride + idz * zstride;
-        auto cpos
-            = idx + (idy == 0 ? 0 : (Ny - idy)) * ystride + (idz == 0 ? 0 : (Nz - idz)) * zstride;
-
-        // Origin
-        if(idy == 0 && idz == 0)
-        {
-            ximag[pos] = 0;
-        }
-
-        // y-Nyquist
-        if(Nyeven && idy == Ny / 2 && idz == 0)
-        {
-            ximag[pos] = 0;
-        }
-
-        // z-Nyquist
-        if(Nzeven && idz == Nz / 2 && idy == 0)
-        {
-            ximag[pos] = 0;
-        }
-
-        // yz-Nyquist
-        if(Nyeven && Nzeven && idy == Ny / 2 && idz == Nz / 2)
-        {
-            ximag[pos] = 0;
-        }
-
-        // z-axis
-        if(idy == 0 && idz > 0 && idz < (Nz + 1) / 2)
-        {
-            xreal[cpos] = xreal[pos];
-            ximag[cpos] = -ximag[pos];
-        }
-
-        // y-Nyquist axis
-        if(Nyeven && idy == Ny / 2 && idz > 0 && idz < (Nz + 1) / 2)
-        {
-            xreal[cpos] = xreal[pos];
-            ximag[cpos] = -ximag[pos];
-        }
-
-        // y-axis
-        if(idy > 0 && idy < (Ny + 1) / 2 && idz == 0)
-        {
-            xreal[cpos] = xreal[pos];
-            ximag[cpos] = -ximag[pos];
-        }
-
-        // z-Nyquist axis
-        if(Nzeven && idz == Nz / 2 && idy > 0 && idy < (Ny + 1) / 2)
-        {
-            xreal[cpos] = xreal[pos];
-            ximag[cpos] = -ximag[pos];
-        }
-
-        // yz plane
-        if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < Nz)
-        {
-            xreal[cpos] = xreal[pos];
-            ximag[cpos] = -ximag[pos];
-        }
-
-        if(Nxeven)
-        {
-            pos += (Nx / 2) * xstride;
-            cpos += (Nx / 2) * xstride;
-            // Origin
-            if(idy == 0 && idz == 0)
-                ximag[pos] = 0;
-
-            // y-Nyquist
-            if(Nyeven && idy == Ny / 2 && idz == 0)
-                ximag[pos] = 0;
-
-            // z-Nyquist
-            if(Nzeven && idz == Nz / 2 && idy == 0)
-                ximag[pos] = 0;
-
-            // yz-Nyquist
-            if(Nyeven && Nzeven && idy == Ny / 2 && idz == Nz / 2)
-                ximag[pos] = 0;
-
-            // z-axis
-            if(idy == 0 && idz > 0 && idz < (Nz + 1) / 2)
-            {
-                xreal[cpos] = xreal[pos];
-                ximag[cpos] = -ximag[pos];
-            }
-
-            // y-Nyquist axis
-            if(Nyeven && idy == Ny / 2 && idz > 0 && idz < (Nz + 1) / 2)
-            {
-                xreal[cpos] = xreal[pos];
-                ximag[cpos] = -ximag[pos];
-            }
-
-            // y-axis
-            if(idy > 0 && idy < (Ny + 1) / 2 && idz == 0)
-            {
-                xreal[cpos] = xreal[pos];
-                ximag[cpos] = -ximag[pos];
-            }
-
-            // z-Nyquist axis
-            if(Nzeven && idz == Nz / 2 && idy > 0 && idy < (Ny + 1) / 2)
-            {
-                xreal[cpos] = xreal[pos];
-                ximag[cpos] = -ximag[pos];
-            }
-
-            // yz plane
-            if(idy > 0 && idy < (Ny + 1) / 2 && idz > 0 && idz < Nz)
-            {
-                xreal[cpos] = xreal[pos];
-                ximag[cpos] = -ximag[pos];
-            }
+            if(id_x < x_total && id_y < y_total)
+                conjugate(id_batch + xstride * (Nx - (id_x + 1)) + ystride * (Ny - (id_y + 1))
+                              + zstride * (Nz / 2),
+                          id_batch + xstride * (id_x + 1) + ystride * (id_y + 1)
+                              + zstride * (Nz / 2),
+                          xreal,
+                          ximag);
         }
     }
 }
@@ -918,6 +828,56 @@ static dim3 generate_data_gridDim(const size_t isize)
     auto gridDim_y = std::min<unsigned int>(DATA_GEN_GRID_Y_MAX, numBlocks_setup);
     auto gridDim_x = DivRoundingUp<unsigned int>(numBlocks_setup, DATA_GEN_GRID_Y_MAX);
     return {gridDim_x, gridDim_y};
+}
+
+// get grid dimensions for hermitian symmetrizer kernel
+static dim3 generate_hermitian_gridDim(const std::vector<size_t>& length,
+                                       const size_t               batch,
+                                       const size_t               blockSize)
+{
+    dim3 gridDim;
+
+    switch(length.size())
+    {
+    case 1:
+        gridDim = dim3(DivRoundingUp<size_t>(batch, blockSize));
+        break;
+    case 2:
+        gridDim = dim3(DivRoundingUp<size_t>(batch, blockSize),
+                       DivRoundingUp<size_t>((length[0] + 1) / 2 - 1, blockSize));
+        break;
+    case 3:
+        gridDim = dim3(DivRoundingUp<size_t>(batch, blockSize),
+                       DivRoundingUp<size_t>((length[0] + 1) / 2 - 1, blockSize),
+                       DivRoundingUp<size_t>(length[1] - 1, blockSize));
+        break;
+    default:
+        throw std::runtime_error("Invalid dimension for impose_hermitian_symmetry");
+    }
+
+    return gridDim;
+}
+
+static dim3 generate_blockDim(const std::vector<size_t>& length, const size_t blockSize)
+{
+    dim3 blockDim;
+
+    switch(length.size())
+    {
+    case 1:
+        blockDim = dim3(blockSize);
+        break;
+    case 2:
+        blockDim = dim3(blockSize, blockSize);
+        break;
+    case 3:
+        blockDim = dim3(blockSize, blockSize, blockSize);
+        break;
+    default:
+        throw std::runtime_error("Invalid dimension for impose_hermitian_symmetry");
+    }
+
+    return blockDim;
 }
 
 template <typename Tint, typename Treal>
@@ -1160,14 +1120,13 @@ static void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& len
                                                   const hipDeviceProp_t&     deviceProp)
 {
     auto blockSize = DATA_GEN_THREADS;
+    auto blockDim  = generate_blockDim(length, blockSize);
+    auto gridDim   = generate_hermitian_gridDim(length, batch, blockSize);
 
     switch(length.size())
     {
     case 1:
     {
-        const auto gridDim  = dim3(blockSize);
-        const auto blockDim = dim3(DivRoundingUp<size_t>(batch, blockSize));
-
         launch_limits_check(
             "impose_hermitian_symmetry_interleaved_1D_kernel", gridDim, blockDim, deviceProp);
 
@@ -1187,10 +1146,6 @@ static void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& len
     }
     case 2:
     {
-        const auto gridDim  = dim3(blockSize, blockSize);
-        const auto blockDim = dim3(DivRoundingUp<size_t>(ilength[0], blockSize),
-                                   DivRoundingUp<size_t>(batch, blockSize));
-
         launch_limits_check(
             "impose_hermitian_symmetry_interleaved_2D_kernel", gridDim, blockDim, deviceProp);
 
@@ -1200,24 +1155,20 @@ static void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& len
                            0,
                            0,
                            input_data,
-                           length[1],
                            length[0],
-                           stride[1],
+                           length[1],
                            stride[0],
+                           stride[1],
                            dist,
                            batch,
-                           length[1] % 2 == 0,
-                           length[0] % 2 == 0);
+                           (ilength[0] + 1) / 2 - 1,
+                           length[0] % 2 == 0,
+                           length[1] % 2 == 0);
 
         break;
     }
     case 3:
     {
-        const auto gridDim  = dim3(blockSize, blockSize, blockSize);
-        const auto blockDim = dim3(DivRoundingUp<size_t>(ilength[0], blockSize),
-                                   DivRoundingUp<size_t>(ilength[1], blockSize),
-                                   DivRoundingUp<size_t>(batch, blockSize));
-
         launch_limits_check(
             "impose_hermitian_symmetry_interleaved_3D_kernel", gridDim, blockDim, deviceProp);
 
@@ -1227,17 +1178,20 @@ static void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& len
                            0,
                            0,
                            input_data,
-                           length[2],
                            length[0],
                            length[1],
-                           stride[2],
+                           length[2],
                            stride[0],
                            stride[1],
+                           stride[2],
                            dist,
                            batch,
-                           length[2] % 2 == 0,
+                           (ilength[0] + 1) / 2 - 1,
+                           ilength[1] - 1,
+                           (ilength[1] + 1) / 2 - 1,
                            length[0] % 2 == 0,
-                           length[1] % 2 == 0);
+                           length[1] % 2 == 0,
+                           length[2] % 2 == 0);
         break;
     }
     default:
@@ -1260,14 +1214,13 @@ static void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
                                              const hipDeviceProp_t&     deviceProp)
 {
     auto blockSize = DATA_GEN_THREADS;
+    auto blockDim  = generate_blockDim(length, blockSize);
+    auto gridDim   = generate_hermitian_gridDim(length, batch, blockSize);
 
     switch(length.size())
     {
     case 1:
     {
-        const auto gridDim  = dim3(blockSize);
-        const auto blockDim = dim3(DivRoundingUp<size_t>(batch, blockSize));
-
         launch_limits_check(
             "impose_hermitian_symmetry_planar_1D_kernel", gridDim, blockDim, deviceProp);
 
@@ -1288,10 +1241,6 @@ static void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
     }
     case 2:
     {
-        const auto gridDim  = dim3(blockSize, blockSize);
-        const auto blockDim = dim3(DivRoundingUp<size_t>(ilength[0], blockSize),
-                                   DivRoundingUp<size_t>(batch, blockSize));
-
         launch_limits_check(
             "impose_hermitian_symmetry_planar_2D_kernel", gridDim, blockDim, deviceProp);
 
@@ -1302,24 +1251,20 @@ static void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
                            0,
                            input_data_real,
                            input_data_imag,
-                           length[1],
                            length[0],
-                           stride[1],
+                           length[1],
                            stride[0],
+                           stride[1],
                            dist,
                            batch,
-                           length[1] % 2 == 0,
-                           length[0] % 2 == 0);
+                           (ilength[0] + 1) / 2 - 1,
+                           length[0] % 2 == 0,
+                           length[1] % 2 == 0);
 
         break;
     }
     case 3:
     {
-        const auto gridDim  = dim3(blockSize, blockSize, blockSize);
-        const auto blockDim = dim3(DivRoundingUp<size_t>(ilength[0], blockSize),
-                                   DivRoundingUp<size_t>(ilength[1], blockSize),
-                                   DivRoundingUp<size_t>(batch, blockSize));
-
         launch_limits_check(
             "impose_hermitian_symmetry_planar_3D_kernel", gridDim, blockDim, deviceProp);
 
@@ -1330,17 +1275,20 @@ static void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
                            0,
                            input_data_real,
                            input_data_imag,
-                           length[2],
                            length[0],
                            length[1],
-                           stride[2],
+                           length[2],
                            stride[0],
                            stride[1],
+                           stride[2],
                            dist,
                            batch,
-                           length[2] % 2 == 0,
+                           (ilength[0] + 1) / 2 - 1,
+                           ilength[1] - 1,
+                           (ilength[1] + 1) / 2 - 1,
                            length[0] % 2 == 0,
-                           length[1] % 2 == 0);
+                           length[1] % 2 == 0,
+                           length[2] % 2 == 0);
         break;
     }
     default:

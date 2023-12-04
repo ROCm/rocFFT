@@ -248,6 +248,13 @@ static void impose_hermitian_symmetry_interleaved_2D(std::vector<hostbuf>&     v
     {
         auto data = ((std::complex<Tfloat>*)vals[0].data()) + ibatch * idist;
 
+        data[0].imag(0.0);
+
+        if(length[0] % 2 == 0)
+        {
+            data[istride[0] * (length[0] / 2)].imag(0.0);
+        }
+
         if(length[1] % 2 == 0)
         {
             data[istride[1] * (length[1] / 2)].imag(0.0);
@@ -285,6 +292,13 @@ static void impose_hermitian_symmetry_planar_2D(std::vector<hostbuf>&     vals,
     {
         auto data_real = ((Tfloat*)vals[0].data()) + ibatch * idist;
         auto data_imag = ((Tfloat*)vals[1].data()) + ibatch * idist;
+
+        data_imag[0] = 0.0;
+
+        if(length[0] % 2 == 0)
+        {
+            data_imag[istride[0] * (length[0] / 2)] = 0.0;
+        }
 
         if(length[1] % 2 == 0)
         {
@@ -326,9 +340,26 @@ static void impose_hermitian_symmetry_interleaved_3D(std::vector<hostbuf>&     v
     {
         auto data = ((std::complex<Tfloat>*)vals[0].data()) + ibatch * idist;
 
+        data[0].imag(0.0);
+
+        if(length[0] % 2 == 0)
+        {
+            data[istride[0] * (length[0] / 2)].imag(0.0);
+        }
+
+        if(length[1] % 2 == 0)
+        {
+            data[istride[1] * (length[1] / 2)].imag(0.0);
+        }
+
         if(length[2] % 2 == 0)
         {
             data[istride[2] * (length[2] / 2)].imag(0.0);
+        }
+
+        if(length[0] % 2 == 0 && length[1] % 2 == 0)
+        {
+            data[istride[0] * (length[0] / 2) + istride[1] * (length[1] / 2)].imag(0.0);
         }
 
         if(length[0] % 2 == 0 && length[2] % 2 == 0)
@@ -453,9 +484,26 @@ static void impose_hermitian_symmetry_planar_3D(std::vector<hostbuf>&     vals,
         auto data_real = ((Tfloat*)vals[0].data()) + ibatch * idist;
         auto data_imag = ((Tfloat*)vals[1].data()) + ibatch * idist;
 
+        data_imag[0] = 0.0;
+
+        if(length[0] % 2 == 0)
+        {
+            data_imag[istride[0] * (length[0] / 2)] = 0.0;
+        }
+
+        if(length[1] % 2 == 0)
+        {
+            data_imag[istride[1] * (length[1] / 2)] = 0.0;
+        }
+
         if(length[2] % 2 == 0)
         {
             data_imag[istride[2] * (length[2] / 2)] = 0.0;
+        }
+
+        if(length[0] % 2 == 0 && length[1] % 2 == 0)
+        {
+            data_imag[istride[0] * (length[0] / 2) + istride[1] * (length[1] / 2)] = 0.0;
         }
 
         if(length[0] % 2 == 0 && length[2] % 2 == 0)

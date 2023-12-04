@@ -131,15 +131,17 @@ void initcomplex_cm(const std::vector<size_t>& length_cm,
                     const std::vector<size_t>& stride_cm,
                     void*                      gpu_in)
 {
+    size_t     blockSize = DATA_GEN_THREADS;
+    const dim3 blockdim(blockSize);
+
     switch(length_cm.size())
     {
     case 1:
     {
-        const dim3 blockdim(256);
         const dim3 griddim(ceildiv(length_cm[0], blockdim.x));
         hipLaunchKernelGGL(initcdata1,
-                           blockdim,
                            griddim,
+                           blockdim,
                            0,
                            0,
                            (hipDoubleComplex*)gpu_in,
@@ -149,11 +151,10 @@ void initcomplex_cm(const std::vector<size_t>& length_cm,
     }
     case 2:
     {
-        const dim3 blockdim(64, 64);
         const dim3 griddim(ceildiv(length_cm[0], blockdim.x), ceildiv(length_cm[1], blockdim.y));
         hipLaunchKernelGGL(initcdata2,
-                           blockdim,
                            griddim,
+                           blockdim,
                            0,
                            0,
                            (hipDoubleComplex*)gpu_in,
@@ -165,13 +166,12 @@ void initcomplex_cm(const std::vector<size_t>& length_cm,
     }
     case 3:
     {
-        const dim3 blockdim(32, 32, 32);
         const dim3 griddim(ceildiv(length_cm[0], blockdim.x),
                            ceildiv(length_cm[1], blockdim.y),
                            ceildiv(length_cm[2], blockdim.z));
         hipLaunchKernelGGL(initcdata3,
-                           blockdim,
                            griddim,
+                           blockdim,
                            0,
                            0,
                            (hipDoubleComplex*)gpu_in,
@@ -187,6 +187,11 @@ void initcomplex_cm(const std::vector<size_t>& length_cm,
         std::cout << "invalid dimension!\n";
         exit(1);
     }
+
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("init_complex_data kernel launch failure: "
+                                 + std::string(hipGetErrorName(err)));
 }
 
 // Initialize the real input buffer where the data has lengths given in length and stride given in
@@ -195,23 +200,24 @@ void initreal_cm(const std::vector<size_t>& length_cm,
                  const std::vector<size_t>& stride_cm,
                  void*                      gpu_in)
 {
+    size_t     blockSize = DATA_GEN_THREADS;
+    const dim3 blockdim(blockSize);
+
     switch(length_cm.size())
     {
     case 1:
     {
-        const dim3 blockdim(256);
         const dim3 griddim(ceildiv(length_cm[0], blockdim.x));
         hipLaunchKernelGGL(
-            initrdata1, blockdim, griddim, 0, 0, (double*)gpu_in, length_cm[0], stride_cm[0]);
+            initrdata1, griddim, blockdim, 0, 0, (double*)gpu_in, length_cm[0], stride_cm[0]);
         break;
     }
     case 2:
     {
-        const dim3 blockdim(64, 64);
         const dim3 griddim(ceildiv(length_cm[0], blockdim.x), ceildiv(length_cm[1], blockdim.y));
         hipLaunchKernelGGL(initrdata2,
-                           blockdim,
                            griddim,
+                           blockdim,
                            0,
                            0,
                            (double*)gpu_in,
@@ -223,13 +229,12 @@ void initreal_cm(const std::vector<size_t>& length_cm,
     }
     case 3:
     {
-        const dim3 blockdim(32, 32, 32);
         const dim3 griddim(ceildiv(length_cm[0], blockdim.x),
                            ceildiv(length_cm[1], blockdim.y),
                            ceildiv(length_cm[2], blockdim.z));
         hipLaunchKernelGGL(initrdata3,
-                           blockdim,
                            griddim,
+                           blockdim,
                            0,
                            0,
                            (double*)gpu_in,
@@ -245,110 +250,133 @@ void initreal_cm(const std::vector<size_t>& length_cm,
         std::cout << "invalid dimension!\n";
         exit(1);
     }
+
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("init_real_data kernel launch failure: "
+                                 + std::string(hipGetErrorName(err)));
 }
 
+// Imposes Hermitian symmetry for the input device buffer.
+// Note: input parameters are in column-major ordering.
 void impose_hermitian_symmetry_cm(const std::vector<size_t>& length,
                                   const std::vector<size_t>& ilength,
                                   const std::vector<size_t>& stride,
                                   void*                      gpu_in)
 {
-    switch(length.size())
+    size_t batch     = 1;
+    size_t dist      = 1;
+    size_t blockSize = DATA_GEN_THREADS;
+    auto   inputDim  = length.size();
+
+    // Launch impose_hermitian_symmetry kernels.
+    // NOTE: input parameters must be in row-major
+    //       ordering for these kernels.
+    switch(inputDim)
     {
     case 1:
     {
+        const auto gridDim  = dim3(DivRoundingUp<size_t>(batch, blockSize));
+        const auto blockDim = dim3(blockSize);
         hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1D_kernel<hipDoubleComplex>,
-                           dim3(1),
-                           dim3(1),
+                           gridDim,
+                           blockDim,
                            0,
                            0,
                            (hipDoubleComplex*)gpu_in,
                            length[0],
                            stride[0],
-                           1,
-                           1,
+                           dist,
+                           batch,
                            length[0] % 2 == 0);
         break;
     }
     case 2:
     {
+        const auto gridDim  = dim3(DivRoundingUp<size_t>(batch, blockSize),
+                                  DivRoundingUp<size_t>((length[1] + 1) / 2 - 1, blockSize));
+        const auto blockDim = dim3(blockSize, blockSize);
         hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2D_kernel<hipDoubleComplex>,
-                           dim3(256),
-                           dim3(ceildiv(ceildiv(ilength[1], 2), 256)),
+                           gridDim,
+                           blockDim,
                            0,
                            0,
                            (hipDoubleComplex*)gpu_in,
-                           length[0],
                            length[1],
-                           stride[0],
+                           length[0],
                            stride[1],
-                           1,
-                           1,
-                           length[0] % 2 == 0,
-                           length[1] % 2 == 0);
+                           stride[0],
+                           dist,
+                           batch,
+                           (ilength[1] + 1) / 2 - 1,
+                           length[1] % 2 == 0,
+                           length[0] % 2 == 0);
         break;
     }
     case 3:
     {
+        const auto gridDim  = dim3(DivRoundingUp<size_t>(batch, blockSize),
+                                  DivRoundingUp<size_t>((length[2] + 1) / 2 - 1, blockSize),
+                                  DivRoundingUp<size_t>(length[1] - 1, blockSize));
+        const auto blockDim = dim3(blockSize, blockSize, blockSize);
         hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3D_kernel<hipDoubleComplex>,
-                           dim3(64, 64),
-                           dim3(ceildiv(ilength[1], 64), ceildiv(ceildiv(ilength[2], 2), 64)),
+                           gridDim,
+                           blockDim,
                            0,
                            0,
                            (hipDoubleComplex*)gpu_in,
-                           length[0],
-                           length[1],
                            length[2],
-                           stride[0],
-                           stride[1],
+                           length[1],
+                           length[0],
                            stride[2],
-                           1,
-                           1,
-                           length[0] % 2 == 0,
+                           stride[1],
+                           stride[0],
+                           dist,
+                           batch,
+                           (ilength[2] + 1) / 2 - 1,
+                           ilength[1] - 1,
+                           (ilength[1] + 1) / 2 - 1,
+                           length[2] % 2 == 0,
                            length[1] % 2 == 0,
-                           length[2] % 2 == 0);
+                           length[0] % 2 == 0);
         break;
     }
     default:
         throw std::runtime_error("Invalid dimension");
     }
+
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("impose_hermitian_symmetry_interleaved kernel launch failure: "
+                                 + std::string(hipGetErrorName(err)));
 }
 
-// Initialize the real input buffer where the data has lengths given in length, the transform has
-// lengths given in length and stride given in stride.  The device buffer is assumed to have been
-// allocated.
+// Initialize the Hermitian complex input buffer where the data has lengths given in length, the
+// transform has lengths given in length and stride given in stride.  The device buffer is assumed
+// to have been allocated.
 void init_hermitiancomplex_cm(const std::vector<size_t>& length,
                               const std::vector<size_t>& ilength,
                               const std::vector<size_t>& stride,
                               void*                      gpu_in)
 {
+    size_t     blockSize = 256;
+    const dim3 blockdim(blockSize);
+
     switch(length.size())
     {
     case 1:
     {
-        const dim3 blockdim(256);
-        const dim3 griddim(ceildiv(ilength[0], blockdim.x));
+        const dim3 griddim(ceildiv(ilength[0], blockSize));
         hipLaunchKernelGGL(
-            initcdata1, blockdim, griddim, 0, 0, (hipDoubleComplex*)gpu_in, ilength[0], stride[0]);
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1D_kernel<hipDoubleComplex>,
-                           dim3(1),
-                           dim3(1),
-                           0,
-                           0,
-                           (hipDoubleComplex*)gpu_in,
-                           length[0],
-                           stride[0],
-                           1,
-                           1,
-                           length[0] % 2 == 0);
+            initcdata1, griddim, blockdim, 0, 0, (hipDoubleComplex*)gpu_in, ilength[0], stride[0]);
         break;
     }
     case 2:
     {
-        const dim3 blockdim(64, 64);
         const dim3 griddim(ceildiv(ilength[0], blockdim.x), ceildiv(ilength[1], blockdim.y));
         hipLaunchKernelGGL(initcdata2,
-                           blockdim,
                            griddim,
+                           blockdim,
                            0,
                            0,
                            (hipDoubleComplex*)gpu_in,
@@ -356,32 +384,16 @@ void init_hermitiancomplex_cm(const std::vector<size_t>& length,
                            ilength[1],
                            stride[0],
                            stride[1]);
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2D_kernel<hipDoubleComplex>,
-                           dim3(256),
-                           dim3(ceildiv(ceildiv(ilength[1], 2), 256)),
-                           0,
-                           0,
-                           (hipDoubleComplex*)gpu_in,
-                           length[0],
-                           length[1],
-                           stride[0],
-                           stride[1],
-                           1,
-                           1,
-                           length[0] % 2 == 0,
-                           length[1] % 2 == 0);
         break;
     }
     case 3:
     {
-        const dim3 blockdim(32, 32, 32);
         const dim3 griddim(ceildiv(ilength[0], blockdim.x),
                            ceildiv(ilength[1], blockdim.y),
                            ceildiv(ilength[2], blockdim.z));
-
         hipLaunchKernelGGL(initcdata3,
-                           blockdim,
                            griddim,
+                           blockdim,
                            0,
                            0,
                            (hipDoubleComplex*)gpu_in,
@@ -391,29 +403,16 @@ void init_hermitiancomplex_cm(const std::vector<size_t>& length,
                            stride[0],
                            stride[1],
                            stride[2]);
-
-        hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3D_kernel<hipDoubleComplex>,
-                           dim3(64, 64),
-                           dim3(ceildiv(ilength[1], 64), ceildiv(ceildiv(ilength[2], 2), 64)),
-                           0,
-                           0,
-                           (hipDoubleComplex*)gpu_in,
-                           length[0],
-                           length[1],
-                           length[2],
-                           stride[0],
-                           stride[1],
-                           stride[2],
-                           1,
-                           1,
-                           length[0] % 2 == 0,
-                           length[1] % 2 == 0,
-                           length[2] % 2 == 0);
         break;
     }
     default:
         throw std::runtime_error("Invalid dimension");
     }
+
+    auto err = hipGetLastError();
+    if(err != hipSuccess)
+        throw std::runtime_error("init_complex_data kernel launch failure: "
+                                 + std::string(hipGetErrorName(err)));
 
     impose_hermitian_symmetry_cm(length, ilength, stride, gpu_in);
 }
