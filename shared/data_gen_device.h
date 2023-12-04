@@ -935,7 +935,7 @@ static void generate_random_interleaved_data(const Tint&            whole_length
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
 
-    launch_limits_check(gridDim, blockDim, deviceProp);
+    launch_limits_check("generate_random_interleaved_data_kernel", gridDim, blockDim, deviceProp);
 
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(generate_random_interleaved_data_kernel<decltype(input_length), Treal>),
@@ -975,7 +975,7 @@ static void generate_interleaved_data(const Tint&            whole_length,
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
 
-    launch_limits_check(gridDim, blockDim, deviceProp);
+    launch_limits_check("generate_interleaved_data_kernel", gridDim, blockDim, deviceProp);
 
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(generate_interleaved_data_kernel<decltype(input_length), Treal>),
@@ -1012,7 +1012,7 @@ static void generate_random_planar_data(const Tint&            whole_length,
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
 
-    launch_limits_check(gridDim, blockDim, deviceProp);
+    launch_limits_check("generate_random_planar_data_kernel", gridDim, blockDim, deviceProp);
 
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(generate_random_planar_data_kernel<decltype(input_length), Treal>),
@@ -1054,7 +1054,7 @@ static void generate_planar_data(const Tint&            whole_length,
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
 
-    launch_limits_check(gridDim, blockDim, deviceProp);
+    launch_limits_check("generate_planar_data_kernel", gridDim, blockDim, deviceProp);
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(generate_planar_data_kernel<decltype(input_length), Treal>),
                        gridDim,
@@ -1090,7 +1090,7 @@ static void generate_random_real_data(const Tint&            whole_length,
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
 
-    launch_limits_check(gridDim, blockDim, deviceProp);
+    launch_limits_check("generate_random_real_data_kernel", gridDim, blockDim, deviceProp);
 
     hipLaunchKernelGGL(
         HIP_KERNEL_NAME(generate_random_real_data_kernel<decltype(input_length), Treal>),
@@ -1130,7 +1130,7 @@ static void generate_real_data(const Tint&            whole_length,
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
 
-    launch_limits_check(gridDim, blockDim, deviceProp);
+    launch_limits_check("generate_real_data_kernel", gridDim, blockDim, deviceProp);
 
     hipLaunchKernelGGL(HIP_KERNEL_NAME(generate_real_data_kernel<decltype(input_length), Treal>),
                        gridDim,
@@ -1168,7 +1168,8 @@ static void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& len
         const auto gridDim  = dim3(blockSize);
         const auto blockDim = dim3(DivRoundingUp<size_t>(batch, blockSize));
 
-        launch_limits_check(gridDim, blockDim, deviceProp);
+        launch_limits_check(
+            "impose_hermitian_symmetry_interleaved_1D_kernel", gridDim, blockDim, deviceProp);
 
         hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_1D_kernel<Tcomplex>,
                            gridDim,
@@ -1190,7 +1191,8 @@ static void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& len
         const auto blockDim = dim3(DivRoundingUp<size_t>(ilength[0], blockSize),
                                    DivRoundingUp<size_t>(batch, blockSize));
 
-        launch_limits_check(gridDim, blockDim, deviceProp);
+        launch_limits_check(
+            "impose_hermitian_symmetry_interleaved_2D_kernel", gridDim, blockDim, deviceProp);
 
         hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_2D_kernel<Tcomplex>,
                            gridDim,
@@ -1216,7 +1218,8 @@ static void impose_hermitian_symmetry_interleaved(const std::vector<size_t>& len
                                    DivRoundingUp<size_t>(ilength[1], blockSize),
                                    DivRoundingUp<size_t>(batch, blockSize));
 
-        launch_limits_check(gridDim, blockDim, deviceProp);
+        launch_limits_check(
+            "impose_hermitian_symmetry_interleaved_3D_kernel", gridDim, blockDim, deviceProp);
 
         hipLaunchKernelGGL(impose_hermitian_symmetry_interleaved_3D_kernel<Tcomplex>,
                            gridDim,
@@ -1265,7 +1268,8 @@ static void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
         const auto gridDim  = dim3(blockSize);
         const auto blockDim = dim3(DivRoundingUp<size_t>(batch, blockSize));
 
-        launch_limits_check(gridDim, blockDim, deviceProp);
+        launch_limits_check(
+            "impose_hermitian_symmetry_planar_1D_kernel", gridDim, blockDim, deviceProp);
 
         hipLaunchKernelGGL(impose_hermitian_symmetry_planar_1D_kernel<Tfloat>,
                            gridDim,
@@ -1288,7 +1292,8 @@ static void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
         const auto blockDim = dim3(DivRoundingUp<size_t>(ilength[0], blockSize),
                                    DivRoundingUp<size_t>(batch, blockSize));
 
-        launch_limits_check(gridDim, blockDim, deviceProp);
+        launch_limits_check(
+            "impose_hermitian_symmetry_planar_2D_kernel", gridDim, blockDim, deviceProp);
 
         hipLaunchKernelGGL(impose_hermitian_symmetry_planar_2D_kernel<Tfloat>,
                            gridDim,
@@ -1315,7 +1320,8 @@ static void impose_hermitian_symmetry_planar(const std::vector<size_t>& length,
                                    DivRoundingUp<size_t>(ilength[1], blockSize),
                                    DivRoundingUp<size_t>(batch, blockSize));
 
-        launch_limits_check(gridDim, blockDim, deviceProp);
+        launch_limits_check(
+            "impose_hermitian_symmetry_planar_3D_kernel", gridDim, blockDim, deviceProp);
 
         hipLaunchKernelGGL(impose_hermitian_symmetry_planar_3D_kernel<Tfloat>,
                            gridDim,
