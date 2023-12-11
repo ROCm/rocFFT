@@ -535,7 +535,7 @@ if ( ROCFFT_KERNEL_CACHE_ENABLE )
   # Set LD_LIBRARY_PATH for executing the binary from build directory.
   add_custom_command(
     OUTPUT rocfft_kernel_cache.db
-    COMMAND ${CMAKE_COMMAND} -E env "LD_LIBRARY_PATH=${ROCM_PATH}/${CMAKE_INSTALL_LIBDIR}" ./rocfft_aot_helper \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS_AOT}
+    COMMAND ${CMAKE_COMMAND} -E env "LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH}:${ROCM_PATH}/${CMAKE_INSTALL_LIBDIR}" ./rocfft_aot_helper \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${AMDGPU_TARGETS_AOT}
     DEPENDS rocfft_aot_helper rocfft_rtc_helper
     COMMENT "Compile kernels into shipped cache file"
   )
