@@ -36,13 +36,24 @@ if(filename == "") {
 }
 
 file fin = input(filename).line();
-real[] a = fin;
+real[] b = fin;
+
+real bounds = infinity; //40000;
+
+real[] a;
+for(int i = 0; i < b.length; ++i) {
+  if(abs(b[i]) < bounds)
+    a.push(b[i]);
+}
 
 int N = nbinmult * bins(a);
 
+real lower = min(0, min(a));
+real upper = max(0, max(a));
+
 histogram(a,
-          min(0,min(a)),
-          max(0, max(a)),
+          lower,
+          upper,
           N,
           normalize=false,
           low=0,

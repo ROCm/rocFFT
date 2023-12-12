@@ -110,6 +110,124 @@ def write_csv(path, records, meta={}, overwrite=False):
         f.write('\n')
 
 
+# Find the number of matching test tokens.
+def find_ncompare(runs):
+
+    import perflib.utils
+
+    outdirs = [Path(outdir) for outdir in runs]
+    ncompare = 0
+    if len(outdirs) == 2:
+        refdir, testdir = outdirs
+        all_runs = perflib.utils.read_runs(outdirs)
+        runs = perflib.utils.by_dat(all_runs)
+        for dat_name, dat_runs in runs.items():
+            if (refdir in dat_runs.keys() and testdir in dat_runs.keys()):
+                refdat = dat_runs[refdir]
+                testdat = dat_runs[testdir]
+                for token, sample in refdat.get_samples():
+                    if token not in testdat.samples:
+                        continue
+                    ncompare += 1
+    return ncompare
+
+
+def find_slower_faster(outdirs, method, multitest, significance, ncompare,
+                       verbose):
+
+    import perflib.utils
+
+    import statistics
+
+    slower = []
+    faster = []
+
+    all_runs = perflib.utils.read_runs(outdirs, verbose)
+    if len(all_runs) != 2:
+        return slower, faster, significance
+
+    import numpy as np
+    import scipy
+
+    token_p_measures = []
+
+    new_significance = significance
+
+    runs = perflib.utils.by_dat(all_runs)
+    refdir, testdir = outdirs
+
+    for dat_name, dat_runs in runs.items():
+        if (refdir in dat_runs.keys() and testdir in dat_runs.keys()):
+            refdat = dat_runs[refdir]
+            testdat = dat_runs[testdir]
+            for token, sample in refdat.get_samples():
+                if token not in testdat.samples:
+                    continue
+
+                #print(token)
+                Avals = refdat.samples[token].times
+                Bvals = testdat.samples[token].times
+
+                pval = None
+                measure_a = None
+                measure_b = None
+                if method == 'moods':
+                    _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
+                    measure_a = statistics.median(Avals)
+                    measure_b = statistics.median(Bvals)
+                elif method == 'ttest':
+                    _, pval = scipy.stats.ttest_ind(Avals, Bvals)
+                    measure_a = np.mean(Avals)
+                    measure_b = np.mean(Bvals)
+                elif method == 'mwu':
+                    _, pval = scipy.stats.mannwhitneyu(Avals, Bvals)
+                    measure_a = statistics.median(Avals)
+                    measure_b = statistics.median(Bvals)
+                else:
+                    print("unsupported statistical method")
+                    sys.exit(1)
+
+                token_p_measures.append([token, pval, measure_a, measure_b])
+
+    if multitest == "bonferroni" and ncompare > 0:
+        new_significance /= ncompare
+    if multitest == "bh":
+        pvals = []
+        for stuff in token_p_measures:
+            pvals.append(stuff[1])
+
+        pvals.sort()
+
+        #print(pvals)
+
+        new_significance = None
+
+        # Find the largest index
+        for idx, pval in enumerate(pvals):
+            j_alpha = (idx + 1) * significance / ncompare
+            if pval < j_alpha:
+                new_significance = pval
+
+        # if alpha == None:
+        #     alpha = significance
+
+    # Now that we have the new significance, decide on cases.
+    for stuff in token_p_measures:
+        #print(stuff)
+        token = stuff[0]
+        pval = stuff[1]
+        measure_a = stuff[2]
+        measure_a = stuff[3]
+
+        if pval < new_significance:
+            if statistics.median(Avals) > statistics.median(Bvals):
+                faster.append([token, measure_a, measure_b])
+            else:
+                slower.append([token, measure_a, measure_b])
+
+    return slower, faster, new_significance
+
+
 #
 # DAT files
 #
@@ -273,11 +391,14 @@ def get_post_processed(dname, docdir, outdirs):
         if path.exists():
             primary.append(path)
 
+    import os
+
     secondary = []
     for outdir in outdirs[1:]:
-        path = (docdir / (str(outdir.name) + "-over-" + str(outdirs[0].name) +
-                          "-" + dname)).with_suffix('.sdat')
-        if path.exists():
+        sdatname = str(outdir.name) + "-over-" + str(
+            outdirs[0].name) + "-" + dname + ".sdat"
+        path = os.path.join(docdir, sdatname)
+        if os.path.isfile(path):
             secondary.append(path)
 
     return primary, secondary

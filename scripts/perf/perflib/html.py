@@ -266,6 +266,8 @@ def make_html(figures, title, docdir, outdirs, significance):
   <body>
 '''.format(title))
 
+    # FIXME: use the find_slower_faster function to get perf changes.
+
     # make links to each figure at the top of the report
     outfile.write('''<b>Quick links:</b><br/>''')
     for figure in figures:

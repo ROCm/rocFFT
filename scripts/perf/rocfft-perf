@@ -125,7 +125,7 @@ import collections
 
 from pathlib import Path
 
-from multiprocessing import Pool
+import multiprocessing
 
 top = Path(__file__).resolve().parent
 sys.path.append(str(top))
@@ -158,13 +158,11 @@ def command_test(arguments):
 
     # FIXME: rename and replace above comment
 
-    sig = arguments.significance
-    outdirs = [Path(x) for x in arguments.runs]
     verbose = arguments.verbose
-
     significance = arguments.significance
-    bonferroni = arguments.bonferroni
+    multitest = arguments.multitest
 
+    outdirs = [Path(x) for x in arguments.runs]
     all_runs = perflib.utils.read_runs(outdirs, verbose)
 
     if len(all_runs) != 2:
@@ -173,76 +171,38 @@ def command_test(arguments):
         )
         sys.exit(1)
 
-    import numpy
-    import scipy.stats
-
-    ncompare = 0
-    slower = []
-    faster = []
-
     runs = perflib.utils.by_dat(all_runs)
     refdir, testdir = outdirs
 
-    # In order to do the Bonferroni correction, We need to adjust the
-    # significance threshold based on the number of tests, so count
-    # them first.
-    for dat_name, dat_runs in runs.items():
-        refdat = dat_runs[refdir]
-        testdat = dat_runs[testdir]
-        for token, sample in refdat.get_samples():
-            if token not in testdat.samples:
-                continue
-            ncompare += 1
-    if bonferroni and ncompare > 0:
-        significance /= ncompare
+    ncompare = perflib.utils.find_ncompare(arguments.runs)
 
-    for dat_name, dat_runs in runs.items():
-        refdat = dat_runs[refdir]
-        testdat = dat_runs[testdir]
-        for token, sample in refdat.get_samples():
-            if token not in testdat.samples:
-                continue
-
-            #print(token)
-            Avals = refdat.samples[token].times
-            Bvals = testdat.samples[token].times
-
-            pval = -1
-            if arguments.method == 'moods':
-                _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
-                if pval < significance:
-                    if statistics.median(Avals) > statistics.median(Bvals):
-                        faster.append(token)
-                    else:
-                        slower.append(token)
-            elif arguments.method == 'ttest':
-                _, pval = scipy.stats.ttest_ind(Avals, Bvals)
-                if pval < significance:
-                    if numpy.mean(Avals) > numpy.mean(Bvals):
-                        faster.append(token)
-                    else:
-                        slower.append(token)
-            elif arguments.method == 'mwu':
-                _, pval = scipy.stats.mannwhitneyu(Avals, Bvals)
-                if pval < significance:
-                    if statistics.median(Avals) > statistics.median(Bvals):
-                        faster.append(token)
-                    else:
-                        slower.append(token)
-            else:
-                print("unsupported statistical method")
-                sys.exit(1)
+    slower, faster, new_sig = perflib.utils.find_slower_faster(
+        outdirs, arguments.method, multitest, significance, ncompare, verbose)
 
     if verbose:
         print("faster:", faster)
         print("slower:", slower)
 
-    print("nh0:", ncompare - (len(faster) + len(slower)))
-    print("nh1:", len(faster) + len(slower))
+    nh1 = len(faster) + len(slower)
+    nh0 = ncompare - nh1
 
     print("ncompare:", ncompare)
+    print("nh0:", nh0)
+    print("nh1:", nh1)
     print("faster:", len(faster))
     print("slower:", len(slower))
+
+    import numpy as np
+    geomean = 1.0
+    if nh1 > 0:
+        sig_speedups = []
+        for case in slower:
+            sig_speedups.append(case[1] / case[2])
+        for case in faster:
+            sig_speedups.append(case[1] / case[2])
+        import scipy
+        geomean = scipy.stats.mstats.gmean(sig_speedups)
+    print("geomean:", geomean)
 
     return len(slower) > 0
 
@@ -371,7 +331,7 @@ def command_post(arguments):
 
     # median confidence intervals
     for run in all_runs:
-        with Pool(None) as p:
+        with multiprocessing.Pool(None) as p:
             p.starmap(
                 generate_mdat,
                 itertools.product(run.dats.values(), [arguments.measure],
@@ -431,13 +391,7 @@ def command_post(arguments):
                                         overwrite=True)
 
 
-def command_generate(runs=None,
-                     label=None,
-                     output=None,
-                     significance=None,
-                     bonferroni=None,
-                     type='pdf',
-                     **kwargs):
+def command_generate(arguments):
     """Generate PDF/HTML/DOCX from run results."""
 
     import perflib.pdf
@@ -447,18 +401,26 @@ def command_generate(runs=None,
         'pdf': perflib.pdf.PDFFigure,
         'html': perflib.html.HTMLFigure,
         'docx': perflib.pdf.PDFFigure,
-    }[type]
+    }[arguments.command]
 
-    docdir = Path(output)
+    docdir = Path(arguments.output)
     docdir.mkdir(parents=True, exist_ok=True)
 
-    outdirs = [Path(outdir) for outdir in runs]
+    outdirs = [Path(outdir) for outdir in arguments.runs]
+    label = arguments.label
     if label is None:
         label = [outdir.stem for outdir in outdirs]
     reference = perflib.utils.read_run(outdirs[0])
 
     import pandas
-    ncompare = 0
+    import perflib.utils
+    ncompare = perflib.utils.find_ncompare(arguments.runs)
+    print("ncompare:", ncompare)
+
+    slower, faster, new_sig = perflib.utils.find_slower_faster(
+        outdirs, arguments.method, arguments.multitest, arguments.significance,
+        ncompare, arguments.verbose)
+
     figures = []
     for datname in perflib.utils.list_runs(outdirs[0]):
         tag = datname.stem
@@ -471,33 +433,33 @@ def command_generate(runs=None,
             tag, docdir, outdirs)
         figure = Figure(tag, title, caption, docdir, label, primary, secondary,
                         figtype)
-        for p in figure.secondary:
-            df = pandas.read_csv(p, sep="\t", comment='#')
-            ncompare += len(df.index)
         figures.append(figure)
 
-    print("ncompare:", ncompare)
-    if bonferroni and ncompare > 0:
-        significance /= ncompare
-
     for figure in figures:
-        figure.make(significance)
+        figure.make(new_sig)
 
-    if type == 'pdf':
-        pool = Pool(None)
-        for figure in figures:
-            pool.map_async(Figure.runasy, [figure])
-        pool.close()
-        pool.join()
+    if arguments.command == 'pdf':
+        if False:
+            for figure in figures:
+                figure.runasy()
+        else:
+            pool = multiprocessing.Pool(None)
+            for figure in figures:
+                pool.map_async(Figure.runasy, [figure])
+            pool.close()
+            pool.join()
 
-    if type == 'pdf':
-        perflib.pdf.make_tex(figures, docdir, outdirs, label, significance)
-    if type == 'html':
+    if arguments.command == 'pdf':
+        perflib.pdf.make_tex(figures, docdir, outdirs, label, new_sig,
+                             ncompare)
+    if arguments.command == 'html':
         title = f"Performance report: {perflib.utils.cjoin(outdirs)}"
-        perflib.html.make_html(figures, title, docdir, outdirs, significance)
-    if type == 'docx':
+        perflib.html.make_html(figures, title, docdir, outdirs,
+                               arguments.significance)
+    if arguments.command == 'docx':
         import perflib.docx
-        perflib.docx.make_docx(figures, docdir, outdirs, significance)
+        perflib.docx.make_docx(figures, docdir, outdirs,
+                               arguments.significance)
 
 
 def command_run(arguments):
@@ -672,7 +634,7 @@ def command_autoperf(arguments):
 
     # generate report
     for report_type in format:
-        command_generate(type=report_type, **vars(arguments))
+        command_generate(arguments)
 
 
 def command_bweff(arguments):
@@ -857,7 +819,9 @@ def main():
                        help="method for generating confidence interval",
                        default="bootstrap")
 
-    for p in [post_parser, pdf_parser, test_parser, autoperf_parser]:
+    for p in [
+            post_parser, pdf_parser, test_parser, autoperf_parser, html_parser
+    ]:
         p.add_argument('--method',
                        type=str,
                        choices=["moods", "ttest", "mwu"],
@@ -878,20 +842,12 @@ def main():
         p.add_argument('--significance',
                        type=float,
                        help='moods significance threshold',
-                       default=0.001)
-        p.add_argument('--bonferroni',
-                       action='store_true',
-                       help='Apply Bonferroni significance correction')
-        p.add_argument('--no-bonferroni',
-                       dest='bonferroni',
-                       action='store_false')
-        p.set_defaults(bonferroni=True)
-        # Python 3.9+ method:
-        # p.add_argument('--bonferroni',
-        #                help='Apply Bonferroni significance correction',
-        #                type=bool,
-        #                action=argparse.BooleanOptionalAction,
-        #                default=True)
+                       default=0.05)
+        p.add_argument('--multitest',
+                       type=str,
+                       choices=["none", "bonferroni", "bh"],
+                       help='Multi-hypothesis correction method',
+                       default="bh")
     for p in [pdf_parser, html_parser, docx_parser]:
         p.add_argument('-l',
                        '--label',
@@ -1121,13 +1077,13 @@ def main():
         sys.exit(command_test(arguments))
 
     if arguments.command == 'pdf':
-        command_generate(type='pdf', **vars(arguments))
+        command_generate(arguments)
 
     if arguments.command == 'html':
-        command_generate(type='html', **vars(arguments))
+        command_generate(arguments)
 
     if arguments.command == 'docx':
-        command_generate(type='docx', **vars(arguments))
+        command_generate(arguments)
 
     if arguments.command == 'autoperf':
         command_autoperf(arguments)
