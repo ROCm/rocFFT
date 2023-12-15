@@ -112,6 +112,10 @@ if( NOT BUILD_FFTW )
 endif()
 
 include( ExternalProject )
+if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+  # use extract timestamp for fetched files instead of timestamps in the archive
+  cmake_policy(SET CMP0135 NEW)
+endif()
 
 # also try to build FFTW if FFTW isn't present
 if( BUILD_FFTW OR NOT FFTW_FOUND )

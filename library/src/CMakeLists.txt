@@ -236,6 +236,10 @@ else()
   set(SQLITE_SRC_3_43_2_SHA3_256 af02b88cc922e7506c6659737560c0756deee24e4e7741d4b315af341edd8b40 CACHE STRING "SHA3-256 hash of SQLite source code")
 
   # embed SQLite
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.24)
+    # use extract timestamp for fetched files instead of timestamps in the archive
+    cmake_policy(SET CMP0135 NEW)
+  endif()
   FetchContent_Declare(sqlite_local
     URL ${SQLITE_3_43_2_SRC_URL}
     URL_HASH SHA3_256=${SQLITE_SRC_3_43_2_SHA3_256}
