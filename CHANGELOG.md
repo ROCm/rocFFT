@@ -3,7 +3,7 @@
 Documentation for rocFFT is available at
 [https://rocm.docs.amd.com/projects/rocFFT/en/latest/](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
 
-## rocFFT 1.0.26 (unreleased)
+## rocFFT 1.0.26 for ROCm 6.1.0
 
 ### Changes
 
@@ -12,7 +12,7 @@ Documentation for rocFFT is available at
 * rocFFT now statically links libstdc++ when only `std::experimental::filesystem` is available (to guard
   against ABI incompatibilities with newer libstdc++ libraries that include `std::filesystem`)
 
-## rocFFT 1.0.25 for ROCm 6.0.0 (unreleased)
+## rocFFT 1.0.25 for ROCm 6.0.0
 
 ### Additions
 
