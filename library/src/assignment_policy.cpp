@@ -127,6 +127,13 @@ void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
             node->outArrayType = rocfft_array_type_complex_interleaved;
     }
 
+    // Ensure that all nodes that take real input are declared as
+    // such.  This is particularly important for leaf nodes, since
+    // kernelio debugging depends on knowing the correct type of the
+    // array to print.
+    if(node->scheme == CS_KERNEL_COPY_R_TO_CMPLX)
+        node->inArrayType = rocfft_array_type_real;
+
     // for nodes that uses bluestein buffer
     auto setBluesteinOffset = [node](size_t& offset) {
         for(auto p = node->parent; p != nullptr; p = p->parent)
