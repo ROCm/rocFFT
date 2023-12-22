@@ -55,8 +55,13 @@ target_include_directories( rocfft_rtc_helper
   PRIVATE
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
 )
+# rocfft_rtc_helper will be installed in /opt/rocm-ver/lib/rocfft/VERSION_STRING
+# To find rocm libraries need the relative RPATH
+set(APPEND_ROCMLIB_RPATH "\$ORIGIN/../../../lib")
 target_link_libraries( rocfft_rtc_helper PRIVATE rocfft-rtc-compile )
-set_target_properties( rocfft_rtc_helper PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON )
+set_target_properties( rocfft_rtc_helper PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON
+                                         BUILD_WITH_INSTALL_RPATH TRUE
+                                         INSTALL_RPATH "${APPEND_ROCMLIB_RPATH}" )
 
 # Package that helps me set visibility for function names exported
 # from shared library
