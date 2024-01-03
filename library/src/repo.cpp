@@ -116,7 +116,7 @@ void Repo::ReleaseTwiddlesInternal(void*                                        
 {
     if(repoDestroyed)
     {
-        throw std::runtime_error("Repo prematurely destroyed.");
+        return;
     }
 
     auto reverse_it = twiddles_reverse.find(ptr);
@@ -145,7 +145,7 @@ void Repo::ReleaseChirpInternal(void*                                           
 {
     if(repoDestroyed)
     {
-        throw std::runtime_error("Repo prematurely destroyed.");
+        return;
     }
 
     auto reverse_it = chirp_reverse.find(ptr);
