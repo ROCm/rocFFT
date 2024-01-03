@@ -11,6 +11,8 @@ Documentation for rocFFT is available at
 * Multi-device, real-complex FFTs are now supported
 * rocFFT now statically links libstdc++ when only `std::experimental::filesystem` is available (to guard
   against ABI incompatibilities with newer libstdc++ libraries that include `std::filesystem`)
+* Randomly generated accuracy tests are now disabled by default; these can be enabled using
+  the --nrand <int> option (which defaults to 0).
 
 ## rocFFT 1.0.25 for ROCm 6.0.0
 

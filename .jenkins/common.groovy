@@ -75,7 +75,7 @@ def runTestCommand (platform, project, boolean debug=false, gfilter='')
     def command = """#!/usr/bin/env bash
                 set -ex
                 cd ${project.paths.project_build_prefix}/build/${directory}/clients/staging
-                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --precompile=rocfft-test-precompile.db ${gfilterArg} --gtest_color=yes --R 80
+                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --precompile=rocfft-test-precompile.db ${gfilterArg} --gtest_color=yes --R 80 --nrand 10
             """
     platform.runCommand(this, command)
 }

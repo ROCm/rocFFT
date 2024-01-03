@@ -56,6 +56,8 @@ size_t random_seed;
 double planar_prob;
 // Probability of running individual callback FFTs
 double callback_prob;
+// Number of random tests per suite
+size_t n_random_tests = 0;
 
 // Transform parameters for manual test:
 fft_params manual_params;
@@ -254,6 +256,8 @@ int main(int argc, char* argv[])
          "print out detailed information for the tests.")
         ("seed", po::value<size_t>(&random_seed),
          "Random seed; if unset, use an actual random seed.")
+        ("nrand", po::value<size_t>(&n_random_tests)->default_value(0),
+         "Number of extra randomized tests.")
         ("planar_prob", po::value<double>(&planar_prob)->default_value(0.1),
         "Probability of running individual planar transforms")
         ("callback", "Inject load/store callbacks")

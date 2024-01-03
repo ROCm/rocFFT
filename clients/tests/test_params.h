@@ -28,6 +28,8 @@ extern int    verbose;
 extern size_t ramgb;
 extern size_t vramgb;
 
+extern size_t n_random_tests;
+
 extern size_t random_seed;
 extern double planar_prob;
 extern double callback_prob;

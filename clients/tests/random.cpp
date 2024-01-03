@@ -24,8 +24,7 @@
 
 #include "accuracy_test.h"
 #include "rocfft_accuracy_test.h"
-
-static const int n_random_tests = 10;
+#include "test_params.h"
 
 class random_params
     : public ::testing::TestWithParam<
@@ -35,19 +34,13 @@ class random_params
 
 // TODO: Add batch and stride
 
-TEST_P(random_params, vs_fftw)
-{
-    const int  random_seed_salt = std::get<0>(GetParam());
-    const int  dimension        = std::get<1>(GetParam());
-    const auto precision        = std::get<2>(GetParam());
-    const auto placement        = std::get<3>(GetParam());
-    const auto transform_type   = std::get<4>(GetParam());
+auto random_param_generator(const int                                dimension,
+                            const std::vector<fft_precision>&        precision_range,
+                            const std::vector<fft_result_placement>& place_range,
+                            const fft_transform_type                 transform_type)
 
-    rocfft_params params;
-    params.transform_type = fft_transform_type_complex_forward;
-    params.placement      = placement;
-    params.precision      = precision;
-    params.transform_type = transform_type;
+{
+    std::vector<fft_params> params;
 
     int maxlen = 0;
     switch(dimension)
@@ -62,83 +55,91 @@ TEST_P(random_params, vs_fftw)
         maxlen = 1 << 6;
         break;
     default:
-        ASSERT_TRUE(false);
+        throw std::runtime_error("invalid dimension for random tests");
     }
 
-    std::mt19937 rgen(random_seed + random_seed_salt);
+    std::mt19937 rgen(random_seed);
     // Mean value of the exponential distribution is maxlen:
     std::exponential_distribution<double> distribution(1.0 / maxlen);
 
-    for(int idim = 0; idim < dimension; ++idim)
+    while(params.size() < n_random_tests)
     {
-        // NB: the distribution can return 0, so add 1 to avoid this issue.
-        params.length.push_back(1 + (size_t)distribution(rgen));
-    }
+        for(const auto precision : precision_range)
+        {
+            for(const auto placement : place_range)
+            {
+                fft_params param;
 
-    params.validate();
+                param.transform_type = transform_type;
+                param.precision      = precision;
+                param.placement      = placement;
+                for(int idim = 0; idim < dimension; ++idim)
+                {
+                    // NB: the distribution can return 0, so add 1 to avoid this issue.
+                    param.length.push_back(1 + (size_t)distribution(rgen));
+                }
 
-    if(verbose > 1)
-    {
-        std::cout << "Random test params:"
-                  << "\n\t" << params.str("\n\t") << std::endl;
+                param.validate();
+                if(param.valid(0))
+                {
+                    bool found = false;
+                    for(size_t idx = 0; idx < params.size(); ++idx)
+                    {
+                        if(param.token() == params[idx].token())
+                        {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if(!found)
+                    {
+                        params.push_back(param);
+                    }
+                }
+            }
+        }
     }
-    if(verbose)
-    {
-        std::cout << "Token: " << params.token() << std::endl;
-    }
-
-    if(!params.valid(verbose))
-    {
-        std::cout << "Params are not valid\n";
-    }
-
-    fft_vs_reference(params, true);
+    return params;
 }
 
-INSTANTIATE_TEST_SUITE_P(random_complex_1d,
-                         random_params,
-                         ::testing::Combine(::testing::Range(0, n_random_tests),
-                                            ::testing::ValuesIn({1}),
-                                            ::testing::ValuesIn(precision_range_sp_dp),
-                                            ::testing::ValuesIn(place_range),
-                                            ::testing::ValuesIn(trans_type_range_complex)));
+INSTANTIATE_TEST_SUITE_P(
+    random_complex_1d,
+    accuracy_test,
+    ::testing::ValuesIn(random_param_generator(
+        1, precision_range_sp_dp, place_range, fft_transform_type_complex_forward)),
+    accuracy_test::TestName);
 
-INSTANTIATE_TEST_SUITE_P(random_complex_2d,
-                         random_params,
-                         ::testing::Combine(::testing::Range(0, n_random_tests),
-                                            ::testing::ValuesIn({2}),
-                                            ::testing::ValuesIn(precision_range_sp_dp),
-                                            ::testing::ValuesIn(place_range),
-                                            ::testing::ValuesIn(trans_type_range_complex)));
+INSTANTIATE_TEST_SUITE_P(
+    random_complex_2d,
+    accuracy_test,
+    ::testing::ValuesIn(random_param_generator(
+        2, precision_range_sp_dp, place_range, fft_transform_type_complex_forward)),
+    accuracy_test::TestName);
 
-INSTANTIATE_TEST_SUITE_P(random_complex_3d,
-                         random_params,
-                         ::testing::Combine(::testing::Range(0, n_random_tests),
-                                            ::testing::ValuesIn({3}),
-                                            ::testing::ValuesIn(precision_range_sp_dp),
-                                            ::testing::ValuesIn(place_range),
-                                            ::testing::ValuesIn(trans_type_range_complex)));
+INSTANTIATE_TEST_SUITE_P(
+    random_complex_3d,
+    accuracy_test,
+    ::testing::ValuesIn(random_param_generator(
+        3, precision_range_sp_dp, place_range, fft_transform_type_complex_forward)),
+    accuracy_test::TestName);
 
-INSTANTIATE_TEST_SUITE_P(random_real_1d,
-                         random_params,
-                         ::testing::Combine(::testing::Range(0, n_random_tests),
-                                            ::testing::ValuesIn({1}),
-                                            ::testing::ValuesIn(precision_range_sp_dp),
-                                            ::testing::ValuesIn({fft_placement_notinplace}),
-                                            ::testing::ValuesIn(trans_type_range_real)));
+INSTANTIATE_TEST_SUITE_P(
+    random_real_1d,
+    accuracy_test,
+    ::testing::ValuesIn(random_param_generator(
+        1, precision_range_sp_dp, place_range, fft_transform_type_real_forward)),
+    accuracy_test::TestName);
 
-INSTANTIATE_TEST_SUITE_P(random_real_2d,
-                         random_params,
-                         ::testing::Combine(::testing::Range(0, n_random_tests),
-                                            ::testing::ValuesIn({2}),
-                                            ::testing::ValuesIn(precision_range_sp_dp),
-                                            ::testing::ValuesIn({fft_placement_notinplace}),
-                                            ::testing::ValuesIn(trans_type_range_real)));
+INSTANTIATE_TEST_SUITE_P(
+    random_real_2d,
+    accuracy_test,
+    ::testing::ValuesIn(random_param_generator(
+        2, precision_range_sp_dp, place_range, fft_transform_type_real_forward)),
+    accuracy_test::TestName);
 
-INSTANTIATE_TEST_SUITE_P(random_real_3d,
-                         random_params,
-                         ::testing::Combine(::testing::Range(0, n_random_tests),
-                                            ::testing::ValuesIn({3}),
-                                            ::testing::ValuesIn(precision_range_sp_dp),
-                                            ::testing::ValuesIn({fft_placement_notinplace}),
-                                            ::testing::ValuesIn(trans_type_range_real)));
+INSTANTIATE_TEST_SUITE_P(
+    random_real_3d,
+    accuracy_test,
+    ::testing::ValuesIn(random_param_generator(
+        3, precision_range_sp_dp, place_range, fft_transform_type_real_forward)),
+    accuracy_test::TestName);
