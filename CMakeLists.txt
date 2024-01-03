@@ -243,11 +243,6 @@ if( BUILD_CLIENTS_SAMPLES
         DEB ${BOOST_DEB} rocrand
         RPM ${BOOST_RPM} rocrand
     )
-    rocm_install(
-      DIRECTORY scripts/perf
-      DESTINATION ${CMAKE_INSTALL_BINDIR}
-      COMPONENT benchmarks
-    )
   endif()
   add_subdirectory( clients )
 endif( )
