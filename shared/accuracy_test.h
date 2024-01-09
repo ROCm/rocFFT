@@ -30,10 +30,10 @@
 #include <string>
 #include <vector>
 
-#include "../../shared/enum_to_string.h"
-#include "../../shared/fft_params.h"
-#include "../../shared/gpubuf.h"
+#include "enum_to_string.h"
+#include "fft_params.h"
 #include "fftw_transform.h"
+#include "gpubuf.h"
 #include "rocfft_against_fftw.h"
 #include "test_params.h"
 

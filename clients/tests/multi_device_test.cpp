@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "accuracy_test.h"
+#include "../../shared/accuracy_test.h"
 #include <gtest/gtest.h>
 #include <hip/hip_runtime_api.h>
 

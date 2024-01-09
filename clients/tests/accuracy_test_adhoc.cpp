@@ -19,7 +19,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "accuracy_test.h"
+#include "../../shared/accuracy_test.h"
 
 std::vector<std::vector<size_t>> adhoc_sizes = {
     // sizes that exercise L1D_TRTRT subplan of 2D_RTRT or 3D_TRTRTR

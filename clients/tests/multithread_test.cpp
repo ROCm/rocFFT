@@ -18,12 +18,12 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "../../shared/accuracy_test.h"
 #include "../../shared/gpubuf.h"
 #include "../../shared/hip_object_wrapper.h"
+#include "../../shared/rocfft_against_fftw.h"
 #include "../../shared/rocfft_params.h"
-#include "accuracy_test.h"
 #include "rocfft/rocfft.h"
-#include "rocfft_against_fftw.h"
 #include <gtest/gtest.h>
 #include <hip/hip_runtime.h>
 #include <memory>

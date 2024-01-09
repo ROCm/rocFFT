@@ -26,9 +26,9 @@
 
 #include <hip/hip_runtime.h>
 
+#include "../../shared/fftw_transform.h"
 #include "../../shared/hip_object_wrapper.h"
 #include "../../shared/rocfft_params.h"
-#include "fftw_transform.h"
 #include "rocfft/rocfft.h"
 
 // -------------------------------------

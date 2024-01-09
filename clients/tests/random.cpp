@@ -22,9 +22,9 @@
 #include <iostream>
 #include <random>
 
-#include "accuracy_test.h"
-#include "rocfft_accuracy_test.h"
-#include "test_params.h"
+#include "../../shared/accuracy_test.h"
+#include "../../shared/rocfft_accuracy_test.h"
+#include "../../shared/test_params.h"
 
 class random_params
     : public ::testing::TestWithParam<

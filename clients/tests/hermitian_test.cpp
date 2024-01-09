@@ -18,11 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "../../shared/accuracy_test.h"
 #include "../../shared/gpubuf.h"
 #include "../../shared/rocfft_params.h"
 #include "../samples/rocfft/examplekernels.h"
 #include "../samples/rocfft/exampleutils.h"
-#include "accuracy_test.h"
 #include "rocfft/rocfft.h"
 #include <functional>
 #include <gtest/gtest.h>

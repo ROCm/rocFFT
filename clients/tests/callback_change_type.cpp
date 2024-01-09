@@ -22,9 +22,9 @@
 #include "../../shared/rocfft_complex.h"
 #include "../../shared/rocfft_params.h"
 
-#include "accuracy_test.h"
-#include "fftw_transform.h"
-#include "rocfft_against_fftw.h"
+#include "../../shared/accuracy_test.h"
+#include "../../shared/fftw_transform.h"
+#include "../../shared/rocfft_against_fftw.h"
 #include <gtest/gtest.h>
 
 // callback functions to cast data from short to float

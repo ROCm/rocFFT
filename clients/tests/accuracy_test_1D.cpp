@@ -23,9 +23,9 @@
 #include <stdexcept>
 #include <vector>
 
-#include "accuracy_test.h"
-#include "fftw_transform.h"
-#include "rocfft_against_fftw.h"
+#include "../../shared/accuracy_test.h"
+#include "../../shared/fftw_transform.h"
+#include "../../shared/rocfft_against_fftw.h"
 
 using ::testing::ValuesIn;
 

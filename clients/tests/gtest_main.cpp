@@ -33,10 +33,10 @@
 
 #include "../../shared/concurrency.h"
 #include "../../shared/environment.h"
+#include "../../shared/rocfft_accuracy_test.h"
+#include "../../shared/test_params.h"
 #include "../../shared/work_queue.h"
 #include "rocfft/rocfft.h"
-#include "rocfft_accuracy_test.h"
-#include "test_params.h"
 
 #ifdef WIN32
 #include <windows.h>

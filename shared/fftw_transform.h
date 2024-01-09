@@ -22,6 +22,8 @@
 #ifndef FFTWTRANSFORM_H
 #define FFTWTRANSFORM_H
 
+#include "hostbuf.h"
+#include "rocfft_complex.h"
 #include "test_params.h"
 #include <fftw3.h>
 #include <vector>

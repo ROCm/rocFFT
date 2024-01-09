@@ -25,12 +25,12 @@
 #include <utility>
 #include <vector>
 
-#include "rocfft_accuracy_test.h"
+#include "../../shared/rocfft_accuracy_test.h"
 
+#include "../../shared/fftw_transform.h"
 #include "../../shared/gpubuf.h"
-#include "fftw_transform.h"
+#include "../../shared/rocfft_against_fftw.h"
 #include "rocfft/rocfft.h"
-#include "rocfft_against_fftw.h"
 
 void fft_vs_reference(rocfft_params& params, bool round_trip)
 {
