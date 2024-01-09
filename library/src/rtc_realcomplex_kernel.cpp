@@ -43,12 +43,15 @@ RTCKernel::RTCGenerator RTCKernelRealComplex::generate_from_node(const TreeNode&
     // hermitian size is used for hermitian->complex copy
     if(node.scheme == CS_KERNEL_COPY_HERM_TO_CMPLX)
         input_size = node.outputLength[0] / 2 + 1;
-    unsigned int batch          = node.batch;
-    unsigned int high_dimension = std::accumulate(
-        node.length.begin() + 1, node.length.end(), 1, std::multiplies<unsigned int>());
-    unsigned int blocks = (input_size - 1) / LAUNCH_BOUNDS_R2C_C2R_KERNEL + 1;
 
-    generator.gridDim  = {blocks, high_dimension, batch};
+    size_t elems = std::accumulate(node.length.begin() + 1,
+                                   node.length.end(),
+                                   input_size * node.batch,
+                                   std::multiplies<size_t>());
+    generator.gridDim
+        = {static_cast<unsigned int>(DivRoundingUp<size_t>(elems, LAUNCH_BOUNDS_R2C_C2R_KERNEL)),
+           1,
+           1};
     generator.blockDim = {LAUNCH_BOUNDS_R2C_C2R_KERNEL, 1, 1};
 
     RealComplexSpecs specs{node.scheme,
@@ -100,6 +103,7 @@ RTCKernelArgs RTCKernelRealComplex::get_launch_args(DeviceCallIn& data)
     kargs.append_unsigned_int(kern_lengths[0]);
     kargs.append_unsigned_int(kern_lengths[1]);
     kargs.append_unsigned_int(kern_lengths[2]);
+    kargs.append_unsigned_int(data.node->batch);
     kargs.append_unsigned_int(kern_stride_in[0]);
     kargs.append_unsigned_int(kern_stride_in[1]);
     kargs.append_unsigned_int(kern_stride_in[2]);

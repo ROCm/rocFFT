@@ -85,6 +85,7 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
     Variable lengths0{"lengths0", "unsigned int"};
     Variable lengths1{"lengths1", "unsigned int"};
     Variable lengths2{"lengths2", "unsigned int"};
+    Variable nbatch{"nbatch", "unsigned int"};
     Variable stride_in0{"stride_in0", "unsigned int"};
     Variable stride_in1{"stride_in1", "unsigned int"};
     Variable stride_in2{"stride_in2", "unsigned int"};
@@ -106,6 +107,7 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
     func.arguments.append(lengths0);
     func.arguments.append(lengths1);
     func.arguments.append(lengths2);
+    func.arguments.append(nbatch);
     func.arguments.append(stride_in0);
     func.arguments.append(stride_in1);
     func.arguments.append(stride_in2);
@@ -121,31 +123,63 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
 
     Variable dim_var{"dim", "const unsigned int"};
 
+    Variable global_idx{"global_idx", "unsigned int"};
+    func.body += Declaration{global_idx, "blockIdx.x * blockDim.x + threadIdx.x"};
+
     Variable idx_0{"idx_0", "const unsigned int"};
-    func.body += Declaration{idx_0, "blockIdx.x * blockDim.x + threadIdx.x"};
+    Variable idx_1{"idx_1", "const unsigned int"};
+    Variable idx_2{"idx_2", "const unsigned int"};
+    Variable idx_batch{"idx_batch", "const unsigned int"};
+
+    // variable to divide by when counting lengths0 - herm2c
+    // allocates threads along hermitian length, but other kernels
+    // allocate threads along FFT length
+    Variable& lengths0_divide
+        = specs.scheme == CS_KERNEL_COPY_HERM_TO_CMPLX ? hermitian_size : lengths0;
+
+    func.body += CommentLines{"per-dimension indexes"};
+    func.body += Declaration{idx_0, global_idx % lengths0_divide};
+    func.body += Assign{global_idx, global_idx / lengths0_divide};
+    if(specs.dim > 1)
+    {
+        func.body += Declaration{idx_1, global_idx % lengths1};
+        func.body += Assign{global_idx, global_idx / lengths1};
+    }
+    else
+    {
+        func.body += Declaration{idx_1, 0};
+    }
+    if(specs.dim > 2)
+    {
+        func.body += Declaration{idx_2, global_idx % lengths2};
+        func.body += Assign{global_idx, global_idx / lengths2};
+    }
+    else
+    {
+        func.body += Declaration{idx_2, 0};
+    }
+    func.body += Declaration{idx_batch, global_idx};
+
+    func.body += CommentLines{"any excess threads will be past the end of batch"};
+    func.body += If{idx_batch >= nbatch, {Return{}}};
 
     if(specs.scheme == CS_KERNEL_COPY_HERM_TO_CMPLX)
     {
         Variable input_offset{"input_offset", "auto"};
+        func.body += Declaration{input_offset,
+                                 idx_0 * stride_in0 + idx_1 * stride_in1 + idx_2 * stride_in2
+                                     + idx_batch * ("stride_in" + std::to_string(specs.dim))};
+
         Variable outputs_offset{"outputs_offset", "auto"};
         Variable outputc_offset{"outputc_offset", "auto"};
-        func.body += CommentLines{"start with batch offset"};
-        func.body
-            += Declaration{input_offset, "blockIdx.z * stride_in" + std::to_string(specs.dim)};
-        func.body += CommentLines{"straight copy"};
-        func.body
-            += Declaration{outputs_offset, "blockIdx.z * stride_out" + std::to_string(specs.dim)};
-        func.body += CommentLines{"conjugate copy"};
-        func.body
-            += Declaration{outputc_offset, "blockIdx.z * stride_out" + std::to_string(specs.dim)};
 
         func.body += CommentLines{"straight copy indices"};
         Variable is0{"is0", "auto"};
         Variable is1{"is1", "auto"};
         Variable is2{"is2", "auto"};
         func.body += Declaration{is0, idx_0};
-        func.body += Declaration{is1, Literal{"blockIdx.y"} % lengths1};
-        func.body += Declaration{is2, Literal{"blockIdx.y"} / lengths1};
+        func.body += Declaration{is1, idx_1};
+        func.body += Declaration{is2, idx_2};
 
         func.body += CommentLines{"conjugate copy indices"};
         Variable ic0{"ic0", "auto"};
@@ -155,15 +189,12 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
         func.body += Declaration{ic1, Ternary{is1 == 0, 0, lengths1 - is1}};
         func.body += Declaration{ic2, Ternary{is2 == 0, 0, lengths2 - is2}};
 
-        func.body
-            += AddAssign(input_offset, is2 * stride_in2 + is1 * stride_in1 + is0 * stride_in0);
-
-        func.body += CommentLines{
-            "notice for 1D, blockIdx.y == 0 and thus has no effect for input_offset"};
-        func.body
-            += AddAssign(outputs_offset, is2 * stride_out2 + is1 * stride_out1 + is0 * stride_out0);
-        func.body
-            += AddAssign(outputc_offset, ic2 * stride_out2 + ic1 * stride_out1 + ic0 * stride_out0);
+        func.body += Declaration{outputs_offset,
+                                 is0 * stride_out0 + is1 * stride_out1 + is2 * stride_out2
+                                     + idx_batch * ("stride_out" + std::to_string(specs.dim))};
+        func.body += Declaration{outputc_offset,
+                                 ic0 * stride_out0 + ic1 * stride_out1 + ic2 * stride_out2
+                                     + idx_batch * ("stride_out" + std::to_string(specs.dim))};
 
         func.body += CallbackLoadDeclaration("scalar_type", "cbtype");
         func.body += CallbackStoreDeclaration("scalar_type", "cbtype");
@@ -196,47 +227,18 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
     }
     else
     {
-        Variable lengths{"lengths", "const unsigned int", false, false, 3};
-        Variable stride_in{"stride_in", "const unsigned int", false, false, 4};
-        Variable stride_out{"stride_out", "const unsigned int", false, false, 4};
-        func.body += Declaration{lengths, ComplexLiteral{lengths0, lengths1, lengths2}};
-        func.body += Declaration{stride_in,
-                                 ComplexLiteral{stride_in0, stride_in1, stride_in2, stride_in3}};
-        func.body += Declaration{
-            stride_out, ComplexLiteral{stride_out0, stride_out1, stride_out2, stride_out3}};
-
-        func.body += CommentLines{"offsets"};
-        Variable offset_in{"offset_in", "size_t"};
-        Variable offset_out{"offset_out", "size_t"};
-        Variable remaining{"remaining", "size_t"};
-        Variable index_along_d{"index_along_d", "size_t"};
-        func.body += Declaration{offset_in, 0};
-        func.body += Declaration{offset_out, 0};
-        func.body += Declaration{remaining, "blockIdx.y"};
-        func.body += Declaration{index_along_d};
-        Variable d{"d", "unsigned int"};
-        For      offset_loop{d, 1, d < dim_var, 1};
-        offset_loop.body += Assign{index_along_d, remaining % lengths[d]};
-        offset_loop.body += Assign{remaining, remaining / lengths[d]};
-        offset_loop.body += Assign{offset_in, offset_in + index_along_d * stride_in[d]};
-        offset_loop.body += Assign{offset_out, offset_out + index_along_d * stride_out[d]};
-        func.body += offset_loop;
-
-        func.body += CommentLines{
-            "remaining should be 1 at this point, since batch goes into blockIdx.z"};
-        Variable batch{"batch", "unsigned int"};
-        func.body += Declaration{batch, "blockIdx.z"};
-        func.body += Assign{offset_in, offset_in + batch * stride_in[dim_var]};
-        func.body += Assign{offset_out, offset_out + batch * stride_out[dim_var]};
-
-        Variable      inputIdx{"inputIdx", "auto"};
-        Variable      outputIdx{"outputIdx", "auto"};
-        StatementList indexes{Declaration{inputIdx, offset_in + idx_0 * stride_in[0]},
-                              Declaration{outputIdx, offset_out + idx_0 * stride_out[0]}};
+        Variable inputIdx{"inputIdx", "auto"};
+        Variable outputIdx{"outputIdx", "auto"};
+        func.body += Declaration{inputIdx,
+                                 idx_0 * stride_in0 + idx_1 * stride_in1 + idx_2 * stride_in2
+                                     + idx_batch * ("stride_in" + std::to_string(specs.dim))};
+        func.body += Declaration{outputIdx,
+                                 idx_0 * stride_out0 + idx_1 * stride_out1 + idx_2 * stride_out2
+                                     + idx_batch * ("stride_out" + std::to_string(specs.dim))};
 
         if(specs.scheme == CS_KERNEL_COPY_R_TO_CMPLX)
         {
-            If guard{idx_0 < lengths[0], indexes};
+            If guard{idx_0 < lengths0, {}};
             guard.body += CommentLines{"we would do real2complex at the beginning of an R2C",
                                        "transform, so it would never be the last kernel to write",
                                        "to global memory.  don't bother going through the store cb",
@@ -252,7 +254,9 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
         {
             func.body += CommentLines{"only read and write the first [length0/2+1] elements "
                                       "due to conjugate redundancy"};
-            If guard{idx_0 < Parens{1 + lengths[0] / 2}, indexes};
+
+            If guard{idx_0 < Parens{1 + lengths0 / 2}, {}};
+
             guard.body += CommentLines{"we would do complex2hermitian at the end of an R2C",
                                        "transform, so it would never be the first kernel to read",
                                        "from global memory.  don't bother going through the load",
@@ -268,19 +272,16 @@ std::string r2c_copy_rtc(const std::string& kernel_name, const RealComplexSpecs&
         }
         else if(specs.scheme == CS_KERNEL_COPY_CMPLX_TO_R)
         {
-            If guard{idx_0 < lengths[0], indexes};
-            guard.body
-                += CommentLines{"we would do complex2real at the end of a C2R",
-                                "transform, so it would never be the first kernel to read",
-                                "from global memory.  don't bother going through the load cb",
-                                "to read global memory."};
-            guard.body += CallbackLoadDeclaration("real_type_t<scalar_type>", "cbtype");
-            guard.body += CallbackStoreDeclaration("real_type_t<scalar_type>", "cbtype");
+            func.body += CommentLines{"we would do complex2real at the end of a C2R",
+                                      "transform, so it would never be the first kernel to read",
+                                      "from global memory.  don't bother going through the load cb",
+                                      "to read global memory."};
+            func.body += CallbackLoadDeclaration("real_type_t<scalar_type>", "cbtype");
+            func.body += CallbackStoreDeclaration("real_type_t<scalar_type>", "cbtype");
 
             Variable elem{"elem", "auto"};
-            guard.body += Declaration{elem, input[inputIdx].x()};
-            guard.body += StoreGlobal{output, outputIdx, elem};
-            func.body += guard;
+            func.body += Declaration{elem, input[inputIdx].x()};
+            func.body += StoreGlobal{output, outputIdx, elem};
         }
     }
 
