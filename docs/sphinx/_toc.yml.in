@@ -1,14 +1,17 @@
-root: index
 defaults:
   numbered: False
+root: index
 subtrees:
-  - caption: Design
-    entries:
-    - file: design/design
-  - caption: API
-    entries:
-    - file: api
-    - file: allapi
-  - caption: About
-    entries:
-    - file: license
+- entries:
+  - file: what-is-rocfft.rst
+    title: What is rocFFT?
+  - file: how-to/working-with-rocfft
+    title: Working with rocFFT
+  - file: reference/reference.rst
+    title: API Reference
+    subtrees:
+    - entries:
+      - file: reference/api
+      - file: reference/allapi
+  - file: license.md
+    title: License

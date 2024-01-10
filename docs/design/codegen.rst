@@ -1,37 +1,15 @@
+.. meta::
+  :description: rocFFT documentation and API reference library
+  :keywords: rocFFT, ROCm, API, documentation
+
+.. _codegen:
+
+********************************************************************
 Code Generator Design Document for rocFFT
-=========================================
-
-Copyright and Disclaimer
----------
-
-DISCLAIMER
-
-The information contained herein is for informational purposes only,
-and is subject to change without notice. While every precaution has
-been taken in the preparation of this document, it may contain
-technical inaccuracies, omissions and typographical errors, and AMD is
-under no obligation to update or otherwise correct this information.
-Advanced Micro Devices, Inc. makes no representations or warranties
-with respect to the accuracy or completeness of the contents of this
-document, and assumes no liability of any kind, including the implied
-warranties of noninfringement, merchantability or fitness for
-particular purposes, with respect to the operation or use of AMD
-hardware, software or other products described herein.  No license,
-including implied or arising by estoppel, to any intellectual property
-rights is granted by this document.  Terms and limitations applicable
-to the purchase or use of AMD’s products are as set forth in a signed
-agreement between the parties or in AMD's Standard Terms and
-Conditions of Sale.
-
-AMD is a trademark of Advanced Micro Devices, Inc.  Other product
-names used in this publication are for identification purposes only
-and may be trademarks of their respective companies.
-
-Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
-
+********************************************************************
 
 Proposal
---------
+========
 
 Create a new code generator for rocFFT.
 
@@ -57,13 +35,13 @@ conciseness and ease-of-use.
 
 
 Required kernels (scope)
-------------------------
+========================
 
 For rocFFT, we need/want to generate:
 
 * Host functions to launch the FFT kernels
 * Tiled (row/column) + strided + batched Stockham kernels for
-  arbitrary factorisations
+  arbitrary factorization
 * May want to extend to Cooley-Tukey kernels as well
 
 Kernels need to handle all combinations of:
@@ -75,7 +53,7 @@ Kernels need to handle all combinations of:
 * small/large twiddle tables
 * unit/non-unit stride
 * transposed output, including with twiddle multiplies for large 1D
-* fusing with pre and post-processing kernels (eg real even-length)
+* fusing with pre and post-processing kernels (e.g. real even-length)
 
 Ideally any configuration/runtime parameters required by the kernels
 would be defined in a single place to avoid repetition between rocFFT
@@ -111,21 +89,21 @@ the FFT) should be computed as:
 
 
 Tiling
-^^^^^^
+======
 
 Launching device kernels in a way that traverses memory in tiles will
 be handled at the host/global level.
 
 Kernels need to support reading/writing in columns/rows.  These are
-the block CC/RC/CR flavours (where C and R refer to column and row) of
+the block CC/RC/CR flavors (where C and R refer to column and row) of
 the existing kernels.
 
 
 Strides and batches
-^^^^^^^^^^^^^^^^^^^
+===================
 
 Host
-~~~~
+----
 
 Host/global functions should support arbitrary dimensions, lengths,
 strides, offsets, and batches.
@@ -139,7 +117,7 @@ batch index, is given by
 
    a(i_1,\ldots,i_N,i_b) = s_b i_b + \sum_{d=1}^N s_d i_d
 
-where :math:`s_d` is the stride along dimension :math:`d`.  To support
+Where :math:`s_d` is the stride along dimension :math:`d`.  To support
 these strides, the device function to compute the FFT along dimension
 :math:`D` would be passed:
 
@@ -167,7 +145,7 @@ the device function would be passed:
    int stride = strides[1];
 
 Device
-~~~~~~
+------
 
 Device functions should support arbitrary offsets and strides.  Array
 indexes in device functions should be computed as, eg:
@@ -179,7 +157,7 @@ indexes in device functions should be computed as, eg:
 
 
 Large twiddle tables
-^^^^^^^^^^^^^^^^^^^^
+====================
 
 Large 1D transforms are decomposed into multiple transforms.  To
 reduce the size of twiddle tables, rotations can be decomposed into
@@ -192,7 +170,7 @@ Generated kernels should support these "large twiddle tables".
 
 
 Launching
-^^^^^^^^^
+=========
 
 For a specific transform length, the generator is free to choose among
 several algorithms and related tuning parameters.  These choices may
@@ -200,7 +178,7 @@ influence how the kernel is launched.  The generator will create both
 the kernel and the accompanying struct, which gives indications of how
 the kernel may be used in both rocFFT and other applications.
 
-the generator will populate a function pool with structs of the form
+The generator will populate a function pool with structs of the form
 
 .. code-block:: c++
 
@@ -216,7 +194,7 @@ the generator will populate a function pool with structs of the form
 This moves the responsibility of figuring how a kernel should be
 launched to the generator.
 
-Currently kernels are launched with:
+Currently, kernels are launched with:
 
 * dimension
 * number of blocks (batches)
@@ -230,15 +208,15 @@ Currently kernels are launched with:
 
 
 Implementation
---------------
+==============
 
-The code generator will by implemented in Python using only standard
+The code generator will be implemented in Python using only standard
 modules.
 
 The AST will be represented as a tree structure, with nodes in the
 tree representing operations, such as assignment, addition, or a block
 containing multiple operations.  Nodes will be represented as objects
-(eg, ``Add``) extending the base class ``BaseNode``.  Operands will be
+(e.g., ``Add``) extending the base class ``BaseNode``.  Operands will be
 stored in a simple list called ``args``:
 
 .. code-block:: python
@@ -308,15 +286,14 @@ For example:
     body += tiling.store_to_global(out=global_buffer, in=lds)
 
 Different tiling strategies may require new template parameters and/or
-function arguments.  Tiling strategies can manipulate these through
-the
+function arguments.  Tiling strategies can manipulate the following methods:
 
-* ``add_templates``,
-* ``add_global_arguments``,
-* ``add_device_arguments``, and
+* ``add_templates``
+* ``add_global_arguments``
+* ``add_device_arguments``
 * ``add_device_call_arguments``
 
-methods.  Each of these methods is passed a ``TemplateList`` or
+Each of these methods is passed a ``TemplateList`` or
 ``ArgumentList`` argument, and should return a new template/argument
 list with any extra parameters added.
 
@@ -332,3 +309,31 @@ tiling.  Different twiddle table strategies should extend the
 
 Twiddle tables may also require additional templates and arguments.
 See :ref:`Stockham tiling implementation`.
+
+Copyright and disclaimer
+========================
+
+The information contained herein is for informational purposes only,
+and is subject to change without notice. While every precaution has
+been taken in the preparation of this document, it may contain
+technical inaccuracies, omissions and typographical errors, and AMD is
+under no obligation to update or otherwise correct this information.
+Advanced Micro Devices, Inc. makes no representations or warranties
+with respect to the accuracy or completeness of the contents of this
+document, and assumes no liability of any kind, including the implied
+warranties of non-infringement, merchantability or fitness for
+particular purposes, with respect to the operation or use of AMD
+hardware, software or other products described herein.  No license,
+including implied or arising by estoppel, to any intellectual property
+rights is granted by this document.  Terms and limitations applicable
+to the purchase or use of AMD’s products are as set forth in a signed
+agreement between the parties or in AMD's Standard Terms and
+Conditions of Sale.
+
+AMD is a trademark of Advanced Micro Devices, Inc. Other product
+names used in this publication are for identification purposes only
+and may be trademarks of their respective companies.
+
+Copyright (C) 2021 - 2024 Advanced Micro Devices, Inc. All rights reserved.
+
+

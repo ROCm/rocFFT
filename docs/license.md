@@ -1,4 +1,2 @@
-# License
-
 ```{include} ../LICENSE.md
 ```

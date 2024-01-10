@@ -1,5 +1,5 @@
 Real data
----------
+=========
 
 When real data is subject to DFT, the resulting complex output data follows a special property. About half of the
 output is redundant because they are complex conjugates of the other half. This is called the Hermitian redundancy. So, for space
@@ -18,7 +18,7 @@ they store real and imaginary components, but store only about half of the compl
 forward transform and analyze the output or they can process the output and do a backward transform to get back real data.
 This is illustrated in the following figure.
 
-.. figure:: ./data/images/realfft_fwdinv.jpg
+.. figure:: ../data/images/realfft_fwdinv.jpg
 
    **Forward and Backward Real FFTs**
 
@@ -31,7 +31,7 @@ This is illustrated in the following figure.
 
 Let us consider a 1D real FFT of length :math:`N`. The full output looks as shown in following figure.
 
-.. figure:: ./data/images/realfft_1dlen.jpg
+.. figure:: ../data/images/realfft_1dlen.jpg
 
    **1D Real FFT of Length N**
 
@@ -41,18 +41,18 @@ elements, where the division :math:`N/2` is rounded down. Examples for even and 
 
 Example for :math:`N = 8` is shown in following figure.
 
-.. figure:: ./data/images/realfft_ex_n8.jpg
+.. figure:: ../data/images/realfft_ex_n8.jpg
 
    **Example for N = 8**
 
 Example for :math:`N = 7` is shown in following figure.
 
-.. figure:: ./data/images/realfft_ex_n7.jpg
+.. figure:: ../data/images/realfft_ex_n7.jpg
 
    **Example for N = 7**
 
 For length 8, only :math:`(1 + 8/2) = 5` of the output complex numbers are stored, with the index ranging from 0 through 4.
-Similarly for length 7, only :math:`(1 + 7/2) = 4` of the output complex numbers are stored, with the index ranging from 0 through 3.
+Similarly, for length 7, only :math:`(1 + 7/2) = 4` of the output complex numbers are stored, with the index ranging from 0 through 3.
 For 2D and 3D FFTs, the FFT length along the innermost dimension is used to compute the :math:`(1 + N/2)` value. This is because
 the FFT along the innermost dimension is computed first and is logically a real-to-hermitian transform. The FFTs along
 other dimensions are computed next, and they are simply 'complex-to-complex' transforms. For example, assuming :math:`Lengths[2]`
@@ -65,20 +65,20 @@ Supported array type combinations
 
 Not In-place transforms:
 
-* Forward:  REAL to HERMITIAN_INTERLEAVED
-* Forward:  REAL to HERMITIAN_PLANAR
+* Forward: REAL to HERMITIAN_INTERLEAVED
+* Forward: REAL to HERMITIAN_PLANAR
 * Backward: HERMITIAN_INTERLEAVED to REAL
 * Backward: HERMITIAN_PLANAR to REAL
 
 In-place transforms:
 
-* Forward:  REAL to HERMITIAN_INTERLEAVED
+* Forward: REAL to HERMITIAN_INTERLEAVED
 * Backward: HERMITIAN_INTERLEAVED to REAL
 
 Setting strides
 ---------------
 
-The library currently requires the user to explicitly set input and output strides for real transforms for non simple cases.
+The library currently requires the user to explicitly set input and output strides for real transforms for non-simple cases.
 See the following examples to understand what values to use for input and output strides under different scenarios. These examples show
 typical usages, but the user can allocate the buffers and choose data layout according to their need.
 
@@ -89,13 +89,13 @@ The following figures and examples explain in detail the real FFT features of th
 
 Here is a schematic that illustrates the forward 1D FFT (real to hermitian).
 
-.. figure:: ./data/images/realfft_expl_01.jpg
+.. figure:: ../data/images/realfft_expl_01.jpg
 
    **1D FFT - Real to Hermitian**
 
 Below is a schematic that shows an example of not in-place transform with even :math:`N` and how strides and distances are set.
 
-.. figure:: ./data/images/realfft_expl_02.jpg
+.. figure:: ../data/images/realfft_expl_02.jpg
 
    **1D FFT - Real to Hermitian, Example 1**
 
@@ -103,7 +103,7 @@ Below is a schematic that shows an example of in-place transform with even :math
 Notice that even though we are dealing with only 1 buffer (in-place), the output strides/distance can take different
 values compared to input strides/distance.
 
-.. figure:: ./data/images/realfft_expl_03.jpg
+.. figure:: ../data/images/realfft_expl_03.jpg
 
    **1D FFT - Real to Hermitian, Example 2**
 
@@ -111,13 +111,13 @@ Below is a schematic that shows an example of in-place transform with odd :math:
 Notice that even though we are dealing with only 1 buffer (in-place), the output strides/distance can take different
 values compared to input strides/distance.
 
-.. figure:: ./data/images/realfft_expl_04.jpg
+.. figure:: ../data/images/realfft_expl_04.jpg
 
    **1D FFT - Real to Hermitian, Example 3**
 
 And here is a schematic that illustrates the backward 1D FFT (hermitian to real).
 
-.. figure:: ./data/images/realfft_expl_05.jpg
+.. figure:: ../data/images/realfft_expl_05.jpg
 
    **1D FFT - Hermitian to Real**
 
@@ -125,13 +125,13 @@ Below is a schematic that shows an example of in-place transform with even :math
 Notice that even though we are dealing with only 1 buffer (in-place), the output strides/distance can take different
 values compared to input strides/distance.
 
-.. figure:: ./data/images/realfft_expl_06.jpg
+.. figure:: ../data/images/realfft_expl_06.jpg
 
    **1D FFT - Hermitian to Real, Example**
 
-And here is a schematic that illustrates the in-place forward 2D FFT (real to hermitian) .
+And here is a schematic that illustrates the in-place forward 2D FFT (real to hermitian).
 
-.. figure:: ./data/images/realfft_expl_07.jpg
+.. figure:: ../data/images/realfft_expl_07.jpg
 
    **2D FFT - Real to Hermitian In Place**
 
@@ -139,7 +139,7 @@ Below is a schematic that shows an example of in-place 2D transform and how stri
 Notice that even though we are dealing with only 1 buffer (in-place), the output strides/distance can take different
 values compared to input strides/distance.
 
-.. figure:: ./data/images/realfft_expl_08.jpg
+.. figure:: ../data/images/realfft_expl_08.jpg
 
    **2D FFT - Real to Hermitian, Example**
 

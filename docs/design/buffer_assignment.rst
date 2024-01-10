@@ -1,42 +1,21 @@
+.. meta::
+  :description: rocFFT documentation and API reference library
+  :keywords: rocFFT, ROCm, API, documentation
+
+.. _buffer_assignment:
+
+********************************************************************
 Buffer assignment design document for rocFFT
-============================================
-
-Copyright and Disclaimer
-------------------------
-
-DISCLAIMER
-
-The information contained herein is for informational purposes only,
-and is subject to change without notice. While every precaution has
-been taken in the preparation of this document, it may contain
-technical inaccuracies, omissions and typographical errors, and AMD is
-under no obligation to update or otherwise correct this information.
-Advanced Micro Devices, Inc. makes no representations or warranties
-with respect to the accuracy or completeness of the contents of this
-document, and assumes no liability of any kind, including the implied
-warranties of noninfringement, merchantability or fitness for
-particular purposes, with respect to the operation or use of AMD
-hardware, software or other products described herein.  No license,
-including implied or arising by estoppel, to any intellectual property
-rights is granted by this document.  Terms and limitations applicable
-to the purchase or use of AMD’s products are as set forth in a signed
-agreement between the parties or in AMD's Standard Terms and
-Conditions of Sale.
-
-AMD is a trademark of Advanced Micro Devices, Inc.  Other product names
-used in this publication are for identification purposes only and may
-be trademarks of their respective companies.
-
-Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+********************************************************************
 
 Summary
--------
+=======
 
 Buffer assignment in rocFFT is the work of coordinating the input
 and output buffers of each step in a rocFFT plan.
 
 Observations
-------------
+============
 
 Some observations can be made about the FFT planning and buffer
 assignment process:
@@ -63,7 +42,7 @@ assignment process:
    buffers will be the same for in-place transforms.
 
 5. When deciding buffer assignments for a node, only the output
-   buffer for nodes besides the last requires actual decision making.
+   buffer for nodes besides the last requires actual decision-making.
    The input buffer follows either from the top-level input, a
    preceding sibling, or a parent node's input.  The last node's
    output must be the user-defined output.
@@ -86,8 +65,8 @@ assignment process:
      input or output.  For example, the input of a copy-kernel (like
      COPY_CMPLX_TO_R or COPY_CMPLX_TO_HERM) must be interleaved.
 
-   * Internal temp buffers are allocated contigously, so they can be
-     used on both planar and interlevead formats.  This is not always
+   * Internal temp buffers are allocated contiguously, so they can be
+     used on both planar and interleaved formats.  This is not always
      true for user-provided buffers.  An obvious example of this
      planar data: users typically create these using two buffers.
 
@@ -96,7 +75,7 @@ assignment process:
      buffers, as temp buffers are always made large enough.
 
 Solution
---------
+========
 
 We implement a decision function that determines whether a buffer
 assignment is valid based on the observations above.
@@ -110,7 +89,7 @@ operation is complete.
 Returning the first valid buffer assignment found is a simple
 solution.  However, not all valid buffer assignments are equal in
 terms of memory usage and/or performance: some buffer assignments
-allow more kernel fusions and/or use more inplace kernels.  This
+allow more kernel fusions and/or use more in-place kernels.  This
 implies that we should keep all valid assignment candidates in a list
 and subsequently return the "best" one.
 
@@ -124,10 +103,10 @@ added to the list of available buffers.  If that is still not
 successful, we retry with a second temp buffer.
 
 Implementation
---------------
+==============
 
-A Structure Storing A Try
-^^^^^^^^^^^^^^^^^^^^^^^^^^
+A structure storing a try
+-------------------------
 
 We store our current assignment try in a tree-like structure.  We
 don't assign to the tree-node directly since there could be many valid
@@ -156,8 +135,8 @@ tree-node.
   }
 
 
-Exhaustive Search
-^^^^^^^^^^^^^^^^^
+Exhaustive search
+-----------------
 
 All possible assignments on each node are attempted.  There are
 several limitations on each node that allow us to reject many illegal
@@ -170,8 +149,8 @@ The exhaustive search is implemented in pseudocode like:
 .. code-block:: cpp
 
    // ------------------------------------------------------------------------------------
-   // Recursive function enumrates all the possible assignments
-   // Returns a sub-tree, starting from execSeq[curSeqID], with input startBuf & startAType
+   // Recursive function enumerates all the possible assignments
+   // Returns a subtree, starting from execSeq[curSeqID], with input startBuf & startAType
    // ------------------------------------------------------------------------------------
    Function: void Enumerate(PlacementTrace* parent, ExecPlan, curSeqID, startBuf, startAType)
    // for terminal condition:
@@ -248,8 +227,8 @@ The exhaustive search is implemented in pseudocode like:
    // Failed
    - if not found, throw exception.
 
-Decision Function and Output Lengths
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Decision function and output lengths
+------------------------------------
 
 Much of the remaining complexity lies in the ValidOutBuffer()
 decision function mentioned above.
@@ -271,14 +250,14 @@ have tiny buffer assignment differences. The results of the function
 are cached to reduce extra work during the search.
 
 Fusions
-^^^^^^^
+-------
 
 Kernel-fusion is essential for improving performance.  Unfortunately
 fusion depends heavily on buffer assignment.  Two (or more) kernels
 can be fused into one kernel only when the resulting buffer assignment
 remains valid.
 
-To maximise kernel fusion, we also implement a FuseShim framework. A
+To maximize kernel fusion, we also implement a FuseShim framework. A
 FuseShim class is a container/shell indicating that there is a
 potentially-fusable kernel-fusion.  Each FuseShim defines its own
 requirements to fulfill the fusion, including the expected buffer
@@ -290,7 +269,7 @@ plays the most important role when making the final decision: we
 always pick the one which can fuse the most kernels.
 
 Padding
-^^^^^^^
+-------
 
 We have cases where reading/writing along certain strides is bad for
 performance (e.g. power-of-2).  While we are unable to adjust strides
@@ -309,7 +288,7 @@ that a change to one dimension's stride on the write side may affect
 multiple dimensions' strides on the reading side, and vice-versa.
 
 Padding example
-&&&&&&&&&&&&&&&
+^^^^^^^^^^^^^^^
 
 For example, consider this excerpt of a large plan:
 
@@ -377,7 +356,7 @@ output.  The output of the third kernel is a user buffer, so we
 cannot change its padding.
 
 When to pad
-&&&&&&&&&&&
+^^^^^^^^^^^
 
 The exact criteria for when to add padding to a temp buffer (and how
 much) are an implementation detail, but ad-hoc planning we've done in
@@ -389,7 +368,7 @@ design, making it more feasible to have per-architecture decisions
 around padding, should they become necessary.
 
 Choosing a winner
-^^^^^^^^^^^^^^^^^
+-----------------
 
 The exhaustive search is a depth-first-search that produces a list of
 valid plans, each of which would produce correct results.  The list
@@ -404,11 +383,11 @@ The sort criteria are:
 4. Number of in-place operations (more is better)
 5. Number of type changes (e.g. planar -> interleaved, or vice-versa) in the plan (fewer is better, as a tiebreaker)
 
-Future Work
------------
+Future work
+===========
 
 Strides
-^^^^^^^
+-------
 
 Currently, rocFFT does not guarantee that strides on user buffers are
 respected if temporary data is written to those buffers.
@@ -416,12 +395,12 @@ respected if temporary data is written to those buffers.
 With this implementation, it would be simpler to begin enforcing such
 a guarantee.
 
-Enforcing Read-only Input
-^^^^^^^^^^^^^^^^^^^^^^^^^
+Enforcing read-only input
+-------------------------
 
 rocFFT may currently overwrite user input buffers for out-of-place
-real-transforms (not C2C-transform).  Although we've documented this
-behaviour and it is common practice in other libraries, it might still
+real-transforms (not C2C-transform).  Although we have documented this
+behavior, and it is common practice in other libraries, it might still
 be unintuitive for some users.
 
 If we ever wanted to start guaranteeing that user input is left
@@ -432,13 +411,13 @@ policy change, and buffer assignment will work fine.
 However, we may need to introduce yet another temp buffer, since we'd
 be taking away a potential work space from existing plans.
 
-Flexibility Between Minimizing Memory or Maximizing Fusions
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Flexibility between minimizing memory or maximizing fusions
+-----------------------------------------------------------
 
-We can't always expect there is a perfect assignment that maximises
-kernel fusions while also minimising temporary buffers.  In some
+We can't always expect there is a perfect assignment that maximizes
+kernel fusions while also minimizing temporary buffers.  In some
 cases, these two goals are contradictory: if we choose an assignment
-using minimal buffers, we may loose the oppurtunity to fuse more
+using minimal buffers, we may lose the opportunity to fuse more
 kernels.  On the other hand, if we are allowed to use more memory, we
 have more buffers available for out-of-place kernel-fusions.
 
@@ -446,13 +425,40 @@ With this implementation, it is possible to introduce an optimization
 strategy option to users.
 
 For example, if the memory usage is the main concern of users, we can
-return the assignment with least buffer usage.  Otherwise, we return
+return the assignment with the least buffer usage.  Otherwise, we return
 the result which maximizes the kernel fusions regardless of the memory
 consumption.
 
 Make C Buffer as Temp2 Buffer
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+-----------------------------
 
 There is no reason to limit the "C" buffer to real-transforms only.
 We can make the C buffer as another generic temporary buffer throughout;
 this can also avoid any confusion about the purpose of C and T.
+
+Copyright and disclaimer
+------------------------
+
+The information contained herein is for informational purposes only,
+and is subject to change without notice. While every precaution has
+been taken in the preparation of this document, it may contain
+technical inaccuracies, omissions and typographical errors, and AMD is
+under no obligation to update or otherwise correct this information.
+Advanced Micro Devices, Inc. makes no representations or warranties
+with respect to the accuracy or completeness of the contents of this
+document, and assumes no liability of any kind, including the implied
+warranties of non-infringement, merchantability or fitness for
+particular purposes, with respect to the operation or use of AMD
+hardware, software or other products described herein.  No license,
+including implied or arising by estoppel, to any intellectual property
+rights is granted by this document.  Terms and limitations applicable
+to the purchase or use of AMD’s products are as set forth in a signed
+agreement between the parties or in AMD's Standard Terms and
+Conditions of Sale.
+
+AMD is a trademark of Advanced Micro Devices, Inc. Other product names
+used in this publication are for identification purposes only and may
+be trademarks of their respective companies.
+
+Copyright (C) 2021 - 2024 Advanced Micro Devices, Inc. All rights reserved.
+
