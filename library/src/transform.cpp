@@ -217,6 +217,23 @@ void rocfft_plan_t::Execute(void* in_buffer[], void* out_buffer[], rocfft_execut
     // vector of topologically sorted indexes to the items in multiPlan
     auto sortedIdx = MultiPlanTopologicalSort();
 
+    // log input/output pointers
+    if(LOG_PLAN_ENABLED())
+    {
+        auto& os = *LogSingleton::GetInstance().GetPlanOS();
+        for(size_t i = 0; i < desc.count_pointers(desc.inFields, desc.inArrayType); ++i)
+        {
+            os << "user input " << i << ": " << in_buffer[i] << std::endl;
+        }
+        if(placement == rocfft_placement_notinplace)
+        {
+            for(size_t i = 0; i < desc.count_pointers(desc.outFields, desc.outArrayType); ++i)
+            {
+                os << "user output " << i << ": " << out_buffer[i] << std::endl;
+            }
+        }
+    }
+
     LogFields("input", desc.inFields);
     LogFields("output", desc.outFields);
 
@@ -246,7 +263,7 @@ void rocfft_plan_t::Execute(void* in_buffer[], void* out_buffer[], rocfft_execut
         // done waiting for all our antecedents, so this item can now proceed
 
         // launch this item async
-        item.ExecuteAsync(this, in_buffer, out_buffer, info);
+        item.ExecuteAsync(this, in_buffer, out_buffer, info, idx);
     }
 
     // finished executing all items, wait for outstanding work to complete
@@ -295,7 +312,8 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
 void ExecPlan::ExecuteAsync(const rocfft_plan     plan,
                             void*                 in_buffer[],
                             void*                 out_buffer[],
-                            rocfft_execution_info info)
+                            rocfft_execution_info info,
+                            size_t                multiPlanIdx)
 {
     rocfft_scoped_device dev(deviceID);
 
@@ -383,7 +401,8 @@ void ExecPlan::ExecuteAsync(const rocfft_plan     plan,
                       in_transform_ptrs,
                       (rootPlan->placement == rocfft_placement_inplace) ? in_transform_ptrs
                                                                         : out_transform_ptrs,
-                      &exec_info);
+                      &exec_info,
+                      multiPlanIdx);
         // all work is enqueued to the stream, record the event on
         // the stream. Not needed for single-device plans.
         if(mgpuPlan)

@@ -426,7 +426,8 @@ std::string MultiPlanItem::PrintBufferPtrOffset(const BufferPtr& ptr, size_t off
 void CommScatter::ExecuteAsync(const rocfft_plan     plan,
                                void*                 in_buffer[],
                                void*                 out_buffer[],
-                               rocfft_execution_info info)
+                               rocfft_execution_info info,
+                               size_t                multiPlanIdx)
 {
     rocfft_scoped_device dev(srcDeviceID);
     stream.alloc();
@@ -494,7 +495,8 @@ void CommScatter::Print(rocfft_ostream& os, const int indent) const
 void CommGather::ExecuteAsync(const rocfft_plan     plan,
                               void*                 in_buffer[],
                               void*                 out_buffer[],
-                              rocfft_execution_info info)
+                              rocfft_execution_info info,
+                              size_t                multiPlanIdx)
 {
     streams.resize(ops.size());
     events.resize(ops.size());

@@ -489,7 +489,8 @@ void SetDefaultCallback(const TreeNode* node, const SetCallbackType& type, void*
 void TransformPowX(const ExecPlan&       execPlan,
                    void*                 in_buffer[],
                    void*                 out_buffer[],
-                   rocfft_execution_info info)
+                   rocfft_execution_info info,
+                   size_t                multiPlanIdx)
 {
     assert(execPlan.execSeq.size() == execPlan.devFnCall.size());
     assert(execPlan.execSeq.size() == execPlan.gridParam.size());
@@ -706,8 +707,8 @@ void TransformPowX(const ExecPlan&       execPlan,
         if(emit_kernelio_log && data.node->scheme != CS_KERNEL_CHIRP)
         {
             kernelio_stream = LogSingleton::GetInstance().GetKernelIOOS();
-            *kernelio_stream << "--- --- kernel " << i << " (" << PrintScheme(data.node->scheme)
-                             << ") input:" << std::endl;
+            *kernelio_stream << "--- --- multiPlanIdx " << multiPlanIdx << " kernel " << i << " ("
+                             << PrintScheme(data.node->scheme) << ") input:" << std::endl;
 
             if(hipDeviceSynchronize() != hipSuccess)
                 throw std::runtime_error("hipDeviceSynchronize failure");
@@ -866,12 +867,12 @@ void TransformPowX(const ExecPlan&       execPlan,
                                               execPlan.rootPlan->outArrayType);
         }
 
-        *kernelio_stream << "final output:\n";
+        *kernelio_stream << "multiPlanIdx " << multiPlanIdx << " final output:\n";
         DebugPrintBuffer(*kernelio_stream,
                          execPlan.rootPlan->outArrayType,
                          execPlan.rootPlan->precision,
                          out_buffer_offset,
-                         execPlan.oLength,
+                         execPlan.rootPlan->GetOutputLength(),
                          execPlan.rootPlan->outStride,
                          execPlan.rootPlan->oDist,
                          execPlan.rootPlan->batch);

@@ -817,7 +817,8 @@ struct MultiPlanItem
     virtual void ExecuteAsync(const rocfft_plan     plan,
                               void*                 in_buffer[],
                               void*                 out_buffer[],
-                              rocfft_execution_info info)
+                              rocfft_execution_info info,
+                              size_t                multiPlanIdx)
         = 0;
 
     // wait for async operations to finish
@@ -895,7 +896,8 @@ struct CommScatter : public MultiPlanItem
     void ExecuteAsync(const rocfft_plan     plan,
                       void*                 in_buffer[],
                       void*                 out_buffer[],
-                      rocfft_execution_info info) override;
+                      rocfft_execution_info info,
+                      size_t                multiPlanIdx) override;
     void Wait() override;
 
     void Print(rocfft_ostream& os, const int indent) const override;
@@ -947,7 +949,8 @@ struct CommGather : public MultiPlanItem
     void ExecuteAsync(const rocfft_plan     plan,
                       void*                 in_buffer[],
                       void*                 out_buffer[],
-                      rocfft_execution_info info) override;
+                      rocfft_execution_info info,
+                      size_t                multiPlanIdx) override;
     void Wait() override;
 
     void Print(rocfft_ostream& os, const int indent) const override;
@@ -983,7 +986,8 @@ struct ExecPlan : public MultiPlanItem
     void ExecuteAsync(const rocfft_plan     plan,
                       void*                 in_buffer[],
                       void*                 out_buffer[],
-                      rocfft_execution_info info) override;
+                      rocfft_execution_info info,
+                      size_t                multiPlanIdx) override;
 
     void Wait() override;
 
