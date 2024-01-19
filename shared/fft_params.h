@@ -1845,18 +1845,33 @@ public:
     // buffer where transform output needs to go for validation
     virtual void multi_gpu_finalize(std::vector<gpubuf>& obuffer, std::vector<void*>& pobuffer) {}
 
+    enum class SplitType
+    {
+        // do not split this field into bricks
+        NONE,
+        // split field on fastest FFT dimension
+        FASTEST,
+        // split field on slowest FFT dimension
+        SLOWEST,
+    };
+
     // create bricks in the specified field for the specified number
-    // of devices.  The field is split along the highest FFT
-    // dimension, and the length only includes FFT lengths, not batch
-    // dimension.
+    // of devices.  Field length includes batch dimension.
     void distribute_field(int                        deviceCount,
                           std::vector<fft_field>&    fields,
-                          const std::vector<size_t>& field_length)
+                          const std::vector<size_t>& field_length,
+                          SplitType                  type)
     {
-        size_t slowLen = field_length.front();
-        if(slowLen < static_cast<size_t>(deviceCount))
+        if(type == SplitType::NONE)
+            return;
+
+        // batch is the first index, slowest FFT length is index 1
+        size_t splitDimIdx = type == SplitType::SLOWEST ? 1 : field_length.size() - 1;
+
+        size_t splitLen = field_length[splitDimIdx];
+        if(splitLen < static_cast<size_t>(deviceCount))
             throw std::runtime_error("too many devices to distribute length "
-                                     + std::to_string(slowLen));
+                                     + std::to_string(splitLen));
 
         auto& field = fields.emplace_back();
 
@@ -1864,29 +1879,21 @@ public:
         {
             // start at origin
             std::vector<size_t> field_lower(field_length.size());
-            std::vector<size_t> field_upper(field_length.size());
+            std::vector<size_t> field_upper = field_length;
 
             // note: slowest FFT dim is index 0 in these coordinates
-            field_lower[0] = slowLen / deviceCount * i;
+            field_lower[splitDimIdx] = splitLen / deviceCount * i;
 
-            // last brick needs to include the whole slow len
+            // last brick needs to include the whole split len
             if(i == deviceCount - 1)
             {
-                field_upper[0] = slowLen;
+                field_upper[splitDimIdx] = splitLen;
             }
             else
             {
-                field_upper[0] = std::min(slowLen, field_lower[0] + slowLen / deviceCount);
+                field_upper[splitDimIdx]
+                    = std::min(splitLen, field_lower[splitDimIdx] + splitLen / deviceCount);
             }
-
-            for(unsigned int upperDim = 1; upperDim < field_length.size(); ++upperDim)
-            {
-                field_upper[upperDim] = field_length[upperDim];
-            }
-
-            // field coordinates also need to include batch
-            field_lower.insert(field_lower.begin(), 0);
-            field_upper.insert(field_upper.begin(), nbatch);
 
             // bricks have contiguous strides
             size_t              brick_dist = 1;
@@ -1902,14 +1909,18 @@ public:
         }
     }
 
-    void distribute_input(int deviceCount)
+    void distribute_input(int deviceCount, SplitType type)
     {
-        distribute_field(deviceCount, ifields, length);
+        auto len = length;
+        len.insert(len.begin(), nbatch);
+        distribute_field(deviceCount, ifields, len, type);
     }
 
-    void distribute_output(int deviceCount)
+    void distribute_output(int deviceCount, SplitType type)
     {
-        distribute_field(deviceCount, ofields, olength());
+        auto len = olength();
+        len.insert(len.begin(), nbatch);
+        distribute_field(deviceCount, ofields, len, type);
     }
 };
 

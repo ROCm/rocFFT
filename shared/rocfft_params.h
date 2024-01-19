@@ -454,6 +454,11 @@ public:
             // we'll be allocating new ones for each brick
             pbuffer.clear();
 
+            auto length_with_batch = copy_input ? length : olength();
+            length_with_batch.insert(length_with_batch.begin(), nbatch);
+            const auto   splitDimIdx     = get_split_dimension(field, length_with_batch);
+            const size_t elem_size_bytes = var_size<size_t>(precision, array_type);
+
             for(const auto& b : field.bricks)
             {
                 // get brick's length - note that this includes batch
@@ -462,7 +467,6 @@ public:
                 const auto brick_stride = b.stride;
 
                 const size_t brick_size_elems = product(brick_len.begin(), brick_len.end());
-                const size_t elem_size_bytes  = var_size<size_t>(precision, array_type);
                 const size_t brick_size_bytes = brick_size_elems * elem_size_bytes;
 
                 // set device for the alloc, but we want to return to the
@@ -477,14 +481,13 @@ public:
 
                 if(copy_input)
                 {
-                    // For now, assume we're only splitting on highest FFT
-                    // dimension, lower-dimensional FFT data is all
-                    // contiguous, and batches are contiguous in each brick.
-                    //
-                    // That means we can express this as a 2D memcpy.
-                    const size_t unbatched_elems_per_brick
-                        = product(brick_len.begin() + 1, brick_len.end());
-                    const size_t unbatched_elems_per_fft = product(length.begin(), length.end());
+                    // get contiguous elems before and after the split
+                    const auto brick_length_before_split
+                        = product(brick_len.begin() + splitDimIdx, brick_len.end());
+                    const auto fft_length_with_split
+                        = product(length_with_batch.begin() + splitDimIdx, length_with_batch.end());
+                    const auto length_after_split
+                        = product(brick_len.begin(), brick_len.begin() + splitDimIdx);
 
                     // get this brick's starting offset in the field
                     const size_t brick_offset
@@ -494,11 +497,11 @@ public:
                     // assuming interleaved data so ibuffer has only one
                     // gpubuf
                     if(hipMemcpy2D(pbuffer.back(),
-                                   unbatched_elems_per_brick * elem_size_bytes,
+                                   brick_length_before_split * elem_size_bytes,
                                    ibuffer.front().data_offset(brick_offset),
-                                   unbatched_elems_per_fft * elem_size_bytes,
-                                   unbatched_elems_per_brick * elem_size_bytes,
-                                   brick_len.front(),
+                                   fft_length_with_split * elem_size_bytes,
+                                   brick_length_before_split * elem_size_bytes,
+                                   length_after_split,
                                    hipMemcpyHostToDevice)
                        != hipSuccess)
                         throw std::runtime_error("hipMemcpy failure");
@@ -534,6 +537,11 @@ public:
         if(ofields.empty())
             return;
 
+        auto length_with_batch = olength();
+        length_with_batch.insert(length_with_batch.begin(), nbatch);
+        const auto   splitDimIdx     = get_split_dimension(ofields.front(), length_with_batch);
+        const size_t elem_size_bytes = var_size<size_t>(precision, otype);
+
         for(size_t i = 0; i < ofields.front().bricks.size(); ++i)
         {
             const auto& b         = ofields.front().bricks[i];
@@ -541,7 +549,13 @@ public:
 
             const auto brick_len = b.length();
 
-            const size_t elem_size_bytes = var_size<size_t>(precision, otype);
+            // get contiguous elems before and after the split
+            const auto brick_length_before_split
+                = product(brick_len.begin() + splitDimIdx, brick_len.end());
+            const auto fft_length_with_split
+                = product(length_with_batch.begin() + splitDimIdx, length_with_batch.end());
+            const auto length_after_split
+                = product(brick_len.begin(), brick_len.begin() + splitDimIdx);
 
             // get this brick's starting offset in the field
             const size_t brick_offset = b.lower_field_offset(ostride, odist) * elem_size_bytes;
@@ -549,26 +563,15 @@ public:
             // switch device to where we're copying from
             rocfft_scoped_device dev(b.device);
 
-            // For now, assume we're only splitting on highest FFT
-            // dimension, lower-dimensional FFT data is all
-            // contiguous, and batches are contiguous in each brick.
-            //
-            // That means we can express this as a 2D memcpy.
-            const size_t unbatched_elems_per_brick
-                = product(brick_len.begin() + 1, brick_len.end());
-            const auto   output_length = olength();
-            const size_t unbatched_elems_per_fft
-                = product(output_length.begin(), output_length.end());
-
             // copy to original output buffer - note that
             // we're assuming interleaved data so obuffer
             // has only one gpubuf
             if(hipMemcpy2D(obuffer.front().data_offset(brick_offset),
-                           unbatched_elems_per_fft * elem_size_bytes,
+                           fft_length_with_split * elem_size_bytes,
                            brick_ptr,
-                           unbatched_elems_per_brick * elem_size_bytes,
-                           unbatched_elems_per_brick * elem_size_bytes,
-                           brick_len.front(),
+                           brick_length_before_split * elem_size_bytes,
+                           brick_length_before_split * elem_size_bytes,
+                           length_after_split,
                            hipMemcpyDeviceToDevice)
                != hipSuccess)
                 throw std::runtime_error("hipMemcpy failure");
@@ -579,6 +582,37 @@ public:
         }
         pobuffer.clear();
         pobuffer.push_back(obuffer.front().data());
+    }
+
+private:
+    // return the dimension index that a set of bricks is splitting up
+    static size_t get_split_dimension(const fft_field&           f,
+                                      const std::vector<size_t>& length_with_batch)
+    {
+        size_t splitDim = std::numeric_limits<size_t>::max();
+        for(size_t dimIdx = 0; dimIdx < length_with_batch.size(); ++dimIdx)
+        {
+            // if bricks are all same length as this dim's actual length,
+            // they're not splitting on this dimension.
+            if(std::all_of(f.bricks.begin(), f.bricks.end(), [&](const fft_brick& b) {
+                   return b.length()[dimIdx] == length_with_batch[dimIdx];
+               }))
+                continue;
+
+            // otherwise, the bricks are splitting this dimension
+            if(splitDim != std::numeric_limits<size_t>::max())
+            {
+                // we already found a dimension that was split
+                throw std::runtime_error("bricks split on dimensions " + std::to_string(splitDim)
+                                         + " and " + std::to_string(dimIdx));
+            }
+            splitDim = dimIdx;
+        }
+        if(splitDim == std::numeric_limits<size_t>::max())
+        {
+            throw std::runtime_error("could not find a split dimension");
+        }
+        return splitDim;
     }
 };
 

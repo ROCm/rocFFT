@@ -534,8 +534,8 @@ TEST(manual, vs_fftw) // MANUAL TESTS HERE
 
     if(manual_devices > 1)
     {
-        params.distribute_input(manual_devices);
-        params.distribute_output(manual_devices);
+        params.distribute_input(manual_devices, fft_params::SplitType::SLOWEST);
+        params.distribute_output(manual_devices, fft_params::SplitType::SLOWEST);
     }
 
     // Run an individual test using the provided command-line parameters.

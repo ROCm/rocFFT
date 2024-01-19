@@ -28,7 +28,9 @@ static const std::vector<std::vector<size_t>> multi_gpu_sizes = {
     {256, 256, 256},
 };
 
-std::vector<fft_params> param_generator_multi_gpu()
+std::vector<fft_params> param_generator_multi_gpu(const fft_params::SplitType input_split,
+                                                  const fft_params::SplitType output_split,
+                                                  size_t                      min_fft_rank = 1)
 {
     int deviceCount = 0;
     (void)hipGetDeviceCount(&deviceCount);
@@ -59,31 +61,24 @@ std::vector<fft_params> param_generator_multi_gpu()
 
     std::vector<fft_params> all_params;
 
-    auto distribute_params = [&all_params, deviceCount](const std::vector<fft_params>& params) {
+    auto distribute_params = [=, &all_params](const std::vector<fft_params>& params) {
         for(auto& p : params)
         {
-            // run tests for:
-            // - multi-device input, normal output
-            // - multi-device output, normal input
-            // - multi-device both
-            auto p_in = p;
-            p_in.distribute_input(deviceCount);
-            auto p_out = p;
-            p_out.distribute_output(deviceCount);
-            auto p_both = p;
-            p_both.distribute_input(deviceCount);
-            p_both.distribute_output(deviceCount);
+            if(p.length.size() < min_fft_rank)
+                continue;
+
+            auto p_dist = p;
+            p_dist.distribute_input(deviceCount, input_split);
+            p_dist.distribute_output(deviceCount, output_split);
 
             // "placement" flag is meaningless if exactly one of
             // input+output is a field.  So just add those cases if
             // the flag is "out-of-place", since "in-place" is
             // exactly the same test case.
-            if(p.placement == fft_placement_notinplace)
-            {
-                all_params.emplace_back(std::move(p_in));
-                all_params.emplace_back(std::move(p_out));
-            }
-            all_params.emplace_back(std::move(p_both));
+            if(p_dist.placement == fft_placement_inplace
+               && p_dist.ifields.empty() != p_dist.ofields.empty())
+                continue;
+            all_params.push_back(std::move(p_dist));
         }
     };
 
@@ -93,7 +88,21 @@ std::vector<fft_params> param_generator_multi_gpu()
     return all_params;
 }
 
-INSTANTIATE_TEST_SUITE_P(multi_gpu,
+// split both input and output on slowest FFT dim
+INSTANTIATE_TEST_SUITE_P(multi_gpu_slowest_dim,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator_multi_gpu()),
+                         ::testing::ValuesIn(param_generator_multi_gpu(
+                             fft_params::SplitType::SLOWEST, fft_params::SplitType::SLOWEST)),
+                         accuracy_test::TestName);
+
+// split slowest FFT dim only on input, or only on output
+INSTANTIATE_TEST_SUITE_P(multi_gpu_slowest_input_dim,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator_multi_gpu(
+                             fft_params::SplitType::SLOWEST, fft_params::SplitType::NONE)),
+                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(multi_gpu_slowest_output_dim,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator_multi_gpu(
+                             fft_params::SplitType::NONE, fft_params::SplitType::SLOWEST)),
                          accuracy_test::TestName);
