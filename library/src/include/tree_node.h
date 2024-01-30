@@ -789,7 +789,16 @@ public:
         return type != PTR_NULL;
     }
 
-private:
+    bool operator==(const BufferPtr& other) const
+    {
+        return this->type == other.type && this->idx == other.idx
+               && this->temp_ptr == other.temp_ptr;
+    }
+    bool operator!=(const BufferPtr& other) const
+    {
+        return !(*this == other);
+    }
+
     enum PtrType
     {
         PTR_NULL,
@@ -797,6 +806,13 @@ private:
         PTR_USER_OUT,
         PTR_TEMP,
     };
+
+    PtrType ptr_type() const
+    {
+        return type;
+    }
+
+private:
     PtrType type     = PTR_NULL;
     size_t  idx      = 0;
     void*   temp_ptr = nullptr;
@@ -855,6 +871,37 @@ struct MultiPlanItem
 };
 
 // communication operations
+struct CommPointToPoint : public MultiPlanItem
+{
+    rocfft_precision  precision;
+    rocfft_array_type arrayType;
+
+    // number of elements to copy
+    size_t numElems;
+
+    rocfft_deviceid_t srcDeviceID;
+    BufferPtr         srcPtr;
+    size_t            srcOffset = 0;
+
+    rocfft_deviceid_t destDeviceID;
+    BufferPtr         destPtr;
+    size_t            destOffset = 0;
+
+    void ExecuteAsync(const rocfft_plan     plan,
+                      void*                 in_buffer[],
+                      void*                 out_buffer[],
+                      rocfft_execution_info info,
+                      size_t                multiPlanIdx) override;
+    void Wait() override;
+
+    void Print(rocfft_ostream& os, const int indent) const override;
+
+private:
+    // Stream to run the async operation in
+    hipStream_wrapper_t stream;
+    // Event to signal when the async operations are finished.
+    hipEvent_wrapper_t event;
+};
 
 // This struct has a vector of ranks to scatter to.  Executing can
 // create an MPI group with those ranks.

@@ -106,3 +106,11 @@ INSTANTIATE_TEST_SUITE_P(multi_gpu_slowest_output_dim,
                          ::testing::ValuesIn(param_generator_multi_gpu(
                              fft_params::SplitType::NONE, fft_params::SplitType::SLOWEST)),
                          accuracy_test::TestName);
+
+// split input on slowest FFT and output on fastest, to minimize data
+// movement (only makes sense for rank-2 and higher FFTs)
+INSTANTIATE_TEST_SUITE_P(multi_gpu_slowin_fastout,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator_multi_gpu(
+                             fft_params::SplitType::SLOWEST, fft_params::SplitType::FASTEST, 2)),
+                         accuracy_test::TestName);

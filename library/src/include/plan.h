@@ -74,6 +74,18 @@ struct rocfft_brick_t
 
     // functions and operators
 
+    // check if brick is empty
+    bool empty() const;
+    // return intersection of *this and another brick.  note that
+    // strides and device are not set on the returned brick, as this
+    // method can't know if the caller wants to look at the result in
+    // *this or in other.
+    rocfft_brick_t intersect(const rocfft_brick_t& other) const;
+
+    // test whether this brick covers same coordinates as another
+    // brick.  strides are not considered.
+    bool equal_coords(const rocfft_brick_t& other) const;
+
     // compute the number of elements in this brick
     size_t count_elems() const;
     bool   is_contiguous() const;
@@ -191,7 +203,14 @@ struct rocfft_plan_t
     // the plan needs it.  Gathering all the data to a single device is
     // suboptimal but is a first step towards proper multi-device
     // logic.
-    void AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlan);
+    void GatherScatterSingleDevicePlan(std::unique_ptr<ExecPlan>&& execPlan);
+
+    // Construct an optimized multi-device plan for the FFT
+    // parameters in *this.  Returns false if:
+    // - multiple devices are not requested for this FFT, or
+    // - we have no particular optimization for this FFT and we'll need
+    //   to fall back to a single-device plan
+    bool BuildOptMultiDevicePlan();
 
     // check log level, log the topologically sorted plan if plan
     // logging is enabled

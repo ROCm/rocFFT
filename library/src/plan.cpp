@@ -445,7 +445,11 @@ rocfft_status rocfft_field_destroy(rocfft_field field)
     return rocfft_status_success;
 }
 
-// check if brick is empty
+bool rocfft_brick_t::empty() const
+{
+    auto len = length();
+    return std::any_of(len.begin(), len.end(), [](int l) { return l == 0; });
+}
 
 size_t rocfft_brick_t::count_elems() const
 {
@@ -511,6 +515,19 @@ bool rocfft_brick_t::is_contiguous_in_field(const std::vector<size_t>& field_len
     }
 
     return shortDim == highestNot1Dim;
+}
+
+rocfft_brick_t rocfft_brick_t::intersect(const rocfft_brick_t& other) const
+{
+    rocfft_brick_t ret;
+
+    for(size_t i = 0; i < lower.size(); ++i)
+        ret.lower.push_back(std::max(lower[i], other.lower[i]));
+
+    for(size_t i = 0; i < upper.size(); ++i)
+        ret.upper.push_back(std::min(upper[i], other.upper[i]));
+
+    return ret;
 }
 
 size_t rocfft_brick_t::offset_in_field(const std::vector<size_t>& fieldStride) const
@@ -1157,7 +1174,7 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
     return outputPlanItems;
 }
 
-void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
+void rocfft_plan_t::GatherScatterSingleDevicePlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
 {
     // the smart pointer will be moved into the multi-plan during this
     // function, so keep a plain non-owning pointer
@@ -1276,6 +1293,318 @@ void rocfft_plan_t::AddMainExecPlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
     }
 }
 
+// test if the specified dimension is split up across separate bricks
+// in the field
+static bool DimensionSplitInField(size_t length, size_t dimIdx, const rocfft_field_t& field)
+{
+    for(const auto& b : field.bricks)
+        if(b.length()[dimIdx] != length)
+            return true;
+    return false;
+}
+
+// Construct a single-device execPlan - fill out the provided
+// execPlan with nodes to implement the FFT.
+static std::unique_ptr<ExecPlan> BuildSingleDevicePlan(NodeMetaData&         rootPlanData,
+                                                       int                   deviceID,
+                                                       rocfft_transform_type transformType,
+                                                       LoadOps&              loadOps,
+                                                       StoreOps&             storeOps)
+{
+    auto      execPlanMultiItem = std::make_unique<ExecPlan>();
+    ExecPlan& execPlan          = *execPlanMultiItem;
+    try
+    {
+        execPlan.deviceID   = deviceID;
+        execPlan.deviceProp = rootPlanData.deviceProp;
+
+        execPlan.rootPlan = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
+
+        // FIXME: some solutions require the problems to be unit_stride, otherwise the
+        //   scheme-tree may not be applicable. In this case, we can't apply the solutions.
+        //   Currently, it happens on Real3DEven with REAL_2D_SINGLE kernels. This needs to
+        //   be detected.
+
+        // If we are doing tuning initialzing now, we shouldn't apply any solution,
+        // since we are trying enumerating solutions now
+        if(TuningBenchmarker::GetSingleton().IsInitializingTuning() == false)
+        {
+            execPlan.rootScheme = ApplySolution(execPlan);
+            if(execPlan.rootScheme)
+            {
+                execPlan.rootPlan = nullptr;
+                execPlan.rootPlan = NodeFactory::CreateExplicitNode(
+                    rootPlanData, nullptr, execPlan.rootScheme->curScheme);
+            }
+        }
+
+        execPlan.iLength = rootPlanData.length;
+        execPlan.oLength = rootPlanData.length;
+
+        if(transformType == rocfft_transform_type_real_inverse)
+        {
+            execPlan.iLength.front() = execPlan.iLength.front() / 2 + 1;
+            if(rootPlanData.placement == rocfft_placement_inplace)
+                execPlan.oLength.front() = execPlan.iLength.front() * 2;
+        }
+        if(transformType == rocfft_transform_type_real_forward)
+        {
+            execPlan.oLength.front() = execPlan.oLength.front() / 2 + 1;
+            if(rootPlanData.placement == rocfft_placement_inplace)
+                execPlan.iLength.front() = execPlan.oLength.front() * 2;
+        }
+
+        // setup isUnitStride values
+        execPlan.rootPlan->inStrideUnit  = BufferIsUnitStride(execPlan, OB_USER_IN);
+        execPlan.rootPlan->outStrideUnit = BufferIsUnitStride(execPlan, OB_USER_OUT);
+
+        // set load/store ops on the root plan
+        if(loadOps.enabled())
+            execPlan.rootPlan->loadOps = loadOps;
+        if(storeOps.enabled())
+            execPlan.rootPlan->storeOps = storeOps;
+
+        // check if we are doing tuning init now. If yes, we just return
+        // since we are not going to do the execution
+        if(TuningBenchmarker::GetSingleton().IsInitializingTuning())
+        {
+            EnumerateTrees(execPlan);
+            TuningBenchmarker::GetSingleton().GetPacket()->init_step = false;
+            TuningBenchmarker::GetSingleton().GetPacket()->is_tuning = true;
+            return execPlanMultiItem;
+        }
+
+        ProcessNode(execPlan); // TODO: more descriptions are needed
+
+        // when running each solution during tuning, get the information to packet,
+        // then we can dump the information to a table for analysis
+        if(TuningBenchmarker::GetSingleton().IsProcessingTuning())
+        {
+            if(!GetTuningKernelInfo(execPlan))
+                throw std::runtime_error("Unable to get the solution info.");
+        }
+
+        // plan is compiled, no need to alloc twiddles + kargs etc
+        if(rocfft_getenv("ROCFFT_INTERNAL_COMPILE_ONLY") == "1")
+            return execPlanMultiItem;
+
+        if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
+        {
+            throw std::runtime_error("Unable to create execution plan.");
+        }
+
+        return execPlanMultiItem;
+    }
+    catch(std::exception&)
+    {
+        if(LOG_PLAN_ENABLED())
+            PrintNode(*LogSingleton::GetInstance().GetPlanOS(), execPlan);
+        throw;
+    }
+}
+
+// note: lengths and stride include batch dimension
+static size_t C2COneDimension(rocfft_plan_t&             plan,
+                              size_t                     dimIdx,
+                              int                        deviceID,
+                              const std::vector<size_t>& lengths,
+                              const std::vector<size_t>& stride,
+                              BufferPtr                  input,
+                              BufferPtr                  output,
+                              const std::vector<size_t>& antecedents)
+{
+    rocfft_scoped_device dev(deviceID);
+
+    auto transformLengths = lengths;
+    auto transformStride  = stride;
+
+    // move the dimension-we-want-to-transform to the front
+    std::swap(transformLengths.front(), transformLengths[dimIdx]);
+    std::swap(transformStride.front(), transformStride[dimIdx]);
+
+    NodeMetaData rootPlanData(nullptr);
+
+    rootPlanData.batch = transformLengths.back();
+    rootPlanData.iDist = transformStride.back();
+    rootPlanData.oDist = transformStride.back();
+    transformLengths.pop_back();
+    transformStride.pop_back();
+
+    rootPlanData.dimension = 1;
+    rootPlanData.length    = transformLengths;
+    rootPlanData.inStride  = transformStride;
+    rootPlanData.outStride = transformStride;
+    rootPlanData.direction = plan.transformType == rocfft_transform_type_complex_forward
+                                     || plan.transformType == rocfft_transform_type_real_forward
+                                 ? -1
+                                 : 1;
+    rootPlanData.placement
+        = input == output ? rocfft_placement_inplace : rocfft_placement_notinplace;
+    rootPlanData.precision    = plan.precision;
+    rootPlanData.inArrayType  = rocfft_array_type_complex_interleaved;
+    rootPlanData.outArrayType = rocfft_array_type_complex_interleaved;
+    rootPlanData.deviceProp   = get_curr_device_prop();
+
+    auto singlePlan = BuildSingleDevicePlan(
+        rootPlanData, deviceID, plan.transformType, plan.desc.loadOps, plan.desc.storeOps);
+    singlePlan->mgpuPlan  = true;
+    singlePlan->inputPtr  = input;
+    singlePlan->outputPtr = output;
+    return plan.AddMultiPlanItem(std::move(singlePlan), antecedents);
+}
+
+bool rocfft_plan_t::BuildOptMultiDevicePlan()
+{
+    // currently, can only optimize c2c
+    if(transformType != rocfft_transform_type_complex_forward
+       && transformType != rocfft_transform_type_complex_inverse)
+        return false;
+
+    // must be out-of-place so that we don't have to worry about
+    // overwriting an input before everything's done reading
+    if(placement == rocfft_placement_inplace)
+        return false;
+
+    if(desc.inFields.empty() || desc.outFields.empty())
+        return false;
+
+    // work out what FFT dimensions are already contiguous in the input field
+    std::vector<size_t> contiguousDims;
+    size_t              nonContiguousDim = std::numeric_limits<size_t>::max();
+    for(size_t dimIdx = 0; dimIdx < rank; ++dimIdx)
+    {
+        if(DimensionSplitInField(lengths[dimIdx], dimIdx, desc.inFields.front()))
+            nonContiguousDim = dimIdx;
+        else
+            contiguousDims.push_back(dimIdx);
+    }
+
+    // can optimize if all but one FFT dim is already contiguous, and the
+    // remaining dim is contiguous in output
+    if(contiguousDims.size() != rank - 1
+       || DimensionSplitInField(
+           lengths[nonContiguousDim], nonContiguousDim, desc.outFields.front()))
+        return false;
+
+    const auto in_elem_size = element_size(precision, desc.inArrayType);
+    // we do in-place transforms here, so allocate a buffer for the
+    // complex side of real-complex transforms, since it's bigger.
+    const size_t in_elem_count = compute_ptrdiff(lengths, desc.inStrides, batch, desc.inDist);
+
+    std::vector<size_t> unpackIndexes;
+    for(size_t inBrickIdx = 0; inBrickIdx < desc.inFields.front().bricks.size(); ++inBrickIdx)
+    {
+        const auto& inBrick = desc.inFields.front().bricks[inBrickIdx];
+
+        // assume input cannot be modified, transform into temp buffer
+        TempBufferLease temp(tempBuffers, inBrick.device, in_elem_count, in_elem_size);
+
+        BufferPtr transformInput = BufferPtr::user_input(inBrickIdx);
+
+        std::vector<size_t> antecedents;
+
+        // on each brick, transform the contiguous dims
+        for(auto dimIdx : contiguousDims)
+        {
+            auto transformItem = C2COneDimension(*this,
+                                                 dimIdx,
+                                                 inBrick.device,
+                                                 inBrick.length(),
+                                                 inBrick.stride,
+                                                 transformInput,
+                                                 BufferPtr::temp(temp.data()),
+                                                 antecedents);
+
+            transformInput = BufferPtr::temp(temp.data());
+            antecedents    = {transformItem};
+        }
+
+        // need to transpose data so remaining dim is contiguous
+
+        // for each output brick, work out the intersection of
+        // this brick and transpose it if there's overlap
+        for(size_t outBrickIdx = 0; outBrickIdx < desc.outFields.front().bricks.size();
+            ++outBrickIdx)
+        {
+            const auto& outBrick = desc.outFields.front().bricks[outBrickIdx];
+
+            auto intersection = inBrick.intersect(outBrick);
+            if(intersection.empty())
+                continue;
+            intersection.stride = intersection.contiguous_strides();
+
+            // pack data for communication
+            TempBufferLease pack(
+                tempBuffers, inBrick.device, intersection.count_elems(), in_elem_size);
+            TempBufferLease recv(
+                tempBuffers, outBrick.device, intersection.count_elems(), in_elem_size);
+            auto packIdx
+                = AddMultiPlanItem(transpose_brick(inBrick.device,
+                                                   intersection.length(),
+                                                   precision,
+                                                   desc.inArrayType,
+                                                   BufferPtr::temp(temp.data()),
+                                                   intersection.offset_in_field(inBrick.stride)
+                                                       - inBrick.offset_in_field(inBrick.stride),
+                                                   inBrick.stride,
+                                                   BufferPtr::temp(pack.data()),
+                                                   0,
+                                                   intersection.stride,
+                                                   "pack brick for remaining dimension"),
+                                   antecedents);
+            antecedents = {packIdx};
+
+            // send packed data
+            auto sendOp          = std::make_unique<CommPointToPoint>();
+            sendOp->precision    = precision;
+            sendOp->arrayType    = desc.inArrayType;
+            sendOp->numElems     = intersection.count_elems();
+            sendOp->srcDeviceID  = inBrick.device;
+            sendOp->srcPtr       = BufferPtr::temp(pack.data());
+            sendOp->destDeviceID = outBrick.device;
+            sendOp->destPtr      = BufferPtr::temp(recv.data());
+
+            auto send   = AddMultiPlanItem(std::move(sendOp), antecedents);
+            antecedents = {send};
+
+            // unpack data on destination to user out
+            auto unpackIdx
+                = AddMultiPlanItem(transpose_brick(outBrick.device,
+                                                   intersection.length(),
+                                                   precision,
+                                                   desc.inArrayType,
+                                                   BufferPtr::temp(recv.data()),
+                                                   0,
+                                                   intersection.stride,
+                                                   BufferPtr::user_output(outBrickIdx),
+                                                   intersection.offset_in_field(outBrick.stride)
+                                                       - outBrick.offset_in_field(outBrick.stride),
+                                                   outBrick.stride,
+                                                   "unpack brick for remaining dimension"),
+                                   antecedents);
+            unpackIndexes.push_back(unpackIdx);
+        }
+    }
+
+    for(size_t outBrickIdx = 0; outBrickIdx < desc.outFields.front().bricks.size(); ++outBrickIdx)
+    {
+        const auto& outBrick = desc.outFields.front().bricks[outBrickIdx];
+
+        // data is now transposed to output bricks.  fft
+        // remaining dimension on all bricks
+        C2COneDimension(*this,
+                        nonContiguousDim,
+                        outBrick.device,
+                        outBrick.length(),
+                        outBrick.stride,
+                        BufferPtr::user_output(outBrickIdx),
+                        BufferPtr::user_output(outBrickIdx),
+                        unpackIndexes);
+    }
+
+    return true;
+}
+
 rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
                                           const rocfft_result_placement placement,
                                           const rocfft_transform_type   transform_type,
@@ -1359,173 +1688,93 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     // construct the plan
     try
     {
-        NodeMetaData rootPlanData(nullptr);
-
-        rootPlanData.dimension = plan->rank;
-        rootPlanData.batch     = plan->batch;
-        for(size_t i = 0; i < plan->rank; i++)
+        // build an optimized multi-device plan, if possible
+        if(!plan->BuildOptMultiDevicePlan())
         {
-            rootPlanData.length.push_back(plan->lengths[i]);
+            // if optimized multi-device was not possible (either because
+            // multi-device was not requested, or we can't optimize for
+            // that case), fall back to single-device plan
 
-            rootPlanData.inStride.push_back(plan->desc.inStrides[i]);
-            rootPlanData.outStride.push_back(plan->desc.outStrides[i]);
-        }
-        rootPlanData.iDist = plan->desc.inDist;
-        rootPlanData.oDist = plan->desc.outDist;
+            NodeMetaData rootPlanData(nullptr);
 
-        rootPlanData.placement = plan->placement;
-
-        // If in+out fields are specified, currently that means we're
-        // gathering the data to one device and doing FFT there.  So
-        // the FFT becomes in-place.
-        if(!plan->desc.inFields.empty() && !plan->desc.outFields.empty())
-        {
-            // c2c can be inplace so both input/output can be
-            // contiguous without needing extra buffers
-            if(plan->transformType == rocfft_transform_type_complex_forward
-               || plan->transformType == rocfft_transform_type_complex_inverse)
+            rootPlanData.dimension = plan->rank;
+            rootPlanData.batch     = plan->batch;
+            for(size_t i = 0; i < plan->rank; i++)
             {
-                rootPlanData.placement = rocfft_placement_inplace;
+                rootPlanData.length.push_back(plan->lengths[i]);
+
+                rootPlanData.inStride.push_back(plan->desc.inStrides[i]);
+                rootPlanData.outStride.push_back(plan->desc.outStrides[i]);
             }
-            // real-complex would require non-contiguous data to be
-            // inplace (which likely means more packing/unpacking and
-            // extra temp buffer usage anyway), so make it
-            // not-in-place instead
-            else
+            rootPlanData.iDist = plan->desc.inDist;
+            rootPlanData.oDist = plan->desc.outDist;
+
+            rootPlanData.placement = plan->placement;
+
+            // If in+out fields are specified, currently that means we're
+            // gathering the data to one device and doing FFT there.  So
+            // the FFT becomes in-place.
+            if(!plan->desc.inFields.empty() && !plan->desc.outFields.empty())
+            {
+                // c2c can be inplace so both input/output can be
+                // contiguous without needing extra buffers
+                if(plan->transformType == rocfft_transform_type_complex_forward
+                   || plan->transformType == rocfft_transform_type_complex_inverse)
+                {
+                    rootPlanData.placement = rocfft_placement_inplace;
+                }
+                // real-complex would require non-contiguous data to be
+                // inplace (which likely means more packing/unpacking and
+                // extra temp buffer usage anyway), so make it
+                // not-in-place instead
+                else
+                {
+                    rootPlanData.placement = rocfft_placement_notinplace;
+                }
+            }
+            // If we only have outfield, then there's no need to gather.  But we can't assume we can overwrite input, so the FFT will be outplace to a temp buf
+            else if(plan->desc.inFields.empty() && !plan->desc.outFields.empty())
             {
                 rootPlanData.placement = rocfft_placement_notinplace;
             }
-        }
-        // If we only have outfield, then there's no need to gather.  But we can't assume we can overwrite input, so the FFT will be outplace to a temp buf
-        else if(plan->desc.inFields.empty() && !plan->desc.outFields.empty())
-        {
-            rootPlanData.placement = rocfft_placement_notinplace;
-        }
-        // If we only have infield, then we must gather.
-        else if(!plan->desc.inFields.empty() && plan->desc.outFields.empty())
-        {
-            // If output is contiguous and this is c2c then we can
-            // gather to the output buf and do an inplace FFT.
-            if(plan->is_contiguous_output()
-               && (plan->transformType == rocfft_transform_type_complex_forward
-                   || plan->transformType == rocfft_transform_type_complex_inverse))
-                rootPlanData.placement = rocfft_placement_inplace;
-            // Otherwise we must gather to a temp buf and do outplace FFT to output
-            else
-                rootPlanData.placement = rocfft_placement_notinplace;
-        }
-
-        rootPlanData.precision = plan->precision;
-        if((plan->transformType == rocfft_transform_type_complex_forward)
-           || (plan->transformType == rocfft_transform_type_real_forward))
-            rootPlanData.direction = -1;
-        else
-            rootPlanData.direction = 1;
-
-        rootPlanData.inArrayType  = plan->desc.inArrayType;
-        rootPlanData.outArrayType = plan->desc.outArrayType;
-        rootPlanData.rootIsC2C    = (rootPlanData.inArrayType != rocfft_array_type_real)
-                                 && (rootPlanData.outArrayType != rocfft_array_type_real);
-
-        set_bluestein_strides(plan, rootPlanData);
-
-        auto      execPlanMultiItem = std::make_unique<ExecPlan>();
-        ExecPlan& execPlan          = *execPlanMultiItem;
-        if(hipGetDevice(&execPlan.deviceID) != hipSuccess)
-            throw std::runtime_error("hipGetDevice failed");
-        execPlan.deviceProp     = get_curr_device_prop();
-        rootPlanData.deviceProp = execPlan.deviceProp;
-
-        execPlan.rootPlan = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
-
-        // FIXME: some solutions require the problems to be unit_stride, otherwise the
-        //   scheme-tree may not be applicable. In this case, we can't apply the solutions.
-        //   Currently, it happens on Real3DEven with REAL_2D_SINGLE kernels. This needs to
-        //   be detected.
-
-        // If we are doing tuning initialzing now, we shouldn't apply any solution,
-        // since we are trying enumerating solutions now
-        if(TuningBenchmarker::GetSingleton().IsInitializingTuning() == false)
-        {
-            execPlan.rootScheme = ApplySolution(execPlan);
-            if(execPlan.rootScheme)
+            // If we only have infield, then we must gather.
+            else if(!plan->desc.inFields.empty() && plan->desc.outFields.empty())
             {
-                execPlan.rootPlan = nullptr;
-                execPlan.rootPlan = NodeFactory::CreateExplicitNode(
-                    rootPlanData, nullptr, execPlan.rootScheme->curScheme);
+                // If output is contiguous and this is c2c then we can
+                // gather to the output buf and do an inplace FFT.
+                if(plan->is_contiguous_output()
+                   && (plan->transformType == rocfft_transform_type_complex_forward
+                       || plan->transformType == rocfft_transform_type_complex_inverse))
+                    rootPlanData.placement = rocfft_placement_inplace;
+                // Otherwise we must gather to a temp buf and do outplace FFT to output
+                else
+                    rootPlanData.placement = rocfft_placement_notinplace;
             }
+
+            rootPlanData.precision = plan->precision;
+            if((plan->transformType == rocfft_transform_type_complex_forward)
+               || (plan->transformType == rocfft_transform_type_real_forward))
+                rootPlanData.direction = -1;
+            else
+                rootPlanData.direction = 1;
+
+            rootPlanData.inArrayType  = plan->desc.inArrayType;
+            rootPlanData.outArrayType = plan->desc.outArrayType;
+            rootPlanData.rootIsC2C    = (rootPlanData.inArrayType != rocfft_array_type_real)
+                                     && (rootPlanData.outArrayType != rocfft_array_type_real);
+
+            set_bluestein_strides(plan, rootPlanData);
+
+            rootPlanData.deviceProp = get_curr_device_prop();
+
+            int deviceID;
+            if(hipGetDevice(&deviceID) != hipSuccess)
+                throw std::runtime_error("hipGetDevice failed");
+            auto singleDevicePlan = BuildSingleDevicePlan(
+                rootPlanData, deviceID, plan->transformType, p->desc.loadOps, p->desc.storeOps);
+
+            p->GatherScatterSingleDevicePlan(std::move(singleDevicePlan));
         }
-
-        std::copy(plan->lengths.begin(),
-                  plan->lengths.begin() + plan->rank,
-                  std::back_inserter(execPlan.iLength));
-        std::copy(plan->lengths.begin(),
-                  plan->lengths.begin() + plan->rank,
-                  std::back_inserter(execPlan.oLength));
-
-        if(plan->transformType == rocfft_transform_type_real_inverse)
-        {
-            execPlan.iLength.front() = execPlan.iLength.front() / 2 + 1;
-            if(plan->placement == rocfft_placement_inplace)
-                execPlan.oLength.front() = execPlan.iLength.front() * 2;
-        }
-        if(plan->transformType == rocfft_transform_type_real_forward)
-        {
-            execPlan.oLength.front() = execPlan.oLength.front() / 2 + 1;
-            if(plan->placement == rocfft_placement_inplace)
-                execPlan.iLength.front() = execPlan.oLength.front() * 2;
-        }
-
-        // setup isUnitStride values
-        execPlan.rootPlan->inStrideUnit  = BufferIsUnitStride(execPlan, OB_USER_IN);
-        execPlan.rootPlan->outStrideUnit = BufferIsUnitStride(execPlan, OB_USER_OUT);
-
-        // set load/store ops on the root plan
-        if(p->desc.loadOps.enabled())
-            execPlan.rootPlan->loadOps = p->desc.loadOps;
-        if(p->desc.storeOps.enabled())
-            execPlan.rootPlan->storeOps = p->desc.storeOps;
-
-        // check if we are doing tuning init now. If yes, we just return
-        // since we are not going to do the execution
-        if(TuningBenchmarker::GetSingleton().IsInitializingTuning())
-        {
-            EnumerateTrees(execPlan);
-            TuningBenchmarker::GetSingleton().GetPacket()->init_step = false;
-            TuningBenchmarker::GetSingleton().GetPacket()->is_tuning = true;
-            return rocfft_status_success;
-        }
-
-        try
-        {
-            ProcessNode(execPlan); // TODO: more descriptions are needed
-        }
-        catch(std::exception&)
-        {
-            if(LOG_PLAN_ENABLED())
-                PrintNode(*LogSingleton::GetInstance().GetPlanOS(), execPlan);
-            throw;
-        }
-
-        // plan is compiled, no need to alloc twiddles + kargs etc
-        if(rocfft_getenv("ROCFFT_INTERNAL_COMPILE_ONLY") == "1")
-            return rocfft_status_success;
-
-        if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
-        {
-            throw std::runtime_error("Unable to create execution plan.");
-        }
-
-        // when running each solution during tuning, get the information to packet,
-        // then we can dump the information to a table for analysis
-        if(TuningBenchmarker::GetSingleton().IsProcessingTuning())
-        {
-            if(!GetTuningKernelInfo(execPlan))
-                throw std::runtime_error("Unable to get the solution info.");
-        }
-
-        p->AddMainExecPlan(std::move(execPlanMultiItem));
-
         return rocfft_status_success;
     }
     catch(std::exception& e)
@@ -2799,7 +3048,6 @@ void ProcessNode(ExecPlan& execPlan)
 
     execPlan.rootPlan->RecursiveBuildTree(rootScheme);
 
-    assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->dimension);
     assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->inStride.size());
     assert(execPlan.rootPlan->length.size() == execPlan.rootPlan->outStride.size());
 

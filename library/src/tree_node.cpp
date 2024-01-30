@@ -423,6 +423,63 @@ std::string MultiPlanItem::PrintBufferPtrOffset(const BufferPtr& ptr, size_t off
     return ss.str();
 }
 
+void CommPointToPoint::ExecuteAsync(const rocfft_plan     plan,
+                                    void*                 in_buffer[],
+                                    void*                 out_buffer[],
+                                    rocfft_execution_info info,
+                                    size_t                multiPlanIdx)
+{
+    rocfft_scoped_device dev(srcDeviceID);
+    stream.alloc();
+    event.alloc();
+
+    CheckAccess(srcDeviceID, destDeviceID);
+    auto memSize = numElems * element_size(precision, arrayType);
+    auto srcWithOffset
+        = ptr_offset(srcPtr.get(in_buffer, out_buffer), srcOffset, precision, arrayType);
+    auto destWithOffset
+        = ptr_offset(destPtr.get(in_buffer, out_buffer), destOffset, precision, arrayType);
+
+    hipError_t err = hipSuccess;
+    if(srcDeviceID == destDeviceID)
+        err = hipMemcpyAsync(
+            destWithOffset, srcWithOffset, memSize, hipMemcpyDeviceToDevice, stream);
+    else
+        err = hipMemcpyPeerAsync(
+            destWithOffset, destDeviceID, srcWithOffset, srcDeviceID, memSize, stream);
+
+    if(err != hipSuccess)
+        throw std::runtime_error("hipMemcpy failed");
+
+    // all work is enqueued to the stream, record the event on
+    // the stream
+    if(hipEventRecord(event, stream) != hipSuccess)
+        throw std::runtime_error("hipEventRecord failed");
+}
+
+void CommPointToPoint::Wait()
+{
+    if(hipEventSynchronize(event) != hipSuccess)
+        throw std::runtime_error("hipEventSynchronize failed");
+}
+
+void CommPointToPoint::Print(rocfft_ostream& os, const int indent) const
+{
+    std::string indentStr;
+    int         i = indent;
+    while(i--)
+        indentStr += "    ";
+
+    os << indentStr << "CommPointToPoint " << precision_name(precision) << " "
+       << PrintArrayType(arrayType) << ":" << std::endl;
+    os << indentStr << "  srcDeviceID: " << srcDeviceID << std::endl;
+    os << indentStr << "  srcBuf: " << PrintBufferPtrOffset(srcPtr, srcOffset) << std::endl;
+    os << indentStr << "  destDeviceID: " << destDeviceID << std::endl;
+    os << indentStr << "  destBuf: " << PrintBufferPtrOffset(destPtr, destOffset) << std::endl;
+    os << indentStr << "  numElems: " << numElems << std::endl;
+    os << std::endl;
+}
+
 void CommScatter::ExecuteAsync(const rocfft_plan     plan,
                                void*                 in_buffer[],
                                void*                 out_buffer[],
