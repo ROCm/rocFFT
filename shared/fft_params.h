@@ -424,6 +424,11 @@ public:
     std::vector<fft_field> ifields;
     std::vector<fft_field> ofields;
 
+    // simple "multi-GPU" count, meaning the library decides on the
+    // decomposition instead of it being explicit as bricks.  only
+    // has an effect if set to a number > 1.
+    size_t multiGPU = 0;
+
     // run testing load/store callbacks
     bool                    run_callbacks   = false;
     static constexpr double load_cb_scalar  = 0.457813941;
@@ -737,6 +742,12 @@ public:
         if(scale_factor != 1.0)
             ret += "_scale";
 
+        if(multiGPU > 1)
+        {
+            ret += "_multigpu_";
+            ret += std::to_string(multiGPU);
+        }
+
         return ret;
     }
 
@@ -887,6 +898,12 @@ public:
             // just pick some factor that's not zero or one
             scale_factor = 0.1239;
             ++pos;
+        }
+
+        if(pos < vals.size() && vals[pos] == "multiGPU")
+        {
+            ++pos;
+            multiGPU = std::stoull(vals[pos++]);
         }
     }
 
@@ -1440,6 +1457,8 @@ public:
     {
         if(!ifields.empty() || !ofields.empty())
             throw std::runtime_error("input/output fields are unsupported");
+        if(multiGPU > 1)
+            throw std::runtime_error("library-decomposed multi-GPU is unsupported");
     }
 
     // Column-major getters:

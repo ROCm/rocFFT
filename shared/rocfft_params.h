@@ -189,6 +189,11 @@ public:
 
     void validate_fields() const override
     {
+        // rocFFT requires explicit bricks and cannot decide on
+        // multi-GPU decomposition itself
+        if(multiGPU > 1)
+            throw std::runtime_error("library-decomposed multi-GPU is unsupported");
+
         // row-major lengths including batch (i.e. batch is at the front)
         std::vector<size_t> length_with_batch{nbatch};
         std::copy(length.begin(), length.end(), std::back_inserter(length_with_batch));

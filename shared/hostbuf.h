@@ -115,6 +115,14 @@ public:
         return static_cast<T*>(buf);
     }
 
+    // return a pointer to the allocated memory, offset by the
+    // specified number of bytes
+    T* data_offset(size_t offset_bytes = 0) const
+    {
+        void* ptr = static_cast<char*>(buf) + offset_bytes;
+        return static_cast<T*>(ptr);
+    }
+
     // Copy method
     hostbuf_t copy() const
     {

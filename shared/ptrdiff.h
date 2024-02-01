@@ -20,6 +20,8 @@
 
 #pragma once
 
+#include <vector>
+
 // Compute the farthest point from the original pointer.
 static size_t compute_ptrdiff(const std::vector<size_t>& length,
                               const std::vector<size_t>& stride,
