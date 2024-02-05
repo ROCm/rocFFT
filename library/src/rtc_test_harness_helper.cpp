@@ -106,7 +106,9 @@ std::unique_ptr<RTCKernel> compile(const std::string& name, const std::string& s
         throw std::runtime_error("unable to create program");
     }
     std::vector<const char*> options;
+    options.reserve(2);
     options.push_back("-O3");
+    options.push_back("-mcumode");
 
     auto compileResult = hiprtcCompileProgram(prog, options.size(), options.data());
     if(compileResult != HIPRTC_SUCCESS)
