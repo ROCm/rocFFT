@@ -34,6 +34,16 @@ function( prepend_path prefix source_list_of_files return_list_of_files )
   set( ${return_list_of_files} ${new_list} PARENT_SCOPE )
 endfunction( )
 
+# Link to an internal object library.  Setting LINK_LIBRARIES
+# directly prevents the object libraries from being exported by
+# rocm_export_targets in a static build, since they're not supposed
+# to be visible by users of rocFFT.
+function( rocfft_link_internal_lib target lib )
+  set_property( TARGET ${target} APPEND PROPERTY
+    LINK_LIBRARIES ${lib}
+  )
+endfunction()
+
 add_executable( rocfft_rtc_helper rocfft_rtc_helper.cpp )
 
 # each backend requires different libraries for host and device code
@@ -452,14 +462,12 @@ foreach( target rocfft rocfft_offline_tuner rocfft_solmap_convert rocfft_aot_hel
     CXX_STANDARD 17
     CXX_STANDARD_REQUIRED ON
   )
-  target_link_libraries( ${target} PRIVATE
-    rocfft-rtc-cache
-    ${ROCFFT_SQLITE_LIB}
-    rocfft-rtc-gen
-    rocfft-rtc-compile
-    rocfft-rtc-subprocess
-    rocfft-rtc-common
-    )
+  rocfft_link_internal_lib( ${target} rocfft-rtc-cache )
+  rocfft_link_internal_lib( ${target} ${ROCFFT_SQLITE_LIB} )
+  rocfft_link_internal_lib( ${target} rocfft-rtc-gen )
+  rocfft_link_internal_lib( ${target} rocfft-rtc-compile )
+  rocfft_link_internal_lib( ${target} rocfft-rtc-subprocess )
+  rocfft_link_internal_lib( ${target} rocfft-rtc-common )
 
   target_link_std_experimental_filesystem(${target})
 
@@ -469,13 +477,11 @@ foreach( target rocfft rocfft_offline_tuner rocfft_solmap_convert rocfft_aot_hel
   endif()
 endforeach()
 
-target_link_libraries( rocfft PRIVATE
-  generator
-  rocfft-function-pool
-  rocfft-rtc-launch
-  rocfft-solution-map
-  rocfft-tuning-helper
-  )
+rocfft_link_internal_lib( rocfft generator )
+rocfft_link_internal_lib( rocfft rocfft-function-pool )
+rocfft_link_internal_lib( rocfft rocfft-rtc-launch )
+rocfft_link_internal_lib( rocfft rocfft-solution-map )
+rocfft_link_internal_lib( rocfft rocfft-tuning-helper )
 target_link_std_experimental_filesystem( rocfft )
 
 target_link_libraries( rocfft_config_search PRIVATE
