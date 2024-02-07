@@ -518,9 +518,8 @@ int main(int argc, char* argv[])
 
     std::cout << std::flush;
 
-    // Fixme: set the device id properly after the IDs are synced
-    // bewteen hip runtime and rocm-smi.
-    // HIP_V_THROW(hipSetDevice(deviceId), "set device failed!");
+    // Set GPU for single-device FFT computation
+    rocfft_scoped_device dev(deviceId);
 
     params.validate();
 
