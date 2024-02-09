@@ -257,6 +257,7 @@ def generate_pts_dat(dat):
             token)
 
         new_row.extend(input_params)
+        new_row.insert(1, token)
         dimensions.add(len(length))
         new_row.append(len(length))
         new_row.extend(length)
@@ -285,7 +286,7 @@ def generate_pts_dat(dat):
     dimension = list(dimensions)[0]
 
     header = [
-        'suite', 'precision', 'transform type', 'placeness', 'dimension',
+        'suite', 'token', 'precision', 'transform type', 'placeness', 'dimension',
         'xlength'
     ]
     if dimension == 2:
