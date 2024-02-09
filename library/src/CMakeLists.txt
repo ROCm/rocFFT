@@ -231,6 +231,8 @@ set( rocfft_source
   tuning_plan_tuner.cpp
   )
 
+set(static_depends)
+
 # SQLite 3.36.0 enabled the backup API by default, which we need
 # for cache serialization.  We also want to use a static SQLite,
 # and distro static libraries aren't typically built
@@ -238,6 +240,7 @@ set( rocfft_source
 option( SQLITE_USE_SYSTEM_PACKAGE "Use SQLite3 from find_package" OFF )
 if( SQLITE_USE_SYSTEM_PACKAGE )
   find_package(SQLite3 3.36 REQUIRED)
+  list(APPEND static_depends PACKAGE SQLite3)
   set(ROCFFT_SQLITE_LIB SQLite::SQLite3)
 else()
   include( FetchContent )
@@ -625,6 +628,8 @@ endif()
 rocm_export_targets(
   TARGETS roc::rocfft
   DEPENDS PACKAGE hip
+  STATIC_DEPENDS
+    ${static_depends}
   NAMESPACE roc::
   )
 
