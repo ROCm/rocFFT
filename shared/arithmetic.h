@@ -24,6 +24,7 @@
 
 #include <numeric>
 #include <stddef.h>
+#include <tuple>
 
 // arithmetic helper functions
 
@@ -58,4 +59,21 @@ typename Titer::value_type product(Titer begin, Titer end)
 {
     return std::accumulate(
         begin, end, typename Titer::value_type(1), std::multiplies<typename Titer::value_type>());
+}
+
+// count the number of total iterations for 1-, 2-, and 3-D dimensions
+template <typename T1>
+static inline size_t count_iters(const T1& i)
+{
+    return i;
+}
+template <typename T1>
+static inline size_t count_iters(const std::tuple<T1, T1>& i)
+{
+    return std::get<0>(i) * std::get<1>(i);
+}
+template <typename T1>
+static inline size_t count_iters(const std::tuple<T1, T1, T1>& i)
+{
+    return std::get<0>(i) * std::get<1>(i) * std::get<2>(i);
 }

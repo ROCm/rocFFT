@@ -31,6 +31,7 @@
 #include <vector>
 
 #include "enum_to_string.h"
+#include "fft_hash.h"
 #include "fft_params.h"
 #include "fftw_transform.h"
 #include "gpubuf.h"
@@ -1198,8 +1199,14 @@ struct StoreCPUDataToCache
 
 // run CPU + rocFFT transform with the given params and compare
 template <class Tfloat, class Tparams>
-inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
+inline void fft_vs_reference_impl(Tparams& params, bool print_hash, bool round_trip)
 {
+    auto ibuffer_hash_in = hash_input(params, true);
+    auto obuffer_hash_in = hash_input(params, false);
+
+    auto ibuffer_hash_out = hash_output<size_t>();
+    auto obuffer_hash_out = hash_output<size_t>();
+
     // Call hipGetLastError to reset any errors
     // returned by previous HIP runtime API calls.
     hipError_t hip_status = hipGetLastError();
@@ -1551,6 +1558,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                          contiguous_params.idist,
                          params.ioffset,
                          contiguous_params.ioffset);
+
+            compute_hash(gpu_input_data, ibuffer_hash_in, ibuffer_hash_out);
         }
         else
         {
@@ -1574,6 +1583,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                     }
                 }
             }
+
+            compute_hash(cpu_input, ibuffer_hash_in, ibuffer_hash_out);
         }
     }
     else if(fftw_compare)
@@ -1627,6 +1638,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                 }
             }
         }
+
+        compute_hash(*gpu_input, ibuffer_hash_in, ibuffer_hash_out);
     }
 
     if(verbose > 3)
@@ -1768,6 +1781,20 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         = allocate_host_buffer(params.precision, params.otype, params.osize);
 
     execute_gpu_fft(params, pibuffer, pobuffer, *obuffer, gpu_output);
+
+    compute_hash(gpu_output, obuffer_hash_in, obuffer_hash_out);
+
+    if(ibuffer_hash_out.params_token != obuffer_hash_out.params_token)
+        throw std::runtime_error("Invalid hashing of params token");
+
+    if(print_hash)
+    {
+        std::cout << "ibuffer hash: (" << ibuffer_hash_out.buffer_real << ","
+                  << ibuffer_hash_out.buffer_imag << ")" << std::endl;
+
+        std::cout << "obuffer hash: (" << obuffer_hash_out.buffer_real << ","
+                  << obuffer_hash_out.buffer_imag << ")" << std::endl;
+    }
 
     params.free();
 

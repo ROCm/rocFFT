@@ -32,18 +32,18 @@
 #include "../../shared/rocfft_against_fftw.h"
 #include "rocfft/rocfft.h"
 
-void fft_vs_reference(rocfft_params& params, bool round_trip)
+void fft_vs_reference(rocfft_params& params, bool print_hash, bool round_trip)
 {
     switch(params.precision)
     {
     case fft_precision_half:
-        fft_vs_reference_impl<_Float16, rocfft_params>(params, round_trip);
+        fft_vs_reference_impl<_Float16, rocfft_params>(params, print_hash, round_trip);
         break;
     case fft_precision_single:
-        fft_vs_reference_impl<float, rocfft_params>(params, round_trip);
+        fft_vs_reference_impl<float, rocfft_params>(params, print_hash, round_trip);
         break;
     case fft_precision_double:
-        fft_vs_reference_impl<double, rocfft_params>(params, round_trip);
+        fft_vs_reference_impl<double, rocfft_params>(params, print_hash, round_trip);
         break;
     }
 }
@@ -71,9 +71,12 @@ TEST_P(accuracy_test, vs_fftw)
         GTEST_SKIP();
     }
 
+    // only print FFT input/output buffer hash on manual tests
+    bool print_hash = false;
+
     // only do round trip for non-field FFTs
     bool round_trip = params.ifields.empty() && params.ofields.empty();
 
-    fft_vs_reference(params, round_trip);
+    fft_vs_reference(params, print_hash, round_trip);
     SUCCEED();
 }

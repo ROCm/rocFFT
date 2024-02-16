@@ -21,6 +21,7 @@
 #ifndef DATA_GEN_HOST_H
 #define DATA_GEN_HOST_H
 
+#include "../shared/arithmetic.h"
 #include "../shared/hostbuf.h"
 #include "../shared/increment.h"
 #include <complex>
@@ -55,25 +56,6 @@ size_t compute_index(const std::tuple<T1, T1, T1>& length,
     static_assert(std::is_integral<T2>::value, "Integral required.");
     return (std::get<0>(length) * std::get<0>(stride)) + (std::get<1>(length) * std::get<1>(stride))
            + (std::get<2>(length) * std::get<2>(stride)) + base;
-}
-
-// count the number of total iterations for 1-, 2-, and 3-D dimensions
-template <typename T1>
-size_t count_iters(const T1& i)
-{
-    return i;
-}
-
-template <typename T1>
-size_t count_iters(const std::tuple<T1, T1>& i)
-{
-    return std::get<0>(i) * std::get<1>(i);
-}
-
-template <typename T1>
-size_t count_iters(const std::tuple<T1, T1, T1>& i)
-{
-    return std::get<0>(i) * std::get<1>(i) * std::get<2>(i);
 }
 
 template <typename T1>

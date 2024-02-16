@@ -83,6 +83,7 @@ set( rocfft-test_source
   callback_change_type.cpp
   default_callbacks_test.cpp
   unit_test.cpp
+  buffer_hash_test.cpp
   validate_length_stride.cpp
   random.cpp
   ../../shared/array_validator.cpp

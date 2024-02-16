@@ -62,6 +62,10 @@ size_t n_random_tests = 0;
 // Transform parameters for manual test:
 fft_params manual_params;
 
+// Display 32/64-bit identifier for input
+// and output buffers of a manual FFT test.
+bool print_hash = false;
+
 // Host memory limitation for tests (GiB):
 size_t ramgb;
 
@@ -343,6 +347,7 @@ int main(int argc, char* argv[])
 	  "Distribute manual test case among this many devices")
         ("scalefactor", po::value<double>(&manual_params.scale_factor), "Scale factor to apply to output.")
         ("token", po::value<std::string>(&test_token)->default_value(""), "Test token name for manual test")
+        ("hash", po::value<bool>(&print_hash)->default_value(false), "Display input/output buffer identifier for manual test")
         ("precompile",  po::value<std::string>(&precompile_file), "Precompile kernels to a file for all test cases before running tests");
     // clang-format on
 
@@ -551,5 +556,5 @@ TEST(manual, vs_fftw) // MANUAL TESTS HERE
         std::cout << "manual params are not valid\n";
     }
 
-    fft_vs_reference(params);
+    fft_vs_reference(params, print_hash);
 }
