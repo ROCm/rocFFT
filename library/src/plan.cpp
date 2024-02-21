@@ -80,7 +80,8 @@ static size_t offset_count(rocfft_array_type type)
 
 void rocfft_plan_description_t::init_defaults(rocfft_transform_type      transformType,
                                               rocfft_result_placement    placement,
-                                              const std::vector<size_t>& lengths)
+                                              const std::vector<size_t>& lengths,
+                                              const std::vector<size_t>& outputLengths)
 {
     const size_t rank = lengths.size();
 
@@ -127,32 +128,14 @@ void rocfft_plan_description_t::init_defaults(rocfft_transform_type      transfo
            && (placement == rocfft_placement_inplace))
         {
             // real-to-complex in-place
-            size_t dist = 2 * (1 + (lengths[0]) / 2);
+            size_t dist = 2 * outputLengths[0];
 
             for(size_t i = 1; i < rank; i++)
             {
                 inStrides.push_back(dist);
                 dist *= lengths[i];
             }
-
-            if(inDist == 0)
-                inDist = dist;
         }
-        else if(transformType == rocfft_transform_type_real_inverse)
-        {
-            // complex-to-real
-            size_t dist = 1 + (lengths[0]) / 2;
-
-            for(size_t i = 1; i < rank; i++)
-            {
-                inStrides.push_back(dist);
-                dist *= lengths[i];
-            }
-
-            if(inDist == 0)
-                inDist = dist;
-        }
-
         else
         {
             // Set the inStrides to deal with contiguous data
@@ -170,30 +153,13 @@ void rocfft_plan_description_t::init_defaults(rocfft_transform_type      transfo
            && (placement == rocfft_placement_inplace))
         {
             // complex-to-real in-place
-            size_t dist = 2 * (1 + (lengths[0]) / 2);
+            size_t dist = 2 * lengths[0];
 
             for(size_t i = 1; i < rank; i++)
             {
                 outStrides.push_back(dist);
                 dist *= lengths[i];
             }
-
-            if(outDist == 0)
-                outDist = dist;
-        }
-        else if(transformType == rocfft_transform_type_real_forward)
-        {
-            // real-to-complex
-            size_t dist = 1 + (lengths[0]) / 2;
-
-            for(size_t i = 1; i < rank; i++)
-            {
-                outStrides.push_back(dist);
-                dist *= lengths[i];
-            }
-
-            if(outDist == 0)
-                outDist = dist;
         }
         else
         {
@@ -221,6 +187,7 @@ void rocfft_plan_t::sort()
     struct rocfft_iodim
     {
         size_t length;
+        size_t olength;
         size_t istride;
         size_t ostride;
     };
@@ -235,7 +202,8 @@ void rocfft_plan_t::sort()
 
     std::vector<rocfft_iodim> iodims;
     for(size_t dim = start_dim; dim < rank; ++dim)
-        iodims.push_back(rocfft_iodim{lengths[dim], desc.inStrides[dim], desc.outStrides[dim]});
+        iodims.push_back(rocfft_iodim{
+            lengths[dim], outputLengths[dim], desc.inStrides[dim], desc.outStrides[dim]});
     if(iodims.empty())
         return;
 
@@ -269,6 +237,7 @@ void rocfft_plan_t::sort()
     for(size_t dim = start_dim; dim < rank; ++dim)
     {
         lengths[dim]         = iodims[dim - start_dim].length;
+        outputLengths[dim]   = iodims[dim - start_dim].olength;
         desc.inStrides[dim]  = iodims[dim - start_dim].istride;
         desc.outStrides[dim] = iodims[dim - start_dim].ostride;
     }
@@ -530,9 +499,42 @@ rocfft_brick_t rocfft_brick_t::intersect(const rocfft_brick_t& other) const
     return ret;
 }
 
+bool rocfft_brick_t::equal_coords(const rocfft_brick_t& other) const
+{
+    return this->lower == other.lower && this->upper == other.upper;
+}
+
 size_t rocfft_brick_t::offset_in_field(const std::vector<size_t>& fieldStride) const
 {
     return std::inner_product(lower.begin(), lower.end(), fieldStride.begin(), 0);
+}
+
+std::string rocfft_brick_t::str() const
+{
+    std::string ret;
+    ret += "lower ";
+    for(auto i : lower)
+    {
+        ret += " ";
+        ret += std::to_string(i);
+    }
+
+    ret += " upper ";
+    for(auto i : upper)
+    {
+        ret += " ";
+        ret += std::to_string(i);
+    }
+
+    ret += " stride ";
+    for(auto i : stride)
+    {
+        ret += " ";
+        ret += std::to_string(i);
+    }
+    ret += " device ";
+    ret += std::to_string(device);
+    return ret;
 }
 
 rocfft_status rocfft_field_add_brick(rocfft_field field, rocfft_brick brick)
@@ -651,11 +653,15 @@ void set_bluestein_strides(const rocfft_plan plan, NodeMetaData& planData)
 
     assert(rank == dimension);
 
-    lengthsBlue[0] = NodeFactory::SupportedLength(precision, lengths[0])
-                         ? lengths[0]
-                         : NodeFactory::GetBluesteinLength(precision, lengths[0]);
+    // for real inverse transforms we need to look at the complex length
+    auto fftLength
+        = transformType == rocfft_transform_type_real_inverse ? plan->outputLengths : plan->lengths;
+
+    lengthsBlue[0] = NodeFactory::SupportedLength(precision, fftLength[0])
+                         ? fftLength[0]
+                         : NodeFactory::GetBluesteinLength(precision, fftLength[0]);
     for(size_t i = 1; i < dimension; i++)
-        lengthsBlue[i] = lengths[i];
+        lengthsBlue[i] = fftLength[i];
 
     // =================================
     // inStrides
@@ -1339,20 +1345,8 @@ static std::unique_ptr<ExecPlan> BuildSingleDevicePlan(NodeMetaData&         roo
         }
 
         execPlan.iLength = rootPlanData.length;
-        execPlan.oLength = rootPlanData.length;
-
-        if(transformType == rocfft_transform_type_real_inverse)
-        {
-            execPlan.iLength.front() = execPlan.iLength.front() / 2 + 1;
-            if(rootPlanData.placement == rocfft_placement_inplace)
-                execPlan.oLength.front() = execPlan.iLength.front() * 2;
-        }
-        if(transformType == rocfft_transform_type_real_forward)
-        {
-            execPlan.oLength.front() = execPlan.oLength.front() / 2 + 1;
-            if(rootPlanData.placement == rocfft_placement_inplace)
-                execPlan.iLength.front() = execPlan.oLength.front() * 2;
-        }
+        execPlan.oLength
+            = rootPlanData.outputLength.empty() ? rootPlanData.length : rootPlanData.outputLength;
 
         // setup isUnitStride values
         execPlan.rootPlan->inStrideUnit  = BufferIsUnitStride(execPlan, OB_USER_IN);
@@ -1605,6 +1599,58 @@ bool rocfft_plan_t::BuildOptMultiDevicePlan()
     return true;
 }
 
+void rocfft_plan_t::ValidateFields() const
+{
+    auto validateField = [](const char*                type,
+                            const std::vector<size_t>& lengths,
+                            size_t                     batch,
+                            const rocfft_field_t&      field) {
+        // construct a brick that covers the whole field
+        rocfft_brick_t whole_field;
+        whole_field.lower.resize(lengths.size() + 1);
+        whole_field.upper = lengths;
+        whole_field.upper.push_back(batch);
+
+        // ensure no bricks in the field overlap - check each brick
+        // against each other brick
+        for(auto brickI = field.bricks.begin(); brickI != field.bricks.end(); ++brickI)
+        {
+            for(auto brickJ = brickI + 1; brickJ != field.bricks.end(); ++brickJ)
+            {
+                if(!brickI->intersect(*brickJ).empty())
+                {
+                    throw std::runtime_error(std::string(type) + " brick " + brickI->str()
+                                             + " overlaps with brick " + brickJ->str());
+                }
+            }
+
+            // ensure each brick is within the field
+            if(!brickI->equal_coords(brickI->intersect(whole_field)))
+                throw std::runtime_error(std::string(type) + " brick " + brickI->str()
+                                         + " is not within field");
+        }
+
+        // check that the bricks cover the whole index space
+        const size_t whole_field_elems = whole_field.count_elems();
+
+        // add up total number of elements in all bricks,
+        // should be the same since we know there are no
+        // overlaps
+        size_t total_brick_elems = 0;
+        for(const auto& b : field.bricks)
+            total_brick_elems += b.count_elems();
+        if(whole_field_elems != total_brick_elems)
+            throw std::runtime_error(std::string(type) + " field has "
+                                     + std::to_string(whole_field_elems) + " elems but bricks have "
+                                     + std::to_string(total_brick_elems) + " elems");
+    };
+
+    if(!desc.inFields.empty())
+        validateField("input", lengths, batch, desc.inFields.front());
+    if(!desc.outFields.empty())
+        validateField("output", outputLengths, batch, desc.outFields.front());
+}
+
 rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
                                           const rocfft_result_placement placement,
                                           const rocfft_transform_type   transform_type,
@@ -1625,11 +1671,23 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     p->precision     = precision;
     p->transformType = transform_type;
 
+    p->outputLengths = p->lengths;
+    if(transform_type == rocfft_transform_type_real_forward
+       || transform_type == rocfft_transform_type_real_inverse)
+    {
+        p->outputLengths.front() = p->outputLengths.front() / 2 + 1;
+    }
+    if(transform_type == rocfft_transform_type_real_inverse)
+        std::swap(p->outputLengths, p->lengths);
+
     if(description != nullptr)
     {
         p->desc = *description;
     }
-    p->desc.init_defaults(p->transformType, p->placement, p->lengths);
+    p->desc.init_defaults(p->transformType, p->placement, p->lengths, p->outputLengths);
+
+    // sort the parameters to be row major, in case they're not
+    plan->sort();
 
     // Check plan validity
     switch(transform_type)
@@ -1680,14 +1738,13 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
         break;
     }
 
-    // sort the parameters to be row major, in case they're not
-    plan->sort();
-
     log_bench(rocfft_bench_command(p));
 
     // construct the plan
     try
     {
+        plan->ValidateFields();
+
         // build an optimized multi-device plan, if possible
         if(!plan->BuildOptMultiDevicePlan())
         {
@@ -1702,6 +1759,7 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
             for(size_t i = 0; i < plan->rank; i++)
             {
                 rootPlanData.length.push_back(plan->lengths[i]);
+                rootPlanData.outputLength.push_back(plan->outputLengths[i]);
 
                 rootPlanData.inStride.push_back(plan->desc.inStrides[i]);
                 rootPlanData.outStride.push_back(plan->desc.outStrides[i]);
@@ -2058,9 +2116,11 @@ bool BufferIsUnitStride(ExecPlan& execPlan, OperatingBuffer buf)
 
 void TreeNode::CopyNodeData(const TreeNode& srcNode)
 {
-    dimension       = srcNode.dimension;
-    batch           = srcNode.batch;
-    length          = srcNode.length;
+    dimension = srcNode.dimension;
+    batch     = srcNode.batch;
+    length    = srcNode.length;
+    if(srcNode.outputLength != srcNode.length)
+        outputLength = srcNode.outputLength;
     inStride        = srcNode.inStride;
     inStrideBlue    = srcNode.inStrideBlue;
     outStride       = srcNode.outStride;
@@ -2106,9 +2166,11 @@ void TreeNode::CopyNodeData(const TreeNode& srcNode)
 
 void TreeNode::CopyNodeData(const NodeMetaData& data)
 {
-    dimension     = data.dimension;
-    batch         = data.batch;
-    length        = data.length;
+    dimension = data.dimension;
+    batch     = data.batch;
+    length    = data.length;
+    if(data.outputLength != data.length)
+        outputLength = data.outputLength;
     inStride      = data.inStride;
     inStrideBlue  = data.inStrideBlue;
     outStride     = data.outStride;
@@ -2480,7 +2542,7 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     {
         os << length[i] << " ";
     }
-    if(!outputLength.empty())
+    if(!outputLength.empty() && outputLength != length)
     {
         os << "\n" << indentStr;
         os << "outputLength: ";

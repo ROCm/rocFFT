@@ -30,11 +30,19 @@ static void set_complex_length(TreeNode&                   node,
                                const std::vector<size_t>*& realLength,
                                const std::vector<size_t>*& complexLength)
 {
-    // length on the node as given counts in real units.  compute
-    // number of complex units, assuming forward transform
-    node.outputLength = node.length;
-    node.outputLength.front() /= 2;
-    node.outputLength.front() += 1;
+    // if output is not set yet, then node.length counts in real
+    // units.  compute number of complex units and make both input
+    // and output lengths correct
+    if(node.outputLength.empty())
+    {
+        node.outputLength = node.length;
+        node.outputLength.front() /= 2;
+        node.outputLength.front() += 1;
+
+        if(node.direction == 1)
+            std::swap(node.length, node.outputLength);
+    }
+
     if(node.direction == -1)
     {
         // forward transform
@@ -44,7 +52,6 @@ static void set_complex_length(TreeNode&                   node,
     else
     {
         // complex
-        std::swap(node.length, node.outputLength);
         complexLength = &node.length;
         realLength    = &node.outputLength;
     }
@@ -205,12 +212,13 @@ void RealTransEvenNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
     bool noSolution = child_scheme_trees.empty();
 
-    // Fastest moving dimension must be even:
-    assert(length[0] % 2 == 0);
-
     const std::vector<size_t>* realLength    = nullptr;
     const std::vector<size_t>* complexLength = nullptr;
     set_complex_length(*this, realLength, complexLength);
+
+    // Fastest moving dimension must be even:
+    if(realLength->at(0) % 2 != 0)
+        throw std::runtime_error("fastest dimension is not even in RealTransEvenNode");
 
     // check schemes from solution map
     ComputeScheme determined_scheme = CS_NONE;
@@ -445,11 +453,13 @@ void RealTransEvenNode::AssignParams_internal()
  *****************************************************/
 void Real2DEvenNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 {
-    // Fastest moving dimension must be even:
-    assert(length[0] % 2 == 0);
     const std::vector<size_t>* realLength    = nullptr;
     const std::vector<size_t>* complexLength = nullptr;
     set_complex_length(*this, realLength, complexLength);
+
+    // Fastest moving dimension must be even:
+    if(realLength->at(0) % 2 != 0)
+        throw std::runtime_error("fastest dimension is not even in RealTransEvenNode");
 
     //
     // TODO- we need to replace the solution-decision part with plan-solution.
@@ -971,12 +981,13 @@ void Real3DEvenNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
 
 void Real3DEvenNode::Build_solution()
 {
-    // Fastest moving dimension must be even:
-    assert(length[0] % 2 == 0);
-
     const std::vector<size_t>* realLength    = nullptr;
     const std::vector<size_t>* complexLength = nullptr;
     set_complex_length(*this, realLength, complexLength);
+
+    // Fastest moving dimension must be even:
+    if(realLength->at(0) % 2 != 0)
+        throw std::runtime_error("fastest dimension is not even in RealTransEvenNode");
 
     const bool forward = inArrayType == rocfft_array_type_real;
 

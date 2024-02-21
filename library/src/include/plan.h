@@ -102,6 +102,8 @@ struct rocfft_brick_t
 
     // location of the brick
     int device = 0;
+
+    std::string str() const;
 };
 
 struct rocfft_field_t
@@ -137,7 +139,8 @@ struct rocfft_plan_description_t
     // unspecified.
     void init_defaults(rocfft_transform_type      transformType,
                        rocfft_result_placement    placement,
-                       const std::vector<size_t>& lengths);
+                       const std::vector<size_t>& lengths,
+                       const std::vector<size_t>& outputLengths);
 
     // Count the number of pointers required for either input or output
     // - planar data requires two pointers, real + complex require one.
@@ -157,8 +160,12 @@ struct rocfft_plan_description_t
 
 struct rocfft_plan_t
 {
-    size_t              rank = 1;
+    size_t rank = 0;
+    // input lengths
     std::vector<size_t> lengths;
+    // output lengths, which differ from input lengths for real-complex
+    // transforms
+    std::vector<size_t> outputLengths;
     size_t              batch = 1;
 
     rocfft_result_placement placement     = rocfft_placement_inplace;
@@ -218,6 +225,10 @@ struct rocfft_plan_t
 
     // log field layout at plan level
     static void LogFields(const char* description, const std::vector<rocfft_field_t>& fields);
+
+    // throw exception if input/output fields are not valid (e.g. they
+    // don't cover the whole index space, or bricks overlap)
+    void ValidateFields() const;
 
 private:
     // Multi-node or multi-GPU plan is built up from a vector of plan

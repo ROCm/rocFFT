@@ -562,7 +562,10 @@ ComputeScheme NodeFactory::DecideNodeScheme(NodeMetaData& nodeData, TreeNode* pa
 
 ComputeScheme NodeFactory::DecideRealScheme(NodeMetaData& nodeData)
 {
-    if(nodeData.length[0] % 2 == 0 && nodeData.inStride[0] == 1 && nodeData.outStride[0] == 1)
+    // use size in real units to decide what scheme to use
+    const auto& realLength = nodeData.direction == -1 ? nodeData.length : nodeData.outputLength;
+
+    if(realLength[0] % 2 == 0 && nodeData.inStride[0] == 1 && nodeData.outStride[0] == 1)
     {
         switch(nodeData.dimension)
         {

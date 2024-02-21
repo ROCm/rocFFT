@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "../../shared/accuracy_test.h"
+#include "../../shared/rocfft_params.h"
 #include <gtest/gtest.h>
 #include <hip/hip_runtime_api.h>
 
@@ -114,3 +115,95 @@ INSTANTIATE_TEST_SUITE_P(multi_gpu_slowin_fastout,
                          ::testing::ValuesIn(param_generator_multi_gpu(
                              fft_params::SplitType::SLOWEST, fft_params::SplitType::FASTEST, 2)),
                          accuracy_test::TestName);
+
+TEST(multi_gpu_validate, catch_validation_errors)
+{
+    const auto all_split_types = {fft_params::SplitType::NONE,
+                                  fft_params::SplitType::SLOWEST,
+                                  fft_params::SplitType::FASTEST};
+
+    for(auto input_split : all_split_types)
+    {
+        for(auto output_split : all_split_types)
+        {
+            if(input_split == fft_params::SplitType::NONE
+               && output_split == fft_params::SplitType::NONE)
+                continue;
+
+            // gather all of the multi-GPU test cases
+            auto params = param_generator_multi_gpu(input_split, output_split);
+
+            for(size_t i = 0; i < params.size(); ++i)
+            {
+                auto& param = params[i];
+
+                std::vector<fft_params::fft_field*> available_fields;
+                if(input_split != fft_params::SplitType::NONE)
+                    available_fields.push_back(&param.ifields.front());
+                if(output_split != fft_params::SplitType::NONE)
+                    available_fields.push_back(&param.ofields.front());
+
+                // get iterator to the brick we will modify
+                auto field      = available_fields[i % available_fields.size()];
+                auto brick_iter = field->bricks.begin() + i % field->bricks.size();
+
+                // iterate through the 5 cases we want to test:
+                switch(i % 5)
+                {
+                case 0:
+                {
+                    // missing brick
+                    field->bricks.erase(brick_iter);
+                    break;
+                }
+                case 1:
+                {
+                    // a brick's lower index too small by one
+                    size_t& index = brick_iter->lower[i % brick_iter->lower.size()];
+                    // don't worry about underflow since that should also
+                    // produce an invalid brick layout
+                    --index;
+                    break;
+                }
+                case 2:
+                {
+                    // a brick's lower index too large by one
+                    size_t& index = brick_iter->lower[i % brick_iter->lower.size()];
+                    ++index;
+                    break;
+                }
+                case 3:
+                {
+                    // a brick's upper index too small by one
+                    size_t& index = brick_iter->upper[i % brick_iter->lower.size()];
+                    // don't worry about underflow since that should also
+                    // produce an invalid brick layout
+                    --index;
+                    break;
+                }
+                case 4:
+                {
+                    // a brick's upper index too large by one
+                    size_t& index = brick_iter->upper[i % brick_iter->lower.size()];
+                    ++index;
+                    break;
+                }
+                }
+
+                rocfft_params rparam{param};
+                // brick layout is invalid, so this should fail
+                try
+                {
+                    rparam.setup_structs();
+                }
+                catch(std::runtime_error&)
+                {
+                    continue;
+                }
+                // didn't get an exception, fail the test
+                GTEST_FAIL() << "invalid brick layout " << rparam.token()
+                             << " should have failed, but plan was created successfully";
+            }
+        }
+    }
+}
