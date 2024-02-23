@@ -68,7 +68,7 @@ struct rocfft_brick_t
     {
         std::vector<size_t> ret;
         for(size_t i = 0; i < lower.size(); ++i)
-            ret.push_back(upper[i] - lower[i]);
+            ret.push_back(upper[i] > lower[i] ? upper[i] - lower[i] : 0);
         return ret;
     }
 
