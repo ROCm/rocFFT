@@ -847,21 +847,6 @@ struct MultiPlanItem
         return 0;
     }
 
-    // Utility function to check HIP memcpy accessibility between two
-    // devices.  Throws std::runtime_error if access is not possible.
-    static void CheckAccess(rocfft_deviceid_t src, rocfft_deviceid_t dest)
-    {
-        // allow same device, since we'll do normal memcpy instead of
-        // peer memcpy in that case
-        if(src == dest)
-            return;
-        int canAccessPeer = 0;
-        if(hipDeviceCanAccessPeer(&canAccessPeer, src, dest) != hipSuccess)
-            throw std::runtime_error("hipDeviceCanAccessPeer failed");
-        if(!canAccessPeer)
-            throw std::runtime_error("Unable to perform peer-to-peer GPU-direct copies");
-    }
-
     // print a description of this item to the plan log
     virtual void Print(rocfft_ostream& os, const int indent) const = 0;
 

@@ -433,7 +433,6 @@ void CommPointToPoint::ExecuteAsync(const rocfft_plan     plan,
     stream.alloc();
     event.alloc();
 
-    CheckAccess(srcDeviceID, destDeviceID);
     auto memSize = numElems * element_size(precision, arrayType);
     auto srcWithOffset
         = ptr_offset(srcPtr.get(in_buffer, out_buffer), srcOffset, precision, arrayType);
@@ -492,8 +491,6 @@ void CommScatter::ExecuteAsync(const rocfft_plan     plan,
 
     for(const auto& op : ops)
     {
-        CheckAccess(srcDeviceID, op.destDeviceID);
-
         auto memSize = op.numElems * element_size(precision, arrayType);
 
         auto srcWithOffset
@@ -563,8 +560,6 @@ void CommGather::ExecuteAsync(const rocfft_plan     plan,
         const auto& op     = ops[i];
         auto&       stream = streams[i];
         auto&       event  = events[i];
-
-        CheckAccess(op.srcDeviceID, destDeviceID);
 
         rocfft_scoped_device dev(op.srcDeviceID);
         stream.alloc();
