@@ -1370,14 +1370,6 @@ static std::unique_ptr<ExecPlan> BuildSingleDevicePlan(NodeMetaData&         roo
 
         ProcessNode(execPlan); // TODO: more descriptions are needed
 
-        // when running each solution during tuning, get the information to packet,
-        // then we can dump the information to a table for analysis
-        if(TuningBenchmarker::GetSingleton().IsProcessingTuning())
-        {
-            if(!GetTuningKernelInfo(execPlan))
-                throw std::runtime_error("Unable to get the solution info.");
-        }
-
         // plan is compiled, no need to alloc twiddles + kargs etc
         if(rocfft_getenv("ROCFFT_INTERNAL_COMPILE_ONLY") == "1")
             return execPlanMultiItem;
@@ -1385,6 +1377,14 @@ static std::unique_ptr<ExecPlan> BuildSingleDevicePlan(NodeMetaData&         roo
         if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
         {
             throw std::runtime_error("Unable to create execution plan.");
+        }
+
+        // when running each solution during tuning, get the information to packet,
+        // then we can dump the information to a table for analysis
+        if(TuningBenchmarker::GetSingleton().IsProcessingTuning())
+        {
+            if(!GetTuningKernelInfo(execPlan))
+                throw std::runtime_error("Unable to get the solution info.");
         }
 
         return execPlanMultiItem;
