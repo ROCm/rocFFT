@@ -165,18 +165,28 @@ void rocfft_plan_description_t::init_defaults(rocfft_transform_type      transfo
         {
             // Set the outStrides to deal with contiguous data
             for(size_t i = 1; i < rank; i++)
-                outStrides.push_back(lengths[i - 1] * outStrides[i - 1]);
+                outStrides.push_back(outputLengths[i - 1] * outStrides[i - 1]);
         }
     }
 
     // Set in and out Distances, if not specified
     if(inDist == 0)
     {
-        inDist = lengths[rank - 1] * inStrides[rank - 1];
+        // In-place 1D transforms need extra dist.
+        if(transformType == rocfft_transform_type_real_forward && lengths.size() == 1
+           && placement == rocfft_placement_inplace)
+            inDist = 2 * (lengths[0] / 2 + 1) * inStrides[0];
+        else
+            inDist = lengths[rank - 1] * inStrides[rank - 1];
     }
     if(outDist == 0)
     {
-        outDist = lengths[rank - 1] * outStrides[rank - 1];
+        // In-place 1D transforms need extra dist.
+        if(transformType == rocfft_transform_type_real_inverse && lengths.size() == 1
+           && placement == rocfft_placement_inplace)
+            outDist = 2 * lengths[0] * outStrides[0];
+        else
+            outDist = outputLengths[rank - 1] * outStrides[rank - 1];
     }
 }
 
