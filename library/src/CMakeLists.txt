@@ -540,6 +540,9 @@ endif()
 # to collect compiled kernels before writing them out as part of the
 # build.  any kernels that already exist in this file will be reused
 # between builds.
+#
+# If ROCFFT_BUILD_KERNEL_CACHE_PATH is unspecified, rocfft_aot_helper
+# uses a temporary file.
 
 # Only build kernels ahead-of-time for a more limited set of
 # architectures.  Less common architectures are filtered out from the
