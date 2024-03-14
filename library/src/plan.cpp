@@ -2129,7 +2129,7 @@ void TreeNode::CopyNodeData(const TreeNode& srcNode)
     dimension = srcNode.dimension;
     batch     = srcNode.batch;
     length    = srcNode.length;
-    if(srcNode.outputLength != srcNode.length)
+    if(!srcNode.outputLength.empty())
         outputLength = srcNode.outputLength;
     inStride        = srcNode.inStride;
     inStrideBlue    = srcNode.inStrideBlue;
@@ -2179,7 +2179,7 @@ void TreeNode::CopyNodeData(const NodeMetaData& data)
     dimension = data.dimension;
     batch     = data.batch;
     length    = data.length;
-    if(data.outputLength != data.length)
+    if(!data.outputLength.empty())
         outputLength = data.outputLength;
     inStride      = data.inStride;
     inStrideBlue  = data.inStrideBlue;
@@ -2891,8 +2891,14 @@ void GetNodeToken(const TreeNode& probNode, std::string& min_token, std::string&
                             ? ("")
                             : (PrintKernelSchemeAbbr(probNode.scheme) + "_");
 
+    // Solutions are keyed on complex length.  So for C2R transforms,
+    // use the output length to search for solutions.
+    auto& probLength = (array_type_is_complex(probNode.inArrayType)
+                        && probNode.outArrayType == rocfft_array_type_real)
+                           ? probNode.outputLength
+                           : probNode.length;
     for(size_t i = 0; i < probNode.dimension; ++i)
-        token += std::to_string(probNode.length[i]) + "_";
+        token += std::to_string(probLength[i]) + "_";
 
     std::string precision_str;
     if(probNode.precision == rocfft_precision_single)
