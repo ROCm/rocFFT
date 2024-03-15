@@ -3,6 +3,16 @@
 Documentation for rocFFT is available at
 [https://rocm.docs.amd.com/projects/rocFFT/en/latest/](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
 
+## rocFFT 1.0.27 for ROCm 6.1.1
+
+### Fixes
+
+* Fixed kernel launch failure on execute of very large odd-length real-complex transforms.
+
+### Additions
+
+* Enable multi-gpu testing on systems without direct GPU-interconnects
+
 ## rocFFT 1.0.26 for ROCm 6.1.0
 
 ### Changes
