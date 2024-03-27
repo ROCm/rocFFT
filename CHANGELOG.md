@@ -11,6 +11,10 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.26 for ROCm 6.1.0
 
+### Additions
+
+* CMake support for documentation.
+
 ### Changes
 
 * Multi-device FFTs now allow batch greater than 1
