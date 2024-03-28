@@ -174,42 +174,81 @@ void rocfft_plan_t::LogFields(const char* description, const std::vector<rocfft_
 
 void rocfft_plan_t::LogSortedPlan(const std::vector<size_t>& sortedIdx) const
 {
-    if(!LOG_PLAN_ENABLED())
-        return;
-
-    auto& os = *LogSingleton::GetInstance().GetPlanOS();
-
     // if we have a single-node plan, just log that without any extra
-    // indenting
+    // fuss
     if(multiPlan.size() == 1)
     {
-        multiPlan.front()->Print(os, 0);
+        if(LOG_PLAN_ENABLED())
+        {
+            auto& os = *LogSingleton::GetInstance().GetPlanOS();
+            multiPlan.front()->Print(os, 0);
+        }
         return;
     }
+
+    // multi-device plan, log that with dependency graph
+    if(!LOG_GRAPH_ENABLED())
+        return;
+
+    auto& os = *LogSingleton::GetInstance().GetGraphOS();
+    os << "digraph plan {\n";
+    os << "ranksep=2;\n";
+
+    // gather up all of the groups for the nodes so they can turn into clustered subgraphs
+    std::multimap<std::string, size_t> groups;
 
     for(auto i = sortedIdx.begin(); i != sortedIdx.end(); ++i)
     {
         auto idx = *i;
-        os << "multiPlan idx " << idx;
 
         const auto& antecedents = multiPlanAdjacency[idx];
-        if(!antecedents.empty())
+        for(auto antecedentIdx : antecedents)
         {
-            os << "(depends on";
-            for(auto antecedentIdx : antecedents)
-            {
-                os << " " << antecedentIdx;
-            }
-            os << ")";
+            os << antecedentIdx << " -> " << idx << ";\n";
         }
-        os << std::endl;
 
+        rocfft_ostream item;
         if(!multiPlan[idx])
-            os << "  (null)" << std::endl;
+            item << "(null)";
         else
-            multiPlan[idx]->Print(os, 1);
-        os << std::endl;
+            multiPlan[idx]->Print(item, 1);
+        item << std::endl;
+        std::string itemStr = item.str();
+        // escape \n and "
+        std::string itemStrEscaped;
+        for(auto c : itemStr)
+        {
+            if(c == '\"')
+            {
+                itemStrEscaped.push_back('\\');
+                itemStrEscaped.push_back('\"');
+            }
+            else if(c == '\n')
+            {
+                itemStrEscaped.push_back('\\');
+                itemStrEscaped.push_back('n');
+            }
+            else
+                itemStrEscaped.push_back(c);
+        }
+        os << idx << " [label=\"" << idx << "\\n"
+           << multiPlan[idx]->description << "\" tooltip=\"" << itemStrEscaped << "\"];\n";
+
+        groups.insert(std::make_pair(multiPlan[idx]->group, idx));
     }
+    auto giter = groups.begin();
+    while(giter != groups.end())
+    {
+        auto gend = groups.upper_bound(giter->first);
+        os << "subgraph cluster_" << giter->first << " {\n";
+        os << "\nlabel=\"" << giter->first << "\";\n";
+        for(; giter != gend; ++giter)
+        {
+            os << giter->second << ";";
+        }
+        os << "}\n";
+    }
+    os << "}\n" << std::endl;
 }
 
 void rocfft_plan_t::Execute(void* in_buffer[], void* out_buffer[], rocfft_execution_info info)

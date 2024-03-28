@@ -853,6 +853,13 @@ struct MultiPlanItem
     // utility function to print a buffer enum with a description of
     // the pointer and an offset
     static std::string PrintBufferPtrOffset(const BufferPtr& ptr, size_t offset);
+
+    // high-level description of what this item is doing, displayed
+    // when logging plan graph
+    std::string description;
+    // group to assign this item to (letters, numbers, underscores).
+    // items in the same group are drawn together in the graph
+    std::string group;
 };
 
 // communication operations

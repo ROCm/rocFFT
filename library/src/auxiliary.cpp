@@ -43,6 +43,7 @@ int log_plan_fd     = -1;
 int log_kernelio_fd = -1;
 int log_rtc_fd      = -1;
 int log_tuning_fd   = -1;
+int log_graph_fd    = -1;
 
 /**
  *  @brief Logging function
@@ -123,6 +124,10 @@ rocfft_status rocfft_setup()
         // open log_tuning file
         if(layer_mode & rocfft_layer_mode_log_tuning)
             open_log_stream("ROCFFT_LOG_TUNING_PATH", log_tuning_fd);
+
+        // open log_graph file
+        if(layer_mode & rocfft_layer_mode_log_graph)
+            open_log_stream("ROCFFT_LOG_GRAPH_PATH", log_graph_fd);
     }
 
     // setup solution map once in program at the start of library use
@@ -184,6 +189,11 @@ rocfft_status rocfft_cleanup()
     {
         CLOSE(log_tuning_fd);
         log_tuning_fd = -1;
+    }
+    if(log_graph_fd != -1)
+    {
+        CLOSE(log_graph_fd);
+        log_graph_fd = -1;
     }
 
     // stop all log worker threads

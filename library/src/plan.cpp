@@ -969,7 +969,10 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
 
     // add gather to the plan first - we will add operations to it
     // later
-    size_t gatherIdx = AddMultiPlanItem(std::move(gatherPtr), antecedents);
+    size_t gatherIdx                  = AddMultiPlanItem(std::move(gatherPtr), antecedents);
+    multiPlan[gatherIdx]->description = "gather bricks";
+    std::string gatherGroup           = "gather" + std::to_string(gatherIdx);
+    multiPlan[gatherIdx]->group       = gatherGroup;
 
     const bool gatherToTemp
         = std::any_of(bricks.begin(), bricks.end(), [&](const rocfft_brick_t& b) {
@@ -1021,6 +1024,9 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
                                                    b.contiguous_strides(),
                                                    std::move(description)),
                                    antecedents);
+            multiPlan[packIdx]->description = "pack brick " + std::to_string(brickIdx);
+            multiPlan[packIdx]->group       = gatherGroup;
+
             AddAntecedent(gatherIdx, packIdx);
 
             gather->ops.emplace_back(b.device,
@@ -1048,6 +1054,9 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
                                                  field_stride,
                                                  std::move(description)),
                                  {gatherIdx}));
+            multiPlan[outputPlanItems.back()]->description
+                = "unpack brick " + std::to_string(brickIdx);
+            multiPlan[outputPlanItems.back()]->group = gatherGroup;
         }
 
         contiguousOffset += b.count_elems();
@@ -1084,7 +1093,10 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
     scatter->srcDeviceID = currentDevice;
 
     // add scatter to the multi-plan first, add operations afterwards
-    auto scatterIdx = AddMultiPlanItem(std::move(scatterPtr), antecedents);
+    auto scatterIdx                    = AddMultiPlanItem(std::move(scatterPtr), antecedents);
+    multiPlan[scatterIdx]->description = "scatter bricks";
+    std::string scatterGroup           = "scatter" + std::to_string(scatterIdx);
+    multiPlan[scatterIdx]->group       = scatterGroup;
 
     const bool scatterFromTemp
         = std::any_of(bricks.begin(), bricks.end(), [&](const rocfft_brick_t& b) {
@@ -1122,8 +1134,8 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
             // pack data to be contiguous
             std::string description = "pack brick " + std::to_string(brickIdx) + " before scatter";
 
-            const auto brickLen = b.length();
-            auto       packIdx  = AddMultiPlanItem(transpose_brick(currentDevice,
+            const auto brickLen             = b.length();
+            auto       packIdx              = AddMultiPlanItem(transpose_brick(currentDevice,
                                                             b.length(),
                                                             precision,
                                                             arrayType,
@@ -1135,6 +1147,8 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
                                                             b.contiguous_strides(),
                                                             std::move(description)),
                                             antecedents);
+            multiPlan[packIdx]->description = "pack brick " + std::to_string(brickIdx);
+            multiPlan[packIdx]->group       = scatterGroup;
             AddAntecedent(scatterIdx, packIdx);
 
             // bricks are packed to be contiguous - if output is the
@@ -1175,6 +1189,9 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
                                                      b.stride,
                                                      std::move(description)),
                                      {scatterIdx}));
+                multiPlan[outputPlanItems.back()]->description
+                    = "unpack brick " + std::to_string(brickIdx);
+                multiPlan[outputPlanItems.back()]->group = scatterGroup;
             }
         }
         contiguousOffset += b.count_elems();
@@ -1281,7 +1298,8 @@ void rocfft_plan_t::GatherScatterSingleDevicePlan(std::unique_ptr<ExecPlan>&& ex
         execPlan->outputPtr = execPlan->inputPtr;
     else if(fftOutBuf)
         execPlan->outputPtr = BufferPtr::temp(fftOutBuf->data());
-    auto fftIdx = AddMultiPlanItem(std::move(execPlanPtr), gatherIndexes);
+    auto fftIdx                    = AddMultiPlanItem(std::move(execPlanPtr), gatherIndexes);
+    multiPlan[fftIdx]->description = "FFT";
 
     // scatter data back out
     for(const auto& outField : desc.outFields)
