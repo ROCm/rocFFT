@@ -539,8 +539,12 @@ TEST(manual, vs_fftw) // MANUAL TESTS HERE
 
     if(manual_devices > 1)
     {
-        params.distribute_input(manual_devices, fft_params::SplitType::SLOWEST);
-        params.distribute_output(manual_devices, fft_params::SplitType::SLOWEST);
+        // just distribute along the slowest FFT dimension
+        std::vector<unsigned int> deviceGrid(params.length.size() + 1, 1);
+        deviceGrid[1] = manual_devices;
+
+        params.distribute_input(deviceGrid);
+        params.distribute_output(deviceGrid);
     }
 
     // Run an individual test using the provided command-line parameters.

@@ -29,9 +29,19 @@ static const std::vector<std::vector<size_t>> multi_gpu_sizes = {
     {256, 256, 256},
 };
 
-std::vector<fft_params> param_generator_multi_gpu(const fft_params::SplitType input_split,
-                                                  const fft_params::SplitType output_split,
-                                                  size_t                      min_fft_rank = 1)
+enum SplitType
+{
+    // split both input and output on slow FFT dimension
+    SLOW_INOUT,
+    // split only input on slow FFT dimension, output is not split
+    SLOW_IN,
+    // split only output on slow FFT dimension, input is not split
+    SLOW_OUT,
+    // split input on slow FFT dimension, and output on fast FFT dimension
+    SLOW_IN_FAST_OUT,
+};
+
+std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
 {
     int deviceCount = 0;
     (void)hipGetDeviceCount(&deviceCount);
@@ -65,12 +75,34 @@ std::vector<fft_params> param_generator_multi_gpu(const fft_params::SplitType in
     auto distribute_params = [=, &all_params](const std::vector<fft_params>& params) {
         for(auto& p : params)
         {
-            if(p.length.size() < min_fft_rank)
-                continue;
+            // start with all-ones in grids
+            std::vector<unsigned int> input_grid(p.length.size() + 1, 1);
+            std::vector<unsigned int> output_grid(p.length.size() + 1, 1);
 
             auto p_dist = p;
-            p_dist.distribute_input(deviceCount, input_split);
-            p_dist.distribute_output(deviceCount, output_split);
+            switch(type)
+            {
+            case SLOW_INOUT:
+                input_grid[1]  = deviceCount;
+                output_grid[1] = deviceCount;
+                break;
+            case SLOW_IN:
+                input_grid[1] = deviceCount;
+                break;
+            case SLOW_OUT:
+                output_grid[1] = deviceCount;
+                break;
+            case SLOW_IN_FAST_OUT:
+                // requires at least rank-2 FFT
+                if(p.length.size() < 2)
+                    continue;
+                input_grid[1]      = deviceCount;
+                output_grid.back() = deviceCount;
+                break;
+            }
+
+            p_dist.distribute_input(input_grid);
+            p_dist.distribute_output(output_grid);
 
             // "placement" flag is meaningless if exactly one of
             // input+output is a field.  So just add those cases if
@@ -92,118 +124,110 @@ std::vector<fft_params> param_generator_multi_gpu(const fft_params::SplitType in
 // split both input and output on slowest FFT dim
 INSTANTIATE_TEST_SUITE_P(multi_gpu_slowest_dim,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator_multi_gpu(
-                             fft_params::SplitType::SLOWEST, fft_params::SplitType::SLOWEST)),
+                         ::testing::ValuesIn(param_generator_multi_gpu(SLOW_INOUT)),
                          accuracy_test::TestName);
 
 // split slowest FFT dim only on input, or only on output
 INSTANTIATE_TEST_SUITE_P(multi_gpu_slowest_input_dim,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator_multi_gpu(
-                             fft_params::SplitType::SLOWEST, fft_params::SplitType::NONE)),
+                         ::testing::ValuesIn(param_generator_multi_gpu(SLOW_IN)),
                          accuracy_test::TestName);
 INSTANTIATE_TEST_SUITE_P(multi_gpu_slowest_output_dim,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator_multi_gpu(
-                             fft_params::SplitType::NONE, fft_params::SplitType::SLOWEST)),
+                         ::testing::ValuesIn(param_generator_multi_gpu(SLOW_OUT)),
                          accuracy_test::TestName);
 
 // split input on slowest FFT and output on fastest, to minimize data
 // movement (only makes sense for rank-2 and higher FFTs)
 INSTANTIATE_TEST_SUITE_P(multi_gpu_slowin_fastout,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator_multi_gpu(
-                             fft_params::SplitType::SLOWEST, fft_params::SplitType::FASTEST, 2)),
+                         ::testing::ValuesIn(param_generator_multi_gpu(SLOW_IN_FAST_OUT)),
                          accuracy_test::TestName);
 
 TEST(multi_gpu_validate, catch_validation_errors)
 {
-    const auto all_split_types = {fft_params::SplitType::NONE,
-                                  fft_params::SplitType::SLOWEST,
-                                  fft_params::SplitType::FASTEST};
+    const auto all_split_types = {
+        SLOW_INOUT,
+        SLOW_IN,
+        SLOW_OUT,
+        SLOW_IN_FAST_OUT,
+    };
 
-    for(auto input_split : all_split_types)
+    for(auto type : all_split_types)
     {
-        for(auto output_split : all_split_types)
+        // gather all of the multi-GPU test cases
+        auto params = param_generator_multi_gpu(type);
+
+        for(size_t i = 0; i < params.size(); ++i)
         {
-            if(input_split == fft_params::SplitType::NONE
-               && output_split == fft_params::SplitType::NONE)
-                continue;
+            auto& param = params[i];
 
-            // gather all of the multi-GPU test cases
-            auto params = param_generator_multi_gpu(input_split, output_split);
+            std::vector<fft_params::fft_field*> available_fields;
+            if(!param.ifields.empty())
+                available_fields.push_back(&param.ifields.front());
+            if(!param.ofields.empty())
+                available_fields.push_back(&param.ofields.front());
 
-            for(size_t i = 0; i < params.size(); ++i)
+            // get iterator to the brick we will modify
+            auto field      = available_fields[i % available_fields.size()];
+            auto brick_iter = field->bricks.begin() + i % field->bricks.size();
+
+            // iterate through the 5 cases we want to test:
+            switch(i % 5)
             {
-                auto& param = params[i];
-
-                std::vector<fft_params::fft_field*> available_fields;
-                if(input_split != fft_params::SplitType::NONE)
-                    available_fields.push_back(&param.ifields.front());
-                if(output_split != fft_params::SplitType::NONE)
-                    available_fields.push_back(&param.ofields.front());
-
-                // get iterator to the brick we will modify
-                auto field      = available_fields[i % available_fields.size()];
-                auto brick_iter = field->bricks.begin() + i % field->bricks.size();
-
-                // iterate through the 5 cases we want to test:
-                switch(i % 5)
-                {
-                case 0:
-                {
-                    // missing brick
-                    field->bricks.erase(brick_iter);
-                    break;
-                }
-                case 1:
-                {
-                    // a brick's lower index too small by one
-                    size_t& index = brick_iter->lower[i % brick_iter->lower.size()];
-                    // don't worry about underflow since that should also
-                    // produce an invalid brick layout
-                    --index;
-                    break;
-                }
-                case 2:
-                {
-                    // a brick's lower index too large by one
-                    size_t& index = brick_iter->lower[i % brick_iter->lower.size()];
-                    ++index;
-                    break;
-                }
-                case 3:
-                {
-                    // a brick's upper index too small by one
-                    size_t& index = brick_iter->upper[i % brick_iter->lower.size()];
-                    // don't worry about underflow since that should also
-                    // produce an invalid brick layout
-                    --index;
-                    break;
-                }
-                case 4:
-                {
-                    // a brick's upper index too large by one
-                    size_t& index = brick_iter->upper[i % brick_iter->lower.size()];
-                    ++index;
-                    break;
-                }
-                }
-
-                rocfft_params rparam{param};
-                // brick layout is invalid, so this should fail
-                try
-                {
-                    rparam.setup_structs();
-                }
-                catch(std::runtime_error&)
-                {
-                    continue;
-                }
-                // didn't get an exception, fail the test
-                GTEST_FAIL() << "invalid brick layout " << rparam.token()
-                             << " should have failed, but plan was created successfully";
+            case 0:
+            {
+                // missing brick
+                field->bricks.erase(brick_iter);
+                break;
             }
+            case 1:
+            {
+                // a brick's lower index too small by one
+                size_t& index = brick_iter->lower[i % brick_iter->lower.size()];
+                // don't worry about underflow since that should also
+                // produce an invalid brick layout
+                --index;
+                break;
+            }
+            case 2:
+            {
+                // a brick's lower index too large by one
+                size_t& index = brick_iter->lower[i % brick_iter->lower.size()];
+                ++index;
+                break;
+            }
+            case 3:
+            {
+                // a brick's upper index too small by one
+                size_t& index = brick_iter->upper[i % brick_iter->lower.size()];
+                // don't worry about underflow since that should also
+                // produce an invalid brick layout
+                --index;
+                break;
+            }
+            case 4:
+            {
+                // a brick's upper index too large by one
+                size_t& index = brick_iter->upper[i % brick_iter->lower.size()];
+                ++index;
+                break;
+            }
+            }
+
+            rocfft_params rparam{param};
+            // brick layout is invalid, so this should fail
+            try
+            {
+                rparam.setup_structs();
+            }
+            catch(std::runtime_error&)
+            {
+                continue;
+            }
+            // didn't get an exception, fail the test
+            GTEST_FAIL() << "invalid brick layout " << rparam.token()
+                         << " should have failed, but plan was created successfully";
         }
     }
 }

@@ -1864,82 +1864,97 @@ public:
     // buffer where transform output needs to go for validation
     virtual void multi_gpu_finalize(std::vector<gpubuf>& obuffer, std::vector<void*>& pobuffer) {}
 
-    enum class SplitType
+    // Create bricks in the specified field.  brick_grid has an
+    // integer per dimension (batch and FFT dimensions), with the
+    // number of bricks to split that dimension on.  Field length
+    // starts with batch dimension, followed by FFT dimensions
+    // slowest to fastest.
+    void distribute_field(const std::vector<unsigned int>& brick_grid,
+                          std::vector<fft_field>&          fields,
+                          const std::vector<size_t>&       field_length)
     {
-        // do not split this field into bricks
-        NONE,
-        // split field on fastest FFT dimension
-        FASTEST,
-        // split field on slowest FFT dimension
-        SLOWEST,
-    };
+        if(brick_grid.size() != field_length.size())
+            throw std::runtime_error(
+                "distribute field requires same number of dims for grid and field length");
 
-    // create bricks in the specified field for the specified number
-    // of devices.  Field length includes batch dimension.
-    void distribute_field(int                        deviceCount,
-                          std::vector<fft_field>&    fields,
-                          const std::vector<size_t>& field_length,
-                          SplitType                  type)
-    {
-        if(type == SplitType::NONE)
+        // if nothing's actually split, don't bother making bricks
+        if(std::all_of(
+               brick_grid.begin(), brick_grid.end(), [](const unsigned int g) { return g == 1; }))
             return;
 
-        // batch is the first index, slowest FFT length is index 1
-        size_t splitDimIdx = type == SplitType::SLOWEST ? 1 : field_length.size() - 1;
-
-        size_t splitLen = field_length[splitDimIdx];
-        if(splitLen < static_cast<size_t>(deviceCount))
-            throw std::runtime_error("too many devices to distribute length "
-                                     + std::to_string(splitLen));
+        size_t total_bricks = product(brick_grid.begin(), brick_grid.end());
 
         auto& field = fields.emplace_back();
 
-        for(int i = 0; i < deviceCount; ++i)
+        // start with empty brick in field
+        field.bricks.reserve(total_bricks);
+        field.bricks.emplace_back();
+
+        // go over the grid
+        for(size_t i = 0; i < brick_grid.size(); ++i)
         {
-            // start at origin
-            std::vector<size_t> field_lower(field_length.size());
-            std::vector<size_t> field_upper = field_length;
+            std::vector<fft_brick> cur_bricks;
+            cur_bricks.swap(field.bricks);
+            field.bricks.reserve(total_bricks);
 
-            // note: slowest FFT dim is index 0 in these coordinates
-            field_lower[splitDimIdx] = splitLen / deviceCount * i;
+            auto brick_count = brick_grid[i];
+            auto cur_length  = field_length[i];
 
-            // last brick needs to include the whole split len
-            if(i == deviceCount - 1)
+            // split current length, apply to all current bricks and
+            // append bricks to field
+            for(size_t ibrick = 0; ibrick < brick_count; ++ibrick)
             {
-                field_upper[splitDimIdx] = splitLen;
+                for(const auto& b : cur_bricks)
+                {
+                    auto& new_brick = field.bricks.emplace_back(b);
+                    new_brick.lower.push_back(cur_length / brick_count * ibrick);
+                    // last brick needs to include the whole split len
+                    if(ibrick == brick_count - 1)
+                        new_brick.upper.push_back(cur_length);
+                    else
+                        new_brick.upper.push_back(std::min(
+                            cur_length, new_brick.lower.back() + cur_length / brick_count));
+                }
             }
-            else
+        }
+
+        // give all bricks contiguous strides
+        int device = 0;
+        for(auto& b : field.bricks)
+        {
+            b.stride.resize(b.upper.size());
+
+            // fill strides from fastest to slowest
+            size_t brick_dist = 1;
+            for(size_t distIdx = 0; distIdx < b.upper.size(); ++distIdx)
             {
-                field_upper[splitDimIdx]
-                    = std::min(splitLen, field_lower[splitDimIdx] + splitLen / deviceCount);
+                *(b.stride.rbegin() + distIdx) = brick_dist;
+                brick_dist *= *(b.upper.rbegin() + distIdx) - *(b.lower.rbegin() + distIdx);
             }
 
-            // bricks have contiguous strides
-            size_t              brick_dist = 1;
-            std::vector<size_t> brick_stride(field_lower.size());
-            for(size_t distIdx = 0; distIdx < field_lower.size(); ++distIdx)
-            {
-                // fill strides from fastest to slowest
-                *(brick_stride.rbegin() + distIdx) = brick_dist;
-                brick_dist *= *(field_upper.rbegin() + distIdx) - *(field_lower.rbegin() + distIdx);
-            }
-            field.bricks.push_back(
-                fft_params::fft_brick{field_lower, field_upper, brick_stride, i});
+            // assume there's one device per brick
+            b.device = device++;
         }
     }
 
-    void distribute_input(int deviceCount, SplitType type)
+    // Distribute problem input among specified grid of devices.  Grid
+    // specifies number of bricks per dimension, starting with batch
+    // and ending with fastest FFT dimension.
+    void distribute_input(const std::vector<unsigned int>& brick_grid)
     {
         auto len = length;
         len.insert(len.begin(), nbatch);
-        distribute_field(deviceCount, ifields, len, type);
+        distribute_field(brick_grid, ifields, len);
     }
 
-    void distribute_output(int deviceCount, SplitType type)
+    // Distribute problem output among specified grid of devices.  Grid
+    // specifies number of bricks per dimension, starting with batch
+    // and ending with fastest FFT dimension.
+    void distribute_output(const std::vector<unsigned int>& brick_grid)
     {
         auto len = olength();
         len.insert(len.begin(), nbatch);
-        distribute_field(deviceCount, ofields, len, type);
+        distribute_field(brick_grid, ofields, len);
     }
 };
 
