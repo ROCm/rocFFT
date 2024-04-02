@@ -883,40 +883,35 @@ std::unique_ptr<ExecPlan> transpose_brick(int                        deviceID,
 // the map for reuse.
 struct TempBufferLease
 {
-    TempBufferLease(std::multimap<int, gpubuf>& _tempBuffers,
-                    int                         _deviceID,
-                    size_t                      _elems,
-                    size_t                      _elem_size)
+    TempBufferLease(std::multimap<int, std::shared_ptr<InternalTempBuffer>>& _tempBuffers,
+                    int                                                      _deviceID,
+                    size_t                                                   _elems,
+                    size_t                                                   _elem_size)
         : deviceID(_deviceID)
         , tempBuffers(&_tempBuffers)
     {
         // return an existing buffer that's big enough, if one exists
         const size_t alloc_size = _elems * _elem_size;
-        for(auto i = tempBuffers->lower_bound(deviceID); i != tempBuffers->upper_bound(deviceID);
-            ++i)
+        auto         i          = tempBuffers->lower_bound(deviceID);
+        if(i != tempBuffers->upper_bound(deviceID))
         {
-            if(i->second.size() >= alloc_size)
-            {
-                // leasing out the temp buffer, remove it from the map
-                buf = std::move(i->second);
-                tempBuffers->erase(i);
-                return;
-            }
+            // found a buffer, ensure it's big enough
+            i->second->set_size_bytes(alloc_size);
+
+            // leasing out this temp buffer, remove it from the map
+            buf = i->second;
+            tempBuffers->erase(i);
+            return;
         }
         // no buffer was found, allocate a new one
-        rocfft_scoped_device dev(deviceID);
-        if(buf.alloc(alloc_size) != hipSuccess)
-            throw std::runtime_error("hipMalloc failure");
-
-        if(LOG_PLAN_ENABLED())
-            *LogSingleton::GetInstance().GetPlanOS()
-                << "temp buffer " << buf.data() << ", device " << deviceID << ", elems " << _elems
-                << ", size " << _elem_size << std::endl;
+        buf = std::make_shared<InternalTempBuffer>();
+        buf->set_size_bytes(alloc_size);
     }
     ~TempBufferLease()
     {
         // return the buffer to the map
-        tempBuffers->emplace(std::make_pair(deviceID, std::move(buf)));
+        if(buf)
+            tempBuffers->emplace(std::make_pair(deviceID, std::move(buf)));
     }
     // allow moves, disallow copies
     TempBufferLease(TempBufferLease&& other)
@@ -935,16 +930,28 @@ struct TempBufferLease
     TempBufferLease(const TempBufferLease& other) = delete;
     TempBufferLease& operator=(const TempBufferLease& other) = delete;
 
-    void* data()
+    std::shared_ptr<InternalTempBuffer> data()
     {
-        return buf.data();
+        return buf;
     }
 
 private:
-    int                         deviceID;
-    std::multimap<int, gpubuf>* tempBuffers;
-    gpubuf                      buf;
+    int                                                      deviceID;
+    std::multimap<int, std::shared_ptr<InternalTempBuffer>>* tempBuffers;
+    std::shared_ptr<InternalTempBuffer>                      buf;
 };
+
+void rocfft_plan_t::AllocateInternalTempBuffers()
+{
+    for(auto& t : tempBuffers)
+    {
+        t.second->alloc(t.first);
+        if(LOG_PLAN_ENABLED())
+            *LogSingleton::GetInstance().GetPlanOS()
+                << "temp buffer " << t.second->data() << ", device " << t.first << ", size_bytes "
+                << t.second->get_size_bytes() << std::endl;
+    }
+}
 
 std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
                                                        const std::vector<rocfft_brick_t>& bricks,
@@ -1237,15 +1244,15 @@ void rocfft_plan_t::GatherScatterSingleDevicePlan(std::unique_ptr<ExecPlan>&& ex
     const size_t in_elem_count = compute_ptrdiff(lengths, desc.inStrides, batch, desc.inDist);
 
     // may need buffer(s) to do the actual FFT
-    std::optional<TempBufferLease> fftBuf;
-    std::optional<TempBufferLease> fftOutBuf;
+    std::shared_ptr<TempBufferLease> fftBuf;
+    std::shared_ptr<TempBufferLease> fftOutBuf;
 
     BufferPtr gatherBuf;
 
     // gather to temp buf if infields were specified and output is not contiguous or is also a field
     if(!desc.inFields.empty() && (!is_contiguous_output() || !desc.outFields.empty()))
     {
-        fftBuf = std::make_optional<TempBufferLease>(
+        fftBuf = std::make_shared<TempBufferLease>(
             tempBuffers, execPlanPtr->deviceID, in_elem_count, in_elem_size);
         gatherBuf = BufferPtr::temp(fftBuf->data());
     }
@@ -1261,7 +1268,7 @@ void rocfft_plan_t::GatherScatterSingleDevicePlan(std::unique_ptr<ExecPlan>&& ex
         const auto   out_elem_size  = element_size(precision, desc.outArrayType);
         const size_t out_elem_count = compute_ptrdiff(
             execPlan->rootPlan->GetOutputLength(), desc.outStrides, batch, desc.outDist);
-        fftOutBuf = std::make_optional<TempBufferLease>(
+        fftOutBuf = std::make_shared<TempBufferLease>(
             tempBuffers, execPlanPtr->deviceID, out_elem_count, out_elem_size);
     }
 
@@ -1861,6 +1868,8 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
 
             p->GatherScatterSingleDevicePlan(std::move(singleDevicePlan));
         }
+
+        p->AllocateInternalTempBuffers();
         return rocfft_status_success;
     }
     catch(std::exception& e)

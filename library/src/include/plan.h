@@ -230,6 +230,11 @@ struct rocfft_plan_t
     // don't cover the whole index space, or bricks overlap)
     void ValidateFields() const;
 
+    // During plan creation, InternalTempBuffer remembers how much
+    // space will be needed but doesn't allocate.  Allocate the buffers
+    // after the space requirements are finalized.
+    void AllocateInternalTempBuffers();
+
 private:
     // Multi-node or multi-GPU plan is built up from a vector of plan
     // items.  Items can launch kernels on a device, or move
@@ -258,7 +263,7 @@ private:
     // Temp buffers allocated during plan creation for multi-device
     // plans are remembered here.  Mapped per-device.  Individual
     // plan items can have void*'s that point to these buffers.
-    std::multimap<int, gpubuf> tempBuffers;
+    std::multimap<int, std::shared_ptr<InternalTempBuffer>> tempBuffers;
 
     // gather a set of bricks to a field on the current device
     std::vector<size_t> GatherBricksToField(int                                currentDevice,

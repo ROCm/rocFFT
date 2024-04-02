@@ -699,6 +699,50 @@ public:
 // identifier for a device (HIP device ID)
 typedef int rocfft_deviceid_t;
 
+// Internally-allocated temporary buffers (as opposed to
+// user-provided work/in/out buffers).  Size can be set calling
+// set_size_bytes() one or more times, and allocation is only done
+// once with a call to alloc().
+class InternalTempBuffer
+{
+public:
+    InternalTempBuffer()                          = default;
+    InternalTempBuffer(const InternalTempBuffer&) = delete;
+    InternalTempBuffer& operator=(const InternalTempBuffer&) = delete;
+    ~InternalTempBuffer()                                    = default;
+
+    void set_size_bytes(size_t in)
+    {
+        if(buf)
+            throw std::runtime_error("cannot set internal buffer size after allocation");
+        if(in > size_bytes)
+            size_bytes = in;
+    }
+
+    size_t get_size_bytes() const
+    {
+        return size_bytes;
+    }
+
+    void alloc(int deviceID)
+    {
+        rocfft_scoped_device device(deviceID);
+        if(buf.alloc(size_bytes) != hipSuccess)
+            throw std::runtime_error("internal temp buffer allocation failure");
+    }
+
+    void* data()
+    {
+        if(!buf)
+            throw std::runtime_error("temp buffer not allocated");
+        return buf.data();
+    }
+
+private:
+    size_t size_bytes = 0;
+    gpubuf buf;
+};
+
 // Class representing a buffer in a multi-plan item.
 //
 // An item in a plan can work on inputs or outputs like:
@@ -739,7 +783,7 @@ public:
     }
 
     // return a new BufferPtr that points to a temp buffer
-    static BufferPtr temp(void* ptr)
+    static BufferPtr temp(std::shared_ptr<InternalTempBuffer> ptr)
     {
         BufferPtr ret;
         ret.type     = PTR_TEMP;
@@ -761,7 +805,7 @@ public:
         case PTR_USER_OUT:
             return out_buffer[idx];
         case PTR_TEMP:
-            return temp_ptr;
+            return temp_ptr->data();
         }
     }
 
@@ -778,7 +822,7 @@ public:
         case PTR_TEMP:
         {
             std::stringstream ss;
-            ss << "temp buffer " << temp_ptr;
+            ss << "temp buffer " << temp_ptr->data();
             return ss.str();
         }
         }
@@ -813,9 +857,9 @@ public:
     }
 
 private:
-    PtrType type     = PTR_NULL;
-    size_t  idx      = 0;
-    void*   temp_ptr = nullptr;
+    PtrType                             type = PTR_NULL;
+    size_t                              idx  = 0;
+    std::shared_ptr<InternalTempBuffer> temp_ptr;
 };
 
 // abstract base class for all items in a multi-node/device plan
