@@ -25,6 +25,7 @@
 #include "../../shared/accuracy_test.h"
 #include "../../shared/rocfft_accuracy_test.h"
 #include "../../shared/test_params.h"
+#include "params_gen.h"
 
 class random_params
     : public ::testing::TestWithParam<

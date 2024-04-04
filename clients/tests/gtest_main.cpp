@@ -26,6 +26,7 @@
 #include <fstream>
 #include <gtest/gtest.h>
 #include <iostream>
+#include <memory>
 #include <random>
 #include <streambuf>
 #include <string>
@@ -36,6 +37,8 @@
 #include "../../shared/rocfft_accuracy_test.h"
 #include "../../shared/test_params.h"
 #include "../../shared/work_queue.h"
+#include "bitwise_repro/bitwise_repro_test.h"
+#include "bitwise_repro/fft_hash.h"
 #include "rocfft/rocfft.h"
 
 #ifdef WIN32
@@ -62,10 +65,6 @@ size_t n_random_tests = 0;
 // Transform parameters for manual test:
 fft_params manual_params;
 
-// Display 32/64-bit identifier for input
-// and output buffers of a manual FFT test.
-bool print_hash = false;
-
 // Host memory limitation for tests (GiB):
 size_t ramgb;
 
@@ -76,6 +75,9 @@ size_t vramgb;
 bool skip_runtime_fails;
 // But count the number of failures
 int n_hip_failures = 0;
+
+// Pointer to a bitwise repro-db file
+std::unique_ptr<fft_hash_db> repro_db;
 
 // Manually specified precision cutoffs:
 double half_epsilon;
@@ -290,6 +292,9 @@ int main(int argc, char* argv[])
     // Filename for precompiled kernels to be written to
     std::string precompile_file;
 
+    // Full path to bitwise repro database file
+    std::string repro_db_path;
+
     // Declare the supported options.
     // clang-format doesn't handle boost program options very well:
     // clang-format off
@@ -347,7 +352,7 @@ int main(int argc, char* argv[])
 	  "Distribute manual test case among this many devices")
         ("scalefactor", po::value<double>(&manual_params.scale_factor), "Scale factor to apply to output.")
         ("token", po::value<std::string>(&test_token)->default_value(""), "Test token name for manual test")
-        ("hash", po::value<bool>(&print_hash)->default_value(false), "Display input/output buffer identifier for manual test")
+        ("repro-db", po::value<std::string>(&repro_db_path)->default_value(""), "Database file full path name for bitwise reproducibility tests")
         ("precompile",  po::value<std::string>(&precompile_file), "Precompile kernels to a file for all test cases before running tests");
     // clang-format on
 
@@ -452,6 +457,9 @@ int main(int argc, char* argv[])
         fftw_import_wisdom_from_string(fftw_wisdom.c_str());
         fftwf_import_wisdom_from_string(fftwf_wisdom.c_str());
     }
+
+    if(repro_db_path != "")
+        repro_db.reset(new fft_hash_db(repro_db_path));
 
     if(test_token != "")
     {
@@ -560,5 +568,28 @@ TEST(manual, vs_fftw) // MANUAL TESTS HERE
         std::cout << "manual params are not valid\n";
     }
 
-    fft_vs_reference(params, print_hash);
+    fft_vs_reference(params);
+}
+
+TEST(manual, bitwise_reproducibility) // MANUAL TESTS HERE
+{
+    if(repro_db == nullptr)
+        GTEST_SKIP() << "A database file is required for this test." << std::endl;
+
+    rocfft_params params(manual_params);
+
+    // Run an individual test using the provided command-line parameters.
+    params.validate();
+
+    std::cout << "Manual test:"
+              << "\n\t" << params.str("\n\t") << "\n";
+
+    std::cout << "Token: " << params.token() << "\n";
+
+    if(!params.valid(verbose + 2))
+    {
+        std::cout << "manual params are not valid\n";
+    }
+
+    bitwise_repro(params);
 }

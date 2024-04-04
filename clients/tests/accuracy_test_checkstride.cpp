@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "../../shared/accuracy_test.h"
+#include "params_gen.h"
 
 extern bool fftw_compare;
 

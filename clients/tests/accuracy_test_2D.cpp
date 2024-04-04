@@ -26,39 +26,15 @@
 #include "../../shared/accuracy_test.h"
 #include "../../shared/fftw_transform.h"
 #include "../../shared/rocfft_against_fftw.h"
+#include "accuracy_tests_range.h"
+#include "params_gen.h"
 
 using ::testing::ValuesIn;
 
-// Set parameters
-
-// TODO: enable 16384, 32768 when omp support is available (takes too
-// long!)
-const static std::vector<size_t> pow2_range
-    = {2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192};
-
-// For the current configuration, half-precision has a fft size limit of 65536
-const static std::vector<size_t> pow2_range_half = {2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048};
-
-const static std::vector<size_t> pow3_range = {3, 9, 27, 81, 243, 729, 2187, 6561};
-
-const static std::vector<size_t> pow5_range = {5, 25, 125, 625, 3125, 15625};
-
-const static std::vector<size_t> prime_range = {7, 11, 13, 17, 19, 23, 29, 263, 269, 271, 277};
-
-const static std::vector<size_t> mix_range = {56, 120, 336, 2160, 5000, 6000, 8000};
-
-const static std::vector<std::vector<size_t>> stride_range = {{1}};
-
-static std::vector<std::vector<size_t>> ioffset_range_zero = {{0, 0}};
-static std::vector<std::vector<size_t>> ooffset_range_zero = {{0, 0}};
-
-static std::vector<std::vector<size_t>> ioffset_range = {{0, 0}, {1, 1}};
-static std::vector<std::vector<size_t>> ooffset_range = {{0, 0}, {1, 1}};
-
 INSTANTIATE_TEST_SUITE_P(pow2_2D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(generate_lengths({pow2_range,
-                                                                               pow2_range}),
+                         ::testing::ValuesIn(param_generator(generate_lengths({pow2_range_2D,
+                                                                               pow2_range_2D}),
                                                              precision_range_sp_dp,
                                                              batch_range,
                                                              stride_range,
@@ -71,7 +47,7 @@ INSTANTIATE_TEST_SUITE_P(pow2_2D,
 
 INSTANTIATE_TEST_SUITE_P(pow2_2D_half,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(generate_lengths({pow2_range_half,
+                         ::testing::ValuesIn(param_generator(generate_lengths({pow2_range_half_2D,
                                                                                {2, 4, 8, 16, 32}}),
                                                              {fft_precision_half},
                                                              batch_range,
@@ -85,8 +61,8 @@ INSTANTIATE_TEST_SUITE_P(pow2_2D_half,
 
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow2_2D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(generate_lengths({pow2_range,
-                                                                               pow2_range}),
+                         ::testing::ValuesIn(param_generator(generate_lengths({pow2_range_2D,
+                                                                               pow2_range_2D}),
                                                              precision_range_full,
                                                              batch_range,
                                                              stride_range,
@@ -99,8 +75,8 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow2_2D,
 
 INSTANTIATE_TEST_SUITE_P(pow3_2D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(generate_lengths({pow3_range,
-                                                                               pow3_range}),
+                         ::testing::ValuesIn(param_generator(generate_lengths({pow3_range_2D,
+                                                                               pow3_range_2D}),
                                                              precision_range_sp_dp,
                                                              batch_range,
                                                              stride_range,
@@ -113,8 +89,8 @@ INSTANTIATE_TEST_SUITE_P(pow3_2D,
 
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow3_2D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(generate_lengths({pow3_range,
-                                                                               pow3_range}),
+                         ::testing::ValuesIn(param_generator(generate_lengths({pow3_range_2D,
+                                                                               pow3_range_2D}),
                                                              precision_range_full,
                                                              batch_range,
                                                              stride_range,
@@ -127,8 +103,8 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow3_2D,
 
 INSTANTIATE_TEST_SUITE_P(pow5_2D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(generate_lengths({pow5_range,
-                                                                               pow5_range}),
+                         ::testing::ValuesIn(param_generator(generate_lengths({pow5_range_2D,
+                                                                               pow5_range_2D}),
                                                              precision_range_sp_dp,
                                                              batch_range,
                                                              stride_range,
@@ -141,8 +117,8 @@ INSTANTIATE_TEST_SUITE_P(pow5_2D,
 
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow5_2D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(generate_lengths({pow5_range,
-                                                                               pow5_range}),
+                         ::testing::ValuesIn(param_generator(generate_lengths({pow5_range_2D,
+                                                                               pow5_range_2D}),
                                                              precision_range_full,
                                                              batch_range,
                                                              stride_range,
@@ -155,8 +131,8 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_pow5_2D,
 
 INSTANTIATE_TEST_SUITE_P(prime_2D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(generate_lengths({prime_range,
-                                                                               prime_range}),
+                         ::testing::ValuesIn(param_generator(generate_lengths({prime_range_2D,
+                                                                               prime_range_2D}),
                                                              precision_range_sp_dp,
                                                              batch_range,
                                                              stride_range,
@@ -169,8 +145,8 @@ INSTANTIATE_TEST_SUITE_P(prime_2D,
 
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_prime_2D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(generate_lengths({prime_range,
-                                                                               prime_range}),
+                         ::testing::ValuesIn(param_generator(generate_lengths({prime_range_2D,
+                                                                               prime_range_2D}),
                                                              precision_range_sp_dp,
                                                              batch_range,
                                                              stride_range,
@@ -183,8 +159,8 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_prime_2D,
 
 INSTANTIATE_TEST_SUITE_P(mix_2D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(generate_lengths({mix_range,
-                                                                               mix_range}),
+                         ::testing::ValuesIn(param_generator(generate_lengths({mix_range_2D,
+                                                                               mix_range_2D}),
                                                              precision_range_sp_dp,
                                                              batch_range,
                                                              stride_range,
@@ -197,8 +173,8 @@ INSTANTIATE_TEST_SUITE_P(mix_2D,
 
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_mix_2D,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(generate_lengths({mix_range,
-                                                                               mix_range}),
+                         ::testing::ValuesIn(param_generator(generate_lengths({mix_range_2D,
+                                                                               mix_range_2D}),
                                                              precision_range_full,
                                                              batch_range,
                                                              stride_range,

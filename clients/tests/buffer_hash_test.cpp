@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "../../shared/fft_hash.h"
 #include "../../shared/rocfft_params.h"
+#include "bitwise_repro/fft_hash.h"
 #include <algorithm>
 #include <chrono>
 #include <gtest/gtest.h>
@@ -269,7 +269,7 @@ static void run_test(const rocfft_params& params)
     buffer2 = allocate_host_buffer(params.precision, params.itype, params.ibuffer_sizes());
 
     init_buffer(params, seed, buffer1);
-    compute_buffer_hash(buffer1, hash_in, hash_out_1);
+    compute_hash(buffer1, hash_in, hash_out_1);
 
     copy_buffers(buffer1,
                  buffer2,
@@ -284,7 +284,7 @@ static void run_test(const rocfft_params& params)
                  params.idist,
                  params.ioffset,
                  params.ioffset);
-    compute_buffer_hash(buffer2, hash_in, hash_out_2);
+    compute_hash(buffer2, hash_in, hash_out_2);
     ASSERT_EQ(hash_out_1.buffer_real == hash_out_2.buffer_real, true)
         << "random seed: " << seed << std::endl;
 
@@ -305,7 +305,7 @@ static void run_test(const rocfft_params& params)
                  params.ioffset,
                  params.ioffset);
     corrupt_buffer_full(params, seed, buffer2);
-    compute_buffer_hash(buffer2, hash_in, hash_out_2);
+    compute_hash(buffer2, hash_in, hash_out_2);
     ASSERT_EQ(hash_out_1.buffer_real != hash_out_2.buffer_real, true)
         << "random seed: " << seed << std::endl;
     ASSERT_EQ(hash_out_1.buffer_imag != hash_out_2.buffer_imag, true)
@@ -325,7 +325,7 @@ static void run_test(const rocfft_params& params)
                  params.ioffset,
                  params.ioffset);
     corrupt_buffer_single(params, seed, buffer2);
-    compute_buffer_hash(buffer2, hash_in, hash_out_2);
+    compute_hash(buffer2, hash_in, hash_out_2);
     ASSERT_EQ(hash_out_1.buffer_real != hash_out_2.buffer_real, true)
         << "random seed: " << seed << std::endl;
     ASSERT_EQ(hash_out_1.buffer_imag != hash_out_2.buffer_imag, true)
@@ -345,7 +345,7 @@ static void run_test(const rocfft_params& params)
                  params.ioffset,
                  params.ioffset);
     shuffle_buffer(params, seed, buffer2);
-    compute_buffer_hash(buffer2, hash_in, hash_out_2);
+    compute_hash(buffer2, hash_in, hash_out_2);
     ASSERT_EQ(hash_out_1.buffer_real != hash_out_2.buffer_real, true)
         << "random seed: " << seed << std::endl;
     ASSERT_EQ(hash_out_1.buffer_imag != hash_out_2.buffer_imag, true)

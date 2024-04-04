@@ -20,6 +20,7 @@
 // THE SOFTWARE.
 
 #include "../../shared/accuracy_test.h"
+#include "params_gen.h"
 
 std::vector<std::vector<size_t>> adhoc_sizes = {
     // sizes that exercise L1D_TRTRT subplan of 2D_RTRT or 3D_TRTRTR

@@ -21,6 +21,7 @@
 #include "../../shared/hostbuf.h"
 #include "../../shared/rocfft_complex.h"
 #include "../../shared/rocfft_params.h"
+#include "params_gen.h"
 
 #include "../../shared/accuracy_test.h"
 #include "../../shared/fftw_transform.h"

@@ -69,6 +69,7 @@ include( ROCMInstallTargets )
 set( rocfft-test_source
   gtest_main.cpp
   rocfft_accuracy_test.cpp
+  bitwise_repro/bitwise_repro_test.cpp
   accuracy_test.cpp
   accuracy_test_1D.cpp	
   accuracy_test_2D.cpp
@@ -228,6 +229,12 @@ if( USE_CUDA )
   target_compile_definitions( rocfft-test PRIVATE __HIP_PLATFORM_NVCC__ )
 endif( )
 target_link_libraries( rocfft-test PRIVATE ${ROCFFT_CLIENTS_HOST_LINK_LIBS} ${ROCFFT_CLIENTS_DEVICE_LINK_LIBS} )
+
+include( ../../cmake/sqlite.cmake )
+target_link_libraries( rocfft-test PUBLIC ${ROCFFT_SQLITE_LIB} )
+target_include_directories( rocfft-test PRIVATE ${sqlite_local_SOURCE_DIR} )
+
+set_property( TARGET rocfft-test APPEND PROPERTY LINK_LIBRARIES ${ROCFFT_SQLITE_LIB} )
 
 option( BUILD_CLIENTS_TESTS_OPENMP "Build tests with OpenMP" ON )
 

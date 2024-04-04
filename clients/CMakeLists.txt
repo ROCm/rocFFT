@@ -47,7 +47,7 @@ endif()
 set( ROCFFT_CLIENTS_BUILD_SCOPE ON )
 
 # This project may compile dependencies for clients
-project( rocfft-clients LANGUAGES CXX )
+project( rocfft-clients LANGUAGES CXX C )
 
 set(CMAKE_CXX_STANDARD 17)
 

@@ -24,6 +24,6 @@
 #include "accuracy_test.h"
 #include "rocfft_params.h"
 
-void fft_vs_reference(rocfft_params& params, bool print_hash, bool round_trip = false);
+void fft_vs_reference(rocfft_params& params, bool round_trip = false);
 
 #endif

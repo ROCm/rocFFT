@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "../../shared/accuracy_test.h"
+#include "params_gen.h"
 
 std::vector<std::vector<size_t>> callback_sizes = {
     // some single kernel sizes
