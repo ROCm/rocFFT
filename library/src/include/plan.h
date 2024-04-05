@@ -286,6 +286,41 @@ private:
                                              const std::vector<rocfft_brick_t>& bricks,
                                              const std::vector<size_t>&         antecedents,
                                              size_t                             elem_size);
+
+    // Transpose the input field to the output field by adding work items
+    // to the plan.  Antecedents are provided as a vector of item
+    // indexes, one per brick.  Final work item per brick (that future
+    // per-brick operations can depend on) is returned in outputItems.
+    //
+    // transposeNumber identifies this particular transpose in the
+    // plan, for debugging.
+    void GlobalTranspose(size_t                     elem_size,
+                         const rocfft_field_t&      inField,
+                         const rocfft_field_t&      outField,
+                         std::vector<BufferPtr>&    input,
+                         std::vector<BufferPtr>&    output,
+                         const std::vector<size_t>& inputAntecedents,
+                         std::vector<size_t>&       outputItems,
+                         size_t                     transposeNumber);
+
+    // Transform (complex-complex FFT) a whole field along specified
+    // dimensions.  Input and output ptrs are provided as a vector of
+    // BufferPtrs, one per brick in the field.
+    //
+    // Input antecedents, if provided, are the last items from the
+    // previous global operation (e.g. a global transpose).  Operations
+    // in this transform will depend on those antecedents that touch the
+    // same buffers.
+    //
+    // Work items are added to the plan.  Final work item per brick (that
+    // future per-brick operations can depend on) is returned in
+    // outputItems.
+    void C2CField(const rocfft_field_t&      field,
+                  const std::vector<size_t>& fftDims,
+                  std::vector<BufferPtr>&    input,
+                  std::vector<BufferPtr>&    output,
+                  const std::vector<size_t>& inputAntecedents,
+                  std::vector<size_t>&       outputItems);
 };
 
 bool PlanPowX(ExecPlan& execPlan);

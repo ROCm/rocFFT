@@ -700,9 +700,7 @@ public:
 typedef int rocfft_deviceid_t;
 
 // Internally-allocated temporary buffers (as opposed to
-// user-provided work/in/out buffers).  Size can be set calling
-// set_size_bytes() one or more times, and allocation is only done
-// once with a call to alloc().
+// user-provided work/in/out buffers)
 class InternalTempBuffer
 {
 public:
@@ -898,6 +896,9 @@ struct MultiPlanItem
     // the pointer and an offset
     static std::string PrintBufferPtrOffset(const BufferPtr& ptr, size_t offset);
 
+    // check if this item writes to the specified BufferPtr
+    virtual bool WritesToBuffer(const BufferPtr& ptr) const = 0;
+
     // high-level description of what this item is doing, displayed
     // when logging plan graph
     std::string description;
@@ -931,6 +932,11 @@ struct CommPointToPoint : public MultiPlanItem
     void Wait() override;
 
     void Print(rocfft_ostream& os, const int indent) const override;
+
+    bool WritesToBuffer(const BufferPtr& ptr) const override
+    {
+        return ptr == destPtr;
+    }
 
 private:
     // Stream to run the async operation in
@@ -985,6 +991,16 @@ struct CommScatter : public MultiPlanItem
 
     void Print(rocfft_ostream& os, const int indent) const override;
 
+    bool WritesToBuffer(const BufferPtr& ptr) const override
+    {
+        for(const auto& op : ops)
+        {
+            if(ptr == op.destPtr)
+                return true;
+        }
+        return false;
+    }
+
 private:
     // Stream to run the async operations in
     hipStream_wrapper_t stream;
@@ -1037,6 +1053,11 @@ struct CommGather : public MultiPlanItem
     void Wait() override;
 
     void Print(rocfft_ostream& os, const int indent) const override;
+
+    bool WritesToBuffer(const BufferPtr& ptr) const override
+    {
+        return ptr == destPtr;
+    }
 
     // Streams to run the async operations in - since each memcpy is
     // coming from a different source device, each needs a separate
@@ -1136,6 +1157,11 @@ struct ExecPlan : public MultiPlanItem
     // for callbacks, work out which nodes of the plan are loading data
     // from global memory, and storing data to global memory
     std::pair<TreeNode*, TreeNode*> get_load_store_nodes() const;
+
+    bool WritesToBuffer(const BufferPtr& ptr) const override
+    {
+        return ptr == outputPtr;
+    }
 
 private:
     // Stream to run the async operations in - might be unallocated

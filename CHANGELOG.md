@@ -9,6 +9,11 @@ Documentation for rocFFT is available at
 
 * Fixed kernel launch failure on execute of very large odd-length real-complex transforms.
 
+### Optimizations
+
+* Implemented multi-device transform for 3D pencil decomposition.  Contiguous dimensions on input and output bricks 
+  are transformed locally, with global transposes to make remaining dimensions contiguous.
+
 ## rocFFT 1.0.26 for ROCm 6.1.0
 
 ### Changes

@@ -40,6 +40,10 @@ enum SplitType
     SLOW_OUT,
     // split input on slow FFT dimension, and output on fast FFT dimension
     SLOW_IN_FAST_OUT,
+    // 3D pencil decomposition - one dimension is contiguous on input
+    // and another dimension contiguous on output, remaining dims are
+    // both split
+    PENCIL_3D,
 };
 
 std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
@@ -53,7 +57,7 @@ std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
 
     auto params_complex = param_generator_complex(multi_gpu_sizes,
                                                   precision_range_sp_dp,
-                                                  {1, 10},
+                                                  {4, 1},
                                                   stride_generator({{1}}),
                                                   stride_generator({{1}}),
                                                   {{0, 0}},
@@ -63,7 +67,7 @@ std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
 
     auto params_real = param_generator_real(multi_gpu_sizes,
                                             precision_range_sp_dp,
-                                            {1, 10},
+                                            {4, 1},
                                             stride_generator({{1}}),
                                             stride_generator({{1}}),
                                             {{0, 0}},
@@ -99,6 +103,19 @@ std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
                     continue;
                 input_grid[1]      = deviceCount;
                 output_grid.back() = deviceCount;
+                break;
+            case PENCIL_3D:
+                // need at least 2 bricks per split dimension, or 4 devices.
+                // also needs to be a 3D problem.
+                if(deviceCount < 4 || p.length.size() != 3)
+                    continue;
+
+                // make fast dimension contiguous on input
+                input_grid[1] = static_cast<unsigned int>(sqrt(deviceCount));
+                input_grid[2] = deviceCount / input_grid[1];
+                // make middle dimension contiguous on output
+                output_grid[1] = input_grid[1];
+                output_grid[3] = input_grid[2];
                 break;
             }
 
@@ -145,6 +162,12 @@ INSTANTIATE_TEST_SUITE_P(multi_gpu_slowin_fastout,
                          ::testing::ValuesIn(param_generator_multi_gpu(SLOW_IN_FAST_OUT)),
                          accuracy_test::TestName);
 
+// 3D pencil decompositions
+INSTANTIATE_TEST_SUITE_P(multi_gpu_3d_pencils,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator_multi_gpu(PENCIL_3D)),
+                         accuracy_test::TestName);
+
 TEST(multi_gpu_validate, catch_validation_errors)
 {
     const auto all_split_types = {
@@ -152,6 +175,7 @@ TEST(multi_gpu_validate, catch_validation_errors)
         SLOW_IN,
         SLOW_OUT,
         SLOW_IN_FAST_OUT,
+        PENCIL_3D,
     };
 
     for(auto type : all_split_types)

@@ -976,10 +976,7 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
 
     // add gather to the plan first - we will add operations to it
     // later
-    size_t gatherIdx                  = AddMultiPlanItem(std::move(gatherPtr), antecedents);
-    multiPlan[gatherIdx]->description = "gather bricks";
-    std::string gatherGroup           = "gather" + std::to_string(gatherIdx);
-    multiPlan[gatherIdx]->group       = gatherGroup;
+    size_t gatherIdx = AddMultiPlanItem(std::move(gatherPtr), antecedents);
 
     const bool gatherToTemp
         = std::any_of(bricks.begin(), bricks.end(), [&](const rocfft_brick_t& b) {
@@ -1031,9 +1028,6 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
                                                    b.contiguous_strides(),
                                                    std::move(description)),
                                    antecedents);
-            multiPlan[packIdx]->description = "pack brick " + std::to_string(brickIdx);
-            multiPlan[packIdx]->group       = gatherGroup;
-
             AddAntecedent(gatherIdx, packIdx);
 
             gather->ops.emplace_back(b.device,
@@ -1061,9 +1055,6 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
                                                  field_stride,
                                                  std::move(description)),
                                  {gatherIdx}));
-            multiPlan[outputPlanItems.back()]->description
-                = "unpack brick " + std::to_string(brickIdx);
-            multiPlan[outputPlanItems.back()]->group = gatherGroup;
         }
 
         contiguousOffset += b.count_elems();
@@ -1100,10 +1091,7 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
     scatter->srcDeviceID = currentDevice;
 
     // add scatter to the multi-plan first, add operations afterwards
-    auto scatterIdx                    = AddMultiPlanItem(std::move(scatterPtr), antecedents);
-    multiPlan[scatterIdx]->description = "scatter bricks";
-    std::string scatterGroup           = "scatter" + std::to_string(scatterIdx);
-    multiPlan[scatterIdx]->group       = scatterGroup;
+    auto scatterIdx = AddMultiPlanItem(std::move(scatterPtr), antecedents);
 
     const bool scatterFromTemp
         = std::any_of(bricks.begin(), bricks.end(), [&](const rocfft_brick_t& b) {
@@ -1141,8 +1129,8 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
             // pack data to be contiguous
             std::string description = "pack brick " + std::to_string(brickIdx) + " before scatter";
 
-            const auto brickLen             = b.length();
-            auto       packIdx              = AddMultiPlanItem(transpose_brick(currentDevice,
+            const auto brickLen = b.length();
+            auto       packIdx  = AddMultiPlanItem(transpose_brick(currentDevice,
                                                             b.length(),
                                                             precision,
                                                             arrayType,
@@ -1154,8 +1142,6 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
                                                             b.contiguous_strides(),
                                                             std::move(description)),
                                             antecedents);
-            multiPlan[packIdx]->description = "pack brick " + std::to_string(brickIdx);
-            multiPlan[packIdx]->group       = scatterGroup;
             AddAntecedent(scatterIdx, packIdx);
 
             // bricks are packed to be contiguous - if output is the
@@ -1196,9 +1182,6 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
                                                      b.stride,
                                                      std::move(description)),
                                      {scatterIdx}));
-                multiPlan[outputPlanItems.back()]->description
-                    = "unpack brick " + std::to_string(brickIdx);
-                multiPlan[outputPlanItems.back()]->group = scatterGroup;
             }
         }
         contiguousOffset += b.count_elems();
@@ -1305,8 +1288,7 @@ void rocfft_plan_t::GatherScatterSingleDevicePlan(std::unique_ptr<ExecPlan>&& ex
         execPlan->outputPtr = execPlan->inputPtr;
     else if(fftOutBuf)
         execPlan->outputPtr = BufferPtr::temp(fftOutBuf->data());
-    auto fftIdx                    = AddMultiPlanItem(std::move(execPlanPtr), gatherIndexes);
-    multiPlan[fftIdx]->description = "FFT";
+    auto fftIdx = AddMultiPlanItem(std::move(execPlanPtr), gatherIndexes);
 
     // scatter data back out
     for(const auto& outField : desc.outFields)
@@ -1432,15 +1414,27 @@ static std::unique_ptr<ExecPlan> BuildSingleDevicePlan(NodeMetaData&         roo
     }
 }
 
-// note: lengths and stride include batch dimension
-static size_t C2COneDimension(rocfft_plan_t&             plan,
-                              size_t                     dimIdx,
-                              int                        deviceID,
-                              const std::vector<size_t>& lengths,
-                              const std::vector<size_t>& stride,
-                              BufferPtr                  input,
-                              BufferPtr                  output,
-                              const std::vector<size_t>& antecedents)
+// Transform (complex-complex FFT) one dimension of a brick, by
+// adding a multi-plan item to the rocfft_plan_t, and return the new
+// item's index.  A brick is on a single device and has the specified
+// length and stride.  Input and output may point to the same buffer.
+//
+// The specified dimension is assumed to be contiguous on the brick.
+// Other dimensions (including batch) may have any length (including
+// length 1).
+//
+// Specified antecedent items are required to complete before this
+// new item will begin execution.
+//
+// NOTE: lengths and stride include batch dimension
+static size_t C2CBrickOneDimension(rocfft_plan_t&             plan,
+                                   size_t                     dimIdx,
+                                   int                        deviceID,
+                                   const std::vector<size_t>& lengths,
+                                   const std::vector<size_t>& stride,
+                                   BufferPtr                  input,
+                                   BufferPtr                  output,
+                                   const std::vector<size_t>& antecedents)
 {
     rocfft_scoped_device dev(deviceID);
 
@@ -1482,8 +1476,201 @@ static size_t C2COneDimension(rocfft_plan_t&             plan,
     return plan.AddMultiPlanItem(std::move(singlePlan), antecedents);
 }
 
+void rocfft_plan_t::C2CField(const rocfft_field_t&      field,
+                             const std::vector<size_t>& fftDims,
+                             std::vector<BufferPtr>&    input,
+                             std::vector<BufferPtr>&    output,
+                             const std::vector<size_t>& inputAntecedents,
+                             std::vector<size_t>&       outputItems)
+{
+    outputItems.resize(field.bricks.size());
+
+    for(size_t i = 0; i < field.bricks.size(); ++i)
+    {
+        const auto& inBrick = field.bricks[i];
+
+        std::vector<size_t> antecedents;
+        BufferPtr           fftInput = input[i];
+        for(auto item : inputAntecedents)
+        {
+            if(multiPlan[item]->WritesToBuffer(fftInput))
+                antecedents.push_back(item);
+        }
+
+        for(auto dimIdx : fftDims)
+        {
+            auto transformItem              = C2CBrickOneDimension(*this,
+                                                      dimIdx,
+                                                      inBrick.device,
+                                                      inBrick.length(),
+                                                      inBrick.stride,
+                                                      fftInput,
+                                                      output[i],
+                                                      antecedents);
+            multiPlan[transformItem]->group = "fft_dim_" + std::to_string(dimIdx);
+            multiPlan[transformItem]->description
+                = "FFT dim " + std::to_string(dimIdx) + " brick " + std::to_string(i);
+
+            antecedents    = {transformItem};
+            outputItems[i] = transformItem;
+            fftInput       = output[i];
+        }
+    }
+}
+
+// Return a transposed field layout that makes the specified
+// dimension contiguous on all bricks.  Length covers the whole field
+// and includes batch dimension.  Input field is provided so we can
+// distribute output bricks among the same devices that the input
+// bricks are distributed to.
+static rocfft_field_t MakeFieldDimContiguous(const rocfft_field_t&      field,
+                                             const std::vector<size_t>& length,
+                                             size_t                     dimIdx)
+{
+    rocfft_field_t out = field;
+    // find first dim that's not the one we're making contiguous and
+    // is at least as big as the number of bricks - we can split on
+    // that dimension
+    std::optional<size_t> splitDim;
+    for(size_t dim = 0; dim < length.size(); ++dim)
+    {
+        if(dim != dimIdx && length[dim] >= field.bricks.size())
+            splitDim = dim;
+    }
+    if(!splitDim)
+        throw std::runtime_error("not enough lengths to split to make dim contiguous");
+
+    for(size_t i = 0; i < out.bricks.size(); ++i)
+    {
+        auto& outBrick = out.bricks[i];
+
+        // start lower and upper at origin and max, respectively
+        std::fill(outBrick.lower.begin(), outBrick.lower.end(), 0);
+        outBrick.upper = length;
+
+        // divide up the split dim
+        outBrick.lower[*splitDim] = length[*splitDim] / out.bricks.size() * i;
+        // last brick needs to include the whole length
+        if(i == out.bricks.size() - 1)
+            outBrick.upper[*splitDim] = length[*splitDim];
+        else
+            outBrick.upper[*splitDim] = length[*splitDim] / out.bricks.size() * (i + 1);
+
+        auto brickLength = outBrick.length();
+
+        // set strides - contiguous dim has stride 1
+        size_t dist             = 1;
+        outBrick.stride[dimIdx] = dist;
+        dist *= brickLength[dimIdx];
+        // split dim is contiguous after that
+        outBrick.stride[*splitDim] = dist;
+        dist *= brickLength[*splitDim];
+        // fill in remaining strides
+        for(size_t s = 0; s < outBrick.stride.size(); ++s)
+        {
+            if(s == dimIdx || s == *splitDim)
+                continue;
+            outBrick.stride[s] = dist;
+            dist *= brickLength[s];
+        }
+    }
+    return out;
+}
+
+void rocfft_plan_t::GlobalTranspose(size_t                     elem_size,
+                                    const rocfft_field_t&      inField,
+                                    const rocfft_field_t&      outField,
+                                    std::vector<BufferPtr>&    input,
+                                    std::vector<BufferPtr>&    output,
+                                    const std::vector<size_t>& inputAntecedents,
+                                    std::vector<size_t>&       outputItems,
+                                    size_t                     transposeNumber)
+{
+    std::string                  itemGroup = "transpose_" + std::to_string(transposeNumber);
+    std::vector<TempBufferLease> packBufs;
+
+    // loop over each input brick, finding the intersection of it with
+    // every output brick
+    for(size_t inBrickIdx = 0; inBrickIdx < inField.bricks.size(); ++inBrickIdx)
+    {
+        const auto& inBrick = inField.bricks[inBrickIdx];
+        for(size_t outBrickIdx = 0; outBrickIdx < outField.bricks.size(); ++outBrickIdx)
+        {
+            const auto& outBrick = outField.bricks[outBrickIdx];
+
+            auto intersection = inBrick.intersect(outBrick);
+            if(intersection.empty())
+                continue;
+            intersection.stride = intersection.contiguous_strides();
+
+            // pack data for communication
+            packBufs.reserve(packBufs.size() + 2);
+            TempBufferLease& pack = packBufs.emplace_back(
+                tempBuffers, inBrick.device, intersection.count_elems(), elem_size);
+            TempBufferLease& recv = packBufs.emplace_back(
+                tempBuffers, outBrick.device, intersection.count_elems(), elem_size);
+            auto packIdx
+                = AddMultiPlanItem(transpose_brick(inBrick.device,
+                                                   intersection.length(),
+                                                   precision,
+                                                   desc.inArrayType,
+                                                   input[inBrickIdx],
+                                                   intersection.offset_in_field(inBrick.stride)
+                                                       - inBrick.offset_in_field(inBrick.stride),
+                                                   inBrick.stride,
+                                                   BufferPtr::temp(pack.data()),
+                                                   0,
+                                                   intersection.stride,
+                                                   "pack brick for global transpose"),
+                                   {inputAntecedents[inBrickIdx]});
+            multiPlan[packIdx]->group = itemGroup;
+            multiPlan[packIdx]->description
+                = "pack " + std::to_string(inBrickIdx) + " + " + std::to_string(outBrickIdx);
+
+            // send packed data
+            auto sendOp          = std::make_unique<CommPointToPoint>();
+            sendOp->precision    = precision;
+            sendOp->arrayType    = desc.inArrayType;
+            sendOp->numElems     = intersection.count_elems();
+            sendOp->srcDeviceID  = inBrick.device;
+            sendOp->srcPtr       = BufferPtr::temp(pack.data());
+            sendOp->destDeviceID = outBrick.device;
+            sendOp->destPtr      = BufferPtr::temp(recv.data());
+
+            auto sendIdx              = AddMultiPlanItem(std::move(sendOp), {packIdx});
+            multiPlan[sendIdx]->group = itemGroup;
+            multiPlan[sendIdx]->description
+                = "send " + std::to_string(inBrickIdx) + " + " + std::to_string(outBrickIdx);
+
+            // unpack data on destination to output
+            auto unpackIdx
+                = AddMultiPlanItem(transpose_brick(outBrick.device,
+                                                   intersection.length(),
+                                                   precision,
+                                                   desc.inArrayType,
+                                                   BufferPtr::temp(recv.data()),
+                                                   0,
+                                                   intersection.stride,
+                                                   output[outBrickIdx],
+                                                   intersection.offset_in_field(outBrick.stride)
+                                                       - outBrick.offset_in_field(outBrick.stride),
+                                                   outBrick.stride,
+                                                   "unpack brick for global transpose"),
+                                   {sendIdx});
+            multiPlan[unpackIdx]->group = itemGroup;
+            multiPlan[unpackIdx]->description
+                = "unpack " + std::to_string(inBrickIdx) + " + " + std::to_string(outBrickIdx);
+            outputItems.push_back(unpackIdx);
+        }
+    }
+}
+
 bool rocfft_plan_t::BuildOptMultiDevicePlan()
 {
+    // keep track of how many transposes we've done so we can log
+    // distinct messages about each one
+    size_t transposeNumber = 0;
+
     // currently, can only optimize c2c
     if(transformType != rocfft_transform_type_complex_forward
        && transformType != rocfft_transform_type_complex_inverse)
@@ -1497,140 +1684,122 @@ bool rocfft_plan_t::BuildOptMultiDevicePlan()
     if(desc.inFields.empty() || desc.outFields.empty())
         return false;
 
-    // work out what FFT dimensions are already contiguous in the input field
-    std::vector<size_t> contiguousDims;
-    size_t              nonContiguousDim = std::numeric_limits<size_t>::max();
+    // work out what FFT dimensions are already contiguous in the fields
+    std::vector<size_t> contiguousInputDims;
+    std::vector<size_t> contiguousOutputDims;
+    std::vector<size_t> nonContiguousDims;
     for(size_t dimIdx = 0; dimIdx < rank; ++dimIdx)
     {
-        if(DimensionSplitInField(lengths[dimIdx], dimIdx, desc.inFields.front()))
-            nonContiguousDim = dimIdx;
+        if(!DimensionSplitInField(lengths[dimIdx], dimIdx, desc.inFields.front()))
+            contiguousInputDims.push_back(dimIdx);
+        else if(!DimensionSplitInField(lengths[dimIdx], dimIdx, desc.outFields.front()))
+            contiguousOutputDims.push_back(dimIdx);
         else
-            contiguousDims.push_back(dimIdx);
+            nonContiguousDims.push_back(dimIdx);
     }
 
-    // can optimize if all but one FFT dim is already contiguous, and the
-    // remaining dim is contiguous in output
-    if(contiguousDims.size() != rank - 1
-       || DimensionSplitInField(
-           lengths[nonContiguousDim], nonContiguousDim, desc.outFields.front()))
+    // can optimize if at least one FFT dim is contiguous in input and output
+    if(contiguousInputDims.empty() || contiguousOutputDims.empty())
         return false;
 
-    const auto in_elem_size = element_size(precision, desc.inArrayType);
-    // we do in-place transforms here, so allocate a buffer for the
-    // complex side of real-complex transforms, since it's bigger.
-    const size_t in_elem_count = compute_ptrdiff(lengths, desc.inStrides, batch, desc.inDist);
+    const auto elem_size = element_size(precision, desc.inArrayType);
 
-    std::vector<size_t> unpackIndexes;
+    // transform contiguous input dims
+
+    // gather up input pointers and allocate temp storage for
+    // FFTed contiguous input dims (since we don't want to
+    // overwrite input)
+    std::vector<BufferPtr> inputBufs;
+    std::vector<BufferPtr> inputFFTBufs;
+    inputBufs.reserve(desc.inFields.front().bricks.size());
+    inputFFTBufs.reserve(desc.inFields.front().bricks.size());
+    std::vector<TempBufferLease> inputTemp;
+    inputTemp.reserve(desc.inFields.front().bricks.size());
     for(size_t inBrickIdx = 0; inBrickIdx < desc.inFields.front().bricks.size(); ++inBrickIdx)
     {
         const auto& inBrick = desc.inFields.front().bricks[inBrickIdx];
 
-        // assume input cannot be modified, transform into temp buffer
-        TempBufferLease temp(tempBuffers, inBrick.device, in_elem_count, in_elem_size);
+        inputBufs.emplace_back(BufferPtr::user_input(inBrickIdx));
+        inputTemp.emplace_back(tempBuffers, inBrick.device, inBrick.count_elems(), elem_size);
+        inputFFTBufs.emplace_back(BufferPtr::temp(inputTemp.back().data()));
+    }
+    std::vector<size_t> inputFFTItems;
+    C2CField(
+        desc.inFields.front(), contiguousInputDims, inputBufs, inputFFTBufs, {}, inputFFTItems);
 
-        BufferPtr transformInput = BufferPtr::user_input(inBrickIdx);
+    // now transpose non-contiguous dims to be contiguous and
+    // transform them too
+    std::vector<BufferPtr>       transposeInputBufs = inputFFTBufs;
+    std::vector<TempBufferLease> transposeOutputTemp;
+    std::vector<BufferPtr>       transposeOutputBufs;
+    auto                         transposeInputAntecedents = inputFFTItems;
+    std::vector<size_t>          midFFTItems               = inputFFTItems;
+    rocfft_field_t               transposedField;
 
-        std::vector<size_t> antecedents;
+    auto lengthsWithBatch = lengths;
+    lengthsWithBatch.push_back(batch);
+    for(auto dimIdx : nonContiguousDims)
+    {
+        // transpose so this dim is contiguous
+        transposedField = MakeFieldDimContiguous(desc.inFields.front(), lengthsWithBatch, dimIdx);
 
-        // on each brick, transform the contiguous dims
-        for(auto dimIdx : contiguousDims)
+        // allocate bricks to store the transposed data
+        for(auto& b : transposedField.bricks)
         {
-            auto transformItem = C2COneDimension(*this,
-                                                 dimIdx,
-                                                 inBrick.device,
-                                                 inBrick.length(),
-                                                 inBrick.stride,
-                                                 transformInput,
-                                                 BufferPtr::temp(temp.data()),
-                                                 antecedents);
-
-            transformInput = BufferPtr::temp(temp.data());
-            antecedents    = {transformItem};
+            transposeOutputTemp.emplace_back(tempBuffers, b.device, b.count_elems(), elem_size);
+            transposeOutputBufs.emplace_back(BufferPtr::temp(transposeOutputTemp.back().data()));
         }
 
-        // need to transpose data so remaining dim is contiguous
+        std::vector<size_t> transposeItems;
+        GlobalTranspose(elem_size,
+                        desc.inFields.front(),
+                        transposedField,
+                        transposeInputBufs,
+                        transposeOutputBufs,
+                        transposeInputAntecedents,
+                        transposeItems,
+                        transposeNumber++);
 
-        // for each output brick, work out the intersection of
-        // this brick and transpose it if there's overlap
-        for(size_t outBrickIdx = 0; outBrickIdx < desc.outFields.front().bricks.size();
-            ++outBrickIdx)
-        {
-            const auto& outBrick = desc.outFields.front().bricks[outBrickIdx];
+        // now dimIdx dimension is contiguous on all bricks
+        midFFTItems.clear();
+        C2CField(transposedField,
+                 {dimIdx},
+                 transposeOutputBufs,
+                 transposeOutputBufs,
+                 transposeItems,
+                 midFFTItems);
 
-            auto intersection = inBrick.intersect(outBrick);
-            if(intersection.empty())
-                continue;
-            intersection.stride = intersection.contiguous_strides();
-
-            // pack data for communication
-            TempBufferLease pack(
-                tempBuffers, inBrick.device, intersection.count_elems(), in_elem_size);
-            TempBufferLease recv(
-                tempBuffers, outBrick.device, intersection.count_elems(), in_elem_size);
-            auto packIdx
-                = AddMultiPlanItem(transpose_brick(inBrick.device,
-                                                   intersection.length(),
-                                                   precision,
-                                                   desc.inArrayType,
-                                                   BufferPtr::temp(temp.data()),
-                                                   intersection.offset_in_field(inBrick.stride)
-                                                       - inBrick.offset_in_field(inBrick.stride),
-                                                   inBrick.stride,
-                                                   BufferPtr::temp(pack.data()),
-                                                   0,
-                                                   intersection.stride,
-                                                   "pack brick for remaining dimension"),
-                                   antecedents);
-            antecedents = {packIdx};
-
-            // send packed data
-            auto sendOp          = std::make_unique<CommPointToPoint>();
-            sendOp->precision    = precision;
-            sendOp->arrayType    = desc.inArrayType;
-            sendOp->numElems     = intersection.count_elems();
-            sendOp->srcDeviceID  = inBrick.device;
-            sendOp->srcPtr       = BufferPtr::temp(pack.data());
-            sendOp->destDeviceID = outBrick.device;
-            sendOp->destPtr      = BufferPtr::temp(recv.data());
-
-            auto send   = AddMultiPlanItem(std::move(sendOp), antecedents);
-            antecedents = {send};
-
-            // unpack data on destination to user out
-            auto unpackIdx
-                = AddMultiPlanItem(transpose_brick(outBrick.device,
-                                                   intersection.length(),
-                                                   precision,
-                                                   desc.inArrayType,
-                                                   BufferPtr::temp(recv.data()),
-                                                   0,
-                                                   intersection.stride,
-                                                   BufferPtr::user_output(outBrickIdx),
-                                                   intersection.offset_in_field(outBrick.stride)
-                                                       - outBrick.offset_in_field(outBrick.stride),
-                                                   outBrick.stride,
-                                                   "unpack brick for remaining dimension"),
-                                   antecedents);
-            unpackIndexes.push_back(unpackIdx);
-        }
+        // next iteration of loop will depend on these fft items and
+        // work on the output we just produced
+        transposeInputAntecedents = midFFTItems;
+        transposeInputBufs        = transposeOutputBufs;
+        std::swap(transposeOutputTemp, inputTemp);
+        transposeOutputTemp.clear();
+        transposeOutputBufs.clear();
     }
 
+    // transpose data to output layout and transform along remaining dimensions
+    std::vector<BufferPtr> outputBufs;
     for(size_t outBrickIdx = 0; outBrickIdx < desc.outFields.front().bricks.size(); ++outBrickIdx)
     {
-        const auto& outBrick = desc.outFields.front().bricks[outBrickIdx];
-
-        // data is now transposed to output bricks.  fft
-        // remaining dimension on all bricks
-        C2COneDimension(*this,
-                        nonContiguousDim,
-                        outBrick.device,
-                        outBrick.length(),
-                        outBrick.stride,
-                        BufferPtr::user_output(outBrickIdx),
-                        BufferPtr::user_output(outBrickIdx),
-                        unpackIndexes);
+        outputBufs.emplace_back(BufferPtr::user_output(outBrickIdx));
     }
-
+    std::vector<size_t> finalTransposeItems;
+    std::vector<size_t> finalFFTItems;
+    GlobalTranspose(elem_size,
+                    transposedField.bricks.empty() ? desc.inFields.front() : transposedField,
+                    desc.outFields.front(),
+                    transposeInputBufs,
+                    outputBufs,
+                    midFFTItems,
+                    finalTransposeItems,
+                    transposeNumber++);
+    C2CField(desc.outFields.front(),
+             contiguousOutputDims,
+             outputBufs,
+             outputBufs,
+             finalTransposeItems,
+             finalFFTItems);
     return true;
 }
 
