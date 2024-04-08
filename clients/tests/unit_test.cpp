@@ -605,9 +605,9 @@ TEST(rocfft_UnitTest, rtc_test_harness)
         for(i = 0; i < files.size(); ++i)
         {
 #ifdef WIN32
-            const std::string command = "hipcc -std=c++17 -o NUL " + files[i].first;
+            const std::string command = "hipcc -c -std=c++17 -o NUL " + files[i].first;
 #else
-            const std::string command = "hipcc -std=c++17 -o /dev/null " + files[i].first;
+            const std::string command = "hipcc -c -std=c++17 -o /dev/null " + files[i].first;
 #endif
             files[i].second = std::system(command.c_str());
         }
