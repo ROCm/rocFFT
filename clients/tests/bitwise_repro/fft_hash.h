@@ -27,15 +27,22 @@
 #include "../../../shared/hostbuf.h"
 #include "sqlite3.h"
 
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-
-#include <hip/hip_runtime_api.h>
-
 #include <algorithm>
+#include <fstream>
+#include <hip/hip_runtime_api.h>
+#include <iostream>
 #include <memory>
 #include <string>
+
+#if __has_include(<filesystem>)
+#include <filesystem>
+#else
+#include <experimental/filesystem>
+namespace std
+{
+    namespace filesystem = experimental::filesystem;
+}
+#endif
 
 typedef size_t default_hash_type;
 
