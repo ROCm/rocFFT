@@ -7,6 +7,10 @@ subtrees:
     title: What is rocFFT?
   - file: how-to/working-with-rocfft
     title: Working with rocFFT
+  - file: how-to/load-store-callbacks
+    title: Load and Store Callbacks
+  - file: how-to/runtime-compilation
+    title: Runtime Compilation
   - file: reference/reference.rst
     title: API Reference
     subtrees:

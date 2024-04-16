@@ -15,20 +15,22 @@ The code is open and hosted here: https://github.com/ROCmSoftwarePlatform/rocFFT
 
 The rocFFT documentation is structured as follows:
 
-.. card:: :ref:`Conceptual`
+.. grid:: 2
 
-  * :ref:`what-is-rocfft`
+    .. grid-item-card:: Conceptual
 
-.. card:: :ref:`How-To`
+      * :ref:`what-is-rocfft`
 
-  * :ref:`working-with-rocfft`
-  * :ref:`load-store-callbacks`
-  * :ref:`runtime-compilation`
+    .. grid-item-card:: How To
 
-.. card:: :ref:`API Reference`
+      * :ref:`working-with-rocfft`
+      * :ref:`load-store-callbacks`
+      * :ref:`runtime-compilation`
 
-  * :ref:`api-usage`
-  * :ref:`api-reference`
+    .. grid-item-card:: API Reference
+
+      * :ref:`api-usage`
+      * :ref:`api-reference`
 
 To contribute to the documentation refer to `Contributing to ROCm  <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
 
