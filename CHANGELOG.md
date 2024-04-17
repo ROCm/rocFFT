@@ -3,16 +3,27 @@
 Documentation for rocFFT is available at
 [https://rocm.docs.amd.com/projects/rocFFT/en/latest/](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
 
-## rocFFT 1.0.27 (unreleased)
-
-### Fixes
-
-* Fixed kernel launch failure on execute of very large odd-length real-complex transforms.
+## rocFFT 1.0.28 (unreleased)
 
 ### Optimizations
 
 * Implemented multi-device transform for 3D pencil decomposition.  Contiguous dimensions on input and output bricks 
   are transformed locally, with global transposes to make remaining dimensions contiguous.
+
+### Changes
+
+* Randomly generated accuracy tests are now disabled by default; these can be enabled using
+  the --nrand <int> option (which defaults to 0).
+
+## rocFFT 1.0.27 for ROCm 6.1.1
+
+### Fixes
+
+* Fixed kernel launch failure on execute of very large odd-length real-complex transforms.
+
+### Additions
+
+* Enable multi-gpu testing on systems without direct GPU-interconnects
 
 ## rocFFT 1.0.26 for ROCm 6.1.0
 
@@ -22,8 +33,6 @@ Documentation for rocFFT is available at
 * Multi-device, real-complex FFTs are now supported
 * rocFFT now statically links libstdc++ when only `std::experimental::filesystem` is available (to guard
   against ABI incompatibilities with newer libstdc++ libraries that include `std::filesystem`)
-* Randomly generated accuracy tests are now disabled by default; these can be enabled using
-  the --nrand <int> option (which defaults to 0).
 
 ## rocFFT 1.0.25 for ROCm 6.0.0
 
