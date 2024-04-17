@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -100,13 +100,13 @@ int main(int argc, char* argv[])
     // Define infield geometry
     // first entry of upper dimension is the batch size
     std::vector<size_t> inbrick0_lower = {0, 0, 0, 0};
-    std::vector<size_t> inbrick0_upper = {1, length[0] / deviceCount, length[1], length[2]};
-    std::vector<size_t> inbrick1_lower = {0, length[0] / deviceCount, 0, 0};
-    std::vector<size_t> inbrick1_upper = {1, length[0], length[1], length[2]};
+    std::vector<size_t> inbrick0_upper = {length[0], length[1], length[2] / deviceCount, 1};
+    std::vector<size_t> inbrick1_lower = {0, 0, length[2] / deviceCount, 0};
+    std::vector<size_t> inbrick1_upper = {length[0], length[1], length[2], 1};
 
     // Row-major stride for brick data layout in memory
     size_t              idist        = fftSize; // distance between batches
-    std::vector<size_t> brick_stride = {idist, length[0] * length[1], length[0], 1};
+    std::vector<size_t> brick_stride = {1, length[0], length[0] * length[1], idist };
 
     rocfft_field infield = nullptr;
     rocfft_field_create(&infield);
@@ -161,9 +161,9 @@ int main(int argc, char* argv[])
 
     std::vector<void*>  gpu_out(2);
     std::vector<size_t> outbrick0_lower = {0, 0, 0, 0};
-    std::vector<size_t> outbrick0_upper = {1, length[0] / deviceCount, length[1], length[2]};
-    std::vector<size_t> outbrick1_lower = {0, length[0] / deviceCount, 0, 0};
-    std::vector<size_t> outbrick1_upper = {1, length[0], length[1], length[2]};
+    std::vector<size_t> outbrick0_upper = {length[0], length[1], length[2] / deviceCount, 1};
+    std::vector<size_t> outbrick1_lower = {0, 0, length[2] / deviceCount, 0};
+    std::vector<size_t> outbrick1_upper = {length[0], length[1], length[2], 1};
 
     rocfft_brick outbrick0 = nullptr;
     rocfft_brick_create(&outbrick0,
