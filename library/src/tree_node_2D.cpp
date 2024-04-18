@@ -1,4 +1,4 @@
-// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -255,10 +255,18 @@ void RC2DNode::AssignParams_internal()
     rowPlan->inStride = inStride;
     rowPlan->iDist    = iDist;
 
-    // row plan is in-place, so keep same strides in case parent's
-    // in/out strides are incompatible for the same buffer
-    rowPlan->outStride = inStride;
-    rowPlan->oDist     = iDist;
+    // make output of row plan contiguous if the 2D node is at the root of the plan tree
+    if(parent == nullptr)
+    {
+        rowPlan->outStride = {1, length[0]};
+        rowPlan->oDist     = length[0] * length[1];
+    }
+    else
+    {
+        rowPlan->outStride = inStride;
+        rowPlan->oDist     = iDist;
+    }
+
     rowPlan->AssignParams();
 
     colPlan->inStride = rowPlan->outStride;
