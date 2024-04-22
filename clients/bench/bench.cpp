@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -339,6 +339,10 @@ int main(int argc, char* argv[])
         pobuffer[i] = obuffer->at(i).data();
     }
 
+    // Scatter input out to other devices and adjust I/O buffers to match requested transform
+    params.multi_gpu_prepare(ibuffer, pibuffer, pobuffer);
+
+    // Execute a warm-up call
     params.execute(pibuffer.data(), pobuffer.data());
 
     // Run the transform several times and record the execution time:
@@ -349,21 +353,29 @@ int main(int argc, char* argv[])
     stop.alloc();
     for(unsigned int itrial = 0; itrial < gpu_time.size(); ++itrial)
     {
-        if(is_device_gen)
+        // Create input at every iteration to avoid overflow
+        if(params.ifields.empty())
         {
-            params.compute_input(ibuffer);
-        }
-
-        if(is_host_gen)
-        {
-            for(unsigned int idx = 0; idx < ibuffer_cpu.size(); ++idx)
+            // Compute input on default device
+            if(is_device_gen)
             {
-                HIP_V_THROW(hipMemcpy(pibuffer[idx],
-                                      ibuffer_cpu[idx].data(),
-                                      ibuffer_cpu[idx].size(),
-                                      hipMemcpyHostToDevice),
-                            "hipMemcpy failed");
+                params.compute_input(ibuffer);
             }
+
+            if(is_host_gen)
+            {
+                for(unsigned int idx = 0; idx < ibuffer_cpu.size(); ++idx)
+                {
+                    HIP_V_THROW(hipMemcpy(pibuffer[idx],
+                                          ibuffer_cpu[idx].data(),
+                                          ibuffer_cpu[idx].size(),
+                                          hipMemcpyHostToDevice),
+                                "hipMemcpy failed");
+                }
+            }
+
+            // Scatter input out to other devices if this is a multi-GPU test
+            params.multi_gpu_prepare(ibuffer, pibuffer, pobuffer);
         }
 
         HIP_V_THROW(hipEventRecord(start), "hipEventRecord failed");
@@ -377,13 +389,17 @@ int main(int argc, char* argv[])
         HIP_V_THROW(hipEventElapsedTime(&time, start, stop), "hipEventElapsedTime failed");
         gpu_time[itrial] = time;
 
+        // Print result after FFT transform
         if(verbose > 2)
         {
+            // Gather data to default GPU if this is a multi-GPU test
+            params.multi_gpu_finalize(*obuffer, pobuffer);
+
             auto output = allocate_host_buffer(params.precision, params.otype, params.osize);
             for(unsigned int idx = 0; idx < output.size(); ++idx)
             {
                 HIP_V_THROW(hipMemcpy(output[idx].data(),
-                                      pobuffer[idx],
+                                      pobuffer.at(idx),
                                       output[idx].size(),
                                       hipMemcpyDeviceToHost),
                             "hipMemcpy failed");
