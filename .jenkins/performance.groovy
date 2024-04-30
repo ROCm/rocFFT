@@ -169,7 +169,7 @@ def runCI =
 
     buildProject(prj, formatCheck, nodes.dockerArray, compileCommand, testCommand, null)
     def commentString = "Performance reports: \n" + "Commit hashes: \n"
-    for(parentHash in prj.gitParentHashes) {
+    for (parentHash in prj.gitParentHashes) {
          commentString += "${parentHash} \n"
     }
     for (gpu in gpus) {
@@ -177,16 +177,20 @@ def runCI =
             commentString += "[${gpu} ${dataType} report](${JOB_URL}/${dataType}-precision-${gpu})\n"
         }
     }
-    boolean commentExists = false
-    for (prComment in pullRequest.comments) {
-        if (prComment.body.contains("Performance reports:"))
-        {
-            commentExists = true
-            prComment.body = commentString
+
+    if (env.BRANCH_NAME ==~ /PR-\d+/)
+    {
+        boolean commentExists = false
+        for (prComment in pullRequest.comments) {
+            if (prComment.body.contains("Performance reports:"))
+            {
+                commentExists = true
+                prComment.body = commentString
+            }
         }
-    }
-    if (!commentExists) {
-        def comment = pullRequest.comment(commentString)
+        if (!commentExists) {
+            def comment = pullRequest.comment(commentString)
+        }
     }
 }
 
