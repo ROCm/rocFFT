@@ -44,22 +44,37 @@ static const unsigned int DATA_GEN_GRID_Y_MAX = 64;
 template <typename T>
 struct input_val_1D
 {
-    T val1;
+    T val1 = 0;
+
+    __host__ __device__ input_val_1D operator+(const input_val_1D other)
+    {
+        return {val1 + other.val1};
+    }
 };
 
 template <typename T>
 struct input_val_2D
 {
-    T val1;
-    T val2;
+    T val1 = 0;
+    T val2 = 0;
+
+    __host__ __device__ input_val_2D operator+(const input_val_2D other)
+    {
+        return {val1 + other.val1, val2 + other.val2};
+    }
 };
 
 template <typename T>
 struct input_val_3D
 {
-    T val1;
-    T val2;
-    T val3;
+    T val1 = 0;
+    T val2 = 0;
+    T val3 = 0;
+
+    __host__ __device__ input_val_3D operator+(const input_val_3D other)
+    {
+        return {val1 + other.val1, val2 + other.val2, val3 + other.val3};
+    }
 };
 
 template <typename T>
@@ -100,24 +115,6 @@ __device__ static size_t
 {
     return (length.val1 * stride.val1) + (length.val2 * stride.val2) + (length.val3 * stride.val3)
            + base;
-}
-
-template <typename T>
-static inline input_val_1D<T> make_zero_length(const input_val_1D<T>& whole_length)
-{
-    return input_val_1D<T>{0};
-}
-
-template <typename T>
-static inline input_val_2D<T> make_zero_length(const input_val_2D<T>& whole_length)
-{
-    return input_val_2D<T>{0, 0};
-}
-
-template <typename T>
-static inline input_val_3D<T> make_zero_length(const input_val_3D<T>& whole_length)
-{
-    return input_val_3D<T>{0, 0, 0};
 }
 
 template <typename T>
@@ -255,7 +252,11 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                                             const size_t           idist,
                                             const size_t           isize,
                                             const Tint             istride,
-                                            rocfft_complex<Treal>* data)
+                                            rocfft_complex<Treal>* data,
+                                            const Tint             field_lower,
+                                            const size_t           field_lower_batch,
+                                            const Tint             field_contig_stride,
+                                            const size_t           field_contig_dist)
 {
     auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
                    + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
@@ -264,16 +265,20 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
     {
         auto i_length = get_length(i, whole_length);
         auto i_batch  = get_batch(i, whole_length);
-        auto i_base   = i_batch * idist;
 
-        auto seed = compute_index(zero_length, istride, i_base);
-        auto idx  = compute_index(i_length, istride, i_base);
+        // brick index to write to
+        auto write_idx = compute_index(i_length, istride, i_batch * idist);
+        // logical index in the field
+        auto logical_idx = compute_index(i_length + field_lower,
+                                         field_contig_stride,
+                                         (i_batch + field_lower_batch) * field_contig_dist);
+        auto seed        = compute_index(zero_length, istride, i_batch * field_contig_dist);
 
         hiprandStatePhilox4_32_10 gen_state;
-        hiprand_init(seed, idx, 0, &gen_state);
+        hiprand_init(seed, logical_idx, 0, &gen_state);
 
-        data[idx].x = make_random_val(&gen_state, static_cast<Treal>(-0.5));
-        data[idx].y = make_random_val(&gen_state, static_cast<Treal>(-0.5));
+        data[write_idx].x = make_random_val(&gen_state, static_cast<Treal>(-0.5));
+        data[write_idx].y = make_random_val(&gen_state, static_cast<Treal>(-0.5));
     }
 }
 
@@ -316,7 +321,11 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                                        const size_t isize,
                                        const Tint   istride,
                                        Treal*       real_data,
-                                       Treal*       imag_data)
+                                       Treal*       imag_data,
+                                       const Tint   field_lower,
+                                       const size_t field_lower_batch,
+                                       const Tint   field_contig_stride,
+                                       const size_t field_contig_dist)
 {
     auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
                    + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
@@ -325,16 +334,20 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
     {
         auto i_length = get_length(i, whole_length);
         auto i_batch  = get_batch(i, whole_length);
-        auto i_base   = i_batch * idist;
 
-        auto seed = compute_index(zero_length, istride, i_base);
-        auto idx  = compute_index(i_length, istride, i_base);
+        // brick index to write to
+        auto write_idx = compute_index(i_length, istride, i_batch * idist);
+        // logical index in the field
+        auto logical_idx = compute_index(i_length + field_lower,
+                                         field_contig_stride,
+                                         (i_batch + field_lower_batch) * field_contig_dist);
+        auto seed        = compute_index(zero_length, istride, i_batch * field_contig_dist);
 
         hiprandStatePhilox4_32_10 gen_state;
-        hiprand_init(seed, idx, 0, &gen_state);
+        hiprand_init(seed, logical_idx, 0, &gen_state);
 
-        real_data[idx] = make_random_val(&gen_state, static_cast<Treal>(-0.5));
-        imag_data[idx] = make_random_val(&gen_state, static_cast<Treal>(-0.5));
+        real_data[write_idx] = make_random_val(&gen_state, static_cast<Treal>(-0.5));
+        imag_data[write_idx] = make_random_val(&gen_state, static_cast<Treal>(-0.5));
     }
 }
 
@@ -377,7 +390,11 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                                      const size_t idist,
                                      const size_t isize,
                                      const Tint   istride,
-                                     Treal*       data)
+                                     Treal*       data,
+                                     const Tint   field_lower,
+                                     const size_t field_lower_batch,
+                                     const Tint   field_contig_stride,
+                                     const size_t field_contig_dist)
 {
     auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
                    + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
@@ -386,15 +403,19 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
     {
         auto i_length = get_length(i, whole_length);
         auto i_batch  = get_batch(i, whole_length);
-        auto i_base   = i_batch * idist;
 
-        auto seed = compute_index(zero_length, istride, i_base);
-        auto idx  = compute_index(i_length, istride, i_base);
+        // brick index to write to
+        auto write_idx = compute_index(i_length, istride, i_batch * idist);
+        // logical index in the field
+        auto logical_idx = compute_index(i_length + field_lower,
+                                         field_contig_stride,
+                                         (i_batch + field_lower_batch) * field_contig_dist);
+        auto seed        = compute_index(zero_length, istride, i_batch * field_contig_dist);
 
         hiprandStatePhilox4_32_10 gen_state;
-        hiprand_init(seed, idx, 0, &gen_state);
+        hiprand_init(seed, logical_idx, 0, &gen_state);
 
-        data[idx] = make_random_val(&gen_state, static_cast<Treal>(-0.5));
+        data[write_idx] = make_random_val(&gen_state, static_cast<Treal>(-0.5));
     }
 }
 
@@ -406,7 +427,11 @@ __global__ static void __launch_bounds__(DATA_GEN_THREADS)
                               const Tint   istride,
                               const Tint   ustride,
                               const Treal  inv_scale,
-                              Treal*       data)
+                              Treal*       data,
+                              const Tint   field_lower         = {},
+                              const size_t field_lower_batch   = 0,
+                              const Tint   field_contig_stride = {},
+                              const size_t field_contig_dist   = 0)
 {
     auto const i = static_cast<size_t>(threadIdx.x) + blockIdx.x * blockDim.x
                    + blockIdx.y * gridDim.x * DATA_GEN_THREADS;
@@ -886,11 +911,15 @@ static void generate_random_interleaved_data(const Tint&            whole_length
                                              const size_t           isize,
                                              const Tint&            whole_stride,
                                              rocfft_complex<Treal>* input_data,
-                                             const hipDeviceProp_t& deviceProp)
+                                             const hipDeviceProp_t& deviceProp,
+                                             const Tint&            field_lower,
+                                             const size_t           field_lower_batch,
+                                             const Tint&            field_contig_stride,
+                                             const size_t           field_contig_dist)
 {
-    auto input_length = get_input_val(whole_length);
-    auto zero_length  = make_zero_length(input_length);
-    auto input_stride = get_input_val(whole_stride);
+    auto                         input_length = get_input_val(whole_length);
+    const decltype(input_length) zero_length;
+    auto                         input_stride = get_input_val(whole_stride);
 
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
@@ -908,7 +937,11 @@ static void generate_random_interleaved_data(const Tint&            whole_length
         idist,
         isize,
         input_stride,
-        input_data);
+        input_data,
+        get_input_val(field_lower),
+        field_lower_batch,
+        get_input_val(field_contig_stride),
+        field_contig_dist);
     auto err = hipGetLastError();
     if(err != hipSuccess)
         throw std::runtime_error("generate_random_interleaved_data_kernel launch failure: "
@@ -963,11 +996,15 @@ static void generate_random_planar_data(const Tint&            whole_length,
                                         const Tint&            whole_stride,
                                         Treal*                 real_data,
                                         Treal*                 imag_data,
-                                        const hipDeviceProp_t& deviceProp)
+                                        const hipDeviceProp_t& deviceProp,
+                                        const Tint&            field_lower,
+                                        const size_t           field_lower_batch,
+                                        const Tint&            field_contig_stride,
+                                        const size_t           field_contig_dist)
 {
-    const auto input_length = get_input_val(whole_length);
-    const auto zero_length  = make_zero_length(input_length);
-    const auto input_stride = get_input_val(whole_stride);
+    const auto                   input_length = get_input_val(whole_length);
+    const decltype(input_length) zero_length;
+    const auto                   input_stride = get_input_val(whole_stride);
 
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
@@ -986,7 +1023,11 @@ static void generate_random_planar_data(const Tint&            whole_length,
         isize,
         input_stride,
         real_data,
-        imag_data);
+        imag_data,
+        get_input_val(field_lower),
+        field_lower_batch,
+        get_input_val(field_contig_stride),
+        field_contig_dist);
     auto err = hipGetLastError();
     if(err != hipSuccess)
         throw std::runtime_error("generate_random_planar_data_kernel launch failure: "
@@ -1041,11 +1082,15 @@ static void generate_random_real_data(const Tint&            whole_length,
                                       const size_t           isize,
                                       const Tint&            whole_stride,
                                       Treal*                 input_data,
-                                      const hipDeviceProp_t& deviceProp)
+                                      const hipDeviceProp_t& deviceProp,
+                                      const Tint             field_lower,
+                                      const size_t           field_lower_batch,
+                                      const Tint             field_contig_stride,
+                                      const size_t           field_contig_dist)
 {
-    const auto input_length = get_input_val(whole_length);
-    const auto zero_length  = make_zero_length(input_length);
-    const auto input_stride = get_input_val(whole_stride);
+    const auto                   input_length = get_input_val(whole_length);
+    const decltype(input_length) zero_length;
+    const auto                   input_stride = get_input_val(whole_stride);
 
     dim3 gridDim = generate_data_gridDim(isize);
     dim3 blockDim{DATA_GEN_THREADS};
@@ -1063,7 +1108,11 @@ static void generate_random_real_data(const Tint&            whole_length,
         idist,
         isize,
         input_stride,
-        input_data);
+        input_data,
+        get_input_val(field_lower),
+        field_lower_batch,
+        get_input_val(field_contig_stride),
+        field_contig_dist);
     auto err = hipGetLastError();
     if(err != hipSuccess)
         throw std::runtime_error("generate_random_real_data_kernel launch failure: "

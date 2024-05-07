@@ -159,8 +159,21 @@ inline Tsize var_size(const fft_precision precision, const fft_array_type type)
     }
     return var_size;
 }
-// Given an array type and transform length, strides, etc, load random floats in [0,1]
-// into the input array of floats/doubles or complex floats/doubles gpu buffers.
+
+// Given an array type and transform length, strides, etc, initialize
+// values into the input device buffer.
+//
+// length/istride/batch/dist describe the physical layout of the
+// input buffer.  The buffer is treated as a sub-brick of a field,
+// though the brick may cover the entire field.
+//
+// Lower coordinate of the brick in the field is provided by
+// field_lower (FFT dimension coordinate) and field_lower_batch
+// (batch dimension coordinate).  For a brick that covers the whole
+// field, these are all zeroes.
+//
+// field_contig_stride + dist are the field's stride and dist if the
+// field were contiguous.
 template <typename Tfloat, typename Tint1>
 inline void set_input(std::vector<gpubuf>&       input,
                       const fft_input_generator  igen,
@@ -172,7 +185,11 @@ inline void set_input(std::vector<gpubuf>&       input,
                       const Tint1&               whole_stride,
                       const size_t               idist,
                       const size_t               nbatch,
-                      const hipDeviceProp_t&     deviceProp)
+                      const hipDeviceProp_t&     deviceProp,
+                      const Tint1&               field_lower,
+                      const size_t               field_lower_batch,
+                      const Tint1&               field_contig_stride,
+                      const size_t               field_contig_dist)
 {
     auto isize = count_iters(whole_length) * nbatch;
 
@@ -187,8 +204,16 @@ inline void set_input(std::vector<gpubuf>&       input,
             generate_interleaved_data(
                 whole_length, idist, isize, whole_stride, nbatch, ibuffer, deviceProp);
         else if(igen == fft_input_random_generator_device)
-            generate_random_interleaved_data(
-                whole_length, idist, isize, whole_stride, ibuffer, deviceProp);
+            generate_random_interleaved_data(whole_length,
+                                             idist,
+                                             isize,
+                                             whole_stride,
+                                             ibuffer,
+                                             deviceProp,
+                                             field_lower,
+                                             field_lower_batch,
+                                             field_contig_stride,
+                                             field_contig_dist);
 
         if(itype == fft_array_type_hermitian_interleaved)
         {
@@ -215,8 +240,17 @@ inline void set_input(std::vector<gpubuf>&       input,
                                  ibuffer_imag,
                                  deviceProp);
         else if(igen == fft_input_random_generator_device)
-            generate_random_planar_data(
-                whole_length, idist, isize, whole_stride, ibuffer_real, ibuffer_imag, deviceProp);
+            generate_random_planar_data(whole_length,
+                                        idist,
+                                        isize,
+                                        whole_stride,
+                                        ibuffer_real,
+                                        ibuffer_imag,
+                                        deviceProp,
+                                        field_lower,
+                                        field_lower_batch,
+                                        field_contig_stride,
+                                        field_contig_dist);
 
         if(itype == fft_array_type_hermitian_planar)
             impose_hermitian_symmetry_planar(
@@ -232,8 +266,16 @@ inline void set_input(std::vector<gpubuf>&       input,
             generate_real_data(
                 whole_length, idist, isize, whole_stride, nbatch, ibuffer, deviceProp);
         else if(igen == fft_input_random_generator_device)
-            generate_random_real_data(
-                whole_length, idist, isize, whole_stride, ibuffer, deviceProp);
+            generate_random_real_data(whole_length,
+                                      idist,
+                                      isize,
+                                      whole_stride,
+                                      ibuffer,
+                                      deviceProp,
+                                      field_lower,
+                                      field_lower_batch,
+                                      field_contig_stride,
+                                      field_contig_dist);
 
         break;
     }
@@ -242,6 +284,20 @@ inline void set_input(std::vector<gpubuf>&       input,
     }
 }
 
+// Given an array type and transform length, strides, etc, initialize
+// values into the input host buffer.
+//
+// length/istride/batch/dist describe the physical layout of the
+// input buffer.  The buffer is treated as a sub-brick of a field,
+// though the brick may cover the entire field.
+//
+// Lower coordinate of the brick in the field is provided by
+// field_lower (FFT dimension coordinate) and field_lower_batch
+// (batch dimension coordinate).  For a brick that covers the whole
+// field, these are all zeroes.
+//
+// field_contig_stride + dist are the field's stride and dist if the
+// field were contiguous.
 template <typename Tfloat, typename Tint1>
 inline void set_input(std::vector<hostbuf>&      input,
                       const fft_input_generator  igen,
@@ -253,7 +309,11 @@ inline void set_input(std::vector<hostbuf>&      input,
                       const Tint1&               whole_stride,
                       const size_t               idist,
                       const size_t               nbatch,
-                      const hipDeviceProp_t&     deviceProp)
+                      const hipDeviceProp_t&     deviceProp,
+                      const Tint1                field_lower,
+                      const size_t               field_lower_batch,
+                      const Tint1                field_contig_stride,
+                      const size_t               field_contig_dist)
 {
     switch(itype)
     {
@@ -263,8 +323,15 @@ inline void set_input(std::vector<hostbuf>&      input,
         if(igen == fft_input_generator_host)
             generate_interleaved_data<Tfloat>(input, whole_length, whole_stride, idist, nbatch);
         else if(igen == fft_input_random_generator_host)
-            generate_random_interleaved_data<Tfloat>(
-                input, whole_length, whole_stride, idist, nbatch);
+            generate_random_interleaved_data<Tfloat>(input,
+                                                     whole_length,
+                                                     whole_stride,
+                                                     idist,
+                                                     nbatch,
+                                                     field_lower,
+                                                     field_lower_batch,
+                                                     field_contig_stride,
+                                                     field_contig_dist);
 
         if(itype == fft_array_type_hermitian_interleaved)
             impose_hermitian_symmetry_interleaved<Tfloat>(input, length, istride, idist, nbatch);
@@ -277,7 +344,15 @@ inline void set_input(std::vector<hostbuf>&      input,
         if(igen == fft_input_generator_host)
             generate_planar_data<Tfloat>(input, whole_length, whole_stride, idist, nbatch);
         else if(igen == fft_input_random_generator_host)
-            generate_random_planar_data<Tfloat>(input, whole_length, whole_stride, idist, nbatch);
+            generate_random_planar_data<Tfloat>(input,
+                                                whole_length,
+                                                whole_stride,
+                                                idist,
+                                                nbatch,
+                                                field_lower,
+                                                field_lower_batch,
+                                                field_contig_stride,
+                                                field_contig_dist);
 
         if(itype == fft_array_type_hermitian_planar)
             impose_hermitian_symmetry_planar<Tfloat>(input, length, istride, idist, nbatch);
@@ -289,7 +364,15 @@ inline void set_input(std::vector<hostbuf>&      input,
         if(igen == fft_input_generator_host)
             generate_real_data<Tfloat>(input, whole_length, whole_stride, idist, nbatch);
         else if(igen == fft_input_random_generator_host)
-            generate_random_real_data<Tfloat>(input, whole_length, whole_stride, idist, nbatch);
+            generate_random_real_data<Tfloat>(input,
+                                              whole_length,
+                                              whole_stride,
+                                              idist,
+                                              nbatch,
+                                              field_lower,
+                                              field_lower_batch,
+                                              field_contig_stride,
+                                              field_contig_dist);
 
         break;
     }
@@ -313,43 +396,56 @@ inline void set_input(std::vector<Tbuff>&        input,
     switch(length.size())
     {
     case 1:
-        set_input<Tfloat>(input,
-                          igen,
-                          itype,
-                          length,
-                          ilength,
-                          istride,
-                          ilength[0],
-                          istride[0],
-                          idist,
-                          nbatch,
-                          deviceProp);
+        set_input<Tfloat, size_t>(input,
+                                  igen,
+                                  itype,
+                                  length,
+                                  ilength,
+                                  istride,
+                                  ilength[0],
+                                  istride[0],
+                                  idist,
+                                  nbatch,
+                                  deviceProp,
+                                  {},
+                                  0UL,
+                                  1UL,
+                                  ilength[0]);
         break;
     case 2:
-        set_input<Tfloat>(input,
-                          igen,
-                          itype,
-                          length,
-                          ilength,
-                          istride,
-                          std::make_tuple(ilength[0], ilength[1]),
-                          std::make_tuple(istride[0], istride[1]),
-                          idist,
-                          nbatch,
-                          deviceProp);
+        set_input<Tfloat, std::tuple<size_t, size_t>>(input,
+                                                      igen,
+                                                      itype,
+                                                      length,
+                                                      ilength,
+                                                      istride,
+                                                      std::make_tuple(ilength[0], ilength[1]),
+                                                      std::make_tuple(istride[0], istride[1]),
+                                                      idist,
+                                                      nbatch,
+                                                      deviceProp,
+                                                      {},
+                                                      0UL,
+                                                      {1UL, ilength[0]},
+                                                      ilength[0] * ilength[1]);
         break;
     case 3:
-        set_input<Tfloat>(input,
-                          igen,
-                          itype,
-                          length,
-                          ilength,
-                          istride,
-                          std::make_tuple(ilength[0], ilength[1], ilength[2]),
-                          std::make_tuple(istride[0], istride[1], istride[2]),
-                          idist,
-                          nbatch,
-                          deviceProp);
+        set_input<Tfloat, std::tuple<size_t, size_t, size_t>>(
+            input,
+            igen,
+            itype,
+            length,
+            ilength,
+            istride,
+            std::make_tuple(ilength[0], ilength[1], ilength[2]),
+            std::make_tuple(istride[0], istride[1], istride[2]),
+            idist,
+            nbatch,
+            deviceProp,
+            {},
+            0UL,
+            {1UL, ilength[0], ilength[0] * ilength[1]},
+            ilength[0] * ilength[1] * ilength[2]);
         break;
     default:
         abort();
