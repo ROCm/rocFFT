@@ -198,11 +198,14 @@ if( NOT SOLUTION_MAP_DATABASE_FOLDER )
   set( SOLUTION_MAP_DATABASE_FOLDER ${CMAKE_SOURCE_DIR}/solution_map )
 endif()
 
+file(GLOB solution_map_files "${SOLUTION_MAP_DATABASE_FOLDER}/*.dat")
+
 add_custom_command(
   OUTPUT ${gen_solutions}
   COMMAND ${PYTHON3_EXE} ${solship_py}
   --gpu-arch="${sol_gpu_arch}"
   --data-folder=${SOLUTION_MAP_DATABASE_FOLDER}
+  DEPENDS ${solution_map_files}
   COMMENT "Put solution map from external text file into library"
 )
 
