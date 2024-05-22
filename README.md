@@ -89,10 +89,11 @@ A summary of the latest functionality and workflow to compute an FFT with rocFFT
 
 You can find additional examples in the `clients/samples` subdirectory.
 
+## Support
+
+You can report bugs and feature requests through the GitHub
+[issue tracker](https://github.com/ROCm/rocFFT/issues).
+
 ## Contribute
 
-If you want to contribute to rocFFT, you must format your code as follows:
-
-* C++: Format with ClangFormat (see `.clang-format`)
-
-* Python: Format with `yapf --style pep8`
+If you want to contribute to rocFFT, you must follow our [contribution guidelines](https://github.com/ROCm/rocFFT/blob/develop/.github/CONTRIBUTING.md).
