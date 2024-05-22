@@ -194,17 +194,17 @@ set( solship_py ${CMAKE_SOURCE_DIR}/library/src/device/solution-shipping.py )
 # default folder of solution maps that will be built in library,
 # user can specify their own arch and folder
 set( sol_gpu_arch ${AMDGPU_TARGETS} )
-if( NOT SOLUTION_MAP_DATABASE_FOLDER )
-  set( SOLUTION_MAP_DATABASE_FOLDER ${CMAKE_SOURCE_DIR}/solution_map )
+if( NOT ROCFFT_SOLUTION_MAP_DIR )
+  set( ROCFFT_SOLUTION_MAP_DIR ${CMAKE_SOURCE_DIR}/library/solution_map CACHE STRING "RocFFT solution map directory" )
 endif()
 
-file(GLOB solution_map_files "${SOLUTION_MAP_DATABASE_FOLDER}/*.dat")
+file(GLOB solution_map_files "${ROCFFT_SOLUTION_MAP_DIR}/*.dat")
 
 add_custom_command(
   OUTPUT ${gen_solutions}
   COMMAND ${PYTHON3_EXE} ${solship_py}
   --gpu-arch="${sol_gpu_arch}"
-  --data-folder=${SOLUTION_MAP_DATABASE_FOLDER}
+  --data-folder=${ROCFFT_SOLUTION_MAP_DIR}
   DEPENDS ${solution_map_files}
   COMMENT "Put solution map from external text file into library"
 )
