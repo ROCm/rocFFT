@@ -25,8 +25,8 @@
 #include <string>
 #include <vector>
 
+#include "../../shared/CLI11.hpp"
 #include "../../shared/environment.h"
-#include "option_util.h"
 #include "rocfft/rocfft.h"
 #include "solution_map.h"
 
@@ -39,27 +39,16 @@ int main(int argc, char* argv[])
     std::string output_filename = "";
 
     // Declare the supported options.
-    // clang-format off
-    options_description opdesc("rocfft solution map converter command line options");
-    opdesc.add_options()("help,h", "produces this help message")
-        ("input_file", value<std::string>(&input_filename), "filename of base-solution-map")
-        ("output_file", value<std::string>(&output_filename), "filename of new-solution-map");
-    // clang-format on
+    CLI::App app{"rocfft solution map converter command line options"};
 
-    variables_map vm;
-    store(parse_command_line(argc, argv, opdesc), vm);
-    notify(vm);
+    app.add_option("--input_file", input_filename, "filename of base-solution-map")
+        ->required()
+        ->check(CLI::ExistingFile);
+    app.add_option("--output_file", output_filename, "filename of new-solution-map")
+        ->required()
+        ->check(CLI::ExistingFile);
 
-    if(!vm.count("input_file"))
-    {
-        std::cout << "Please specify file-path of the target solution map" << std::endl;
-        return EXIT_FAILURE;
-    }
-    if(!vm.count("output_file"))
-    {
-        std::cout << "Please specify file-path of the output solution map" << std::endl;
-        return EXIT_FAILURE;
-    }
+    CLI11_PARSE(app, argc, argv);
 
     // don't use anything from solutions.cpp
     rocfft_setenv("ROCFFT_USE_EMPTY_SOL_MAP", "1");

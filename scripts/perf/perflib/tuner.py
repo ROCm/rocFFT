@@ -24,7 +24,7 @@ import pathlib
 import re
 import subprocess
 import time
-from perflib.utils import cjoin
+from perflib.utils import sjoin
 
 import asyncio
 import sys
@@ -44,11 +44,12 @@ def run(tuner,
         timeout=10):
     """Run rocFFT tuner and return best solution"""
     cmd = [pathlib.Path(tuner).resolve()]
+    cmd += ' tune '
 
     if isinstance(length, int):
         cmd += ['--length', length]
     else:
-        cmd += ['--length'] + [cjoin([str(len) for len in length])]
+        cmd += ['--length'] + [sjoin([str(len) for len in length])]
 
     cmd += ['-N', ntrial]
     cmd += ['-b', nbatch]
