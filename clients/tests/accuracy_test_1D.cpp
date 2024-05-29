@@ -347,7 +347,25 @@ inline auto
                             param.ioffset        = ioffset;
                             param.ooffset        = ooffset;
 
-                            params.push_back(param);
+                            param.validate();
+
+                            const double roll = hash_prob(random_seed, param.token());
+                            const double run_prob
+                                = test_prob * (param.is_planar() ? planar_prob : 1.0);
+
+                            if(roll > run_prob)
+                            {
+                                if(verbose > 4)
+                                {
+                                    std::cout << "Test skipped (probability " << run_prob << " > "
+                                              << roll << ")\n";
+                                }
+                                continue;
+                            }
+                            if(param.valid(0))
+                            {
+                                params.push_back(param);
+                            }
                         }
                     }
                 }

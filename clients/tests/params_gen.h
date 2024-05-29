@@ -43,6 +43,21 @@ const static std::vector<fft_transform_type> trans_type_range_complex
 const static std::vector<fft_transform_type> trans_type_range_real
     = {fft_transform_type_real_forward};
 
+// Take a string (in particular the token from a test) and return a uniform random variable in [0,1]
+// using the seed and hash of the string.
+inline double hash_prob(const int seed, const std::string& token)
+{
+    // Keeping the random number generator here
+    // allows one to run the same tests for a given
+    // random seed; ie the test suite is repeatable.
+    std::hash<std::string>           hasher;
+    std::ranlux24_base               gen(random_seed + hasher(token));
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+
+    const double roll = dis(gen);
+    return roll;
+}
+
 // Given a vector of vector of lengths, generate all unique permutations.
 // Add an optional vector of ad-hoc lengths to the result.
 inline std::vector<std::vector<size_t>>
@@ -301,46 +316,22 @@ inline auto param_generator_base(const std::vector<fft_transform_type>&   type_r
                                             }
                                             param.validate();
 
-                                            // Keeping the random number generator here
-                                            // allows one to run the same tests for a given
-                                            // random seed; ie the test suite is repeatable.
-                                            std::hash<std::string>           hasher;
-                                            std::ranlux24_base               gen(random_seed
-                                                                   + hasher(param.token()));
-                                            std::uniform_real_distribution<> dis(0.0, 1.0);
+                                            const double roll
+                                                = hash_prob(random_seed, param.token());
+                                            const double run_prob
+                                                = test_prob
+                                                  * (param.is_planar() ? planar_prob : 1.0)
+                                                  * (run_callbacks ? callback_prob : 1.0);
 
-                                            if(param.is_planar())
+                                            if(roll > run_prob)
                                             {
-                                                const double roll = dis(gen);
-                                                if(roll > planar_prob)
+                                                if(verbose > 4)
                                                 {
-                                                    if(verbose > 4)
-                                                    {
-                                                        std::cout << "Planar transform skipped "
-                                                                     "(planar_prob: "
-                                                                  << planar_prob << " > " << roll
-                                                                  << ")\n";
-                                                    }
-                                                    continue;
+                                                    std::cout << "Test skipped (probability "
+                                                              << run_prob << " > " << roll << ")\n";
                                                 }
+                                                continue;
                                             }
-                                            if(run_callbacks)
-                                            {
-                                                const double roll = dis(gen);
-                                                if(roll > callback_prob)
-                                                {
-
-                                                    if(verbose > 4)
-                                                    {
-                                                        std::cout << "Callback transform skipped "
-                                                                     "(planar_prob: "
-                                                                  << planar_prob << " > " << roll
-                                                                  << ")\n";
-                                                    }
-                                                    continue;
-                                                }
-                                            }
-
                                             if(param.valid(0))
                                             {
                                                 params.push_back(param);

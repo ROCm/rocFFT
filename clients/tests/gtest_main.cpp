@@ -55,12 +55,16 @@ int verbose;
 
 // User-defined random seed
 size_t random_seed;
+// Overall probability of running any given test
+double test_prob;
 // Probability of running individual planar FFTs
 double planar_prob;
 // Probability of running individual callback FFTs
 double callback_prob;
 // Number of random tests per suite
 size_t n_random_tests = 0;
+
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(bitwise_repro_test);
 
 // Transform parameters for manual test:
 fft_params manual_params;
@@ -264,11 +268,13 @@ int main(int argc, char* argv[])
          "Random seed; if unset, use an actual random seed.")
         ("nrand", po::value<size_t>(&n_random_tests)->default_value(0),
          "Number of extra randomized tests.")
+        ("test_prob", po::value<double>(&test_prob)->default_value(1.0),
+         "Probability of running individual tests.")
         ("planar_prob", po::value<double>(&planar_prob)->default_value(0.1),
-        "Probability of running individual planar transforms")
+        "Probability modifier for running individual planar transforms")
         ("callback", "Inject load/store callbacks")
         ("callback_prob", po::value<double>(&callback_prob)->default_value(0.1),
-         "Probability of running individual callback transforms")
+         "Probability modifier for running individual callback transforms")
         ("fftw_compare",
 	 po::value<bool>(&fftw_compare)->default_value(true), "Compare to FFTW in accuracy tests");
     // clang-format on

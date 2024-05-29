@@ -28,6 +28,8 @@
 #include "../../shared/rocfft_against_fftw.h"
 #include <gtest/gtest.h>
 
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(change_type);
+
 // callback functions to cast data from short to float
 __host__ __device__ float
     load_callback_short(short* input, size_t offset, void* cbdata, void* sharedMem)

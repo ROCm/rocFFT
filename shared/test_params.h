@@ -31,6 +31,7 @@ extern size_t vramgb;
 extern size_t n_random_tests;
 
 extern size_t random_seed;
+extern double test_prob;
 extern double planar_prob;
 extern double callback_prob;
 

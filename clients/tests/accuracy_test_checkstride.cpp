@@ -95,7 +95,25 @@ inline auto param_checkstride()
                         param.otype                = std::get<3>(types);
                         param.run_callbacks        = callback;
                         param.check_output_strides = true;
-                        params.push_back(param);
+
+                        param.validate();
+
+                        const double run_prob = test_prob * (param.is_planar() ? planar_prob : 1.0);
+                        const double roll     = hash_prob(random_seed, param.token());
+
+                        if(roll > run_prob)
+                        {
+                            if(verbose > 4)
+                            {
+                                std::cout << "Test skipped (probability " << run_prob << " > "
+                                          << roll << ")\n";
+                            }
+                            continue;
+                        }
+                        if(param.valid(0))
+                        {
+                            params.push_back(param);
+                        }
                     }
                 }
             }

@@ -121,7 +121,25 @@ inline auto param_permissive_iodist()
                     param.placement      = std::get<1>(types);
                     param.itype          = std::get<2>(types);
                     param.otype          = std::get<3>(types);
-                    params.push_back(param);
+
+                    param.validate();
+
+                    const double roll     = hash_prob(random_seed, param.token());
+                    const double run_prob = test_prob * (param.is_planar() ? planar_prob : 1.0);
+
+                    if(roll > run_prob)
+                    {
+                        if(verbose > 4)
+                        {
+                            std::cout << "Test skipped (probability " << run_prob << " > " << roll
+                                      << ")\n";
+                        }
+                        continue;
+                    }
+                    if(param.valid(0))
+                    {
+                        params.push_back(param);
+                    }
                 }
             }
         }
@@ -219,6 +237,7 @@ inline auto param_adhoc_stride()
         for(const auto& types :
             generate_types(fft_transform_type_real_forward, {fft_placement_notinplace}, true))
         {
+
             fft_params param;
             param.length         = {4, 4, 4};
             param.precision      = precision;
@@ -231,7 +250,30 @@ inline auto param_adhoc_stride()
             param.otype          = std::get<3>(types);
             param.istride        = {16, 4, 1};
             param.ostride        = {16, 4, 1};
-            params.push_back(param);
+
+            param.validate();
+
+            {
+                const double run_prob = test_prob * (param.is_planar() ? planar_prob : 1.0);
+                const double roll     = hash_prob(random_seed, param.token());
+
+                if(roll > run_prob)
+                {
+                    if(verbose > 4)
+                    {
+                        std::cout << "Test skipped (probability " << run_prob << " > " << roll
+                                  << ")\n";
+                    }
+                    continue;
+                }
+                else
+                {
+                    if(param.valid(0))
+                    {
+                        params.push_back(param);
+                    }
+                }
+            }
 
             param.length         = {2, 2, 2};
             param.precision      = precision;
@@ -244,7 +286,30 @@ inline auto param_adhoc_stride()
             param.otype          = std::get<3>(types);
             param.istride        = {20, 6, 1};
             param.ostride        = {20, 6, 1};
-            params.push_back(param);
+
+            param.validate();
+
+            {
+                const double run_prob = test_prob * (param.is_planar() ? planar_prob : 1.0);
+                const double roll     = hash_prob(random_seed, param.token());
+
+                if(roll > run_prob)
+                {
+                    if(verbose > 4)
+                    {
+                        std::cout << "Test skipped (probability " << run_prob << " > " << roll
+                                  << ")\n";
+                    }
+                    continue;
+                }
+                else
+                {
+                    if(param.valid(0))
+                    {
+                        params.push_back(param);
+                    }
+                }
+            }
         }
     }
 
@@ -256,7 +321,7 @@ INSTANTIATE_TEST_SUITE_P(adhoc_stride,
                          ::testing::ValuesIn(param_adhoc_stride()),
                          accuracy_test::TestName);
 
-auto adhoc_tokens = {
+const auto adhoc_tokens = {
     "complex_forward_len_512_64_single_ip_batch_3_istride_192_3_CI_ostride_192_3_CI_idist_1_odist_"
     "1_ioffset_0_0_ooffset_0_0",
     "real_forward_len_1024_1024_1024_single_op_batch_1_istride_1048576_1024_1_R_ostride_525312_513_"
