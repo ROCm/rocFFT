@@ -102,9 +102,6 @@ list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 # Enable verbose output
 option( BUILD_VERBOSE "Output additional build information" OFF )
 
-# Build the reference C++ kernel implementations.
-option( BUILD_CPUREF "Build CPU reference debug code" OFF )
-
 # BUILD_SHARED_LIBS is a cmake built-in; we make it an explicit option
 # such that it shows in cmake-gui
 option( BUILD_SHARED_LIBS "Build rocFFT as a shared library" ON )

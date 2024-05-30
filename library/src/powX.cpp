@@ -38,7 +38,6 @@
 #include "kernel_launch.h"
 
 #include "function_pool.h"
-#include "ref_cpu.h"
 
 #include "real2complex.h"
 
