@@ -884,9 +884,6 @@ def cli():
     parser.add_argument('--manual-large',
                         type=str,
                         help='Large kernel sizes to generate.')
-    parser.add_argument('--runtime-compile',
-                        type=str,
-                        help='Allow runtime-compiled kernels.')
     parser.add_argument('--runtime-compile-default',
                         type=str,
                         help='Compile kernels at runtime by default.')
@@ -975,9 +972,6 @@ def cli():
 
     kernels = default_runtime_compile(kernels,
                                       args.runtime_compile_default == 'ON')
-    if args.runtime_compile != 'ON':
-        for k in kernels:
-            k.runtime_compile = False
 
     #
     # sub commands

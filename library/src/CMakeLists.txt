@@ -331,10 +331,6 @@ foreach( target
   endif()
   target_link_libraries( ${target} PUBLIC ${ROCFFT_RTC_LINK_LIBS} )
 
-  if( ROCFFT_RUNTIME_COMPILE )
-    target_compile_options( ${target} PRIVATE -DROCFFT_RUNTIME_COMPILE )
-  endif()
-
 endforeach()
 
 add_executable( rocfft_aot_helper
@@ -373,9 +369,6 @@ add_library( rocfft
   )
 add_library( roc::rocfft ALIAS rocfft )
 
-if( ROCFFT_RUNTIME_COMPILE )
-  target_compile_options( rocfft PRIVATE -DROCFFT_RUNTIME_COMPILE )
-endif()
 if( ROCFFT_BUILD_OFFLINE_TUNER )
   target_compile_options( rocfft PRIVATE -DROCFFT_BUILD_OFFLINE_TUNER )
 endif()

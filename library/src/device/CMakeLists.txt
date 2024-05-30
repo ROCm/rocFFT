@@ -103,7 +103,6 @@ execute_process(COMMAND ${PYTHON3_EXE} ${kgen}
   --precision=${GENERATOR_PRECISION}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
-  --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
   --runtime-compile-default=${ROCFFT_RUNTIME_COMPILE_DEFAULT}
   list
   OUTPUT_VARIABLE gen_headers
@@ -120,7 +119,6 @@ add_custom_command(OUTPUT ${gen_headers}
   --precision=${GENERATOR_PRECISION}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
-  --runtime-compile=${ROCFFT_RUNTIME_COMPILE}
   --runtime-compile-default=${ROCFFT_RUNTIME_COMPILE_DEFAULT}
   generate $<TARGET_FILE:stockham_aot>
   DEPENDS stockham_aot ${kgendeps}

@@ -129,9 +129,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
                                std::string&       kernel_name,
                                bool               enable_callbacks)
 {
-
-#ifdef ROCFFT_RUNTIME_COMPILE
-
+#ifndef ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS
     int deviceId = 0;
     if(hipGetDevice(&deviceId) != hipSuccess)
     {
@@ -187,7 +185,7 @@ std::shared_future<std::unique_ptr<RTCKernel>>
         kernel_name = generator.generate_name();
     }
 #endif
-    // runtime compilation is not enabled or no kernel found, return
+    // kernel harness being generated or no kernel found, return
     // null RTCKernel
     std::promise<std::unique_ptr<RTCKernel>> p;
     p.set_value(nullptr);

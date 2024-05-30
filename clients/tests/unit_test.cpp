@@ -254,7 +254,6 @@ TEST(rocfft_UnitTest, workmem_null)
     workmem_test([](size_t requested) { return requested; }, rocfft_status_success, true);
 }
 
-#ifdef ROCFFT_RUNTIME_COMPILE
 static const size_t RTC_PROBLEM_SIZE = 2304;
 // runtime compilation cache tests
 TEST(rocfft_UnitTest, rtc_cache)
@@ -617,5 +616,3 @@ TEST(rocfft_UnitTest, rtc_test_harness)
             ASSERT_EQ(file.second, 0);
     }
 }
-
-#endif

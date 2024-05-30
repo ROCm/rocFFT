@@ -196,10 +196,6 @@ endif()
 
 target_compile_options( rocfft-test PRIVATE ${WARNING_FLAGS} -Wno-cpp )
 
-if( ROCFFT_RUNTIME_COMPILE )
-  target_compile_options( rocfft-test PRIVATE -DROCFFT_RUNTIME_COMPILE )
-endif()
-
 target_include_directories( rocfft-test
   PRIVATE
   ${rocfft-test_include_dirs}

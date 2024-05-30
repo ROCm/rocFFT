@@ -83,10 +83,7 @@ static void open_log_stream(const char* environment_variable_name, int& log_fd)
 rocfft_status rocfft_setup()
 {
     rocfft_ostream::setup();
-
-#ifdef ROCFFT_RUNTIME_COMPILE
     RTCCache::single = std::make_unique<RTCCache>();
-#endif
 
     // set layer_mode from value of environment variable ROCFFT_LAYER
     auto str_layer_mode = rocfft_getenv("ROCFFT_LAYER");
@@ -147,9 +144,7 @@ rocfft_status rocfft_cleanup()
     // close the RTC cache and clear the repo, so that subsequent
     // rocfft_setup() + plan creation will start from scratch
     Repo::Clear();
-#ifdef ROCFFT_RUNTIME_COMPILE
     RTCCache::single.reset();
-#endif
 
     TuningBenchmarker::GetSingleton().Clean();
 
