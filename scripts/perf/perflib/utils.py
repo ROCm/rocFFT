@@ -134,6 +134,8 @@ def find_ncompare(runs):
 
 def find_slower_faster(outdirs, method, multitest, significance, ncompare,
                        verbose):
+    # Takes exactly two outdirs; the first is the reference, the
+    # second is the values to be compared.
 
     import perflib.utils
 
@@ -208,8 +210,9 @@ def find_slower_faster(outdirs, method, multitest, significance, ncompare,
             if pval < j_alpha:
                 new_significance = pval
 
-        # if alpha == None:
-        #     alpha = significance
+        # if new_significance == None:
+        #     print("Warning: didn't find cutoff alpha for bh multi-hypothesis testing")
+        #     new_significance = significance
 
     # Now that we have the new significance, decide on cases.
     for stuff in token_p_measures:

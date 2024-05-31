@@ -7,13 +7,14 @@ Documentation for rocFFT is available at
 
 ### Optimizations
 
-* Implemented multi-device transform for 3D pencil decomposition.  Contiguous dimensions on input and output bricks 
+* Implemented multi-device transform for 3D pencil decomposition.  Contiguous dimensions on input and output bricks
   are transformed locally, with global transposes to make remaining dimensions contiguous.
 
 ### Changes
 
 * Randomly generated accuracy tests are now disabled by default; these can be enabled using
   the --nrand <int> option (which defaults to 0).
+* Use Bonferroni multi-hypothesis testing framework by default for benchmark tests.
 
 ## rocFFT 1.0.27 for ROCm 6.1.1
 

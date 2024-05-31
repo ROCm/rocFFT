@@ -162,6 +162,10 @@ def command_test(arguments):
     significance = arguments.significance
     multitest = arguments.multitest
 
+    print("statistical test:", arguments.method)
+    print("significance:", significance)
+    print("multi-hypothesis framework:", multitest)
+    
     outdirs = [Path(x) for x in arguments.runs]
     all_runs = perflib.utils.read_runs(outdirs, verbose)
 
@@ -171,9 +175,20 @@ def command_test(arguments):
         )
         sys.exit(1)
 
+        
     runs = perflib.utils.by_dat(all_runs)
     refdir, testdir = outdirs
 
+    label = ["reference", "test"]
+    if arguments.label != None:
+        for idx in range(len(arguments.label)):
+            label[idx] = arguments.label[idx]
+        
+    print("reference data:", outdirs[0], label[0])
+    print("comparison data:", outdirs[1], label[1])
+
+    print()
+    
     ncompare = perflib.utils.find_ncompare(arguments.runs)
 
     slower, faster, new_sig = perflib.utils.find_slower_faster(
@@ -189,8 +204,8 @@ def command_test(arguments):
     print("ncompare:", ncompare)
     print("nh0:", nh0)
     print("nh1:", nh1)
-    print("faster:", len(faster))
-    print("slower:", len(slower))
+    print("faster (" + label[1] + " wins): " + str(len(faster)))
+    print("slower (" + label[0] + " wins): " + str(len(slower)))
 
     import numpy as np
     geomean = 1.0
@@ -848,8 +863,8 @@ def main():
                        type=str,
                        choices=["none", "bonferroni", "bh"],
                        help='Multi-hypothesis correction method',
-                       default="bh")
-    for p in [pdf_parser, html_parser, docx_parser]:
+                       default="bonferroni")
+    for p in [pdf_parser, html_parser, docx_parser, test_parser]:
         p.add_argument('-l',
                        '--label',
                        type=str,
