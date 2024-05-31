@@ -266,9 +266,7 @@ template <typename H, typename... Ts>
 static inline void log_arguments(rocfft_ostream& os, const char* sep, H head, Ts&&... xs)
 {
     os << head;
-    // TODO: Replace with C++17 fold expression
-    // ((os << sep << std::forward<Ts>(xs)), ...);
-    (void)(int[]){(os << sep << std::forward<Ts>(xs), 0)...};
+    ((os << sep << std::forward<Ts>(xs)), ...);
     os << std::endl;
 }
 
