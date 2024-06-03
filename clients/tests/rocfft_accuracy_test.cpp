@@ -29,6 +29,7 @@
 
 #include "../../shared/fftw_transform.h"
 #include "../../shared/gpubuf.h"
+#include "../../shared/gtest_except.h"
 #include "../../shared/rocfft_against_fftw.h"
 #include "rocfft/rocfft.h"
 
@@ -74,6 +75,17 @@ TEST_P(accuracy_test, vs_fftw)
     // only do round trip for non-field FFTs
     bool round_trip = params.ifields.empty() && params.ofields.empty();
 
-    fft_vs_reference(params, round_trip);
+    try
+    {
+        fft_vs_reference(params, round_trip);
+    }
+    catch(ROCFFT_GTEST_SKIP& e)
+    {
+        GTEST_SKIP() << e.msg.str();
+    }
+    catch(ROCFFT_GTEST_FAIL& e)
+    {
+        GTEST_FAIL() << e.msg.str();
+    }
     SUCCEED();
 }

@@ -574,7 +574,18 @@ TEST(manual, vs_fftw) // MANUAL TESTS HERE
         std::cout << "manual params are not valid\n";
     }
 
-    fft_vs_reference(params);
+    try
+    {
+        fft_vs_reference(params);
+    }
+    catch(ROCFFT_GTEST_SKIP& e)
+    {
+        GTEST_SKIP() << e.msg.str();
+    }
+    catch(ROCFFT_GTEST_FAIL& e)
+    {
+        GTEST_FAIL() << e.msg.str();
+    }
 }
 
 TEST(manual, bitwise_reproducibility) // MANUAL TESTS HERE

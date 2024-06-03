@@ -24,8 +24,8 @@
 
 #include <vector>
 
-#include "../../shared/fft_params.h"
-#include "../../shared/test_params.h"
+#include "fft_params.h"
+#include "test_params.h"
 
 const static std::vector<size_t> batch_range = {2, 1};
 
