@@ -3,7 +3,9 @@
 Documentation for rocFFT is available at
 [https://rocm.docs.amd.com/projects/rocFFT/en/latest/](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
 
-## rocFFT 1.0.28 (unreleased)
+## rocFFT 1.0.29 (unreleased)
+
+## rocFFT 1.0.28 for ROCm 6.2.0
 
 ### Optimizations
 
