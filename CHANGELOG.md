@@ -5,6 +5,10 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.29 (unreleased)
 
+### Changes
+
+* Add --smoketest option to rocfft-test.
+
 ## rocFFT 1.0.28 for ROCm 6.2.0
 
 ### Optimizations

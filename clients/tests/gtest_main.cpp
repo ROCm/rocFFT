@@ -57,6 +57,8 @@ int verbose;
 size_t random_seed;
 // Overall probability of running any given test
 double test_prob;
+// Run a short (~5 min) test suite by setting test_prob to an appropriate value
+bool smoketest = false;
 // Probability of running individual planar FFTs
 double planar_prob;
 // Probability of running individual callback FFTs
@@ -270,6 +272,8 @@ int main(int argc, char* argv[])
          "Number of extra randomized tests.")
         ("test_prob", po::value<double>(&test_prob)->default_value(1.0),
          "Probability of running individual tests.")
+        ("smoketest",
+         "Run a short (approx 5 minute) randomized selection of tests")
         ("planar_prob", po::value<double>(&planar_prob)->default_value(0.1),
         "Probability modifier for running individual planar transforms")
         ("callback", "Inject load/store callbacks")
@@ -281,6 +285,13 @@ int main(int argc, char* argv[])
     po::variables_map vm;
     po::store(po::command_line_parser(argc, argv).options(opdesc).allow_unregistered().run(), vm);
     po::notify(vm);
+
+    if(vm.count("smoketest"))
+    {
+        // The objective is to have an test that takes about 5 minutes, so just set the probability
+        // per test to a small value to achieve this result.
+        test_prob = 0.002;
+    }
 
     verbose = vm["verbose"].as<int>();
 
