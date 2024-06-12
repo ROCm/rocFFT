@@ -31,8 +31,9 @@
 #include "../../../shared/enum_to_string.h"
 #include "../../../shared/fft_params.h"
 #include "../../../shared/gpubuf.h"
+#include "../../../shared/rocfft_params.h"
 #include "../../../shared/test_params.h"
-#include "fft_hash.h"
+#include "bitwise_repro_db.h"
 
 extern int                          verbose;
 extern std::unique_ptr<fft_hash_db> repro_db;
@@ -232,11 +233,22 @@ inline void bitwise_repro_impl(Tparams& params, Tparams& params_comp)
     std::vector<hostbuf> fft_input, fft_output;
     compute_fft_data(params, fft_input, fft_output);
 
-    auto ibuffer_hash_in  = hash_input(params, true);
+    auto ibuffer_hash_in = hash_input(rocfft_precision_from_fftparams(params.precision),
+                                      params.ilength(),
+                                      params.istride,
+                                      params.idist,
+                                      rocfft_array_type_from_fftparams(params.itype),
+                                      params.nbatch);
+
     auto ibuffer_hash_out = hash_output<size_t>();
     compute_hash(fft_input, ibuffer_hash_in, ibuffer_hash_out);
 
-    auto obuffer_hash_in  = hash_input(params, false);
+    auto obuffer_hash_in  = hash_input(rocfft_precision_from_fftparams(params.precision),
+                                      params.olength(),
+                                      params.ostride,
+                                      params.odist,
+                                      rocfft_array_type_from_fftparams(params.otype),
+                                      params.nbatch);
     auto obuffer_hash_out = hash_output<size_t>();
     compute_hash(fft_output, obuffer_hash_in, obuffer_hash_out);
 
@@ -250,7 +262,12 @@ inline void bitwise_repro_impl(Tparams& params, Tparams& params_comp)
     std::vector<hostbuf> fft_input_comp, fft_output_comp;
     compute_fft_data(params_comp, fft_input_comp, fft_output_comp);
 
-    auto obuffer_hash_in_comp  = hash_input(params_comp, false);
+    auto obuffer_hash_in_comp  = hash_input(rocfft_precision_from_fftparams(params_comp.precision),
+                                           params_comp.olength(),
+                                           params_comp.ostride,
+                                           params_comp.odist,
+                                           rocfft_array_type_from_fftparams(params_comp.otype),
+                                           params_comp.nbatch);
     auto obuffer_hash_out_comp = hash_output<size_t>();
     compute_hash(fft_output_comp, obuffer_hash_in_comp, obuffer_hash_out_comp);
 
@@ -269,11 +286,21 @@ inline void bitwise_repro_impl(Tparams& params)
     std::vector<hostbuf> fft_input, fft_output;
     compute_fft_data(params, fft_input, fft_output);
 
-    auto ibuffer_hash_in  = hash_input(params, true);
+    auto ibuffer_hash_in  = hash_input(rocfft_precision_from_fftparams(params.precision),
+                                      params.ilength(),
+                                      params.istride,
+                                      params.idist,
+                                      rocfft_array_type_from_fftparams(params.itype),
+                                      params.nbatch);
     auto ibuffer_hash_out = hash_output<size_t>();
     compute_hash(fft_input, ibuffer_hash_in, ibuffer_hash_out);
 
-    auto obuffer_hash_in  = hash_input(params, false);
+    auto obuffer_hash_in  = hash_input(rocfft_precision_from_fftparams(params.precision),
+                                      params.olength(),
+                                      params.ostride,
+                                      params.odist,
+                                      rocfft_array_type_from_fftparams(params.otype),
+                                      params.nbatch);
     auto obuffer_hash_out = hash_output<size_t>();
     compute_hash(fft_output, obuffer_hash_in, obuffer_hash_out);
 

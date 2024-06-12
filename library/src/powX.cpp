@@ -43,6 +43,7 @@
 
 #include "../../shared/array_predicate.h"
 #include "../../shared/environment.h"
+#include "../../shared/fft_hash.h"
 #include "../../shared/hip_object_wrapper.h"
 #include "../../shared/precision_type.h"
 #include "../../shared/printbuffer.h"
@@ -250,15 +251,15 @@ static float max_memory_bandwidth_GB_per_s()
     return result;
 }
 
-// Print either an input or output buffer, given column-major dimensions
-void DebugPrintBuffer(rocfft_ostream&            stream,
-                      rocfft_array_type          type,
-                      rocfft_precision           precision,
-                      void*                      buffer[],
-                      const std::vector<size_t>& length_cm,
-                      const std::vector<size_t>& stride_cm,
-                      size_t                     dist,
-                      size_t                     batch)
+// Copy device buffer to host buffer in column-major format with given strides
+void CopyDeviceBufferToHost(const rocfft_array_type    type,
+                            const rocfft_precision     precision,
+                            void*                      buffer[],
+                            const std::vector<size_t>& length_cm,
+                            const std::vector<size_t>& stride_cm,
+                            const size_t               dist,
+                            const size_t               batch,
+                            std::vector<hostbuf>&      bufvec)
 {
     const size_t size_elems = compute_ptrdiff(length_cm, stride_cm, batch, dist);
 
@@ -270,13 +271,6 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
     }
 
     size_t size_bytes = size_elems * base_type_size;
-    // convert length, stride to row-major for use with printbuffer
-    auto length_rm = length_cm;
-    auto stride_rm = stride_cm;
-    std::reverse(length_rm.begin(), length_rm.end());
-    std::reverse(stride_rm.begin(), stride_rm.end());
-    std::vector<hostbuf> bufvec;
-    std::vector<size_t>  print_offset{0, 0};
     if(array_type_is_planar(type))
     {
         // separate the real/imag data, so printbuffer will print them separately
@@ -289,7 +283,53 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
         if(hipMemcpy(bufvec.back().data(), buffer[1], size_bytes / 2, hipMemcpyDeviceToHost)
            != hipSuccess)
             throw std::runtime_error("hipMemcpy failure");
+    }
+    else
+    {
+        bufvec.resize(1);
+        bufvec.front().alloc(size_bytes);
+        if(hipMemcpy(bufvec.front().data(), buffer[0], size_bytes, hipMemcpyDeviceToHost)
+           != hipSuccess)
+            throw std::runtime_error("hipMemcpy failure");
+    }
+}
 
+// Print buffer 64-bit hash identifier, given column-major dimensions
+void DebugPrintHash(rocfft_ostream&             stream,
+                    rocfft_array_type           type,
+                    rocfft_precision            precision,
+                    const std::vector<hostbuf>& bufvec,
+                    const std::vector<size_t>&  length_cm,
+                    const std::vector<size_t>&  stride_cm,
+                    size_t                      dist,
+                    size_t                      batch)
+{
+    auto hash_in  = hash_input(precision, length_cm, stride_cm, dist, type, batch);
+    auto hash_out = hash_output<size_t>();
+    compute_hash(bufvec, hash_in, hash_out);
+
+    stream << "(" << hash_out.buffer_real << "," << hash_out.buffer_imag << ")" << std::endl;
+}
+
+// Print either an input or output buffer, given column-major dimensions
+void DebugPrintBuffer(rocfft_ostream&             stream,
+                      rocfft_array_type           type,
+                      rocfft_precision            precision,
+                      const std::vector<hostbuf>& bufvec,
+                      const std::vector<size_t>&  length_cm,
+                      const std::vector<size_t>&  stride_cm,
+                      size_t                      dist,
+                      size_t                      batch)
+{
+    // convert length, stride to row-major for use with printbuffer
+    auto length_rm = length_cm;
+    auto stride_rm = stride_cm;
+    std::reverse(length_rm.begin(), length_rm.end());
+    std::reverse(stride_rm.begin(), stride_rm.end());
+    std::vector<size_t> print_offset{0, 0};
+
+    if(array_type_is_planar(type))
+    {
         switch(precision)
         {
         case rocfft_precision_half:
@@ -314,12 +354,6 @@ void DebugPrintBuffer(rocfft_ostream&            stream,
     }
     else
     {
-        bufvec.resize(1);
-        bufvec.front().alloc(size_bytes);
-        if(hipMemcpy(bufvec.front().data(), buffer[0], size_bytes, hipMemcpyDeviceToHost)
-           != hipSuccess)
-            throw std::runtime_error("hipMemcpy failure");
-
         switch(precision)
         {
         case rocfft_precision_half:
@@ -707,18 +741,39 @@ void TransformPowX(const ExecPlan&       execPlan,
         {
             kernelio_stream = LogSingleton::GetInstance().GetKernelIOOS();
             *kernelio_stream << "--- --- multiPlanIdx " << multiPlanIdx << " kernel " << i << " ("
-                             << PrintScheme(data.node->scheme) << ") input:" << std::endl;
-
+                             << PrintScheme(data.node->scheme) << ") input: " << std::endl;
             if(hipDeviceSynchronize() != hipSuccess)
                 throw std::runtime_error("hipDeviceSynchronize failure");
+
+            std::vector<hostbuf> bufInHost;
+            CopyDeviceBufferToHost(data.node->inArrayType,
+                                   data.node->precision,
+                                   data.bufIn,
+                                   data.node->length,
+                                   data.node->inStride,
+                                   data.node->iDist,
+                                   data.node->batch,
+                                   bufInHost);
+
             DebugPrintBuffer(*kernelio_stream,
                              data.node->inArrayType,
                              data.node->precision,
-                             data.bufIn,
+                             bufInHost,
                              data.node->length,
                              data.node->inStride,
                              data.node->iDist,
                              data.node->batch);
+            *kernelio_stream << "--- --- multiPlanIdx " << multiPlanIdx << " kernel " << i << " ("
+                             << PrintScheme(data.node->scheme) << ") input hash: " << std::endl;
+            DebugPrintHash(*kernelio_stream,
+                           data.node->inArrayType,
+                           data.node->precision,
+                           bufInHost,
+                           data.node->length,
+                           data.node->inStride,
+                           data.node->iDist,
+                           data.node->batch);
+            *kernelio_stream << std::endl;
         }
 
         DevFnCall fn = execPlan.devFnCall[i];
@@ -845,7 +900,7 @@ void TransformPowX(const ExecPlan&       execPlan,
             if(hipDeviceSynchronize() != hipSuccess)
                 throw std::runtime_error("hipDeviceSynchronize failure");
             *kernelio_stream << "executed kernel " << i << " (" << PrintScheme(data.node->scheme)
-                             << ")" << std::endl;
+                             << ")\n\n";
         }
     }
 
@@ -866,15 +921,34 @@ void TransformPowX(const ExecPlan&       execPlan,
                                               execPlan.rootPlan->outArrayType);
         }
 
-        *kernelio_stream << "multiPlanIdx " << multiPlanIdx << " final output:\n";
+        std::vector<hostbuf> bufOutHost;
+        CopyDeviceBufferToHost(execPlan.rootPlan->outArrayType,
+                               execPlan.rootPlan->precision,
+                               out_buffer_offset,
+                               execPlan.rootPlan->GetOutputLength(),
+                               execPlan.rootPlan->outStride,
+                               execPlan.rootPlan->oDist,
+                               execPlan.rootPlan->batch,
+                               bufOutHost);
+
+        *kernelio_stream << "multiPlanIdx " << multiPlanIdx << " final output: " << std::endl;
         DebugPrintBuffer(*kernelio_stream,
                          execPlan.rootPlan->outArrayType,
                          execPlan.rootPlan->precision,
-                         out_buffer_offset,
+                         bufOutHost,
                          execPlan.rootPlan->GetOutputLength(),
                          execPlan.rootPlan->outStride,
                          execPlan.rootPlan->oDist,
                          execPlan.rootPlan->batch);
+        *kernelio_stream << "multiPlanIdx " << multiPlanIdx << " final output hash: " << std::endl;
+        DebugPrintHash(*kernelio_stream,
+                       execPlan.rootPlan->outArrayType,
+                       execPlan.rootPlan->precision,
+                       bufOutHost,
+                       execPlan.rootPlan->GetOutputLength(),
+                       execPlan.rootPlan->outStride,
+                       execPlan.rootPlan->oDist,
+                       execPlan.rootPlan->batch);
         *kernelio_stream << std::endl;
     }
 }

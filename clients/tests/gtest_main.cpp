@@ -37,8 +37,8 @@
 #include "../../shared/rocfft_accuracy_test.h"
 #include "../../shared/test_params.h"
 #include "../../shared/work_queue.h"
+#include "bitwise_repro/bitwise_repro_db.h"
 #include "bitwise_repro/bitwise_repro_test.h"
-#include "bitwise_repro/fft_hash.h"
 #include "rocfft/rocfft.h"
 
 #ifdef WIN32

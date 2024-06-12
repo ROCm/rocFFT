@@ -18,8 +18,8 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "../../shared/fft_hash.h"
 #include "../../shared/rocfft_params.h"
-#include "bitwise_repro/fft_hash.h"
 #include <algorithm>
 #include <chrono>
 #include <gtest/gtest.h>
@@ -256,9 +256,12 @@ static void init_buffer(const fft_params& params, const size_t seed, std::vector
 
 static void run_test(const rocfft_params& params)
 {
-    auto use_ibuffer = true;
-
-    auto hash_in    = hash_input(params, use_ibuffer);
+    auto hash_in    = hash_input(rocfft_precision_from_fftparams(params.precision),
+                              params.ilength(),
+                              params.istride,
+                              params.idist,
+                              rocfft_array_type_from_fftparams(params.itype),
+                              params.nbatch);
     auto hash_out_1 = hash_output<size_t>();
     auto hash_out_2 = hash_output<size_t>();
 
