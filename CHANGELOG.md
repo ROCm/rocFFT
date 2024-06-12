@@ -18,6 +18,7 @@ Documentation for rocFFT is available at
 
 ### Changes
 
+* Add option in dyna-bench to load the libs in forward and then reverse order for benchmark tests.
 * Randomly generated accuracy tests are now disabled by default; these can be enabled using
   the --nrand <int> option (which defaults to 0).
 * Use Bonferroni multi-hypothesis testing framework by default for benchmark tests.

@@ -23,15 +23,15 @@
 // which produces fewer type 1 errors where one incorrectly rejects the null hypothesis.
 
 #include <algorithm>
+#include <filesystem>
 #include <hip/hip_runtime_api.h>
 #include <iostream>
 #include <math.h>
 #include <vector>
 
 #ifdef WIN32
-#include <windows.h>
-
 #include <psapi.h>
+#include <windows.h>
 #else
 #include <dlfcn.h>
 #include <link.h>
@@ -75,41 +75,6 @@ const char* rocfft_lib_load_error()
 #endif
 }
 
-// Return true if rocfft_device is loaded, which indicates that the
-// library was not built with -DSINGLELIB=ON.
-bool rocfft_lib_device_loaded(ROCFFT_LIB libhandle)
-{
-#ifdef WIN32
-    DWORD arraySize = 0;
-    EnumProcessModules(GetCurrentProcess(), NULL, 0, &arraySize);
-    std::vector<HMODULE> modules(arraySize);
-    if(EnumProcessModules(GetCurrentProcess(), modules.data(), modules.size(), &arraySize))
-    {
-        for(auto& mod : modules)
-        {
-            char name[MAX_PATH] = {0};
-            GetModuleFileNameA(mod, name, MAX_PATH);
-            // poor man's stristr on windows
-            std::transform(name, name + strlen(name), name, [](char c) { return std::tolower(c); });
-            if(strstr(name, "rocfft-device.dll"))
-                return true;
-        }
-    }
-    return false;
-#else
-    struct link_map* link = nullptr;
-    dlinfo(libhandle, RTLD_DI_LINKMAP, &link);
-    for(; link != nullptr; link = link->l_next)
-    {
-        if(strstr(link->l_name, "librocfft-device") != nullptr)
-        {
-            return true;
-        }
-    }
-    return false;
-#endif
-}
-
 // Get symbol from rocfft lib
 void* rocfft_lib_symbol(ROCFFT_LIB libhandle, const char* sym)
 {
@@ -130,20 +95,7 @@ void rocfft_lib_close(ROCFFT_LIB libhandle)
 }
 
 // Given a libhandle from dload, return a plan to a rocFFT plan with the given parameters.
-rocfft_plan make_plan(ROCFFT_LIB                    libhandle,
-                      const rocfft_result_placement place,
-                      const fft_transform_type      transform_type,
-                      const std::vector<size_t>&    length,
-                      const std::vector<size_t>&    istride,
-                      const std::vector<size_t>&    ostride,
-                      const size_t                  idist,
-                      const size_t                  odist,
-                      const std::vector<size_t>&    ioffset,
-                      const std::vector<size_t>&    ooffset,
-                      const size_t                  nbatch,
-                      const rocfft_precision        precision,
-                      const rocfft_array_type       itype,
-                      const rocfft_array_type       otype)
+rocfft_plan make_plan(ROCFFT_LIB libhandle, const fft_params& params)
 {
     auto procfft_setup = (decltype(&rocfft_setup))rocfft_lib_symbol(libhandle, "rocfft_setup");
     if(procfft_setup == NULL)
@@ -164,27 +116,28 @@ rocfft_plan make_plan(ROCFFT_LIB                    libhandle,
 
     rocfft_plan_description desc = NULL;
     LIB_V_THROW(procfft_plan_description_create(&desc), "rocfft_plan_description_create failed");
-    LIB_V_THROW(procfft_plan_description_set_data_layout(desc,
-                                                         itype,
-                                                         otype,
-                                                         ioffset.data(),
-                                                         ooffset.data(),
-                                                         istride.size(),
-                                                         istride.data(),
-                                                         idist,
-                                                         ostride.size(),
-                                                         ostride.data(),
-                                                         odist),
-                "rocfft_plan_description_data_layout failed");
+    LIB_V_THROW(
+        procfft_plan_description_set_data_layout(desc,
+                                                 rocfft_array_type_from_fftparams(params.itype),
+                                                 rocfft_array_type_from_fftparams(params.otype),
+                                                 params.ioffset.data(),
+                                                 params.ooffset.data(),
+                                                 params.istride.size(),
+                                                 params.istride.data(),
+                                                 params.idist,
+                                                 params.ostride.size(),
+                                                 params.ostride.data(),
+                                                 params.odist),
+        "rocfft_plan_description_data_layout failed");
     rocfft_plan plan = NULL;
 
     LIB_V_THROW(procfft_plan_create(&plan,
-                                    place,
-                                    rocfft_transform_type_from_fftparams(transform_type),
-                                    precision,
-                                    length.size(),
-                                    length.data(),
-                                    nbatch,
+                                    rocfft_result_placement_from_fftparams(params.placement),
+                                    rocfft_transform_type_from_fftparams(params.transform_type),
+                                    rocfft_precision_from_fftparams(params.precision),
+                                    params.length.size(),
+                                    params.length.data(),
+                                    params.nbatch,
                                     desc),
                 "rocfft_plan_create failed");
 
@@ -241,25 +194,30 @@ void show_plan(ROCFFT_LIB libhandle, const rocfft_plan& plan)
     LIB_V_THROW(procfft_plan_get_print(plan), "rocfft_plan_get_print failed");
 }
 
-// Given a libhandle from dload and a corresponding rocFFT plan, a work buffer size and an
-// allocated work buffer, return a rocFFT execution info for the plan.
-rocfft_execution_info make_execinfo(ROCFFT_LIB libhandle, const size_t wbuffersize, void* wbuffer)
+// FIXME: doc
+rocfft_execution_info make_execinfo(ROCFFT_LIB libhandle)
 {
     auto procfft_execution_info_create = (decltype(&rocfft_execution_info_create))rocfft_lib_symbol(
         libhandle, "rocfft_execution_info_create");
-    auto procfft_execution_info_set_work_buffer
-        = (decltype(&rocfft_execution_info_set_work_buffer))rocfft_lib_symbol(
-            libhandle, "rocfft_execution_info_set_work_buffer");
-
     rocfft_execution_info info = NULL;
     LIB_V_THROW(procfft_execution_info_create(&info), "rocfft_execution_info_create failed");
-    if(wbuffer != NULL)
+    return info;
+}
+
+// FIXME: doc
+void set_work_buffer(const ROCFFT_LIB&      libhandle,
+                     rocfft_execution_info& info,
+                     const size_t           wbuffersize,
+                     void*                  wbuffer)
+{
+    if(wbuffersize > 0 && wbuffer != NULL)
     {
+        auto procfft_execution_info_set_work_buffer
+            = (decltype(&rocfft_execution_info_set_work_buffer))rocfft_lib_symbol(
+                libhandle, "rocfft_execution_info_set_work_buffer");
         LIB_V_THROW(procfft_execution_info_set_work_buffer(info, wbuffer, wbuffersize),
                     "rocfft_execution_info_set_work_buffer failed");
     }
-
-    return info;
 }
 
 // Given a libhandle from dload and a corresponding rocFFT plan and execution info,
@@ -277,58 +235,36 @@ float run_plan(
 
     HIP_V_THROW(hipEventRecord(start), "hipEventRecord failed");
 
-    procfft_execute(plan, in, out, info);
+    auto rcfft = procfft_execute(plan, in, out, info);
 
     HIP_V_THROW(hipEventRecord(stop), "hipEventRecord failed");
     HIP_V_THROW(hipEventSynchronize(stop), "hipEventSynchronize failed");
+
+    if(rcfft != rocfft_status_success)
+    {
+        throw std::runtime_error("execution failed");
+    }
 
     float time;
     HIP_V_THROW(hipEventElapsedTime(&time, start, stop), "hipEventElapsedTime failed");
     return time;
 }
 
-// Load python library with RTLD_GLOBAL so that rocfft is free to
-// import python modules that need all of the symbols in libpython.
-// Normally, dyna-bench will want to dlopen rocfft's with RTLD_LOCAL.
-// If libpython is brought in this way, python modules might not be
-// able to find the symbols they need and import will fail.
-#ifndef WIN32
-static void* python_dl = nullptr;
-void         load_python(const std::vector<std::string>& libs)
+std::pair<ROCFFT_LIB, rocfft_plan> create_handleplan(const std::string& libstring,
+                                                     const fft_params&  params)
 {
-    // dlopen each lib, taking note of the python library that it needs
-    std::string pythonlib;
-    for(const auto& lib : libs)
+    auto libhandle = rocfft_lib_load(libstring);
+    if(libhandle == NULL)
     {
-        void* handle = dlopen(lib.c_str(), RTLD_LAZY);
-        if(handle)
-        {
-            // look through the link map to see what libpython it needs (if any)
-            struct link_map* map;
-            if(dlinfo(handle, RTLD_DI_LINKMAP, &map) == 0)
-            {
-                for(struct link_map* ptr = map; ptr != nullptr; ptr = ptr->l_next)
-                {
-                    std::string libname = ptr->l_name;
-                    if(libname.find("/libpython3.") != std::string::npos)
-                    {
-                        if(!pythonlib.empty() && pythonlib != libname)
-                            throw std::runtime_error("multiple distinct libpythons required");
-                        pythonlib = libname;
-                    }
-                }
-            }
-        }
-        dlclose(handle);
+        std::stringstream ss;
+        ss << "Failed to open " << libstring << ", error: " << rocfft_lib_load_error();
+        throw std::runtime_error(ss.str());
     }
 
-    if(!pythonlib.empty())
-    {
-        // explicitly dlopen python with RTLD_GLOBAL
-        python_dl = dlopen(pythonlib.c_str(), RTLD_LAZY | RTLD_GLOBAL);
-    }
+    auto plan = make_plan(libhandle, params);
+
+    return std::make_pair(libhandle, plan);
 }
-#endif
 
 int main(int argc, char* argv[])
 {
@@ -341,11 +277,14 @@ int main(int argc, char* argv[])
     // Number of performance trial samples:
     int ntrial{};
 
+    // Bool to specify whether the libs are loaded in forward or forward+reverse order.
+    int reverse{};
+
     // Test sequence choice:
     int test_sequence{};
 
     // Vector of test target libraries
-    std::vector<std::string> libs;
+    std::vector<std::string> lib_strings;
 
     // FFT parameters:
     fft_params params;
@@ -363,6 +302,7 @@ int main(int argc, char* argv[])
         ("device", po::value<int>(&deviceId)->default_value(0), "Select a specific device id")
         ("verbose", po::value<int>(&verbose)->default_value(0), "Control output verbosity")
         ("ntrial,N", po::value<int>(&ntrial)->default_value(1), "Trial size for the problem")
+        ("reverse", po::value<int>(&reverse)->default_value(1), "Load libs in forward and reverse order")
         ("sequence", po::value<int>(&test_sequence)->default_value(0),
          "Test sequence: random(0), alternating(1) sequential(2)")
         ("notInPlace,o", "Not in-place FFT transform (default: in-place)")
@@ -388,7 +328,7 @@ int main(int argc, char* argv[])
           ->default_value(fft_array_type_unset),
           "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
           "hermitian interleaved\n4) hermitian planar")
-        ("lib",  po::value<std::vector<std::string>>(&libs)->multitoken(),
+        ("lib",  po::value<std::vector<std::string>>(&lib_strings)->multitoken(),
          "Set test target library full path(appendable).")
         ("length",  po::value<std::vector<size_t>>(&params.length)->multitoken(), "Lengths.")
         ("istride", po::value<std::vector<size_t>>(&params.istride)->multitoken(), "Input strides.")
@@ -415,6 +355,16 @@ int main(int argc, char* argv[])
     {
         std::cout << opdesc << std::endl;
         return EXIT_SUCCESS;
+    }
+
+    // Check if all the provided libraries are actually there:
+    for(const auto& lib_string : lib_strings)
+    {
+        if(!std::filesystem::exists(lib_string))
+        {
+            std::cerr << "Error: lib " << lib_string << " does not exist\n";
+            exit(1);
+        }
     }
 
     if(vm.count("notInPlace"))
@@ -515,7 +465,6 @@ int main(int argc, char* argv[])
             std::cout << "\n";
         }
     }
-
     std::cout << std::flush;
 
     // Set GPU for single-device FFT computation
@@ -554,72 +503,6 @@ int main(int argc, char* argv[])
         std::cout << "SKIPPED: Problem size (" << vram_footprint
                   << ") raw data too large for device.\n";
         return EXIT_SUCCESS;
-    }
-
-    std::vector<rocfft_plan> plan;
-
-    size_t wbuffer_size = 0;
-
-#ifndef WIN32
-    load_python(libs);
-#endif
-
-    // Set up shared object handles
-    std::vector<ROCFFT_LIB> handles;
-    for(unsigned int idx = 0; idx < libs.size(); ++idx)
-    {
-        auto libhandle = rocfft_lib_load(libs[idx]);
-        if(libhandle == NULL)
-        {
-            std::cout << "Failed to open " << libs[idx] << ", error: " << rocfft_lib_load_error()
-                      << std::endl;
-            return 1;
-        }
-        if(rocfft_lib_device_loaded(libhandle))
-        {
-            std::cerr << "Error: Library " << libs[idx] << " depends on librocfft-device.\n";
-            std::cerr << "All libraries need to be built with -DSINGLELIB=on.\n";
-            return 1;
-        }
-        handles.push_back(libhandle);
-    }
-
-    // Set up plans:
-    for(unsigned int idx = 0; idx < libs.size(); ++idx)
-    {
-        std::cout << idx << ": " << libs[idx] << std::endl;
-        plan.push_back(make_plan(handles[idx],
-                                 rocfft_result_placement_from_fftparams(params.placement),
-                                 params.transform_type,
-                                 params.length_cm(),
-                                 params.istride_cm(),
-                                 params.ostride_cm(),
-                                 params.idist,
-                                 params.odist,
-                                 params.ioffset,
-                                 params.ooffset,
-                                 params.nbatch,
-                                 rocfft_precision_from_fftparams(params.precision),
-                                 rocfft_array_type_from_fftparams(params.itype),
-                                 rocfft_array_type_from_fftparams(params.otype)));
-        show_plan(handles[idx], plan[idx]);
-        wbuffer_size = std::max(wbuffer_size, get_wbuffersize(handles[idx], plan[idx]));
-    }
-
-    std::cout << "Work buffer size: " << wbuffer_size << std::endl;
-
-    // Allocate the work buffer: just one, big enough for any dloaded library.
-    gpubuf wbuffer;
-    if(wbuffer_size)
-    {
-        HIP_V_THROW(wbuffer.alloc(wbuffer_size), "Creating intermediate Buffer failed");
-    }
-
-    // Associate the work buffer to the invidual libraries:
-    std::vector<rocfft_execution_info> info;
-    for(unsigned int idx = 0; idx < libs.size(); ++idx)
-    {
-        info.push_back(make_execinfo(handles[idx], wbuffer_size, wbuffer.data()));
     }
 
     // GPU input buffer:
@@ -707,109 +590,181 @@ int main(int argc, char* argv[])
         pobuffer[i] = obuffer->at(i).data();
     }
 
-    if(handles.size())
-    {
-        // Run the plan using its associated rocFFT library:
-        for(unsigned int idx = 0; idx < handles.size(); ++idx)
-        {
-            run_plan(handles[idx], plan[idx], info[idx], pibuffer.data(), pobuffer.data());
-        }
-    }
-
     // Execution times for loaded libraries:
-    std::vector<std::vector<double>> time(libs.size());
+    std::vector<std::vector<double>> time(lib_strings.size());
 
-    std::vector<int> testcase(ntrial * libs.size());
-    switch(test_sequence)
+    // If we are doing a reverse-run, then we need two ntrials; otherwise, just one.
+    std::vector<int> ntrial_runs;
+    if(reverse == 0)
     {
-    case 0:
-    {
-        // Random order:
-        for(int itrial = 0; itrial < ntrial; ++itrial)
-        {
-            for(size_t ilib = 0; ilib < libs.size(); ++ilib)
-            {
-                testcase[libs.size() * itrial + ilib] = ilib;
-            }
-        }
-
-        std::random_device rd;
-        std::mt19937       g(rd());
-        std::shuffle(testcase.begin(), testcase.end(), g);
-        break;
+        ntrial_runs.push_back(ntrial);
     }
-    case 1:
-        // Alternating order:
-        for(int itrial = 0; itrial < ntrial; ++itrial)
-        {
-            for(size_t ilib = 0; ilib < libs.size(); ++ilib)
-            {
-                testcase[libs.size() * itrial + ilib] = ilib;
-            }
-        }
-        break;
-    case 2:
-        // Sequential order:
-        for(int itrial = 0; itrial < ntrial; ++itrial)
-        {
-            for(size_t ilib = 0; ilib < libs.size(); ++ilib)
-            {
-                testcase[ilib * ntrial + itrial] = ilib;
-            }
-        }
-
-        break;
-    default:
-        throw std::runtime_error("Invalid test sequence choice.");
+    else
+    {
+        ntrial_runs.push_back((ntrial + 1) / 2);
+        ntrial_runs.push_back(ntrial / 2);
     }
 
-    std::cout << "test case:";
-    for(const auto i : testcase)
-        std::cout << " " << i;
-    std::cout << "\n";
-
-    // Run the FFTs from the different libraries in random order until they all have at
-    // least ntrial times.
-    std::vector<int> ndone(libs.size());
-    std::fill(ndone.begin(), ndone.end(), 0);
-    for(size_t itest = 0; itest < testcase.size(); ++itest)
+    for(size_t ridx = 0; ridx < ntrial_runs.size(); ++ridx)
     {
-        const int idx = testcase[itest];
 
-        if(is_device_gen)
+        std::vector<size_t> timeindex;
+        for(size_t i = 0; i < lib_strings.size(); ++i)
         {
-            params.compute_input(ibuffer);
+            timeindex.push_back(i);
+        }
+        if(ridx == 1)
+        {
+            std::reverse(lib_strings.begin(), lib_strings.end());
+            std::reverse(timeindex.begin(), timeindex.end());
         }
 
-        if(is_host_gen)
+        // Create the handles to the libs and the associated fft plans.
+        std::vector<ROCFFT_LIB>  handle;
+        std::vector<rocfft_plan> plan;
+        // Allocate the work buffer: just one, big enough for any dloaded library.
+        std::vector<rocfft_execution_info> info;
+        size_t                             wbuffer_size = 0;
+        for(unsigned int idx = 0; idx < lib_strings.size(); ++idx)
         {
-            for(unsigned int idx = 0; idx < ibuffer_cpu.size(); ++idx)
+            std::cout << idx << ": " << lib_strings[idx] << "\n";
+            auto libhandle = rocfft_lib_load(lib_strings[idx]);
+            if(libhandle == NULL)
             {
-                HIP_V_THROW(hipMemcpy(pibuffer[idx],
-                                      ibuffer_cpu[idx].data(),
-                                      ibuffer_cpu[idx].size(),
-                                      hipMemcpyHostToDevice),
-                            "hipMemcpy failed");
+                std::cout << "Failed to open " << lib_strings[idx]
+                          << ", error: " << rocfft_lib_load_error() << "\n";
+                return 1;
             }
+            handle.push_back(libhandle);
+            plan.push_back(make_plan(handle[idx], params));
+            show_plan(handle[idx], plan[idx]);
+            wbuffer_size = std::max(wbuffer_size, get_wbuffersize(handle[idx], plan[idx]));
+            info.push_back(make_execinfo(handle[idx]));
+        }
+
+        std::cout << "Work buffer size: " << wbuffer_size << std::endl;
+        gpubuf wbuffer;
+        if(wbuffer_size)
+        {
+            HIP_V_THROW(wbuffer.alloc(wbuffer_size), "Creating intermediate Buffer failed");
+        }
+
+        // Associate the work buffer to the invidual libraries:
+        for(unsigned int idx = 0; idx < lib_strings.size(); ++idx)
+        {
+            set_work_buffer(handle[idx], info[idx], wbuffer_size, wbuffer.data());
         }
 
         // Run the plan using its associated rocFFT library:
-        time[idx].push_back(
-            run_plan(handles[idx], plan[idx], info[idx], pibuffer.data(), pobuffer.data()));
-
-        if(verbose > 2)
+        for(unsigned int idx = 0; idx < handle.size(); ++idx)
         {
-            auto output = allocate_host_buffer(params.precision, params.otype, params.osize);
-            for(unsigned int iout = 0; iout < output.size(); ++iout)
+            run_plan(handle[idx], plan[idx], info[idx], pibuffer.data(), pobuffer.data());
+        }
+
+        std::vector<int> testcase(ntrial_runs[ridx] * lib_strings.size());
+
+        switch(test_sequence)
+        {
+        case 0:
+        {
+            // Random order:
+            for(int itrial = 0; itrial < ntrial_runs[ridx]; ++itrial)
             {
-                HIP_V_THROW(hipMemcpy(output[iout].data(),
-                                      pobuffer[iout],
-                                      output[iout].size(),
-                                      hipMemcpyDeviceToHost),
-                            "hipMemcpy failed");
+                for(size_t ilib = 0; ilib < lib_strings.size(); ++ilib)
+                {
+                    testcase[lib_strings.size() * itrial + ilib] = ilib;
+                }
             }
-            std::cout << "GPU output:\n";
-            params.print_obuffer(output);
+            std::random_device rd;
+            std::mt19937       g(rd());
+            std::shuffle(testcase.begin(), testcase.end(), g);
+            break;
+        }
+        case 1:
+            // Alternating order:
+            for(int itrial = 0; itrial < ntrial_runs[ridx]; ++itrial)
+            {
+                for(size_t ilib = 0; ilib < lib_strings.size(); ++ilib)
+                {
+                    testcase[lib_strings.size() * itrial + ilib] = ilib;
+                }
+            }
+            break;
+        case 2:
+            // Sequential order:
+            for(int itrial = 0; itrial < ntrial_runs[ridx]; ++itrial)
+            {
+                for(size_t ilib = 0; ilib < lib_strings.size(); ++ilib)
+                {
+                    testcase[ilib * ntrial + itrial] = ilib;
+                }
+            }
+            break;
+        default:
+            throw std::runtime_error("Invalid test sequence choice.");
+        }
+
+        if(verbose > 3)
+        {
+            std::cout << "Test case order:";
+            for(const auto val : testcase)
+                std::cout << " " << val;
+            std::cout << "\n";
+        }
+
+        std::cout << "Running the tests...\n";
+
+        for(size_t itest = 0; itest < testcase.size(); ++itest)
+        {
+            const int tidx = testcase[itest];
+
+            if(verbose > 3)
+            {
+                std::cout << "running test case " << tidx << "\n";
+            }
+
+            if(is_device_gen)
+            {
+                params.compute_input(ibuffer);
+            }
+            if(is_host_gen)
+            {
+                for(unsigned int bidx = 0; bidx < ibuffer_cpu.size(); ++bidx)
+                {
+                    HIP_V_THROW(hipMemcpy(pibuffer[bidx],
+                                          ibuffer_cpu[bidx].data(),
+                                          ibuffer_cpu[bidx].size(),
+                                          hipMemcpyHostToDevice),
+                                "hipMemcpy failed");
+                }
+            }
+
+            // Run the plan using its associated rocFFT library:
+            time[tidx].push_back(
+                run_plan(handle[tidx], plan[tidx], info[tidx], pibuffer.data(), pobuffer.data()));
+
+            if(verbose > 2)
+            {
+                auto output = allocate_host_buffer(params.precision, params.otype, params.osize);
+                for(unsigned int iout = 0; iout < output.size(); ++iout)
+                {
+                    HIP_V_THROW(hipMemcpy(output[iout].data(),
+                                          pobuffer[iout],
+                                          output[iout].size(),
+                                          hipMemcpyDeviceToHost),
+                                "hipMemcpy failed");
+                }
+                std::cout << "GPU output:\n";
+                params.print_obuffer(output);
+            }
+        }
+
+        // Clean up:
+        for(unsigned int hidx = 0; hidx < handle.size(); ++hidx)
+        {
+            destroy_info(handle[hidx], info[hidx]);
+            destroy_plan(handle[hidx], plan[hidx]);
+            rocfft_lib_close(handle[hidx]);
         }
     }
 
@@ -823,19 +778,6 @@ int main(int argc, char* argv[])
         }
         std::cout << " ms" << std::endl;
     }
-
-    // Clean up:
-    for(unsigned int idx = 0; idx < handles.size(); ++idx)
-    {
-        destroy_info(handles[idx], info[idx]);
-        destroy_plan(handles[idx], plan[idx]);
-        rocfft_lib_close(handles[idx]);
-    }
-
-#ifndef WIN32
-    if(python_dl)
-        dlclose(python_dl);
-#endif
 
     return EXIT_SUCCESS;
 }
