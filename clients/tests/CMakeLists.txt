@@ -93,11 +93,9 @@ set( rocfft-test_source
 add_executable( rocfft-test ${rocfft-test_source} ${rocfft-test_includes} )
 add_executable( rtc_helper_crash rtc_helper_crash.cpp )
 
-find_package( Boost COMPONENTS program_options REQUIRED)
+find_package( Boost REQUIRED )
 set( Boost_DEBUG ON )
-set( Boost_USE_MULTITHREADED ON )
 set( Boost_DETAILED_FAILURE_MSG ON )
-set( Boost_USE_STATIC_LIBS OFF )
 
 option( BUILD_FFTW "Download and build FFTW" OFF )
 
@@ -180,7 +178,6 @@ set( rocfft-test_include_dirs
 
 set( rocfft-test_link_libs
   ${FFTW_LIBRARIES}
-  Boost::program_options
   )
 
 include( ../cmake/build-gtest.cmake )
