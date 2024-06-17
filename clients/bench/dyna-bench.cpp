@@ -30,8 +30,9 @@
 #include <vector>
 
 #ifdef WIN32
-#include <psapi.h>
 #include <windows.h>
+// psapi.h requires windows.h to be included first
+#include <psapi.h>
 #else
 #include <dlfcn.h>
 #include <link.h>
