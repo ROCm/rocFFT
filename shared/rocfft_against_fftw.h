@@ -22,7 +22,6 @@
 #ifndef ROCFFT_AGAINST_FFTW
 #define ROCFFT_AGAINST_FFTW
 
-#include <gtest/gtest.h>
 #include <math.h>
 #include <stdexcept>
 #include <vector>

@@ -5,6 +5,23 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.29 (unreleased)
 
+### Additions
+
+* Implemented experimental APIs to allow computing FFTs on data
+  distributed across multiple MPI ranks, enabled with the
+  `ROCFFT_MPI_ENABLE` CMake option.  This option defaults to `OFF`.
+
+  When `ROCFFT_MPI_ENABLE` is `ON`:
+
+  * `rocfft_plan_description_set_comm` can be called to provide an
+    MPI communicator to a plan description, which can then be passed
+    to `rocfft_plan_create`.  Each rank calls
+    `rocfft_field_add_brick` to specify the layout of data bricks on
+    that rank.
+
+  * An MPI library with ROCm acceleration enabled is required at
+    build time and at runtime.
+
 ### Changes
 
 * Add --smoketest option to rocfft-test.

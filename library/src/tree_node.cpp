@@ -23,10 +23,26 @@
 #include "function_pool.h"
 #include "kernel_launch.h"
 #include "logging.h"
+#include "plan.h"
 #include "repo.h"
 #include "twiddles.h"
 
 #include <sstream>
+
+#ifdef ROCFFT_MPI_ENABLE
+#include <mpi.h>
+#endif
+
+struct rocfft_mp_request_t
+{
+#ifdef ROCFFT_MPI_ENABLE
+    rocfft_mp_request_t(const MPI_Request& req)
+        : mpi_request(req)
+    {
+    }
+    MPI_Request mpi_request;
+#endif
+};
 
 TreeNode::~TreeNode()
 {
@@ -416,11 +432,41 @@ bool TreeNode::IsBluesteinChirpSetup()
     throw std::runtime_error("unexpected bluestein plan shape");
 }
 
+MultiPlanItem::MultiPlanItem() {}
+
+MultiPlanItem::~MultiPlanItem() {}
+
 std::string MultiPlanItem::PrintBufferPtrOffset(const BufferPtr& ptr, size_t offset)
 {
     std::stringstream ss;
     ss << ptr.str() << " offset " << offset << " elems";
     return ss.str();
+}
+
+int MultiPlanItem::GetOperationCommTag(size_t multiPlanIdx, size_t opIdx)
+{
+    // use top half of int for multiPlan index, bottom half for
+    // operation index
+    int tag = multiPlanIdx;
+    tag <<= 16;
+    tag |= static_cast<uint16_t>(opIdx);
+    return tag;
+}
+
+void MultiPlanItem::WaitCommRequests()
+{
+#ifdef ROCFFT_MPI_ENABLE
+    std::vector<MPI_Request> mpi_requests;
+    mpi_requests.reserve(comm_requests.size());
+    for(auto& comm_req : comm_requests)
+        mpi_requests.push_back(comm_req.mpi_request);
+
+    std::vector<MPI_Status> mpi_status(mpi_requests.size());
+    auto rcmpi = MPI_Waitall(mpi_requests.size(), mpi_requests.data(), mpi_status.data());
+    if(rcmpi != MPI_SUCCESS)
+        throw std::runtime_error("MPI_Waitall failed: " + std::to_string(rcmpi));
+    comm_requests.clear();
+#endif
 }
 
 void CommPointToPoint::ExecuteAsync(const rocfft_plan     plan,
@@ -429,53 +475,109 @@ void CommPointToPoint::ExecuteAsync(const rocfft_plan     plan,
                                     rocfft_execution_info info,
                                     size_t                multiPlanIdx)
 {
-    rocfft_scoped_device dev(srcDeviceID);
+    rocfft_scoped_device dev(srcLocation.device);
     stream.alloc();
     event.alloc();
 
-    auto memSize = numElems * element_size(precision, arrayType);
-    auto srcWithOffset
-        = ptr_offset(srcPtr.get(in_buffer, out_buffer), srcOffset, precision, arrayType);
-    auto destWithOffset
-        = ptr_offset(destPtr.get(in_buffer, out_buffer), destOffset, precision, arrayType);
+    auto local_comm_rank = plan->get_local_comm_rank();
 
-    hipError_t err = hipSuccess;
-    if(srcDeviceID == destDeviceID)
-        err = hipMemcpyAsync(
-            destWithOffset, srcWithOffset, memSize, hipMemcpyDeviceToDevice, stream);
+    auto memSize       = numElems * element_size(precision, arrayType);
+    auto srcWithOffset = ptr_offset(
+        srcPtr.get(in_buffer, out_buffer, local_comm_rank), srcOffset, precision, arrayType);
+    auto destWithOffset = ptr_offset(
+        destPtr.get(in_buffer, out_buffer, local_comm_rank), destOffset, precision, arrayType);
+
+    if(srcLocation.comm_rank == destLocation.comm_rank)
+    {
+        auto hiprt = hipSuccess;
+        if(srcLocation.device == destLocation.device)
+        {
+            hiprt = hipMemcpyAsync(
+                destWithOffset, srcWithOffset, memSize, hipMemcpyDeviceToDevice, stream);
+        }
+        else
+        {
+            hiprt = hipMemcpyPeerAsync(destWithOffset,
+                                       destLocation.device,
+                                       srcWithOffset,
+                                       srcLocation.device,
+                                       memSize,
+                                       stream);
+        }
+
+        if(hiprt != hipSuccess)
+            throw std::runtime_error("hipMemcpy failed");
+
+        // all work is enqueued to the stream, record the event on
+        // the stream
+        if(hipEventRecord(event, stream) != hipSuccess)
+            throw std::runtime_error("hipEventRecord failed");
+    }
     else
-        err = hipMemcpyPeerAsync(
-            destWithOffset, destDeviceID, srcWithOffset, srcDeviceID, memSize, stream);
-
-    if(err != hipSuccess)
-        throw std::runtime_error("hipMemcpy failed");
-
-    // all work is enqueued to the stream, record the event on
-    // the stream
-    if(hipEventRecord(event, stream) != hipSuccess)
-        throw std::runtime_error("hipEventRecord failed");
+    {
+#if !defined ROCFFT_MPI_ENABLE
+        throw std::runtime_error("MPI communication not enabled");
+#else
+        if(srcLocation.comm_rank == local_comm_rank)
+        {
+            MPI_Request request;
+            const auto  mpiret = MPI_Isend(srcWithOffset,
+                                          memSize,
+                                          MPI_BYTE,
+                                          destLocation.comm_rank,
+                                          multiPlanIdx,
+                                          plan->desc.mpi_comm,
+                                          &request);
+            if(mpiret != MPI_SUCCESS)
+            {
+                throw std::runtime_error("MPI_Isend PointToPoint failed on rank "
+                                         + std::to_string(local_comm_rank));
+            }
+            comm_requests.push_back(request);
+        }
+        else if(destLocation.comm_rank == local_comm_rank)
+        {
+            MPI_Request request;
+            const auto  mpiret = MPI_Irecv(destWithOffset,
+                                          memSize,
+                                          MPI_BYTE,
+                                          srcLocation.comm_rank,
+                                          multiPlanIdx,
+                                          plan->desc.mpi_comm,
+                                          &request);
+            if(mpiret != MPI_SUCCESS)
+            {
+                throw std::runtime_error("MPI_Irecv PointToPoint failed on rank "
+                                         + std::to_string(local_comm_rank));
+            }
+            comm_requests.push_back(request);
+        }
+#endif
+    }
 }
 
 void CommPointToPoint::Wait()
 {
+    WaitCommRequests();
+
     if(hipEventSynchronize(event) != hipSuccess)
         throw std::runtime_error("hipEventSynchronize failed");
 }
 
 void CommPointToPoint::Print(rocfft_ostream& os, const int indent) const
 {
-    std::string indentStr;
-    int         i = indent;
-    while(i--)
-        indentStr += "    ";
+    const std::string indentStr("    ", indent);
 
     os << indentStr << "CommPointToPoint " << precision_name(precision) << " "
-       << PrintArrayType(arrayType) << ":" << std::endl;
-    os << indentStr << "  srcDeviceID: " << srcDeviceID << std::endl;
-    os << indentStr << "  srcBuf: " << PrintBufferPtrOffset(srcPtr, srcOffset) << std::endl;
-    os << indentStr << "  destDeviceID: " << destDeviceID << std::endl;
-    os << indentStr << "  destBuf: " << PrintBufferPtrOffset(destPtr, destOffset) << std::endl;
-    os << indentStr << "  numElems: " << numElems << std::endl;
+       << PrintArrayType(arrayType) << ":"
+       << "\n";
+    os << indentStr << "  srcCommRank: " << srcLocation.comm_rank << "\n";
+    os << indentStr << "  srcDeviceID: " << srcLocation.device << "\n";
+    os << indentStr << "  srcBuf: " << PrintBufferPtrOffset(srcPtr, srcOffset) << "\n";
+    os << indentStr << "  destCommRank: " << destLocation.comm_rank << "\n";
+    os << indentStr << "  destDeviceID: " << destLocation.device << "\n";
+    os << indentStr << "  destBuf: " << PrintBufferPtrOffset(destPtr, destOffset) << "\n";
+    os << indentStr << "  numElems: " << numElems << "\n";
     os << std::endl;
 }
 
@@ -485,38 +587,98 @@ void CommScatter::ExecuteAsync(const rocfft_plan     plan,
                                rocfft_execution_info info,
                                size_t                multiPlanIdx)
 {
-    rocfft_scoped_device dev(srcDeviceID);
+    rocfft_scoped_device dev(srcLocation.device);
     stream.alloc();
     event.alloc();
 
-    for(const auto& op : ops)
-    {
-        auto memSize = op.numElems * element_size(precision, arrayType);
+    auto local_comm_rank = plan->get_local_comm_rank();
 
-        auto srcWithOffset
-            = ptr_offset(srcPtr.get(in_buffer, out_buffer), op.srcOffset, precision, arrayType);
-        auto destWithOffset = ptr_offset(
-            op.destPtr.get(in_buffer, out_buffer), op.destOffset, precision, arrayType);
+    for(unsigned int opIdx = 0; opIdx < ops.size(); ++opIdx)
+    {
+        const auto& op      = ops[opIdx];
+        auto        memSize = op.numElems * element_size(precision, arrayType);
+
+        auto srcWithOffset = ptr_offset(
+            srcPtr.get(in_buffer, out_buffer, local_comm_rank), op.srcOffset, precision, arrayType);
+        auto destWithOffset = ptr_offset(op.destPtr.get(in_buffer, out_buffer, local_comm_rank),
+                                         op.destOffset,
+                                         precision,
+                                         arrayType);
 
         hipError_t err = hipSuccess;
-        if(srcDeviceID == op.destDeviceID)
-            err = hipMemcpyAsync(
-                destWithOffset, srcWithOffset, memSize, hipMemcpyDeviceToDevice, stream);
-        else
-            err = hipMemcpyPeerAsync(
-                destWithOffset, op.destDeviceID, srcWithOffset, srcDeviceID, memSize, stream);
+        if(op.destLocation.comm_rank == srcLocation.comm_rank)
+        {
+            if(local_comm_rank == op.destLocation.comm_rank)
+            {
+                if(srcLocation.device == op.destLocation.device)
+                    err = hipMemcpyAsync(
+                        destWithOffset, srcWithOffset, memSize, hipMemcpyDeviceToDevice, stream);
+                else
+                    err = hipMemcpyPeerAsync(destWithOffset,
+                                             op.destLocation.device,
+                                             srcWithOffset,
+                                             srcLocation.device,
+                                             memSize,
+                                             stream);
 
-        if(err != hipSuccess)
-            throw std::runtime_error("hipMemcpy failed");
+                if(err != hipSuccess)
+                    throw std::runtime_error("hipMemcpy failed");
+            }
+        }
+        else
+        {
+            // Inter-proccess communication
+#if !defined ROCFFT_MPI_ENABLE
+            throw std::runtime_error("MPI communication not enabled");
+#else
+            if(local_comm_rank == srcLocation.comm_rank)
+            {
+                MPI_Request request;
+                const auto  mpiret = MPI_Isend(srcWithOffset,
+                                              memSize,
+                                              MPI_BYTE,
+                                              op.destLocation.comm_rank,
+                                              GetOperationCommTag(multiPlanIdx, opIdx),
+                                              plan->desc.mpi_comm,
+                                              &request);
+                if(mpiret != MPI_SUCCESS)
+                {
+                    throw std::runtime_error("MPI_Isend failed on rank"
+                                             + std::to_string(local_comm_rank));
+                }
+                comm_requests.push_back(request);
+            }
+            else if(local_comm_rank == op.destLocation.comm_rank)
+            {
+                MPI_Request request;
+                const auto  mpiret = MPI_Irecv(destWithOffset,
+                                              memSize,
+                                              MPI_BYTE,
+                                              srcLocation.comm_rank,
+                                              GetOperationCommTag(multiPlanIdx, opIdx),
+                                              plan->desc.mpi_comm,
+                                              &request);
+                if(mpiret != MPI_SUCCESS)
+                {
+                    throw std::runtime_error("MPI_Irecv failed on rank"
+                                             + std::to_string(local_comm_rank) + " for op index "
+                                             + std::to_string(opIdx));
+                }
+                comm_requests.push_back(request);
+            }
+
+#endif
+        }
     }
-    // all work is enqueued to the stream, record the event on
-    // the stream
+    // All work is enqueued to the stream, record the event on the stream
     if(hipEventRecord(event, stream) != hipSuccess)
         throw std::runtime_error("hipEventRecord failed");
 }
 
 void CommScatter::Wait()
 {
+    WaitCommRequests();
+
     if(hipEventSynchronize(event) != hipSuccess)
         throw std::runtime_error("hipEventSynchronize failed");
 }
@@ -529,20 +691,19 @@ void CommScatter::Print(rocfft_ostream& os, const int indent) const
         indentStr += "    ";
 
     os << indentStr << "CommScatter " << precision_name(precision) << " "
-       << PrintArrayType(arrayType) << ":" << std::endl;
-    os << indentStr << "  srcDeviceID: " << srcDeviceID << std::endl;
-    os << std::endl;
+       << PrintArrayType(arrayType) << ":\n";
+    os << indentStr << "  srcCommRank: " << srcLocation.comm_rank << "\n";
+    os << indentStr << "  srcDeviceID: " << srcLocation.device << "\n";
 
-    for(size_t i = 0; i < ops.size(); ++i)
+    for(const auto& op : ops)
     {
-        const auto& op = ops[i];
-        os << indentStr << "    destDeviceID: " << op.destDeviceID << std::endl;
-        os << indentStr << "    srcBuf: " << PrintBufferPtrOffset(srcPtr, op.srcOffset)
-           << std::endl;
+        os << indentStr << "    destCommRank: " << op.destLocation.comm_rank << "\n";
+        os << indentStr << "    destDeviceID: " << op.destLocation.device << "\n";
+        os << indentStr << "    srcBuf: " << PrintBufferPtrOffset(srcPtr, op.srcOffset) << "\n";
         os << indentStr << "    destBuf: " << PrintBufferPtrOffset(op.destPtr, op.destOffset)
-           << std::endl;
-        os << indentStr << "    numElems: " << op.numElems << std::endl;
-        os << std::endl;
+           << "\n";
+        os << indentStr << "    numElems: " << op.numElems << "\n";
+        os << "\n";
     }
 }
 
@@ -555,36 +716,92 @@ void CommGather::ExecuteAsync(const rocfft_plan     plan,
     streams.resize(ops.size());
     events.resize(ops.size());
 
-    for(unsigned int i = 0; i < ops.size(); ++i)
-    {
-        const auto& op     = ops[i];
-        auto&       stream = streams[i];
-        auto&       event  = events[i];
+    auto local_comm_rank = plan->get_local_comm_rank();
 
-        rocfft_scoped_device dev(op.srcDeviceID);
+    for(unsigned int opIdx = 0; opIdx < ops.size(); ++opIdx)
+    {
+        const auto& op     = ops[opIdx];
+        auto&       stream = streams[opIdx];
+        auto&       event  = events[opIdx];
+
+        rocfft_scoped_device dev(op.srcLocation.device);
         stream.alloc();
         event.alloc();
 
         auto memSize = op.numElems * element_size(precision, arrayType);
 
-        auto srcWithOffset
-            = ptr_offset(op.srcPtr.get(in_buffer, out_buffer), op.srcOffset, precision, arrayType);
-        auto destWithOffset
-            = ptr_offset(destPtr.get(in_buffer, out_buffer), op.destOffset, precision, arrayType);
+        auto srcWithOffset  = ptr_offset(op.srcPtr.get(in_buffer, out_buffer, local_comm_rank),
+                                        op.srcOffset,
+                                        precision,
+                                        arrayType);
+        auto destWithOffset = ptr_offset(destPtr.get(in_buffer, out_buffer, local_comm_rank),
+                                         op.destOffset,
+                                         precision,
+                                         arrayType);
 
         hipError_t err = hipSuccess;
-        if(op.srcDeviceID == destDeviceID)
-            err = hipMemcpyAsync(
-                destWithOffset, srcWithOffset, memSize, hipMemcpyDeviceToDevice, stream);
+        if(destLocation.comm_rank == op.srcLocation.comm_rank)
+        {
+            if(local_comm_rank == destLocation.comm_rank)
+            {
+                if(op.srcLocation.device == destLocation.device)
+                {
+                    err = hipMemcpyAsync(
+                        destWithOffset, srcWithOffset, memSize, hipMemcpyDeviceToDevice, stream);
+                }
+                else
+                {
+                    err = hipMemcpyPeerAsync(destWithOffset,
+                                             destLocation.device,
+                                             srcWithOffset,
+                                             op.srcLocation.device,
+                                             memSize,
+                                             stream);
+                }
+                if(err != hipSuccess)
+                    throw std::runtime_error("hipMemcpy failed");
+            }
+        }
         else
-            err = hipMemcpyPeerAsync(
-                destWithOffset, destDeviceID, srcWithOffset, op.srcDeviceID, memSize, stream);
+        {
+            // Inter-proccess communication
+#if !defined ROCFFT_MPI_ENABLE
+            throw std::runtime_error("MPI communication not enabled");
+#else
 
-        if(err != hipSuccess)
-            throw std::runtime_error("hipMemcpy failed");
+            if(local_comm_rank == op.srcLocation.comm_rank)
+            {
+                MPI_Request request;
+                auto        rcmpi = MPI_Isend(srcWithOffset,
+                                       memSize,
+                                       MPI_BYTE,
+                                       destLocation.comm_rank,
+                                       GetOperationCommTag(multiPlanIdx, opIdx),
+                                       plan->desc.mpi_comm,
+                                       &request);
+                if(rcmpi != MPI_SUCCESS)
+                    throw std::runtime_error("MPI_Isend failed: " + std::to_string(rcmpi));
+                comm_requests.push_back(request);
+            }
+            else if(local_comm_rank == destLocation.comm_rank)
+            {
+                MPI_Request request;
+                auto        rcmpi = MPI_Irecv(destWithOffset,
+                                       memSize,
+                                       MPI_BYTE,
+                                       op.srcLocation.comm_rank,
+                                       GetOperationCommTag(multiPlanIdx, opIdx),
+                                       plan->desc.mpi_comm,
+                                       &request);
+                if(rcmpi != MPI_SUCCESS)
+                    throw std::runtime_error("MPI_Irecv failed: " + std::to_string(rcmpi));
+                comm_requests.push_back(request);
+            }
+#endif
+        }
 
-        // all work for this stream is enqueued, record the event on
-        // the stream
+        // FIXME: we don't need events for MPI communications.
+        // All work for this stream is enqueued, record the event on the stream
         if(hipEventRecord(event, stream) != hipSuccess)
             throw std::runtime_error("hipEventRecord failed");
     }
@@ -592,7 +809,9 @@ void CommGather::ExecuteAsync(const rocfft_plan     plan,
 
 void CommGather::Wait()
 {
-    for(auto& event : events)
+    WaitCommRequests();
+
+    for(const auto& event : events)
     {
         if(hipEventSynchronize(event) != hipSuccess)
             throw std::runtime_error("hipEventSynchronize failed");
@@ -607,20 +826,19 @@ void CommGather::Print(rocfft_ostream& os, const int indent) const
         indentStr += "    ";
 
     os << indentStr << "CommGather " << precision_name(precision) << " "
-       << PrintArrayType(arrayType) << ":" << std::endl;
-    os << indentStr << "  destDeviceID: " << destDeviceID << std::endl;
-    os << std::endl;
+       << PrintArrayType(arrayType) << ":"
+       << "\n";
+    os << indentStr << "  destCommRank: " << destLocation.comm_rank << "\n";
+    os << indentStr << "  destDeviceID: " << destLocation.device << "\n";
 
-    for(size_t i = 0; i < ops.size(); ++i)
+    for(const auto& op : ops)
     {
-        const auto& op = ops[i];
-        os << indentStr << "    srcDeviceID: " << op.srcDeviceID << std::endl;
-        os << indentStr << "    srcBuf: " << PrintBufferPtrOffset(op.srcPtr, op.srcOffset)
-           << std::endl;
-        os << indentStr << "    destBuf: " << PrintBufferPtrOffset(destPtr, op.destOffset)
-           << std::endl;
-        os << indentStr << "    numElems: " << op.numElems << std::endl;
-        os << std::endl;
+        os << indentStr << "    srcCommRank: " << op.srcLocation.comm_rank << "\n";
+        os << indentStr << "    srcDeviceID: " << op.srcLocation.device << "\n";
+        os << indentStr << "    srcBuf: " << PrintBufferPtrOffset(op.srcPtr, op.srcOffset) << "\n";
+        os << indentStr << "    destBuf: " << PrintBufferPtrOffset(destPtr, op.destOffset) << "\n";
+        os << indentStr << "    numElems: " << op.numElems << "\n";
+        os << "\n";
     }
 }
 
@@ -631,7 +849,8 @@ void ExecPlan::Print(rocfft_ostream& os, const int indent) const
     while(i--)
         indentStr += "    ";
     os << indentStr << "ExecPlan:" << std::endl;
-    os << indentStr << "  deviceID: " << deviceID << std::endl;
+    os << indentStr << "  deviceID: " << location.device << std::endl;
+    os << indentStr << "  commRanks:" << location.comm_rank << std::endl;
     if(inputPtr)
         os << indentStr << "  inputPtr: " << inputPtr.str() << std::endl;
     if(outputPtr)

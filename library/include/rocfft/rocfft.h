@@ -1,5 +1,5 @@
 /******************************************************************************
-* Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
+* Copyright (C) 2016 - 2024 Advanced Micro Devices, Inc. All rights reserved.
 *
 * Permission is hereby granted, free of charge, to any person obtaining a copy
 * of this software and associated documentation files (the "Software"), to deal
@@ -126,6 +126,13 @@ typedef enum rocfft_array_type_e
     rocfft_array_type_hermitian_planar,
     rocfft_array_type_unset,
 } rocfft_array_type;
+
+/*! @brief Communicator type for distributed transforms */
+typedef enum rocfft_comm_type_e
+{
+    rocfft_comm_none,
+    rocfft_comm_mpi,
+} rocfft_comm_type;
 
 #if 0
 /*! @brief Execution mode */
@@ -320,6 +327,23 @@ ROCFFT_EXPORT rocfft_status rocfft_field_destroy(rocfft_field field);
  * @param[in] len length of buf, minimum 30 characters
  */
 ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, size_t len);
+
+/*! @brief Set the communication library for distributed transforms.
+ *
+ *  @details Set the multi-processing communication library for a plan.
+ *
+ *  Multi-processing communication libraries require library-specific
+ *  handle to also be specified.  For MPI libraries, this is a
+ *  pointer to an MPI communicator.
+ *
+ *  @param[in] description description handle
+ *  @param[in] comm_type communicator type
+ *  @param[in] comm_handle handle to communication-library-specific state
+ * 
+ */
+ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_comm(rocfft_plan_description description,
+                                                             rocfft_comm_type        comm_type,
+                                                             void*                   comm_handle);
 
 /*! @brief Define a brick as part of a decomposition of a field.
  *

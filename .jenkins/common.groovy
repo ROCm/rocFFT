@@ -30,9 +30,17 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
                 cd ${project.paths.project_build_prefix}
                 ${getDependenciesCommand}
                 set -e
-                mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
+
+                # build without MPI enabled to make sure that compiles
+                mkdir -p build/${buildTypeDir}_no_mpi && cd build/${buildTypeDir}_no_mpi
                 ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${buildTunerArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
+                make -j\$(nproc)
+
+                # build and install with MPI enabled so we can enable those test cases
+                cd ../..
+                mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
+                ${cmake} -DCMAKE_PREFIX_PATH=/usr/local/openmpi -DROCFFT_MPI_ENABLE=ON -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${buildTunerArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
                 make -j\$(nproc)
                 sudo make install
             """
@@ -75,7 +83,7 @@ def runTestCommand (platform, project, boolean debug=false, gfilter='')
     def command = """#!/usr/bin/env bash
                 set -ex
                 cd ${project.paths.project_build_prefix}/build/${directory}/clients/staging
-                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --precompile=rocfft-test-precompile.db ${gfilterArg} --gtest_color=yes --R 80 --nrand 10
+                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --precompile=rocfft-test-precompile.db ${gfilterArg} --gtest_color=yes --R 80 --nrand 10 --mp_lib mpi --mp_ranks 4 --mp_launch "/usr/local/openmpi/bin/mpirun --np 4 ./rocfft_mpi_worker"
             """
     platform.runCommand(this, command)
 }

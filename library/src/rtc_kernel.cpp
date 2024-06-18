@@ -27,7 +27,6 @@
 #include "device/kernel-generator-embed.h"
 #include "kernel_launch.h"
 #include "logging.h"
-#include "plan.h"
 #include "rtc_bluestein_kernel.h"
 #include "rtc_cache.h"
 #include "rtc_realcomplex_kernel.h"

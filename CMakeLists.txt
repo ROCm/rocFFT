@@ -172,6 +172,12 @@ if( NOT CMAKE_CXX_COMPILER MATCHES ".*/hipcc$" )
   endif()
 endif()
 
+# Enable MPI support in rocFFT:
+option(ROCFFT_MPI_ENABLE "Enable MPI" OFF)
+if( ROCFFT_MPI_ENABLE )
+  find_package( MPI REQUIRED )
+endif()
+
 add_subdirectory( library )
 
 include( clients/cmake/build-options.cmake )

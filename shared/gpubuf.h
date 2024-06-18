@@ -35,18 +35,29 @@ public:
     gpubuf_t(gpubuf_t&& other)
     {
         std::swap(buf, other.buf);
+        std::swap(owned, other.owned);
         std::swap(bsize, other.bsize);
         std::swap(device, other.device);
     }
     gpubuf_t& operator=(gpubuf_t&& other)
     {
         std::swap(buf, other.buf);
+        std::swap(owned, other.owned);
         std::swap(bsize, other.bsize);
         std::swap(device, other.device);
         return *this;
     }
     gpubuf_t(const gpubuf_t&) = delete;
     gpubuf_t& operator=(const gpubuf_t&) = delete;
+
+    static gpubuf_t make_nonowned(T* p, size_t size_bytes = 0)
+    {
+        gpubuf_t ret;
+        ret.owned = false;
+        ret.buf   = p;
+        ret.bsize = size_bytes;
+        return ret;
+    }
 
     ~gpubuf_t()
     {
@@ -87,12 +98,16 @@ public:
     {
         if(buf != nullptr)
         {
-            // free on the device we allocated on
-            rocfft_scoped_device dev(device);
-            (void)hipFree(buf);
+            if(owned)
+            {
+                // free on the device we allocated on
+                rocfft_scoped_device dev(device);
+                (void)hipFree(buf);
+            }
             buf   = nullptr;
             bsize = 0;
         }
+        owned = true;
     }
 
     // return a pointer to the allocated memory, offset by the
@@ -124,7 +139,10 @@ public:
 
 private:
     // The GPU buffer
-    void*  buf    = nullptr;
+    void* buf = nullptr;
+    // whether this object owns the 'buf' pointer (and hence needs to
+    // free it)
+    bool   owned  = true;
     size_t bsize  = 0;
     int    device = 0;
 };

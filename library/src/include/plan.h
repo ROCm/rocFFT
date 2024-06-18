@@ -22,9 +22,17 @@
 #define PLAN_H
 
 #include <array>
+#include <complex>
 #include <cstring>
 #include <list>
 #include <vector>
+
+#ifdef ROCFFT_MPI_ENABLE
+#include <mpi.h>
+#if defined(OPEN_MPI) && OPEN_MPI
+#include <mpi-ext.h>
+#endif
+#endif
 
 #include "../../../shared/array_predicate.h"
 #include "function_pool.h"
@@ -63,7 +71,10 @@ struct rocfft_brick_t
     // stride of brick in memory
     std::vector<size_t> stride;
 
-    // compute the length of this brick
+    // Location of the brick
+    rocfft_location_t location;
+
+    // Compute the length of this brick
     std::vector<size_t> length() const
     {
         std::vector<size_t> ret;
@@ -72,7 +83,7 @@ struct rocfft_brick_t
         return ret;
     }
 
-    // functions and operators
+    // Functions and operators
 
     // check if brick is empty
     bool empty() const;
@@ -89,7 +100,7 @@ struct rocfft_brick_t
     // compute the number of elements in this brick
     size_t count_elems() const;
     bool   is_contiguous() const;
-    // return strides for this brick, if it were transposed to be
+    // Return strides for this brick, if it were transposed to be
     // contiguous.
     std::vector<size_t> contiguous_strides() const;
 
@@ -100,9 +111,6 @@ struct rocfft_brick_t
     // compute offset of this brick, given the field's stride
     size_t offset_in_field(const std::vector<size_t>& fieldStride) const;
 
-    // location of the brick
-    int device = 0;
-
     std::string str() const;
 };
 
@@ -110,6 +118,76 @@ struct rocfft_field_t
 {
     std::vector<rocfft_brick_t> bricks;
 };
+
+#ifdef ROCFFT_MPI_ENABLE
+class MPI_Comm_wrapper_t
+{
+public:
+    MPI_Comm_wrapper_t() = default;
+
+    // conversion to unwrapped communicator for passing to MPI APIs
+    operator MPI_Comm() const
+    {
+        return mpi_comm;
+    }
+
+    // copy, duplicating the communicator
+    MPI_Comm_wrapper_t(const MPI_Comm_wrapper_t& other)
+    {
+        duplicate(other.mpi_comm);
+    }
+    MPI_Comm_wrapper_t& operator=(const MPI_Comm_wrapper_t& other)
+    {
+        duplicate(other.mpi_comm);
+        return *this;
+    }
+
+    // move communicator
+    MPI_Comm_wrapper_t(MPI_Comm_wrapper_t&& other)
+    {
+        std::swap(this->mpi_comm, other.mpi_comm);
+    }
+    MPI_Comm_wrapper_t& operator=(MPI_Comm_wrapper_t&& other)
+    {
+        std::swap(this->mpi_comm, other.mpi_comm);
+        return *this;
+    }
+
+    ~MPI_Comm_wrapper_t()
+    {
+        free();
+    }
+
+    void free()
+    {
+        if(mpi_comm != MPI_COMM_NULL)
+            MPI_Comm_free(&mpi_comm);
+        mpi_comm = MPI_COMM_NULL;
+    }
+
+    void duplicate(MPI_Comm in_comm)
+    {
+        free();
+        if(in_comm != MPI_COMM_NULL && MPI_Comm_dup(in_comm, &mpi_comm) != MPI_SUCCESS)
+        {
+            throw std::runtime_error("failed to duplicate MPI communicator");
+        }
+    }
+
+    // check if communicator has been initialized
+    operator bool() const
+    {
+        return mpi_comm != MPI_COMM_NULL;
+    }
+    bool operator!() const
+    {
+        return mpi_comm == MPI_COMM_NULL;
+    }
+
+private:
+    MPI_Comm mpi_comm = MPI_COMM_NULL;
+};
+#endif
 
 struct rocfft_plan_description_t
 {
@@ -128,10 +206,17 @@ struct rocfft_plan_description_t
     std::vector<rocfft_field_t> inFields;
     std::vector<rocfft_field_t> outFields;
 
+    // Multi-process communicator info:
+    rocfft_comm_type comm_type = rocfft_comm_none;
+#ifdef ROCFFT_MPI_ENABLE
+    MPI_Comm_wrapper_t mpi_comm;
+#endif
+
     LoadOps  loadOps;
     StoreOps storeOps;
 
-    rocfft_plan_description_t() = default;
+    rocfft_plan_description_t()  = default;
+    ~rocfft_plan_description_t() = default;
 
     // A plan description is created in a vacuum and does not know what
     // type of transform it will be for.  Once that's known, we can
@@ -147,13 +232,19 @@ struct rocfft_plan_description_t
     // But if fields are declared then the number of pointers is the
     // number of bricks in the fields.
     static size_t count_pointers(const std::vector<rocfft_field_t>& fields,
-                                 rocfft_array_type                  arrayType)
+                                 rocfft_array_type                  arrayType,
+                                 int                                comm_rank)
     {
         if(fields.empty())
             return array_type_is_planar(arrayType) ? 2 : 1;
         size_t fieldPtrs = 0;
         for(auto& f : fields)
-            fieldPtrs += f.bricks.size();
+        {
+            fieldPtrs += std::count_if(
+                f.bricks.begin(), f.bricks.end(), [comm_rank](const rocfft_brick_t& b) {
+                    return b.location.comm_rank == comm_rank;
+                });
+        }
         return fieldPtrs;
     }
 };
@@ -230,6 +321,11 @@ struct rocfft_plan_t
     // don't cover the whole index space, or bricks overlap)
     void ValidateFields() const;
 
+    // Get the local communication rank
+    int get_local_comm_rank() const;
+    // Get number of ranks in the local communicator
+    int get_local_comm_size() const;
+
     // During plan creation, InternalTempBuffer remembers how much
     // space will be needed but doesn't allocate.  Allocate the buffers
     // after the space requirements are finalized.
@@ -241,13 +337,19 @@ private:
     // data between devices.
     std::vector<std::unique_ptr<MultiPlanItem>> multiPlan;
 
+    // Multi-process rank:
+    int local_comm_rank = 0;
+
+    // Communicate bricks on all ranks to all other ranks
+    rocfft_status allgather_brick_params_mpi(rocfft_plan& plan);
+
     // Adjacency list describing dependencies between multiPlan items.
     // Size of this vector == multiPlan.size().
     //
-    // The size_t's at multiPlanAdjacency[i] are the indexes in
+    // The size_t's at multiPlanAntecedents[i] are the indexes in
     // multiPlan that need to complete before multiPlan[i] can run
     // (i.e. its antecedents).
-    std::vector<std::vector<size_t>> multiPlanAdjacency;
+    std::vector<std::vector<size_t>> multiPlanAntecedents;
 
     // Return a stack of multiPlan indexes that are in topological
     // order.  Traverse this vector in reverse order to follow the
@@ -261,12 +363,12 @@ private:
                             std::vector<size_t>& sorted) const;
 
     // Temp buffers allocated during plan creation for multi-device
-    // plans are remembered here.  Mapped per-device.  Individual
+    // plans are remembered here.  Mapped per-location.  Individual
     // plan items can have void*'s that point to these buffers.
-    std::multimap<int, std::shared_ptr<InternalTempBuffer>> tempBuffers;
+    std::multimap<rocfft_location_t, std::shared_ptr<InternalTempBuffer>> tempBuffers;
 
     // gather a set of bricks to a field on the current device
-    std::vector<size_t> GatherBricksToField(int                                currentDevice,
+    std::vector<size_t> GatherBricksToField(rocfft_location_t                  destLocation,
                                             const std::vector<rocfft_brick_t>& bricks,
                                             rocfft_precision                   precision,
                                             rocfft_array_type                  arrayType,
@@ -277,7 +379,7 @@ private:
                                             size_t                             elem_size);
 
     // scatter a field on the current device to a set of bricks
-    std::vector<size_t> ScatterFieldToBricks(int                                currentDevice,
+    std::vector<size_t> ScatterFieldToBricks(rocfft_location_t                  srcLocation,
                                              BufferPtr                          input,
                                              rocfft_precision                   precision,
                                              rocfft_array_type                  arrayType,

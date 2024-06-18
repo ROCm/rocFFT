@@ -202,6 +202,7 @@ if( NOT BUILD_SHARED_LIBS )
   list(APPEND rocfft-test_link_libs ${ROCFFT_CLIENTS_HOST_LINK_LIBS} ${ROCFFT_CLIENTS_DEVICE_LINK_LIBS})
 endif()
 
+
 target_link_libraries( rocfft-test
   PRIVATE
   hip::device
@@ -209,6 +210,15 @@ target_link_libraries( rocfft-test
   hip::hiprand
   ${rocfft-test_link_libs}
   )
+
+if( ROCFFT_MPI_ENABLE )
+  target_link_libraries( rocfft-test
+  PRIVATE
+  MPI::MPI_CXX
+  )
+  add_compile_definitions( ROCFFT_MPI_ENABLE )
+endif()
+
 
 include( ../../cmake/std-filesystem.cmake )
 target_link_std_experimental_filesystem( rocfft-test )
@@ -289,4 +299,28 @@ if (WIN32)
   foreach( file_i ${third_party_dlls})
     add_custom_command( TARGET rocfft-test POST_BUILD COMMAND ${CMAKE_COMMAND} ARGS -E copy ${file_i} $<TARGET_FILE_DIR:rocfft-test> )
   endforeach( file_i )
+endif()
+
+if( ROCFFT_MPI_ENABLE )
+  add_executable( rocfft_mpi_worker rocfft_mpi_worker.cpp )
+  target_include_directories( rocfft_mpi_worker
+    PRIVATE
+    ${CMAKE_BINARY_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
+    ${MPI_C_INCLUDE_PATH}
+  )
+  target_compile_options( rocfft_mpi_worker PRIVATE ${WARNING_FLAGS} )
+  target_link_libraries( rocfft_mpi_worker
+    roc::rocfft
+    hip::hiprand
+    MPI::MPI_C
+    ${FFTW_LIBRARIES}
+  )
+
+  set_target_properties(rocfft_mpi_worker
+                        PROPERTIES 
+                        RUNTIME_OUTPUT_DIRECTORY 
+                        ${TESTS_OUT_DIR})
+
+  rocm_install(TARGETS rocfft_mpi_worker COMPONENT tests)
 endif()

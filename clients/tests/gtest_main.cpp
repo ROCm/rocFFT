@@ -106,6 +106,13 @@ last_cpu_fft_cache last_cpu_fft_data;
 // Number of devices to distribute the FFT to for manual tests
 int manual_devices = 1;
 
+// Multi-process library to use
+fft_params::fft_mp_lib mp_lib = fft_params::fft_mp_lib_none;
+// Number of multi-process ranks to launch
+int mp_ranks = 1;
+// Multi-process launch command (e.g. mpirun --np 4 /path/to/rocfft_mpi_worker)
+std::string mp_launch;
+
 system_memory get_system_memory()
 {
     system_memory memory_data;
@@ -236,9 +243,12 @@ void precompile_test_kernels(const std::string& precompile_file)
 }
 
 // Map strings to transform precision enums; used for parsing precision in CLI11
-std::map<std::string, fft_precision> string_to_precision{{"half", fft_precision_half},
+std::map<std::string, fft_precision>          string_to_precision{{"half", fft_precision_half},
                                                          {"single", fft_precision_single},
                                                          {"double", fft_precision_double}};
+std::map<std::string, fft_params::fft_mp_lib> string_to_mp_lib{
+    {"none", fft_params::fft_mp_lib::fft_mp_lib_none},
+    {"mpi", fft_params::fft_mp_lib::fft_mp_lib_mpi}};
 
 int main(int argc, char* argv[])
 {
@@ -281,12 +291,29 @@ int main(int argc, char* argv[])
         ->default_val(0.1);
     app.add_option("--fftw_compare", fftw_compare, "Compare to FFTW in accuracy tests")
         ->default_val(true);
+    app.add_option("--mp_lib", mp_lib, "Multi-process library type: none (default), mpi")
+        ->transform(CLI::CheckedTransformer(string_to_mp_lib, CLI::ignore_case))
+        ->default_val("none");
+    ;
+    app.add_option("--mp_ranks", mp_ranks, "Number of multi-process ranks to launch")
+        ->default_val(1);
+    app.add_option("--mp_launch",
+                   mp_launch,
+                   "Command line prefix to launch multi-process transforms, e.g. \"mpirun --np 4 "
+                   "/path/to/rocfft_mpi_worker\"")
+        ->default_val("");
 
     CLI::Option* opt_seed
         = app.add_option("--seed", random_seed, "Random seed; if unset, use an actual random seed");
     CLI::Option* opt_callback  = app.add_flag("--callback", "Inject load/store callbacks");
     CLI::Option* opt_smoketest = app.add_flag(
         "--smoketest", "Run a short (approx 5 minute) randomized selection of tests");
+
+    if((mp_lib == fft_params::fft_mp_lib_none) ^ (mp_launch == ""))
+    {
+        std::cout << "--mp_lib and --mp_launch must be specified together.\n";
+        return 1;
+    }
 
     // Try parsing initial args that will be used to configure tests
     // Allow extras to pass on gtest and rocFFT arguments without error

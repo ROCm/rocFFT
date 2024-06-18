@@ -696,15 +696,48 @@ public:
     }
 };
 
-// identifier for a device (HIP device ID)
-typedef int rocfft_deviceid_t;
+// Identifier for a location that a buffer lives on, or that a kernel
+// will execute on.  this specifies a multi-process rank as well as a
+// device ID.
+struct rocfft_location_t
+{
+    rocfft_location_t() = default;
+    rocfft_location_t(int _comm_rank, int _device)
+        : comm_rank(_comm_rank)
+        , device(_device)
+    {
+    }
+
+    // return a location for the current device on comm rank 0
+    static rocfft_location_t rank0_current_device()
+    {
+        rocfft_location_t id;
+        if(hipGetDevice(&id.device) != hipSuccess)
+            throw std::runtime_error("hipGetDevice failed");
+        return id;
+    }
+
+    // allow locations to be sorted
+    bool operator<(const rocfft_location_t& other) const
+    {
+        if(comm_rank != other.comm_rank)
+            return comm_rank < other.comm_rank;
+        return device < other.device;
+    }
+
+    int comm_rank = 0;
+    int device    = 0;
+};
 
 // Internally-allocated temporary buffers (as opposed to
 // user-provided work/in/out buffers)
 class InternalTempBuffer
 {
 public:
-    InternalTempBuffer()                          = default;
+    InternalTempBuffer(int comm_rank)
+        : comm_rank(comm_rank)
+    {
+    }
     InternalTempBuffer(const InternalTempBuffer&) = delete;
     InternalTempBuffer& operator=(const InternalTempBuffer&) = delete;
     ~InternalTempBuffer()                                    = default;
@@ -731,12 +764,16 @@ public:
 
     void* data()
     {
-        if(!buf)
-            throw std::runtime_error("temp buffer not allocated");
         return buf.data();
     }
 
+    int get_comm_rank() const
+    {
+        return comm_rank;
+    }
+
 private:
+    int    comm_rank  = 0;
     size_t size_bytes = 0;
     gpubuf buf;
 };
@@ -763,20 +800,22 @@ public:
     ~BufferPtr()                           = default;
 
     // return a new BufferPtr that points to a user input
-    static BufferPtr user_input(size_t idx = 0)
+    static BufferPtr user_input(size_t idx, int comm_rank)
     {
         BufferPtr ret;
-        ret.type = PTR_USER_IN;
-        ret.idx  = idx;
+        ret.type      = PTR_USER_IN;
+        ret.idx       = idx;
+        ret.comm_rank = comm_rank;
         return ret;
     }
 
     // return a new BufferPtr that points to a user output
-    static BufferPtr user_output(size_t idx = 0)
+    static BufferPtr user_output(size_t idx, int comm_rank)
     {
         BufferPtr ret;
-        ret.type = PTR_USER_OUT;
-        ret.idx  = idx;
+        ret.type      = PTR_USER_OUT;
+        ret.idx       = idx;
+        ret.comm_rank = comm_rank;
         return ret;
     }
 
@@ -784,16 +823,19 @@ public:
     static BufferPtr temp(std::shared_ptr<InternalTempBuffer> ptr)
     {
         BufferPtr ret;
-        ret.type     = PTR_TEMP;
-        ret.temp_ptr = ptr;
+        ret.type      = PTR_TEMP;
+        ret.temp_ptr  = ptr;
+        ret.comm_rank = ptr->get_comm_rank();
         return ret;
     }
 
     // Get a pointer to the buffer.  The buffer might be an
     // user-provided input or output buffer that's only known at
     // execute time.
-    void* get(void* in_buffer[], void* out_buffer[]) const
+    void* get(void* in_buffer[], void* out_buffer[], int local_comm_rank) const
     {
+        if(comm_rank != local_comm_rank)
+            return nullptr;
         switch(type)
         {
         case PTR_NULL:
@@ -814,13 +856,25 @@ public:
         case PTR_NULL:
             return "(null)";
         case PTR_USER_IN:
-            return "user input buffer " + std::to_string(idx);
+            if(comm_rank != -1)
+                return "user input buffer " + std::to_string(idx) + " on rank "
+                       + std::to_string(comm_rank);
+            else
+                return "user input buffer " + std::to_string(idx);
         case PTR_USER_OUT:
-            return "user output buffer " + std::to_string(idx);
+            if(comm_rank != -1)
+                return "user output buffer " + std::to_string(idx) + " on rank "
+                       + std::to_string(comm_rank);
+            else
+                return "user output buffer " + std::to_string(idx);
         case PTR_TEMP:
         {
             std::stringstream ss;
-            ss << "temp buffer " << temp_ptr->data();
+            ss << "temp buffer on rank " << comm_rank << " ";
+            if(temp_ptr)
+                ss << temp_ptr->data();
+            else
+                ss << "(null)";
             return ss.str();
         }
         }
@@ -855,18 +909,24 @@ public:
     }
 
 private:
-    PtrType                             type = PTR_NULL;
-    size_t                              idx  = 0;
+    PtrType                             type      = PTR_NULL;
+    size_t                              idx       = 0;
+    int                                 comm_rank = -1;
     std::shared_ptr<InternalTempBuffer> temp_ptr;
 };
 
-// abstract base class for all items in a multi-node/device plan
+struct rocfft_mp_request_t;
+
+// Abstract base class for all items in a multi-node/device plan
 struct MultiPlanItem
 {
-    MultiPlanItem()                     = default;
-    virtual ~MultiPlanItem()            = default;
+    MultiPlanItem();
+    virtual ~MultiPlanItem();
     MultiPlanItem(const MultiPlanItem&) = delete;
     MultiPlanItem& operator=(const MultiPlanItem&) = delete;
+
+    // multi-process requests
+    std::vector<rocfft_mp_request_t> comm_requests;
 
     // Allocate this object's stream and queue work onto it.  This
     // object's event is allocated and recorded on the stream when
@@ -881,6 +941,9 @@ struct MultiPlanItem
 
     // wait for async operations to finish
     virtual void Wait() = 0;
+
+    // wait for outstanding communication requests to finish
+    void WaitCommRequests();
 
     // Get work buffer requirements for this item.  Only ExecPlans
     // should need this, as data movement shouldn't need temp buffers.
@@ -899,15 +962,25 @@ struct MultiPlanItem
     // check if this item writes to the specified BufferPtr
     virtual bool WritesToBuffer(const BufferPtr& ptr) const = 0;
 
+    // check if this the specified rank will execute this item
+    virtual bool ExecutesOnRank(int rank) const = 0;
+
     // high-level description of what this item is doing, displayed
     // when logging plan graph
     std::string description;
     // group to assign this item to (letters, numbers, underscores).
     // items in the same group are drawn together in the graph
     std::string group;
+
+    // Compute a communication tag for an operation, for an item with
+    // multiple operations in it.  The multi-plan index uniquely
+    // identifies an item and works for this purpose for an item with a
+    // single operation in it.  This function produces unique tags for
+    // items with multiple operations.
+    static int GetOperationCommTag(size_t multiPlanIdx, size_t opIdx);
 };
 
-// communication operations
+// Communication operations
 struct CommPointToPoint : public MultiPlanItem
 {
     rocfft_precision  precision;
@@ -916,11 +989,11 @@ struct CommPointToPoint : public MultiPlanItem
     // number of elements to copy
     size_t numElems;
 
-    rocfft_deviceid_t srcDeviceID;
+    rocfft_location_t srcLocation;
     BufferPtr         srcPtr;
     size_t            srcOffset = 0;
 
-    rocfft_deviceid_t destDeviceID;
+    rocfft_location_t destLocation;
     BufferPtr         destPtr;
     size_t            destOffset = 0;
 
@@ -938,6 +1011,11 @@ struct CommPointToPoint : public MultiPlanItem
         return ptr == destPtr;
     }
 
+    bool ExecutesOnRank(int comm_rank) const override
+    {
+        return srcLocation.comm_rank == comm_rank || destLocation.comm_rank == comm_rank;
+    }
+
 private:
     // Stream to run the async operation in
     hipStream_wrapper_t stream;
@@ -952,18 +1030,18 @@ struct CommScatter : public MultiPlanItem
     rocfft_precision  precision;
     rocfft_array_type arrayType;
 
-    rocfft_deviceid_t srcDeviceID;
+    rocfft_location_t srcLocation;
     BufferPtr         srcPtr;
 
     // one or more ranks to send data to
     struct ScatterOp
     {
-        ScatterOp(rocfft_deviceid_t destDeviceID,
+        ScatterOp(rocfft_location_t destLocation,
                   BufferPtr         destPtr,
                   size_t            srcOffset,
                   size_t            destOffset,
                   size_t            numElems)
-            : destDeviceID(destDeviceID)
+            : destLocation(destLocation)
             , destPtr(destPtr)
             , srcOffset(srcOffset)
             , destOffset(destOffset)
@@ -971,13 +1049,13 @@ struct CommScatter : public MultiPlanItem
         {
         }
 
-        rocfft_deviceid_t destDeviceID;
+        rocfft_location_t destLocation;
         BufferPtr         destPtr;
 
         size_t srcOffset;
         size_t destOffset;
 
-        // number of elements to copy
+        // Number of elements to copy
         size_t numElems;
     };
     std::vector<ScatterOp> ops;
@@ -1001,6 +1079,14 @@ struct CommScatter : public MultiPlanItem
         return false;
     }
 
+    bool ExecutesOnRank(int comm_rank) const override
+    {
+        return srcLocation.comm_rank == comm_rank
+               || std::any_of(ops.begin(), ops.end(), [comm_rank](const ScatterOp& op) {
+                      return op.destLocation.comm_rank == comm_rank;
+                  });
+    }
+
 private:
     // Stream to run the async operations in
     hipStream_wrapper_t stream;
@@ -1015,18 +1101,18 @@ struct CommGather : public MultiPlanItem
     rocfft_precision  precision;
     rocfft_array_type arrayType;
 
-    rocfft_deviceid_t destDeviceID;
+    rocfft_location_t destLocation;
     BufferPtr         destPtr;
 
     // one or more ranks to get data from
     struct GatherOp
     {
-        GatherOp(rocfft_deviceid_t srcDeviceID,
+        GatherOp(rocfft_location_t srcLocation,
                  BufferPtr         srcPtr,
                  size_t            srcOffset,
                  size_t            destOffset,
                  size_t            numElems)
-            : srcDeviceID(srcDeviceID)
+            : srcLocation(srcLocation)
             , srcPtr(srcPtr)
             , srcOffset(srcOffset)
             , destOffset(destOffset)
@@ -1034,13 +1120,13 @@ struct CommGather : public MultiPlanItem
         {
         }
 
-        rocfft_deviceid_t srcDeviceID;
+        rocfft_location_t srcLocation;
         BufferPtr         srcPtr;
 
         size_t srcOffset;
         size_t destOffset;
 
-        // number of elements to copy
+        // Number of elements to copy
         size_t numElems;
     };
     std::vector<GatherOp> ops;
@@ -1059,6 +1145,14 @@ struct CommGather : public MultiPlanItem
         return ptr == destPtr;
     }
 
+    bool ExecutesOnRank(int comm_rank) const override
+    {
+        return destLocation.comm_rank == comm_rank
+               || std::any_of(ops.begin(), ops.end(), [comm_rank](const GatherOp& op) {
+                      return op.srcLocation.comm_rank == comm_rank;
+                  });
+    }
+
     // Streams to run the async operations in - since each memcpy is
     // coming from a different source device, each needs a separate
     // stream
@@ -1072,9 +1166,8 @@ struct CommGather : public MultiPlanItem
 // memory allocated for things like kernel arguments and twiddles.
 struct ExecPlan : public MultiPlanItem
 {
-
     // device where this work will be executed
-    rocfft_deviceid_t deviceID;
+    rocfft_location_t location;
 
     // In a multi-device plan, this flag is set to true to allow
     // the recording and synchronization of events, as well as
@@ -1161,6 +1254,11 @@ struct ExecPlan : public MultiPlanItem
     bool WritesToBuffer(const BufferPtr& ptr) const override
     {
         return ptr == outputPtr;
+    }
+
+    bool ExecutesOnRank(int comm_rank) const override
+    {
+        return location.comm_rank == comm_rank;
     }
 
 private:

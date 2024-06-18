@@ -60,6 +60,21 @@ inline double type_epsilon<double>()
     return double_epsilon;
 }
 
+static constexpr double default_half_epsilon()
+{
+    return 9.77e-4;
+}
+
+static constexpr double default_single_epsilon()
+{
+    return 3.75e-5;
+}
+
+static constexpr double default_double_epsilon()
+{
+    return 1e-15;
+}
+
 // C++ traits to translate float->fftwf_complex and
 // double->fftw_complex.
 // The correct FFTW complex type can be accessed via, for example,

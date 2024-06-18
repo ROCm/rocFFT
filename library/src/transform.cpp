@@ -105,12 +105,14 @@ rocfft_status rocfft_execution_info_set_store_callback(rocfft_execution_info inf
 std::vector<size_t> rocfft_plan_t::MultiPlanTopologicalSort() const
 {
     std::vector<size_t> ret;
-    std::vector<bool>   visited(multiPlan.size());
+    std::vector<bool>   visited(multiPlan.size(), false);
 
-    for(size_t i = 0; i < multiPlan.size(); ++i)
+    for(size_t idx = 0; idx < visited.size(); ++idx)
     {
-        if(!visited[i])
-            TopologicalSortDFS(i, visited, ret);
+        if(!visited[idx])
+        {
+            TopologicalSortDFS(idx, visited, ret);
+        }
     }
     return ret;
 }
@@ -120,7 +122,7 @@ void rocfft_plan_t::TopologicalSortDFS(size_t               idx,
                                        std::vector<size_t>& sorted) const
 {
     visited[idx] = true;
-    for(auto adjacent : multiPlanAdjacency[idx])
+    for(auto adjacent : multiPlanAntecedents[idx])
     {
         if(!visited[adjacent])
         {
@@ -146,7 +148,8 @@ void rocfft_plan_t::LogFields(const char* description, const std::vector<rocfft_
         {
             const auto& b = f.bricks[brickIdx];
             os << "  brick " << brickIdx << ":" << std::endl;
-            os << "    device: " << b.device << std::endl;
+            os << "    comm_rank: " << b.location.comm_rank << std::endl;
+            os << "    device: " << b.location.device << std::endl;
             os << "    lower bound:";
             for(auto i : b.lower)
                 os << " " << i;
@@ -174,8 +177,7 @@ void rocfft_plan_t::LogFields(const char* description, const std::vector<rocfft_
 
 void rocfft_plan_t::LogSortedPlan(const std::vector<size_t>& sortedIdx) const
 {
-    // if we have a single-node plan, just log that without any extra
-    // fuss
+    // If we have a single-node plan, just log that without any extra indenting
     if(multiPlan.size() == 1)
     {
         if(LOG_PLAN_ENABLED())
@@ -201,7 +203,7 @@ void rocfft_plan_t::LogSortedPlan(const std::vector<size_t>& sortedIdx) const
     {
         auto idx = *i;
 
-        const auto& antecedents = multiPlanAdjacency[idx];
+        const auto& antecedents = multiPlanAntecedents[idx];
         for(auto antecedentIdx : antecedents)
         {
             os << antecedentIdx << " -> " << idx << ";\n";
@@ -253,20 +255,25 @@ void rocfft_plan_t::LogSortedPlan(const std::vector<size_t>& sortedIdx) const
 
 void rocfft_plan_t::Execute(void* in_buffer[], void* out_buffer[], rocfft_execution_info info)
 {
-    // vector of topologically sorted indexes to the items in multiPlan
+    // Vector of topologically sorted indexes to the items in multiPlan
     auto sortedIdx = MultiPlanTopologicalSort();
 
-    // log input/output pointers
+    const auto local_comm_rank = get_local_comm_rank();
+
+    // Log input/output pointers
     if(LOG_PLAN_ENABLED())
     {
-        auto& os = *LogSingleton::GetInstance().GetPlanOS();
-        for(size_t i = 0; i < desc.count_pointers(desc.inFields, desc.inArrayType); ++i)
+        auto& os         = *LogSingleton::GetInstance().GetPlanOS();
+        auto  inPtrCount = desc.count_pointers(desc.inFields, desc.inArrayType, local_comm_rank);
+        for(size_t i = 0; i < inPtrCount; ++i)
         {
             os << "user input " << i << ": " << in_buffer[i] << std::endl;
         }
         if(placement == rocfft_placement_notinplace)
         {
-            for(size_t i = 0; i < desc.count_pointers(desc.outFields, desc.outArrayType); ++i)
+            auto outPtrCount
+                = desc.count_pointers(desc.outFields, desc.outArrayType, local_comm_rank);
+            for(size_t i = 0; i < outPtrCount; ++i)
             {
                 os << "user output " << i << ": " << out_buffer[i] << std::endl;
             }
@@ -287,7 +294,7 @@ void rocfft_plan_t::Execute(void* in_buffer[], void* out_buffer[], rocfft_execut
 
         auto& item = *multiPlan[idx];
 
-        for(auto antecedentIdx : multiPlanAdjacency[idx])
+        for(auto antecedentIdx : multiPlanAntecedents[idx])
         {
             if(!multiPlan[antecedentIdx])
                 continue;
@@ -296,13 +303,15 @@ void rocfft_plan_t::Execute(void* in_buffer[], void* out_buffer[], rocfft_execut
             auto& antecedent = *multiPlan[antecedentIdx];
 
             // the antecedent involved us somehow, wait for it
-            antecedent.Wait();
+            if(antecedent.ExecutesOnRank(local_comm_rank))
+                antecedent.Wait();
         }
 
         // done waiting for all our antecedents, so this item can now proceed
 
         // launch this item async
-        item.ExecuteAsync(this, in_buffer, out_buffer, info, idx);
+        if(item.ExecutesOnRank(local_comm_rank))
+            item.ExecuteAsync(this, in_buffer, out_buffer, info, idx);
     }
 
     // finished executing all items, wait for outstanding work to complete
@@ -314,7 +323,8 @@ void rocfft_plan_t::Execute(void* in_buffer[], void* out_buffer[], rocfft_execut
             continue;
 
         auto& item = *multiPlan[idx];
-        item.Wait();
+        if(item.ExecutesOnRank(local_comm_rank))
+            item.Wait();
     }
 }
 
@@ -354,7 +364,7 @@ void ExecPlan::ExecuteAsync(const rocfft_plan     plan,
                             rocfft_execution_info info,
                             size_t                multiPlanIdx)
 {
-    rocfft_scoped_device dev(deviceID);
+    rocfft_scoped_device dev(location.device);
 
     // tolerate user not providing an execution_info
     rocfft_execution_info_t exec_info;
@@ -383,21 +393,24 @@ void ExecPlan::ExecuteAsync(const rocfft_plan     plan,
 
     if(mgpuPlan)
     {
-        std::copy_n(in_buffer,
-                    plan->desc.count_pointers(plan->desc.inFields, plan->desc.inArrayType),
-                    std::back_inserter(in_buffer_copy));
+        auto local_comm_rank = plan->get_local_comm_rank();
+        std::copy_n(
+            in_buffer,
+            plan->desc.count_pointers(plan->desc.inFields, plan->desc.inArrayType, local_comm_rank),
+            std::back_inserter(in_buffer_copy));
 
         // if input/output are overridden, override now
         if(inputPtr)
-            in_buffer_copy[0] = inputPtr.get(in_buffer, out_buffer);
+            in_buffer_copy[0] = inputPtr.get(in_buffer, out_buffer, local_comm_rank);
 
         if(rootPlan->placement == rocfft_placement_notinplace)
         {
             std::copy_n(out_buffer,
-                        plan->desc.count_pointers(plan->desc.outFields, plan->desc.outArrayType),
+                        plan->desc.count_pointers(
+                            plan->desc.outFields, plan->desc.outArrayType, local_comm_rank),
                         std::back_inserter(out_buffer_copy));
             if(outputPtr)
-                out_buffer_copy[0] = outputPtr.get(in_buffer, out_buffer);
+                out_buffer_copy[0] = outputPtr.get(in_buffer, out_buffer, local_comm_rank);
         }
     }
 

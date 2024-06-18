@@ -24,6 +24,9 @@
 #include <gtest/gtest.h>
 #include <hip/hip_runtime_api.h>
 
+extern fft_params::fft_mp_lib mp_lib;
+extern int                    mp_ranks;
+
 static const std::vector<std::vector<size_t>> multi_gpu_sizes = {
     {256},
     {256, 256},
@@ -48,11 +51,11 @@ enum SplitType
 
 std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
 {
-    int deviceCount = 0;
-    (void)hipGetDeviceCount(&deviceCount);
+    int localDeviceCount = 0;
+    (void)hipGetDeviceCount(&localDeviceCount);
 
-    // need multiple devices to test anything
-    if(deviceCount < 2)
+    // need multiple devices or multiprocessing to test anything
+    if(localDeviceCount < 2 && mp_lib == fft_params::fft_mp_lib_none)
         return {};
 
     auto params_complex = param_generator_complex(multi_gpu_sizes,
@@ -78,6 +81,8 @@ std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
     std::vector<fft_params> all_params;
 
     auto distribute_params = [=, &all_params](const std::vector<fft_params>& params) {
+        int brickCount = mp_lib == fft_params::fft_mp_lib_none ? localDeviceCount : mp_ranks;
+
         for(auto& p : params)
         {
             // start with all-ones in grids
@@ -88,37 +93,48 @@ std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
             switch(type)
             {
             case SLOW_INOUT:
-                input_grid[1]  = deviceCount;
-                output_grid[1] = deviceCount;
+                input_grid[1]  = brickCount;
+                output_grid[1] = brickCount;
                 break;
             case SLOW_IN:
-                input_grid[1] = deviceCount;
+                // this type only specifies input field and no output
+                // field, but multi-process transforms require both
+                // fields.
+                if(mp_lib != fft_params::fft_mp_lib_none)
+                    continue;
+                input_grid[1] = brickCount;
                 break;
             case SLOW_OUT:
-                output_grid[1] = deviceCount;
+                // this type only specifies output field and no input
+                // field, but multi-process transforms require both
+                // fields.
+                if(mp_lib != fft_params::fft_mp_lib_none)
+                    continue;
+                output_grid[1] = brickCount;
                 break;
             case SLOW_IN_FAST_OUT:
                 // requires at least rank-2 FFT
                 if(p.length.size() < 2)
                     continue;
-                input_grid[1]      = deviceCount;
-                output_grid.back() = deviceCount;
+                input_grid[1]      = brickCount;
+                output_grid.back() = brickCount;
                 break;
             case PENCIL_3D:
                 // need at least 2 bricks per split dimension, or 4 devices.
                 // also needs to be a 3D problem.
-                if(deviceCount < 4 || p.length.size() != 3)
+                if(brickCount < 4 || p.length.size() != 3)
                     continue;
 
                 // make fast dimension contiguous on input
-                input_grid[1] = static_cast<unsigned int>(sqrt(deviceCount));
-                input_grid[2] = deviceCount / input_grid[1];
+                input_grid[1] = static_cast<unsigned int>(sqrt(brickCount));
+                input_grid[2] = brickCount / input_grid[1];
                 // make middle dimension contiguous on output
                 output_grid[1] = input_grid[1];
                 output_grid[3] = input_grid[2];
                 break;
             }
 
+            p_dist.mp_lib = mp_lib;
             p_dist.distribute_input(input_grid);
             p_dist.distribute_output(output_grid);
 
@@ -186,6 +202,11 @@ TEST(multi_gpu_validate, catch_validation_errors)
         for(size_t i = 0; i < params.size(); ++i)
         {
             auto& param = params[i];
+
+            // this validation runs in rocfft-test itself and
+            // multi-process libs are not initialized.
+            if(param.mp_lib != fft_params::fft_mp_lib_none)
+                continue;
 
             std::vector<fft_params::fft_field*> available_fields;
             if(!param.ifields.empty())

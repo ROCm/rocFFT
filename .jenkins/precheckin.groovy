@@ -40,7 +40,7 @@ def runCI =
     {
         platform, project->
 
-        commonGroovy.runTestCommand(platform, project, false, "-*multi_gpu*")
+        commonGroovy.runTestCommand(platform, project, false)
     }
 
     def packageCommand =

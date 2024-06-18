@@ -97,6 +97,10 @@ else()
   set( ROCFFT_CLIENTS_DEVICE_LINK_LIBS hip::device )
 endif()
 
+if( ROCFFT_MPI_ENABLE )
+  find_package( MPI REQUIRED )
+endif()
+
 if( BUILD_CLIENTS_SAMPLES )
   add_subdirectory( samples )
 endif( )

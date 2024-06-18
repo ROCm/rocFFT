@@ -26,6 +26,7 @@
 #include <algorithm>
 #include <functional>
 #include <future>
+#include <gtest/gtest.h>
 #include <iterator>
 #include <string>
 #include <vector>

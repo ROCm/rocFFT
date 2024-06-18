@@ -391,7 +391,11 @@ inline void set_input(std::vector<Tbuff>&        input,
                       const std::vector<size_t>& istride,
                       const size_t               idist,
                       const size_t               nbatch,
-                      const hipDeviceProp_t&     deviceProp)
+                      const hipDeviceProp_t&     deviceProp,
+                      const std::vector<size_t>& field_lower,
+                      const size_t               field_lower_batch,
+                      const std::vector<size_t>& field_contig_stride,
+                      const size_t               field_contig_dist)
 {
     switch(length.size())
     {
@@ -407,27 +411,28 @@ inline void set_input(std::vector<Tbuff>&        input,
                                   idist,
                                   nbatch,
                                   deviceProp,
-                                  {},
-                                  0UL,
-                                  1UL,
-                                  ilength[0]);
+                                  field_lower[0],
+                                  field_lower_batch,
+                                  field_contig_stride[0],
+                                  field_contig_dist);
         break;
     case 2:
-        set_input<Tfloat, std::tuple<size_t, size_t>>(input,
-                                                      igen,
-                                                      itype,
-                                                      length,
-                                                      ilength,
-                                                      istride,
-                                                      std::make_tuple(ilength[0], ilength[1]),
-                                                      std::make_tuple(istride[0], istride[1]),
-                                                      idist,
-                                                      nbatch,
-                                                      deviceProp,
-                                                      {},
-                                                      0UL,
-                                                      {1UL, ilength[0]},
-                                                      ilength[0] * ilength[1]);
+        set_input<Tfloat, std::tuple<size_t, size_t>>(
+            input,
+            igen,
+            itype,
+            length,
+            ilength,
+            istride,
+            std::make_tuple(ilength[0], ilength[1]),
+            std::make_tuple(istride[0], istride[1]),
+            idist,
+            nbatch,
+            deviceProp,
+            std::make_tuple(field_lower[0], field_lower[1]),
+            field_lower_batch,
+            std::make_tuple(field_contig_stride[0], field_contig_stride[1]),
+            field_contig_dist);
         break;
     case 3:
         set_input<Tfloat, std::tuple<size_t, size_t, size_t>>(
@@ -442,10 +447,10 @@ inline void set_input(std::vector<Tbuff>&        input,
             idist,
             nbatch,
             deviceProp,
-            {},
-            0UL,
-            {1UL, ilength[0], ilength[0] * ilength[1]},
-            ilength[0] * ilength[1] * ilength[2]);
+            std::make_tuple(field_lower[0], field_lower[1], field_lower[2]),
+            field_lower_batch,
+            std::make_tuple(field_contig_stride[0], field_contig_stride[1], field_contig_stride[2]),
+            field_contig_dist);
         break;
     default:
         abort();
@@ -476,6 +481,17 @@ public:
     std::vector<size_t> osize;
 
     size_t workbuffersize = 0;
+
+    enum fft_mp_lib
+    {
+        fft_mp_lib_none,
+        fft_mp_lib_mpi,
+    };
+    fft_mp_lib mp_lib = fft_mp_lib_none;
+    // Pointer to a library-specific communicator type.  Note that this
+    // is a pointer, so whatever this points to must live as long as
+    // this pointer does.
+    void* mp_comm = nullptr;
 
     struct fft_brick
     {
@@ -509,12 +525,25 @@ public:
         }
 
         // location of the brick
+        int rank   = 0;
         int device = 0;
     };
 
     struct fft_field
     {
         std::vector<fft_brick> bricks;
+
+        void sort_by_rank()
+        {
+            std::sort(bricks.begin(), bricks.end(), [](const fft_brick& a, const fft_brick& b) {
+                if(a.rank != b.rank)
+                    return a.rank < b.rank;
+                if(a.device != b.device)
+                    return a.device < b.device;
+                return std::lexicographical_compare(
+                    a.lower.begin(), a.lower.end(), b.lower.begin(), b.lower.end());
+            });
+        }
     };
     // optional brick decomposition of inputs/outputs
     std::vector<fft_field> ifields;
@@ -768,6 +797,11 @@ public:
             append_size_vec(b.upper);
             ret += "_stride";
             append_size_vec(b.stride);
+            if(b.rank)
+            {
+                ret += "_rank_";
+                ret += std::to_string(b.rank);
+            }
             ret += "_dev_";
             ret += std::to_string(b.device);
         };
@@ -918,6 +952,8 @@ public:
                 b.lower  = vector_parser(vals, "lower", pos);
                 b.upper  = vector_parser(vals, "upper", pos);
                 b.stride = vector_parser(vals, "stride", pos);
+                if(vals[pos] == "rank")
+                    b.rank = size_parser(vals, "rank", pos);
                 b.device = size_parser(vals, "dev", pos);
             }
         };
@@ -1603,19 +1639,56 @@ public:
     {
         auto deviceProp = get_curr_device_prop();
 
+        std::vector<size_t> field_lower(dim());
+        auto                contiguous_stride = compute_stride(ilength());
+        auto                contiguous_dist   = compute_idist();
+
         switch(precision)
         {
         case fft_precision_half:
-            set_input<Tbuff, _Float16>(
-                input, igen, itype, length, ilength(), istride, idist, nbatch, deviceProp);
+            set_input<Tbuff, _Float16>(input,
+                                       igen,
+                                       itype,
+                                       length,
+                                       ilength(),
+                                       istride,
+                                       idist,
+                                       nbatch,
+                                       deviceProp,
+                                       field_lower,
+                                       0,
+                                       contiguous_stride,
+                                       contiguous_dist);
             break;
         case fft_precision_double:
-            set_input<Tbuff, double>(
-                input, igen, itype, length, ilength(), istride, idist, nbatch, deviceProp);
+            set_input<Tbuff, double>(input,
+                                     igen,
+                                     itype,
+                                     length,
+                                     ilength(),
+                                     istride,
+                                     idist,
+                                     nbatch,
+                                     deviceProp,
+                                     field_lower,
+                                     0,
+                                     contiguous_stride,
+                                     contiguous_dist);
             break;
         case fft_precision_single:
-            set_input<Tbuff, float>(
-                input, igen, itype, length, ilength(), istride, idist, nbatch, deviceProp);
+            set_input<Tbuff, float>(input,
+                                    igen,
+                                    itype,
+                                    length,
+                                    ilength(),
+                                    istride,
+                                    idist,
+                                    nbatch,
+                                    deviceProp,
+                                    field_lower,
+                                    0,
+                                    contiguous_stride,
+                                    contiguous_dist);
             break;
         }
     }
@@ -2015,7 +2088,7 @@ public:
         }
 
         // give all bricks contiguous strides
-        int device = 0;
+        int brickIdx = 0;
         for(auto& b : field.bricks)
         {
             b.stride.resize(b.upper.size());
@@ -2028,8 +2101,13 @@ public:
                 brick_dist *= *(b.upper.rbegin() + distIdx) - *(b.lower.rbegin() + distIdx);
             }
 
-            // assume there's one device per brick
-            b.device = device++;
+            // split across ranks for a multi-process transform,
+            // otherwise split across bricks.  assume there's one
+            // rank/device per brick
+            if(mp_lib == fft_mp_lib_none)
+                b.device = brickIdx++;
+            else
+                b.rank = brickIdx++;
         }
     }
 
@@ -2053,6 +2131,20 @@ public:
         distribute_field(brick_grid, ofields, len);
     }
 };
+
+static std::istream& operator>>(std::istream& str, fft_params::fft_mp_lib& mp_lib)
+{
+    std::string word;
+    str >> word;
+
+    if(word == "none")
+        mp_lib = fft_params::fft_mp_lib_none;
+    else if(word == "mpi")
+        mp_lib = fft_params::fft_mp_lib_mpi;
+    else
+        throw std::runtime_error("Invalid multi-process library specified");
+    return str;
+}
 
 // This is used with the program_options class so that the user can type an integer on the
 // command line and we store into an enum varaible

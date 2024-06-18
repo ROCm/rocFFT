@@ -60,6 +60,10 @@ else()
   endif()
 endif()
 
+if( ROCFFT_MPI_ENABLE )
+  set( ROCFFT_DEVICE_LINK_LIBS "${ROCFFT_HOST_LINK_LIBS}" "MPI::MPI_CXX" )
+endif()
+
 set( package_targets rocfft )
 target_include_directories( rocfft_rtc_helper
   PRIVATE
@@ -367,6 +371,11 @@ add_library( rocfft
   ${rocfft_source}
   ${relative_rocfft_headers_public}
   )
+
+if( ROCFFT_MPI_ENABLE )
+  target_compile_definitions(rocfft PRIVATE ROCFFT_MPI_ENABLE)
+endif()
+
 add_library( roc::rocfft ALIAS rocfft )
 
 if( ROCFFT_BUILD_OFFLINE_TUNER )

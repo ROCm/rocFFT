@@ -26,6 +26,10 @@
 #include "../shared/precision_type.h"
 #include "rocfft/rocfft.h"
 
+#ifdef ROCFFT_MPI_ENABLE
+#include <mpi.h>
+#endif
+
 // Return the string of the rocfft_status code
 static std::string rocfft_status_to_string(const rocfft_status ret)
 {
@@ -255,7 +259,7 @@ public:
     // Convert the generic fft_field structure to a rocfft_field
     // structure that can be passed to rocFFT.  In particular, we need
     // to convert from row-major to column-major.
-    static rocfft_field fft_field_to_rocfft_field(const fft_field& f)
+    rocfft_field fft_field_to_rocfft_field(const fft_field& f) const
     {
         rocfft_field rfield = nullptr;
         if(f.bricks.empty())
@@ -265,6 +269,21 @@ public:
             throw std::runtime_error("rocfft_field_create failed");
         for(const auto& b : f.bricks)
         {
+            // if this is an MPI transform, only tell the current rank
+            // about bricks for that rank
+            if(mp_lib == fft_mp_lib_mpi)
+            {
+#ifdef ROCFFT_MPI_ENABLE
+                int mpi_rank = 0;
+                MPI_Comm_rank(*static_cast<MPI_Comm*>(mp_comm), &mpi_rank);
+
+                if(mpi_rank != b.rank)
+                    continue;
+#else
+                throw std::runtime_error("MPI is not enabled");
+#endif
+            }
+
             // rocFFT wants column-major bricks and fft_params stores
             // row-major
             std::vector<size_t> lower_cm;
@@ -341,6 +360,13 @@ public:
                 if(rocfft_plan_description_add_outfield(desc, outfield) != rocfft_status_success)
                     throw std::runtime_error("rocfft_description_add_outfield failed");
                 rocfft_field_destroy(outfield);
+            }
+
+            if(mp_lib == fft_mp_lib_mpi)
+            {
+                if(rocfft_plan_description_set_comm(desc, rocfft_comm_mpi, mp_comm)
+                   != rocfft_status_success)
+                    throw std::runtime_error("rocfft_plan_description_set_comm failed");
             }
         }
 

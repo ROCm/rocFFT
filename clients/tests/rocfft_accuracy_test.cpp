@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include <boost/scope_exit.hpp>
+#include <boost/tokenizer.hpp>
 #include <gtest/gtest.h>
 #include <math.h>
 #include <stdexcept>
@@ -31,7 +32,10 @@
 #include "../../shared/gpubuf.h"
 #include "../../shared/gtest_except.h"
 #include "../../shared/rocfft_against_fftw.h"
+#include "../../shared/subprocess.h"
 #include "rocfft/rocfft.h"
+
+extern std::string mp_launch;
 
 void fft_vs_reference(rocfft_params& params, bool round_trip)
 {
@@ -57,11 +61,11 @@ TEST_P(accuracy_test, vs_fftw)
     params.validate();
 
     // Test that the tokenization works as expected.
-    auto       token = params.token();
+    auto       testcase_token = params.token();
     fft_params tokentest;
-    tokentest.from_token(token);
-    auto token1 = tokentest.token();
-    EXPECT_EQ(token, token1);
+    tokentest.from_token(testcase_token);
+    auto testcase_token1 = tokentest.token();
+    EXPECT_EQ(testcase_token, testcase_token1);
 
     if(!params.valid(verbose))
     {
@@ -72,20 +76,52 @@ TEST_P(accuracy_test, vs_fftw)
         GTEST_SKIP();
     }
 
-    // only do round trip for non-field FFTs
-    bool round_trip = params.ifields.empty() && params.ofields.empty();
+    // single-proc FFT
+    if(params.mp_lib == fft_params::fft_mp_lib_none)
+    {
+        // only do round trip for non-field FFTs
+        bool round_trip = params.ifields.empty() && params.ofields.empty();
 
-    try
-    {
-        fft_vs_reference(params, round_trip);
+        try
+        {
+            fft_vs_reference(params, round_trip);
+        }
+        catch(ROCFFT_GTEST_SKIP& e)
+        {
+            GTEST_SKIP() << e.msg.str();
+        }
+        catch(ROCFFT_GTEST_FAIL& e)
+        {
+            GTEST_FAIL() << e.msg.str();
+        }
     }
-    catch(ROCFFT_GTEST_SKIP& e)
+    // multi-proc FFT
+    else if(params.mp_lib == fft_params::fft_mp_lib_mpi)
     {
-        GTEST_SKIP() << e.msg.str();
+        // split launcher into tokens since the first one is the exe
+        // and the remainder is the start of its argv
+        boost::escaped_list_separator<char>                   sep('\\', ' ', '\"');
+        boost::tokenizer<boost::escaped_list_separator<char>> tokenizer(mp_launch, sep);
+        std::string                                           exe;
+        std::vector<std::string>                              argv;
+        for(auto t : tokenizer)
+        {
+            if(t.empty())
+                continue;
+
+            if(exe.empty())
+                exe = t;
+            else
+                argv.push_back(t);
+        }
+        // append test token and ask for accuracy test
+        argv.push_back(testcase_token);
+        argv.push_back("--accuracy");
+
+        // throws an exception if launch fails or if subprocess
+        // returns nonzero exit code
+        execute_subprocess(exe, argv, {});
     }
-    catch(ROCFFT_GTEST_FAIL& e)
-    {
-        GTEST_FAIL() << e.msg.str();
-    }
+
     SUCCEED();
 }

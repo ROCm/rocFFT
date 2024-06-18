@@ -27,6 +27,9 @@
 #include <unordered_map>
 #include <vector>
 
+#include <hip/hip_runtime.h>
+#include <hip/hip_runtime_api.h>
+
 #include "rocfft/rocfft.h"
 
 #include "logging.h"

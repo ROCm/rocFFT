@@ -121,6 +121,13 @@ foreach( bench ${bench_list})
     ${ROCFFT_CLIENTS_HOST_LINK_LIBS}
   )
 
+  if( ROCFFT_MPI_ENABLE )
+    target_link_libraries( ${bench}
+    PRIVATE
+    MPI::MPI_CXX
+    )
+  endif()
+
   set_target_properties( ${bench} PROPERTIES
     CXX_STANDARD_REQUIRED ON
   )

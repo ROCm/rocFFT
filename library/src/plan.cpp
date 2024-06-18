@@ -1,4 +1,4 @@
-// Copyright (C) 2016 - 2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2016 - 2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -49,6 +49,12 @@
 #include <set>
 #include <sstream>
 #include <vector>
+
+#ifdef ROCFFT_MPI_ENABLE
+#include <mpi.h>
+#include <type_traits>
+#include <typeinfo>
+#endif
 
 #define TO_STR2(x) #x
 #define TO_STR(x) TO_STR2(x)
@@ -287,19 +293,20 @@ size_t rocfft_plan_t::AddMultiPlanItem(std::unique_ptr<MultiPlanItem>&& item,
         throw std::runtime_error("antecedent does not exist");
 
     multiPlan.emplace_back(std::move(item));
-    multiPlanAdjacency.emplace_back(antecedents);
+    multiPlanAntecedents.emplace_back(antecedents);
+
     // return index of new item
     return multiPlan.size() - 1;
 }
 
 void rocfft_plan_t::AddAntecedent(size_t itemIdx, size_t antecedentIdx)
 {
-    // we're not implementing full dependency cycle checks but at least
-    // we can check for obvious errors
+    // We're not implementing full dependency cycle checks but at least
+    // we can check for obvious errors.
     if(itemIdx >= multiPlan.size() || antecedentIdx >= multiPlan.size() || itemIdx == antecedentIdx)
         throw std::runtime_error("invalid antecedent during plan creation");
 
-    auto& antecedents = multiPlanAdjacency[itemIdx];
+    auto& antecedents = multiPlanAntecedents[itemIdx];
     if(std::find(antecedents.begin(), antecedents.end(), antecedentIdx) == antecedents.end())
         antecedents.push_back(antecedentIdx);
 }
@@ -319,6 +326,47 @@ size_t rocfft_plan_t::WorkBufBytes() const
             workBufBytes = std::max(workBufBytes, i->WorkBufBytes(base_type_size));
     }
     return workBufBytes;
+}
+
+rocfft_status rocfft_plan_description_set_comm(rocfft_plan_description description,
+                                               rocfft_comm_type        comm_type,
+                                               void*                   comm_handle)
+{
+    log_trace(
+        __func__, "description", description, "comm_type", comm_type, "comm_handle", comm_handle);
+
+    // If you give say that you're going to give is a communicator, please don't give us a null
+    // pointer.
+    if(comm_type != rocfft_comm_none && comm_handle == nullptr)
+    {
+        return rocfft_status_invalid_arg_value;
+    }
+
+    description->comm_type = comm_type;
+
+    switch(description->comm_type)
+    {
+    case rocfft_comm_none:
+    {
+#ifdef ROCFFT_MPI_ENABLE
+        description->mpi_comm.free();
+#endif
+        break;
+    }
+#ifdef ROCFFT_MPI_ENABLE
+    case rocfft_comm_mpi:
+    {
+        description->mpi_comm.duplicate(*static_cast<MPI_Comm*>(comm_handle));
+        auto mpiret = MPI_Comm_set_errhandler(description->mpi_comm, MPI_ERRORS_RETURN);
+        if(mpiret != MPI_SUCCESS)
+            return rocfft_status_failure;
+        break;
+    }
+#endif
+    default:
+        return rocfft_status_failure;
+    }
+    return rocfft_status_success;
 }
 
 rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description description,
@@ -406,7 +454,9 @@ rocfft_status rocfft_plan_description_destroy(rocfft_plan_description descriptio
 {
     log_trace(__func__, "description", description);
     if(description != nullptr)
+    {
         delete description;
+    }
     return rocfft_status_success;
 }
 
@@ -542,8 +592,10 @@ std::string rocfft_brick_t::str() const
         ret += " ";
         ret += std::to_string(i);
     }
+    ret += " comm rank ";
+    ret += std::to_string(location.comm_rank);
     ret += " device ";
-    ret += std::to_string(device);
+    ret += std::to_string(location.device);
     return ret;
 }
 
@@ -584,8 +636,8 @@ rocfft_status rocfft_brick_create(rocfft_brick* brick,
     std::copy_n(field_upper, dim, std::back_inserter(brick_ptr->upper));
     std::copy_n(brick_stride, dim, std::back_inserter(brick_ptr->stride));
 
-    brick_ptr->device = deviceID;
-    *brick            = brick_ptr.release();
+    brick_ptr->location.device = deviceID;
+    *brick                     = brick_ptr.release();
     return rocfft_status_success;
 }
 
@@ -644,6 +696,132 @@ std::string rocfft_bench_command(rocfft_plan plan)
     bench << "--ooffset ";
     std::copy(plan->desc.outOffset.begin(), plan->desc.outOffset.end(), bench_iter);
     return bench.str();
+}
+
+// Verify that the transform type, array type, and placement are coherent.
+rocfft_status check_array_type_validity(const rocfft_plan plan)
+{
+    switch(plan->transformType)
+    {
+    case rocfft_transform_type_complex_forward:
+    case rocfft_transform_type_complex_inverse:
+        // We need complex input data
+        if(!((plan->desc.inArrayType == rocfft_array_type_complex_interleaved)
+             || (plan->desc.inArrayType == rocfft_array_type_complex_planar)))
+            return rocfft_status_invalid_array_type;
+        // We need complex output data
+        if(!((plan->desc.outArrayType == rocfft_array_type_complex_interleaved)
+             || (plan->desc.outArrayType == rocfft_array_type_complex_planar)))
+            return rocfft_status_invalid_array_type;
+        // In-place transform requires that the input and output
+        // format be identical
+        if(plan->placement == rocfft_placement_inplace)
+        {
+            if(plan->desc.inArrayType != plan->desc.outArrayType)
+                return rocfft_status_invalid_array_type;
+        }
+        break;
+    case rocfft_transform_type_real_forward:
+        // Input must be real
+        if(plan->desc.inArrayType != rocfft_array_type_real)
+            return rocfft_status_invalid_array_type;
+        // Output must be Hermitian
+        if(!((plan->desc.outArrayType == rocfft_array_type_hermitian_interleaved)
+             || (plan->desc.outArrayType == rocfft_array_type_hermitian_planar)))
+            return rocfft_status_invalid_array_type;
+        // In-place transform must output to interleaved format
+        if((plan->placement == rocfft_placement_inplace)
+           && (plan->desc.outArrayType != rocfft_array_type_hermitian_interleaved))
+            return rocfft_status_invalid_array_type;
+        break;
+    case rocfft_transform_type_real_inverse:
+        // Output must be real
+        if(plan->desc.outArrayType != rocfft_array_type_real)
+            return rocfft_status_invalid_array_type;
+        // Input must be Hermitian
+        if(!((plan->desc.inArrayType == rocfft_array_type_hermitian_interleaved)
+             || (plan->desc.inArrayType == rocfft_array_type_hermitian_planar)))
+            return rocfft_status_invalid_array_type;
+        // In-place transform must have interleaved input
+        if((plan->placement == rocfft_placement_inplace)
+           && (plan->desc.inArrayType != rocfft_array_type_hermitian_interleaved))
+            return rocfft_status_invalid_array_type;
+        break;
+    }
+    return rocfft_status_success;
+}
+
+// Given a rocfft_plan with validated parameters, set the transform parameters for the root of the
+// tree plan.
+void set_rootplan_params(const rocfft_plan plan, NodeMetaData& planData)
+{
+    planData.dimension = plan->rank;
+    planData.batch     = plan->batch;
+    for(size_t i = 0; i < plan->rank; i++)
+    {
+        planData.length.push_back(plan->lengths[i]);
+        planData.outputLength.push_back(plan->outputLengths[i]);
+
+        planData.inStride.push_back(plan->desc.inStrides[i]);
+        planData.outStride.push_back(plan->desc.outStrides[i]);
+    }
+    planData.iDist     = plan->desc.inDist;
+    planData.oDist     = plan->desc.outDist;
+    planData.placement = plan->placement;
+
+    // If in+out fields are specified, currently that means we're
+    // gathering the data to one device and doing FFT there.  So
+    // the FFT becomes in-place.
+    // TODO: if we have no bricks, or just one brick which is the entire FFT, then we can
+    // just do a normal FFT.
+    if(!plan->desc.inFields.empty() && !plan->desc.outFields.empty())
+    {
+        // c2c can be inplace so both input/output can be
+        // contiguous without needing extra buffers
+        if(plan->transformType == rocfft_transform_type_complex_forward
+           || plan->transformType == rocfft_transform_type_complex_inverse)
+        {
+            planData.placement = rocfft_placement_inplace;
+        }
+        // real-complex would require non-contiguous data to be
+        // inplace (which likely means more packing/unpacking and
+        // extra temp buffer usage anyway), so make it
+        // not-in-place instead
+        else
+        {
+            planData.placement = rocfft_placement_notinplace;
+        }
+    }
+    // If we only have outfield, then there's no need to gather.  But we can't assume we can
+    // overwrite input, so the FFT will be outplace to a temp buf
+    else if(plan->desc.inFields.empty() && !plan->desc.outFields.empty())
+    {
+        planData.placement = rocfft_placement_notinplace;
+    }
+    // If we only have infield, then we must gather.
+    else if(!plan->desc.inFields.empty() && plan->desc.outFields.empty())
+    {
+        // If output is contiguous and this is c2c then we can
+        // gather to the output buf and do an inplace FFT.
+        if(plan->is_contiguous_output()
+           && (plan->transformType == rocfft_transform_type_complex_forward
+               || plan->transformType == rocfft_transform_type_complex_inverse))
+            planData.placement = rocfft_placement_inplace;
+        // Otherwise we must gather to a temp buf and do outplace FFT to output
+        else
+            planData.placement = rocfft_placement_notinplace;
+    }
+
+    planData.precision = plan->precision;
+    planData.direction = ((plan->transformType == rocfft_transform_type_complex_forward)
+                          || (plan->transformType == rocfft_transform_type_real_forward))
+                             ? -1
+                             : 1;
+
+    planData.inArrayType  = plan->desc.inArrayType;
+    planData.outArrayType = plan->desc.outArrayType;
+    planData.rootIsC2C    = (planData.inArrayType != rocfft_array_type_real)
+                         && (planData.outArrayType != rocfft_array_type_real);
 }
 
 void set_bluestein_strides(const rocfft_plan plan, NodeMetaData& planData)
@@ -765,7 +943,8 @@ void set_bluestein_strides(const rocfft_plan plan, NodeMetaData& planData)
 }
 
 // return an ExecPlan that transposes a brick
-std::unique_ptr<ExecPlan> transpose_brick(int                        deviceID,
+std::unique_ptr<ExecPlan> transpose_brick(int                        local_comm_rank,
+                                          rocfft_location_t          location,
                                           const std::vector<size_t>& length,
                                           rocfft_precision           precision,
                                           rocfft_array_type          arrayType,
@@ -777,12 +956,10 @@ std::unique_ptr<ExecPlan> transpose_brick(int                        deviceID,
                                           const std::vector<size_t>& strideOut,
                                           std::string&&              description)
 {
-    rocfft_scoped_device dev(deviceID);
-
     auto      execPlanMultiItem = std::make_unique<ExecPlan>();
     ExecPlan& execPlan          = *execPlanMultiItem;
 
-    execPlan.deviceID   = deviceID;
+    execPlan.location   = location;
     execPlan.deviceProp = get_curr_device_prop();
     execPlan.mgpuPlan   = true;
 
@@ -854,12 +1031,18 @@ std::unique_ptr<ExecPlan> transpose_brick(int                        deviceID,
     execPlan.rootPlan->outArrayType = arrayType;
 
     execPlan.execSeq.push_back(execPlan.rootPlan.get());
+
+    // only initialize the execPlan with kernels, twiddles, etcn if it
+    // will run on this rank
+    if(local_comm_rank != location.comm_rank)
+        return execPlanMultiItem;
+
+    rocfft_scoped_device dev(location.device);
     execPlan.rootPlan->CreateDevKernelArgs();
 
     execPlan.rootPlan->comments.emplace_back(std::move(description));
 
-    // FIXME: on multi-rank plans, we should only compile for the
-    // current rank
+    // TODO: on multi-rank plans, we should only compile for the current rank
     RuntimeCompilePlan(execPlan);
 
     // grid params are set during runtime compilation, put them on
@@ -883,17 +1066,28 @@ std::unique_ptr<ExecPlan> transpose_brick(int                        deviceID,
 // the map for reuse.
 struct TempBufferLease
 {
-    TempBufferLease(std::multimap<int, std::shared_ptr<InternalTempBuffer>>& _tempBuffers,
-                    int                                                      _deviceID,
-                    size_t                                                   _elems,
-                    size_t                                                   _elem_size)
-        : deviceID(_deviceID)
+    TempBufferLease(
+        std::multimap<rocfft_location_t, std::shared_ptr<InternalTempBuffer>>& _tempBuffers,
+        int                                                                    local_comm_rank,
+        rocfft_location_t                                                      _location,
+        size_t                                                                 _elems,
+        size_t                                                                 _elem_size)
+        : location(_location)
         , tempBuffers(&_tempBuffers)
     {
+        // no need to allocate anything for non-local ranks
+        if(local_comm_rank != location.comm_rank)
+        {
+            // instead allocate a placeholder that remembers which
+            // rank this was for, to aid debugging
+            buf = std::make_shared<InternalTempBuffer>(location.comm_rank);
+            return;
+        }
+
         // return an existing buffer that's big enough, if one exists
         const size_t alloc_size = _elems * _elem_size;
-        auto         i          = tempBuffers->lower_bound(deviceID);
-        if(i != tempBuffers->upper_bound(deviceID))
+        auto         i          = tempBuffers->lower_bound(location);
+        if(i != tempBuffers->upper_bound(location))
         {
             // found a buffer, ensure it's big enough
             i->second->set_size_bytes(alloc_size);
@@ -904,25 +1098,25 @@ struct TempBufferLease
             return;
         }
         // no buffer was found, allocate a new one
-        buf = std::make_shared<InternalTempBuffer>();
+        buf = std::make_shared<InternalTempBuffer>(local_comm_rank);
         buf->set_size_bytes(alloc_size);
     }
     ~TempBufferLease()
     {
         // return the buffer to the map
         if(buf)
-            tempBuffers->emplace(std::make_pair(deviceID, std::move(buf)));
+            tempBuffers->emplace(std::make_pair(location, std::move(buf)));
     }
     // allow moves, disallow copies
     TempBufferLease(TempBufferLease&& other)
-        : deviceID(other.deviceID)
+        : location(other.location)
         , tempBuffers(other.tempBuffers)
         , buf(std::move(other.buf))
     {
     }
     TempBufferLease& operator=(TempBufferLease&& other)
     {
-        deviceID    = other.deviceID;
+        location    = other.location;
         tempBuffers = other.tempBuffers;
         buf         = std::move(other.buf);
         return *this;
@@ -936,24 +1130,91 @@ struct TempBufferLease
     }
 
 private:
-    int                                                      deviceID;
-    std::multimap<int, std::shared_ptr<InternalTempBuffer>>* tempBuffers;
-    std::shared_ptr<InternalTempBuffer>                      buf;
+    rocfft_location_t                                                      location;
+    std::multimap<rocfft_location_t, std::shared_ptr<InternalTempBuffer>>* tempBuffers;
+    std::shared_ptr<InternalTempBuffer>                                    buf;
 };
 
 void rocfft_plan_t::AllocateInternalTempBuffers()
 {
     for(auto& t : tempBuffers)
     {
-        t.second->alloc(t.first);
+        if(t.first.comm_rank != get_local_comm_rank())
+            continue;
+
+        t.second->alloc(t.first.device);
         if(LOG_PLAN_ENABLED())
             *LogSingleton::GetInstance().GetPlanOS()
-                << "temp buffer " << t.second->data() << ", device " << t.first << ", size_bytes "
-                << t.second->get_size_bytes() << std::endl;
+                << "temp buffer " << t.second->data() << ", device " << t.first.device
+                << ", size_bytes " << t.second->get_size_bytes() << std::endl;
     }
 }
 
-std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
+// Given user-specified brick layout, return a vector of BufferPtrs
+// that point to those bricks.  Assign comm_rank and rank-specific
+// index on those BufferPtrs appropriately.  Constructor specifies
+// whether user input or user output BufferPtrs are returned.
+//
+// For example, if the input brick layout says rank-0 has 2 bricks
+// and rank-1 has 3, this will return 5 BufferPtrs:
+//
+// - rank-0 user input index 0
+// - rank-0 user input index 1
+// - rank-1 user input index 0
+// - rank-1 user input index 1
+// - rank-1 user input index 2
+template <typename BufferPtrConstruct>
+static std::vector<BufferPtr> GatherUserBuffers(BufferPtrConstruct                 ctor,
+                                                const std::vector<rocfft_brick_t>& bricks)
+{
+    std::vector<BufferPtr> ret;
+
+    auto rank_sorter = [](const rocfft_brick_t& a, const rocfft_brick_t& b) {
+        return a.location.comm_rank < b.location.comm_rank;
+    };
+
+    // functor to search for bricks on a comm rank, in a container of bricks
+    // sorted by comm rank
+    struct match_comm_rank
+    {
+        bool operator()(const rocfft_brick_t& b, int comm_rank) const
+        {
+            return b.location.comm_rank < comm_rank;
+        }
+        bool operator()(int comm_rank, const rocfft_brick_t& b) const
+        {
+            return comm_rank < b.location.comm_rank;
+        }
+    };
+
+    // In a multi-process enviroment, we've gathered the bricks on
+    // multiple ranks into the field.  Bricks from the same rank should
+    // appear together in the field.  Assert that this is the case,
+    // since the code below depends on it.
+    if(!std::is_sorted(bricks.begin(), bricks.end(), rank_sorter))
+    {
+        throw std::runtime_error("bricks not sorted after gather");
+    }
+
+    // go over the range of bricks on each rank
+    for(auto range = std::equal_range(
+            bricks.begin(), bricks.end(), bricks.front().location.comm_rank, match_comm_rank());
+        range.first != range.second;
+        range = std::equal_range(
+            range.second, bricks.end(), range.second->location.comm_rank, match_comm_rank()))
+    {
+        // track the index of the user-provided brick
+        for(size_t userIdx = 0; range.first != range.second; ++range.first, ++userIdx)
+        {
+            ret.emplace_back(ctor(userIdx, range.first->location.comm_rank));
+        }
+        if(range.second == bricks.end())
+            break;
+    }
+    return ret;
+}
+
+std::vector<size_t> rocfft_plan_t::GatherBricksToField(rocfft_location_t currentLocation,
                                                        const std::vector<rocfft_brick_t>& bricks,
                                                        rocfft_precision                   precision,
                                                        rocfft_array_type                  arrayType,
@@ -967,26 +1228,33 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
     std::vector<TempBufferLease>   gatherPackBufs;
     std::optional<TempBufferLease> gatherDestBuf;
 
-    // create gather operation
+    std::vector<BufferPtr> outputBufs = GatherUserBuffers(BufferPtr::user_input, bricks);
+
+    const auto local_comm_rank = get_local_comm_rank();
+
+    // Create gather operation
     auto gatherPtr       = std::make_unique<CommGather>();
     auto gather          = gatherPtr.get();
     gather->precision    = precision;
     gather->arrayType    = arrayType;
-    gather->destDeviceID = currentDevice;
+    gather->destLocation = currentLocation;
+    gather->description  = "Gather " + std::to_string(bricks.size()) + " bricks";
 
-    // add gather to the plan first - we will add operations to it
-    // later
+    // Add gather to the plan first - we will add operations to it later
     size_t gatherIdx = AddMultiPlanItem(std::move(gatherPtr), antecedents);
 
     const bool gatherToTemp
-        = std::any_of(bricks.begin(), bricks.end(), [&](const rocfft_brick_t& b) {
-              return !b.is_contiguous() || !b.is_contiguous_in_field(field_length, field_stride);
+        = std::any_of(bricks.begin(), bricks.end(), [&](const rocfft_brick_t& brick) {
+              return !brick.is_contiguous()
+                     || !brick.is_contiguous_in_field(field_length, field_stride);
           });
     if(gatherToTemp)
     {
+        // this is from source-rank to source-rank, before MPI comm.
         gatherDestBuf
             = std::make_optional<TempBufferLease>(tempBuffers,
-                                                  currentDevice,
+                                                  local_comm_rank,
+                                                  currentLocation,
                                                   product(field_length.begin(), field_length.end()),
                                                   elem_size);
         gather->destPtr = BufferPtr::temp(gatherDestBuf->data());
@@ -996,68 +1264,73 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
         gather->destPtr = output;
     }
 
-    // we'll be packing the brick data contiguously into the output,
+    // We'll be packing the brick data contiguously into the output,
     // so keep track of how much of the output we've filled up
     size_t contiguousOffset = 0;
     for(size_t brickIdx = 0; brickIdx < bricks.size(); ++brickIdx)
     {
-        const auto& b = bricks[brickIdx];
-        if(b.is_contiguous())
+        const auto& brick = bricks[brickIdx];
+        if(brick.is_contiguous())
         {
-            // contiguous brick, just copy the data
+            // Contiguous brick, just copy the data
             gather->ops.emplace_back(
-                b.device, BufferPtr::user_input(brickIdx), 0, contiguousOffset, b.count_elems());
+                brick.location, outputBufs[brickIdx], 0, contiguousOffset, brick.count_elems());
         }
         else
         {
-            // allocate temp memory for the pack
-            gatherPackBufs.emplace_back(tempBuffers, b.device, b.count_elems(), elem_size);
+            // Allocate temp memory for the pack
+            gatherPackBufs.emplace_back(
+                tempBuffers, local_comm_rank, brick.location, brick.count_elems(), elem_size);
 
-            // brick is not contiguous, insert a pack node on the brick's device
+            // Brick is not contiguous, insert a pack node on the brick's device
             std::string description = "pack brick " + std::to_string(brickIdx) + " before gather";
             auto        packIdx
-                = AddMultiPlanItem(transpose_brick(b.device,
-                                                   b.length(),
+                = AddMultiPlanItem(transpose_brick(local_comm_rank,
+                                                   brick.location,
+                                                   brick.length(),
                                                    precision,
                                                    arrayType,
-                                                   BufferPtr::user_input(brickIdx),
+                                                   outputBufs[brickIdx],
                                                    0,
-                                                   b.stride,
+                                                   brick.stride,
                                                    BufferPtr::temp(gatherPackBufs.back().data()),
                                                    contiguousOffset,
-                                                   b.contiguous_strides(),
+                                                   brick.contiguous_strides(),
                                                    std::move(description)),
                                    antecedents);
             AddAntecedent(gatherIdx, packIdx);
 
-            gather->ops.emplace_back(b.device,
+            gather->ops.emplace_back(brick.location,
                                      BufferPtr::temp(gatherPackBufs.back().data()),
                                      0,
                                      contiguousOffset,
-                                     b.count_elems());
+                                     brick.count_elems());
         }
 
-        // unpack if necessary
-        if(!b.is_contiguous() || !b.is_contiguous_in_field(field_length, field_stride))
+        // if brick is not contiguous in the field, it was packed to
+        // be contiguous for communication.  unpack it so it's
+        // contiguous in the field.
+        if(!brick.is_contiguous() || !brick.is_contiguous_in_field(field_length, field_stride))
         {
             std::string description = "unpack brick " + std::to_string(brickIdx) + " after gather";
 
             outputPlanItems.push_back(
-                AddMultiPlanItem(transpose_brick(currentDevice,
-                                                 b.length(),
+                AddMultiPlanItem(transpose_brick(local_comm_rank,
+                                                 currentLocation,
+                                                 brick.length(),
                                                  precision,
                                                  arrayType,
                                                  BufferPtr::temp(gatherDestBuf->data()),
                                                  contiguousOffset,
-                                                 b.contiguous_strides(),
+                                                 brick.contiguous_strides(),
                                                  output,
-                                                 b.offset_in_field(field_stride),
+                                                 brick.offset_in_field(field_stride),
                                                  field_stride,
                                                  std::move(description)),
                                  {gatherIdx}));
         }
 
-        contiguousOffset += b.count_elems();
+        contiguousOffset += brick.count_elems();
     }
 
     if(outputPlanItems.empty())
@@ -1068,7 +1341,7 @@ std::vector<size_t> rocfft_plan_t::GatherBricksToField(int currentDevice,
     return outputPlanItems;
 }
 
-std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                        currentDevice,
+std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(rocfft_location_t          currentLocation,
                                                         BufferPtr                  input,
                                                         rocfft_precision           precision,
                                                         rocfft_array_type          arrayType,
@@ -1082,13 +1355,18 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
     std::vector<TempBufferLease>   scatterPackBufs;
     std::optional<TempBufferLease> scatterSrcBuf;
 
+    std::vector<BufferPtr> outputBufs = GatherUserBuffers(BufferPtr::user_output, bricks);
+
+    const auto local_comm_rank = get_local_comm_rank();
+
     // create scatter operation
     auto scatterPtr = std::make_unique<CommScatter>();
     auto scatter    = scatterPtr.get();
 
     scatter->precision   = precision;
     scatter->arrayType   = arrayType;
-    scatter->srcDeviceID = currentDevice;
+    scatter->srcLocation = currentLocation;
+    scatter->description = "Scatter " + std::to_string(bricks.size()) + " bricks";
 
     // add scatter to the multi-plan first, add operations afterwards
     auto scatterIdx = AddMultiPlanItem(std::move(scatterPtr), antecedents);
@@ -1101,7 +1379,8 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
     {
         scatterSrcBuf
             = std::make_optional<TempBufferLease>(tempBuffers,
-                                                  currentDevice,
+                                                  local_comm_rank,
+                                                  currentLocation,
                                                   product(field_length.begin(), field_length.end()),
                                                   elem_size);
         scatter->srcPtr = BufferPtr::temp(scatterSrcBuf->data());
@@ -1114,77 +1393,78 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
     // we'll be packing the brick data contiguously into the output,
     // so keep track of how much of the output we've filled up
     size_t contiguousOffset = 0;
+
     for(size_t brickIdx = 0; brickIdx < bricks.size(); ++brickIdx)
     {
-        const auto& b = bricks[brickIdx];
+        const auto& brick = bricks[brickIdx];
 
-        if(b.is_contiguous_in_field(field_length, field_stride))
+        if(brick.is_contiguous_in_field(field_length, field_stride))
         {
             // contiguous brick, just copy the data
             scatter->ops.emplace_back(
-                b.device, BufferPtr::user_output(brickIdx), contiguousOffset, 0, b.count_elems());
+                brick.location, outputBufs[brickIdx], contiguousOffset, 0, brick.count_elems());
         }
         else
         {
             // pack data to be contiguous
             std::string description = "pack brick " + std::to_string(brickIdx) + " before scatter";
 
-            const auto brickLen = b.length();
-            auto       packIdx  = AddMultiPlanItem(transpose_brick(currentDevice,
-                                                            b.length(),
+            const auto brickLen = brick.length();
+            auto       packIdx  = AddMultiPlanItem(transpose_brick(local_comm_rank,
+                                                            currentLocation,
+                                                            brick.length(),
                                                             precision,
                                                             arrayType,
                                                             input,
-                                                            b.offset_in_field(field_stride),
+                                                            brick.offset_in_field(field_stride),
                                                             field_stride,
                                                             BufferPtr::temp(scatterSrcBuf->data()),
                                                             contiguousOffset,
-                                                            b.contiguous_strides(),
+                                                            brick.contiguous_strides(),
                                                             std::move(description)),
                                             antecedents);
             AddAntecedent(scatterIdx, packIdx);
 
-            // bricks are packed to be contiguous - if output is the
+            // Bricks are packed to be contiguous - if output is the
             // same shape, then there's no need for unpacking
-            if(b.is_contiguous())
+            if(brick.is_contiguous())
             {
-                scatter->ops.emplace_back(b.device,
-                                          BufferPtr::user_output(brickIdx),
-                                          contiguousOffset,
-                                          0,
-                                          b.count_elems());
+                scatter->ops.emplace_back(
+                    brick.location, outputBufs[brickIdx], contiguousOffset, 0, brick.count_elems());
             }
             else
             {
                 // allocate memory for packed data
-                scatterPackBufs.emplace_back(tempBuffers, b.device, b.count_elems(), elem_size);
+                scatterPackBufs.emplace_back(
+                    tempBuffers, local_comm_rank, brick.location, brick.count_elems(), elem_size);
 
                 // send the data
-                scatter->ops.emplace_back(b.device,
+                scatter->ops.emplace_back(brick.location,
                                           BufferPtr::temp(scatterPackBufs.back().data()),
                                           contiguousOffset,
                                           0,
-                                          b.count_elems());
+                                          brick.count_elems());
 
                 // unpack data after sending
                 description = "unpack brick " + std::to_string(brickIdx) + " after scatter";
 
                 outputPlanItems.push_back(
-                    AddMultiPlanItem(transpose_brick(b.device,
-                                                     b.length(),
+                    AddMultiPlanItem(transpose_brick(local_comm_rank,
+                                                     brick.location,
+                                                     brick.length(),
                                                      precision,
                                                      arrayType,
                                                      BufferPtr::temp(scatterPackBufs.back().data()),
                                                      0,
-                                                     b.contiguous_strides(),
-                                                     BufferPtr::user_output(brickIdx),
+                                                     brick.contiguous_strides(),
+                                                     outputBufs[brickIdx],
                                                      0,
-                                                     b.stride,
+                                                     brick.stride,
                                                      std::move(description)),
                                      {scatterIdx}));
             }
         }
-        contiguousOffset += b.count_elems();
+        contiguousOffset += brick.count_elems();
     }
 
     // following items in the plan just depend on the scatter
@@ -1195,125 +1475,6 @@ std::vector<size_t> rocfft_plan_t::ScatterFieldToBricks(int                     
     }
 
     return outputPlanItems;
-}
-
-void rocfft_plan_t::GatherScatterSingleDevicePlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
-{
-    // the smart pointer will be moved into the multi-plan during this
-    // function, so keep a plain non-owning pointer
-    auto execPlan = execPlanPtr.get();
-
-    // if we have no input/output fields, then the single ExecPlan is
-    // exactly what we need to do
-    if(desc.inFields.empty() && desc.outFields.empty())
-    {
-        AddMultiPlanItem(std::move(execPlanPtr), {});
-        return;
-    }
-
-    // code below this line is only required for multi-device plans
-    execPlan->mgpuPlan = true;
-
-    // ensure fields are real or interleaved - planar is not supported
-    if((!desc.inFields.empty() && array_type_is_planar(desc.inArrayType))
-       || (!desc.outFields.empty() && array_type_is_planar(desc.outArrayType)))
-    {
-        throw std::runtime_error("fields must be not be planar");
-    }
-
-    const auto in_elem_size = element_size(precision, desc.inArrayType);
-    // we do in-place transforms here, so allocate a buffer for the
-    // complex side of real-complex transforms, since it's bigger.
-    const size_t in_elem_count = compute_ptrdiff(lengths, desc.inStrides, batch, desc.inDist);
-
-    // may need buffer(s) to do the actual FFT
-    std::shared_ptr<TempBufferLease> fftBuf;
-    std::shared_ptr<TempBufferLease> fftOutBuf;
-
-    BufferPtr gatherBuf;
-
-    // gather to temp buf if infields were specified and output is not contiguous or is also a field
-    if(!desc.inFields.empty() && (!is_contiguous_output() || !desc.outFields.empty()))
-    {
-        fftBuf = std::make_shared<TempBufferLease>(
-            tempBuffers, execPlanPtr->deviceID, in_elem_count, in_elem_size);
-        gatherBuf = BufferPtr::temp(fftBuf->data());
-    }
-    else if(desc.inFields.empty())
-        gatherBuf = BufferPtr::user_input();
-    // else, we can gather directly to the output buffer
-    else
-        gatherBuf = BufferPtr::user_output();
-
-    // allocate another temp buf if FFT is not-in-place and outfield was specified
-    if(execPlan->rootPlan->placement == rocfft_placement_notinplace && !desc.outFields.empty())
-    {
-        const auto   out_elem_size  = element_size(precision, desc.outArrayType);
-        const size_t out_elem_count = compute_ptrdiff(
-            execPlan->rootPlan->GetOutputLength(), desc.outStrides, batch, desc.outDist);
-        fftOutBuf = std::make_shared<TempBufferLease>(
-            tempBuffers, execPlanPtr->deviceID, out_elem_count, out_elem_size);
-    }
-
-    std::vector<size_t> gatherIndexes;
-    for(const auto& inField : desc.inFields)
-    {
-        // brick indexes include batch so create a set of comparable field strides
-        auto fieldStrideWithBatch = desc.inStrides;
-        fieldStrideWithBatch.push_back(desc.inDist);
-
-        auto fieldLengthWithBatch = lengths;
-        fieldLengthWithBatch.push_back(batch);
-
-        auto curIndexes
-            = GatherBricksToField(execPlan->deviceID,
-                                  inField.bricks,
-                                  execPlan->rootPlan->precision,
-                                  execPlan->rootPlan->inArrayType,
-                                  fieldLengthWithBatch,
-                                  fieldStrideWithBatch,
-                                  gatherBuf,
-                                  {},
-                                  element_size(precision, execPlan->rootPlan->inArrayType));
-        std::copy(curIndexes.begin(), curIndexes.end(), std::back_inserter(gatherIndexes));
-    }
-
-    // data is gathered and unpacked (if necessary), run the core FFT plan we started with
-    if(gatherBuf)
-        execPlan->inputPtr = gatherBuf;
-    else
-        execPlan->inputPtr = BufferPtr::user_input();
-
-    if(execPlan->rootPlan->placement == rocfft_placement_inplace)
-        execPlan->outputPtr = execPlan->inputPtr;
-    else if(fftOutBuf)
-        execPlan->outputPtr = BufferPtr::temp(fftOutBuf->data());
-    auto fftIdx = AddMultiPlanItem(std::move(execPlanPtr), gatherIndexes);
-
-    // scatter data back out
-    for(const auto& outField : desc.outFields)
-    {
-        // brick indexes include batch so create a set of comparable field strides
-        auto fieldStrideWithBatch = desc.outStrides;
-        fieldStrideWithBatch.push_back(desc.outDist);
-
-        auto fieldLengthWithBatch = lengths;
-        fieldLengthWithBatch.push_back(batch);
-
-        auto scatterSrcBuf = execPlan->rootPlan->placement == rocfft_placement_notinplace
-                                 ? fftOutBuf->data()
-                                 : fftBuf->data();
-
-        ScatterFieldToBricks(execPlan->deviceID,
-                             BufferPtr::temp(scatterSrcBuf),
-                             execPlan->rootPlan->precision,
-                             execPlan->rootPlan->outArrayType,
-                             fieldLengthWithBatch,
-                             fieldStrideWithBatch,
-                             outField.bricks,
-                             {fftIdx},
-                             element_size(precision, execPlan->rootPlan->outArrayType));
-    }
 }
 
 // test if the specified dimension is split up across separate bricks
@@ -1328,8 +1489,140 @@ static bool DimensionSplitInField(size_t length, size_t dimIdx, const rocfft_fie
 
 // Construct a single-device execPlan - fill out the provided
 // execPlan with nodes to implement the FFT.
+void rocfft_plan_t::GatherScatterSingleDevicePlan(std::unique_ptr<ExecPlan>&& execPlanPtr)
+{
+    // The smart pointer will be moved into the multi-plan during this
+    // function, so keep a plain non-owning pointer
+    auto execPlan = execPlanPtr.get();
+
+    // If we have no input/output fields, then the single ExecPlan is
+    // exactly what we need to do
+    if(desc.inFields.empty() && desc.outFields.empty())
+    {
+        AddMultiPlanItem(std::move(execPlanPtr), {});
+        return;
+    }
+
+    // Code below this line is only required for multi-device plans
+    execPlan->mgpuPlan    = true;
+    execPlan->description = "FFT gathered data";
+
+    // Ensure fields are real or interleaved - planar is not supported
+    if((!desc.inFields.empty() && array_type_is_planar(desc.inArrayType))
+       || (!desc.outFields.empty() && array_type_is_planar(desc.outArrayType)))
+    {
+        throw std::runtime_error("fields must be not be planar");
+    }
+
+    const auto in_elem_size = element_size(precision, desc.inArrayType);
+    // We do in-place transforms here, so allocate a buffer for the
+    // complex side of real-complex transforms, since it's bigger.
+    const size_t in_elem_count = compute_ptrdiff(lengths, desc.inStrides, batch, desc.inDist);
+
+    const auto local_comm_rank = get_local_comm_rank();
+
+    // May need buffer(s) to do the actual FFT
+    std::shared_ptr<TempBufferLease> fftBuf;
+    std::shared_ptr<TempBufferLease> fftOutBuf;
+
+    // Gather to temp buf if infields were specified and output is not contiguous or is also a field
+    BufferPtr gatherBuf;
+    {
+        if(!desc.inFields.empty() && (!is_contiguous_output() || !desc.outFields.empty()))
+        {
+            fftBuf = std::make_shared<TempBufferLease>(
+                tempBuffers, local_comm_rank, execPlanPtr->location, in_elem_count, in_elem_size);
+            gatherBuf = BufferPtr::temp(fftBuf->data());
+        }
+        else if(desc.inFields.empty())
+        {
+            gatherBuf = BufferPtr::user_input(0, 0);
+        }
+        else
+        {
+            // Else, we can gather directly to the output buffer
+            gatherBuf = BufferPtr::user_output(0, 0);
+        }
+    }
+
+    // Allocate another temp buf if FFT is not-in-place and outfield was specified
+    // TODO: this only needs to be done if there are multiple bricks in the output field.
+    if(placement == rocfft_placement_notinplace && !desc.outFields.empty())
+    {
+        const auto   out_elem_size  = element_size(precision, desc.outArrayType);
+        const size_t out_elem_count = compute_ptrdiff(
+            execPlan->rootPlan->GetOutputLength(), desc.outStrides, batch, desc.outDist);
+        fftOutBuf = std::make_shared<TempBufferLease>(
+            tempBuffers, local_comm_rank, execPlanPtr->location, out_elem_count, out_elem_size);
+    }
+
+    std::vector<size_t> gatherIndexes;
+    {
+        for(const auto& inField : desc.inFields)
+        {
+            // brick indexes include batch so create a set of comparable field strides
+            auto fieldStrideWithBatch = desc.inStrides;
+            fieldStrideWithBatch.push_back(desc.inDist);
+
+            auto fieldLengthWithBatch = lengths;
+            fieldLengthWithBatch.push_back(batch);
+
+            auto curIndexes = GatherBricksToField(execPlan->location,
+                                                  inField.bricks,
+                                                  precision,
+                                                  desc.inArrayType,
+                                                  fieldLengthWithBatch,
+                                                  fieldStrideWithBatch,
+                                                  gatherBuf,
+                                                  {},
+                                                  element_size(precision, desc.inArrayType));
+            std::copy(curIndexes.begin(), curIndexes.end(), std::back_inserter(gatherIndexes));
+        }
+
+        // Data is gathered and unpacked (if necessary), run the core FFT plan we started with
+        if(gatherBuf)
+            execPlan->inputPtr = gatherBuf;
+        else
+            execPlan->inputPtr = BufferPtr::user_input(0, 0);
+
+        if(execPlan->rootPlan->placement == rocfft_placement_inplace)
+            execPlan->outputPtr = execPlan->inputPtr;
+        else if(fftOutBuf)
+            execPlan->outputPtr = BufferPtr::temp(fftOutBuf->data());
+    }
+    auto fftIdx = AddMultiPlanItem(std::move(execPlanPtr), gatherIndexes);
+
+    // Scatter data back out
+    for(const auto& outField : desc.outFields)
+    {
+        // brick indexes include batch so create a set of comparable field strides
+        auto fieldStrideWithBatch = desc.outStrides;
+        fieldStrideWithBatch.push_back(desc.outDist);
+
+        auto fieldLengthWithBatch = lengths;
+        fieldLengthWithBatch.push_back(batch);
+
+        auto scatterSrcBuf = execPlan->rootPlan->placement == rocfft_placement_notinplace
+                                 ? fftOutBuf->data()
+                                 : fftBuf->data();
+
+        ScatterFieldToBricks(execPlan->location,
+                             BufferPtr::temp(scatterSrcBuf),
+                             execPlan->rootPlan->precision,
+                             execPlan->rootPlan->outArrayType,
+                             fieldLengthWithBatch,
+                             fieldStrideWithBatch,
+                             outField.bricks,
+                             {fftIdx},
+                             element_size(precision, execPlan->rootPlan->outArrayType));
+    }
+}
+
+// Construct a single-device execPlan - fill out the provided
+// execPlan with nodes to implement the FFT.
 static std::unique_ptr<ExecPlan> BuildSingleDevicePlan(NodeMetaData&         rootPlanData,
-                                                       int                   deviceID,
+                                                       int                   local_comm_rank,
+                                                       rocfft_location_t     location,
                                                        rocfft_transform_type transformType,
                                                        LoadOps&              loadOps,
                                                        StoreOps&             storeOps)
@@ -1338,12 +1631,11 @@ static std::unique_ptr<ExecPlan> BuildSingleDevicePlan(NodeMetaData&         roo
     ExecPlan& execPlan          = *execPlanMultiItem;
     try
     {
-        execPlan.deviceID   = deviceID;
+        execPlan.location   = location;
         execPlan.deviceProp = rootPlanData.deviceProp;
+        execPlan.rootPlan   = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
 
-        execPlan.rootPlan = NodeFactory::CreateExplicitNode(rootPlanData, nullptr);
-
-        // FIXME: some solutions require the problems to be unit_stride, otherwise the
+        // TODO: some solutions require the problems to be unit_stride, otherwise the
         //   scheme-tree may not be applicable. In this case, we can't apply the solutions.
         //   Currently, it happens on Real3DEven with REAL_2D_SINGLE kernels. This needs to
         //   be detected.
@@ -1375,6 +1667,10 @@ static std::unique_ptr<ExecPlan> BuildSingleDevicePlan(NodeMetaData&         roo
         if(storeOps.enabled())
             execPlan.rootPlan->storeOps = storeOps;
 
+        // only allocate kernels, twiddles, etc if plan will run on this rank
+        if(local_comm_rank != location.comm_rank)
+            return execPlanMultiItem;
+
         // check if we are doing tuning init now. If yes, we just return
         // since we are not going to do the execution
         if(TuningBenchmarker::GetSingleton().IsInitializingTuning())
@@ -1385,23 +1681,24 @@ static std::unique_ptr<ExecPlan> BuildSingleDevicePlan(NodeMetaData&         roo
             return execPlanMultiItem;
         }
 
-        ProcessNode(execPlan); // TODO: more descriptions are needed
+        // TODO: more descriptions are needed
+        ProcessNode(execPlan);
 
-        // plan is compiled, no need to alloc twiddles + kargs etc
+        // When running each solution during tuning, get the information to packet,
+        // then we can dump the information to a table for analysis
+        if(TuningBenchmarker::GetSingleton().IsProcessingTuning())
+        {
+            if(!GetTuningKernelInfo(execPlan))
+                throw std::runtime_error("Unable to get the solution info.");
+        }
+
+        // Plan is compiled, no need to alloc twiddles + kargs etc
         if(rocfft_getenv("ROCFFT_INTERNAL_COMPILE_ONLY") == "1")
             return execPlanMultiItem;
 
         if(!PlanPowX(execPlan)) // PlanPowX enqueues the GPU kernels by function
         {
             throw std::runtime_error("Unable to create execution plan.");
-        }
-
-        // when running each solution during tuning, get the information to packet,
-        // then we can dump the information to a table for analysis
-        if(TuningBenchmarker::GetSingleton().IsProcessingTuning())
-        {
-            if(!GetTuningKernelInfo(execPlan))
-                throw std::runtime_error("Unable to get the solution info.");
         }
 
         return execPlanMultiItem;
@@ -1429,15 +1726,13 @@ static std::unique_ptr<ExecPlan> BuildSingleDevicePlan(NodeMetaData&         roo
 // NOTE: lengths and stride include batch dimension
 static size_t C2CBrickOneDimension(rocfft_plan_t&             plan,
                                    size_t                     dimIdx,
-                                   int                        deviceID,
+                                   rocfft_location_t          location,
                                    const std::vector<size_t>& lengths,
                                    const std::vector<size_t>& stride,
                                    BufferPtr                  input,
                                    BufferPtr                  output,
                                    const std::vector<size_t>& antecedents)
 {
-    rocfft_scoped_device dev(deviceID);
-
     auto transformLengths = lengths;
     auto transformStride  = stride;
 
@@ -1468,8 +1763,12 @@ static size_t C2CBrickOneDimension(rocfft_plan_t&             plan,
     rootPlanData.outArrayType = rocfft_array_type_complex_interleaved;
     rootPlanData.deviceProp   = get_curr_device_prop();
 
-    auto singlePlan = BuildSingleDevicePlan(
-        rootPlanData, deviceID, plan.transformType, plan.desc.loadOps, plan.desc.storeOps);
+    auto singlePlan       = BuildSingleDevicePlan(rootPlanData,
+                                            plan.get_local_comm_rank(),
+                                            location,
+                                            plan.transformType,
+                                            plan.desc.loadOps,
+                                            plan.desc.storeOps);
     singlePlan->mgpuPlan  = true;
     singlePlan->inputPtr  = input;
     singlePlan->outputPtr = output;
@@ -1501,7 +1800,7 @@ void rocfft_plan_t::C2CField(const rocfft_field_t&      field,
         {
             auto transformItem              = C2CBrickOneDimension(*this,
                                                       dimIdx,
-                                                      inBrick.device,
+                                                      inBrick.location,
                                                       inBrick.length(),
                                                       inBrick.stride,
                                                       fftInput,
@@ -1589,6 +1888,8 @@ void rocfft_plan_t::GlobalTranspose(size_t                     elem_size,
     std::string                  itemGroup = "transpose_" + std::to_string(transposeNumber);
     std::vector<TempBufferLease> packBufs;
 
+    const auto local_comm_rank = get_local_comm_rank();
+
     // loop over each input brick, finding the intersection of it with
     // every output brick
     for(size_t inBrickIdx = 0; inBrickIdx < inField.bricks.size(); ++inBrickIdx)
@@ -1605,12 +1906,19 @@ void rocfft_plan_t::GlobalTranspose(size_t                     elem_size,
 
             // pack data for communication
             packBufs.reserve(packBufs.size() + 2);
-            TempBufferLease& pack = packBufs.emplace_back(
-                tempBuffers, inBrick.device, intersection.count_elems(), elem_size);
-            TempBufferLease& recv = packBufs.emplace_back(
-                tempBuffers, outBrick.device, intersection.count_elems(), elem_size);
-            auto packIdx
-                = AddMultiPlanItem(transpose_brick(inBrick.device,
+            TempBufferLease& pack = packBufs.emplace_back(tempBuffers,
+                                                          local_comm_rank,
+                                                          inBrick.location,
+                                                          intersection.count_elems(),
+                                                          elem_size);
+            TempBufferLease& recv = packBufs.emplace_back(tempBuffers,
+                                                          local_comm_rank,
+                                                          outBrick.location,
+                                                          intersection.count_elems(),
+                                                          elem_size);
+            auto             packIdx
+                = AddMultiPlanItem(transpose_brick(local_comm_rank,
+                                                   inBrick.location,
                                                    intersection.length(),
                                                    precision,
                                                    desc.inArrayType,
@@ -1632,9 +1940,9 @@ void rocfft_plan_t::GlobalTranspose(size_t                     elem_size,
             sendOp->precision    = precision;
             sendOp->arrayType    = desc.inArrayType;
             sendOp->numElems     = intersection.count_elems();
-            sendOp->srcDeviceID  = inBrick.device;
+            sendOp->srcLocation  = inBrick.location;
             sendOp->srcPtr       = BufferPtr::temp(pack.data());
-            sendOp->destDeviceID = outBrick.device;
+            sendOp->destLocation = outBrick.location;
             sendOp->destPtr      = BufferPtr::temp(recv.data());
 
             auto sendIdx              = AddMultiPlanItem(std::move(sendOp), {packIdx});
@@ -1644,7 +1952,8 @@ void rocfft_plan_t::GlobalTranspose(size_t                     elem_size,
 
             // unpack data on destination to output
             auto unpackIdx
-                = AddMultiPlanItem(transpose_brick(outBrick.device,
+                = AddMultiPlanItem(transpose_brick(local_comm_rank,
+                                                   outBrick.location,
                                                    intersection.length(),
                                                    precision,
                                                    desc.inArrayType,
@@ -1667,6 +1976,8 @@ void rocfft_plan_t::GlobalTranspose(size_t                     elem_size,
 
 bool rocfft_plan_t::BuildOptMultiDevicePlan()
 {
+    const auto local_comm_rank = get_local_comm_rank();
+
     // keep track of how many transposes we've done so we can log
     // distinct messages about each one
     size_t transposeNumber = 0;
@@ -1709,7 +2020,8 @@ bool rocfft_plan_t::BuildOptMultiDevicePlan()
     // gather up input pointers and allocate temp storage for
     // FFTed contiguous input dims (since we don't want to
     // overwrite input)
-    std::vector<BufferPtr> inputBufs;
+    std::vector<BufferPtr> inputBufs
+        = GatherUserBuffers(BufferPtr::user_input, desc.inFields.front().bricks);
     std::vector<BufferPtr> inputFFTBufs;
     inputBufs.reserve(desc.inFields.front().bricks.size());
     inputFFTBufs.reserve(desc.inFields.front().bricks.size());
@@ -1718,9 +2030,8 @@ bool rocfft_plan_t::BuildOptMultiDevicePlan()
     for(size_t inBrickIdx = 0; inBrickIdx < desc.inFields.front().bricks.size(); ++inBrickIdx)
     {
         const auto& inBrick = desc.inFields.front().bricks[inBrickIdx];
-
-        inputBufs.emplace_back(BufferPtr::user_input(inBrickIdx));
-        inputTemp.emplace_back(tempBuffers, inBrick.device, inBrick.count_elems(), elem_size);
+        inputTemp.emplace_back(
+            tempBuffers, local_comm_rank, inBrick.location, inBrick.count_elems(), elem_size);
         inputFFTBufs.emplace_back(BufferPtr::temp(inputTemp.back().data()));
     }
     std::vector<size_t> inputFFTItems;
@@ -1746,7 +2057,8 @@ bool rocfft_plan_t::BuildOptMultiDevicePlan()
         // allocate bricks to store the transposed data
         for(auto& b : transposedField.bricks)
         {
-            transposeOutputTemp.emplace_back(tempBuffers, b.device, b.count_elems(), elem_size);
+            transposeOutputTemp.emplace_back(
+                tempBuffers, local_comm_rank, b.location, b.count_elems(), elem_size);
             transposeOutputBufs.emplace_back(BufferPtr::temp(transposeOutputTemp.back().data()));
         }
 
@@ -1779,11 +2091,8 @@ bool rocfft_plan_t::BuildOptMultiDevicePlan()
     }
 
     // transpose data to output layout and transform along remaining dimensions
-    std::vector<BufferPtr> outputBufs;
-    for(size_t outBrickIdx = 0; outBrickIdx < desc.outFields.front().bricks.size(); ++outBrickIdx)
-    {
-        outputBufs.emplace_back(BufferPtr::user_output(outBrickIdx));
-    }
+    std::vector<BufferPtr> outputBufs
+        = GatherUserBuffers(BufferPtr::user_output, desc.outFields.front().bricks);
     std::vector<size_t> finalTransposeItems;
     std::vector<size_t> finalFFTItems;
     GlobalTranspose(elem_size,
@@ -1801,6 +2110,516 @@ bool rocfft_plan_t::BuildOptMultiDevicePlan()
              finalTransposeItems,
              finalFFTItems);
     return true;
+}
+
+#ifdef ROCFFT_MPI_ENABLE
+
+// RAII wrapper around MPI_Datatypes
+class MPI_Datatype_vector_wrapper_t
+{
+public:
+    MPI_Datatype_vector_wrapper_t(size_t size_bytes)
+        : type(MPI_DATATYPE_NULL)
+    {
+        auto rcmpi = MPI_Type_contiguous(size_bytes, MPI_BYTE, &type);
+        if(rcmpi != MPI_SUCCESS)
+            throw std::runtime_error("MPI_Type_contiguous failed: " + std::to_string(rcmpi));
+        rcmpi = MPI_Type_commit(&type);
+        if(rcmpi != MPI_SUCCESS)
+            throw std::runtime_error("MPI_Type_commit failed: " + std::to_string(rcmpi));
+    }
+    ~MPI_Datatype_vector_wrapper_t()
+    {
+        MPI_Type_free(&type);
+    }
+
+    // Convert to unwrapped type
+    operator MPI_Datatype() const
+    {
+        return type;
+    }
+
+private:
+    MPI_Datatype type;
+};
+
+// Helper function to get the MPI data type from the underlying type of the variable.
+template <class Tval>
+inline MPI_Datatype type_to_mpi_type()
+{
+    if(std::is_same<Tval, char>::value)
+    {
+        return MPI_CHAR;
+    }
+    else if(std::is_same<Tval, signed char>::value)
+    {
+        return MPI_SIGNED_CHAR;
+    }
+    else if(std::is_same<Tval, unsigned char>::value)
+    {
+        return MPI_UNSIGNED_CHAR;
+    }
+    else if(std::is_same<Tval, short>::value)
+    {
+        return MPI_SHORT;
+    }
+    else if(std::is_same<Tval, int>::value)
+    {
+        return MPI_INT;
+    }
+    else if(std::is_same<Tval, unsigned int>::value)
+    {
+        return MPI_UNSIGNED;
+    }
+    else if(std::is_same<Tval, long int>::value)
+    {
+        return MPI_LONG;
+    }
+    else if(std::is_same<Tval, unsigned long int>::value)
+    {
+        return MPI_UNSIGNED_LONG;
+    }
+    else if(std::is_same<Tval, long long int>::value)
+    {
+        return MPI_LONG_LONG;
+    }
+    else if(std::is_same<Tval, unsigned long long int>::value)
+    {
+        return MPI_UNSIGNED_LONG_LONG;
+    }
+    else if(std::is_same<Tval, float>::value)
+    {
+        return MPI_FLOAT;
+    }
+    else if(std::is_same<Tval, double>::value)
+    {
+        return MPI_DOUBLE;
+    }
+    else if(std::is_same<Tval, long double>::value)
+    {
+        return MPI_LONG_DOUBLE;
+    }
+    else if(std::is_same<Tval, int8_t>::value)
+    {
+        return MPI_INT8_T;
+    }
+    else if(std::is_same<Tval, int16_t>::value)
+    {
+        return MPI_INT16_T;
+    }
+    else if(std::is_same<Tval, int32_t>::value)
+    {
+        return MPI_INT32_T;
+    }
+    else if(std::is_same<Tval, int64_t>::value)
+    {
+        return MPI_INT64_T;
+    }
+    else if(std::is_same<Tval, uint8_t>::value)
+    {
+        return MPI_UINT8_T;
+    }
+    else if(std::is_same<Tval, uint16_t>::value)
+    {
+        return MPI_UINT16_T;
+    }
+    else if(std::is_same<Tval, uint32_t>::value)
+    {
+        return MPI_UINT32_T;
+    }
+    else if(std::is_same<Tval, uint64_t>::value)
+    {
+        return MPI_UINT64_T;
+    }
+    else if(std::is_same<Tval, std::complex<float>>::value)
+    {
+        return MPI_C_FLOAT_COMPLEX;
+    }
+    else if(std::is_same<Tval, std::complex<double>>::value)
+    {
+        return MPI_C_DOUBLE_COMPLEX;
+    }
+    else if(std::is_same<Tval, std::complex<long double>>::value)
+    {
+        return MPI_C_LONG_DOUBLE_COMPLEX;
+    }
+    else if(std::is_same<Tval, half>::value)
+    {
+        static MPI_Datatype_vector_wrapper_t ROCFFT_MPI_HALF{sizeof(Tval)};
+        return ROCFFT_MPI_HALF;
+    }
+    else if(std::is_same<Tval, std::complex<half>>::value)
+    {
+        static MPI_Datatype_vector_wrapper_t ROCFFT_MPI_COMPLEX_HALF{sizeof(Tval)};
+        return ROCFFT_MPI_COMPLEX_HALF;
+    }
+
+    // We did not find the data type: return a null data type.
+    return MPI_DATATYPE_NULL;
+}
+#endif
+
+// All-gather all of the brick parameters for a given field.
+rocfft_status allgather_brick_params_lus_mpi(rocfft_plan&    plan,
+                                             rocfft_field_t& field,
+                                             const size_t    global_brick_length)
+{
+#if !defined ROCFFT_MPI_ENABLE
+    return rocfft_status_failure;
+#else
+    auto rcmpi = MPI_SUCCESS;
+
+    // TODO: make async.
+
+    // First, compute the number of bricks per field.
+    std::vector<int> global_brick_count(plan->get_local_comm_size());
+    typeof(decltype(global_brick_count)::value_type) local_brick_count = plan->desc.inFields.size();
+    {
+        // OpenMPI has a runtime error if this is const, so make sure it isn't.
+        static_assert(!std::is_const_v<typeof(local_brick_count)>);
+        rcmpi = MPI_Allgather(&local_brick_count,
+                              1,
+                              type_to_mpi_type<typeof(local_brick_count)>(),
+                              global_brick_count.data(),
+                              1,
+                              type_to_mpi_type<typeof(decltype(global_brick_count)::value_type)>(),
+                              plan->desc.mpi_comm);
+        if(rcmpi != MPI_SUCCESS)
+        {
+            throw std::runtime_error("MPI_Allgather failed: " + std::to_string(rcmpi));
+        }
+    }
+
+    // We need the displacments (as an int[]) for MPI_Allgatherv:
+    typeof(global_brick_count) displacements(plan->get_local_comm_size());
+    displacements[0] = 0;
+    std::partial_sum(
+        global_brick_count.begin(), global_brick_count.end() - 1, displacements.begin() + 1);
+    const auto scalar_displacements = displacements;
+    for(auto& val : displacements)
+    {
+        val *= global_brick_length;
+    }
+
+    // Total number of bricks on all ranks for this field:
+    const auto num_global_bricks
+        = std::accumulate(global_brick_count.begin(), global_brick_count.end(), 0);
+
+    std::vector<typeof(decltype(rocfft_brick_t::lower)::value_type)> global_lowers(
+        num_global_bricks * global_brick_length);
+    std::vector<typeof(decltype(rocfft_brick_t::upper)::value_type)> global_uppers(
+        num_global_bricks * global_brick_length);
+    std::vector<typeof(decltype(rocfft_brick_t::stride)::value_type)> global_strides(
+        num_global_bricks * global_brick_length);
+    std::vector<decltype(rocfft_location_t::device)>    global_devices(num_global_bricks);
+    std::vector<decltype(rocfft_location_t::comm_rank)> global_comm_ranks(num_global_bricks);
+
+    // Make a contiguous copy for the MPI routine:
+    std::vector<typeof(decltype(rocfft_brick_t::lower)::value_type)>  local_lowers;
+    std::vector<typeof(decltype(rocfft_brick_t::upper)::value_type)>  local_uppers;
+    std::vector<typeof(decltype(rocfft_brick_t::stride)::value_type)> local_strides;
+    std::vector<int>                                                  local_devices;
+    std::vector<int>                                                  local_comm_ranks;
+    local_lowers.reserve(local_brick_count * global_brick_length);
+    local_uppers.reserve(local_brick_count * global_brick_length);
+    local_strides.reserve(local_brick_count * global_brick_length);
+    for(const auto& brick : field.bricks)
+    {
+        for(auto v : brick.lower)
+        {
+            local_lowers.push_back(v);
+        }
+        for(auto v : brick.upper)
+        {
+            local_uppers.push_back(v);
+        }
+        for(auto v : brick.stride)
+        {
+            local_strides.push_back(v);
+        }
+        local_devices.push_back(brick.location.device);
+        local_comm_ranks.push_back(brick.location.comm_rank);
+    }
+
+    auto recvcount = global_brick_count;
+    for(auto& val : recvcount)
+    {
+        val *= global_brick_length;
+    }
+
+    // The receive count must be an integer type:
+    static_assert(std::is_same_v<std::underlying_type<typeof(decltype(recvcount)::value_type)>,
+                                 std::underlying_type<int>>);
+
+    // We must send and recieve the same type:
+    static_assert(
+        std::is_same_v<std::underlying_type<typeof(decltype(local_lowers)::value_type)>,
+                       std::underlying_type<typeof(decltype(global_lowers)::value_type)>>);
+    rcmpi = MPI_Allgatherv(local_lowers.data(),
+                           recvcount[plan->get_local_comm_rank()],
+                           type_to_mpi_type<typeof(decltype(local_lowers)::value_type)>(),
+                           global_lowers.data(),
+                           recvcount.data(),
+                           displacements.data(),
+                           type_to_mpi_type<typeof(decltype(global_lowers)::value_type)>(),
+                           plan->desc.mpi_comm);
+    if(rcmpi != MPI_SUCCESS)
+    {
+        throw std::runtime_error("MPI_Allgatherv failed: " + std::to_string(rcmpi));
+    }
+
+    // We must send and recieve the same type:
+    static_assert(
+        std::is_same_v<std::underlying_type<typeof(decltype(local_uppers)::value_type)>,
+                       std::underlying_type<typeof(decltype(global_uppers)::value_type)>>);
+    rcmpi = MPI_Allgatherv(local_uppers.data(),
+                           recvcount[plan->get_local_comm_rank()],
+                           type_to_mpi_type<typeof(decltype(local_uppers)::value_type)>(),
+                           global_uppers.data(),
+                           recvcount.data(),
+                           displacements.data(),
+                           type_to_mpi_type<typeof(decltype(global_uppers)::value_type)>(),
+                           plan->desc.mpi_comm);
+    if(rcmpi != MPI_SUCCESS)
+    {
+        throw std::runtime_error("MPI_Allgatherv failed: " + std::to_string(rcmpi));
+    }
+
+    // We must send and recieve the same type:
+    static_assert(
+        std::is_same_v<std::underlying_type<typeof(decltype(local_strides)::value_type)>,
+                       std::underlying_type<typeof(decltype(global_strides)::value_type)>>);
+    rcmpi = MPI_Allgatherv(local_strides.data(),
+                           recvcount[plan->get_local_comm_rank()],
+                           type_to_mpi_type<typeof(decltype(local_strides)::value_type)>(),
+                           global_strides.data(),
+                           recvcount.data(),
+                           displacements.data(),
+                           type_to_mpi_type<typeof(decltype(global_strides)::value_type)>(),
+                           plan->desc.mpi_comm);
+    if(rcmpi != MPI_SUCCESS)
+    {
+        throw std::runtime_error("MPI_Allgatherv failed: " + std::to_string(rcmpi));
+    }
+
+    // We must send and recieve the same type:
+    static_assert(
+        std::is_same_v<std::underlying_type<typeof(decltype(local_devices)::value_type)>,
+                       std::underlying_type<typeof(decltype(global_devices)::value_type)>>);
+    rcmpi = MPI_Allgatherv(local_devices.data(),
+                           global_brick_count[plan->get_local_comm_rank()],
+                           type_to_mpi_type<typeof(decltype(local_devices)::value_type)>(),
+                           global_devices.data(),
+                           global_brick_count.data(),
+                           scalar_displacements.data(),
+                           type_to_mpi_type<typeof(decltype(global_devices)::value_type)>(),
+                           plan->desc.mpi_comm);
+    if(rcmpi != MPI_SUCCESS)
+    {
+        throw std::runtime_error("MPI_Allgatherv failed: " + std::to_string(rcmpi));
+    }
+
+    // We must send and recieve the same type:
+    static_assert(
+        std::is_same_v<std::underlying_type<typeof(decltype(local_comm_ranks)::value_type)>,
+                       std::underlying_type<typeof(decltype(global_comm_ranks)::value_type)>>);
+    rcmpi = MPI_Allgatherv(local_comm_ranks.data(),
+                           global_brick_count[plan->get_local_comm_rank()],
+                           type_to_mpi_type<typeof(decltype(local_comm_ranks)::value_type)>(),
+                           global_comm_ranks.data(),
+                           global_brick_count.data(),
+                           scalar_displacements.data(),
+                           type_to_mpi_type<typeof(decltype(global_comm_ranks)::value_type)>(),
+                           plan->desc.mpi_comm);
+    if(rcmpi != MPI_SUCCESS)
+    {
+        throw std::runtime_error("MPI_Allgatherv failed: " + std::to_string(rcmpi));
+    }
+
+    field.bricks.clear();
+    field.bricks.reserve(num_global_bricks);
+    for(std::remove_const_t<decltype(num_global_bricks)> ibrick = 0; ibrick < num_global_bricks;
+        ++ibrick)
+    {
+        // Add bricks one by one.
+        rocfft_brick brick = nullptr;
+        auto         rcfft = rocfft_brick_create(&brick,
+                                         global_lowers.data() + ibrick * global_brick_length,
+                                         global_uppers.data() + ibrick * global_brick_length,
+                                         global_strides.data() + ibrick * global_brick_length,
+                                         global_brick_length,
+                                         global_devices[ibrick]); // device id
+        if(rcfft != rocfft_status_success)
+        {
+            return rcfft;
+        }
+        // It should be possible to get the brick comm rank from global_brick_count, but for now we
+        // can just communicate it and set it.
+        brick->location.comm_rank = global_comm_ranks[ibrick];
+        rocfft_field_add_brick(&field, brick);
+        rocfft_brick_destroy(brick);
+        brick = nullptr;
+    }
+
+    return rocfft_status_success;
+#endif
+}
+
+#if defined ROCFFT_MPI_ENABLE
+// Helper function to check that all of the values of a scalar are identical on all MPI ranks.
+// Relies on MPI_MAX and MPI_MIN.
+template <typename Tval>
+bool all_mpi_ranks_same_scalar(const Tval val, MPI_Comm comm)
+{
+    // NB: these can be made async if we note that plan generation performance needs improvement.
+
+    Tval valmax;
+    auto rcmpi = MPI_Allreduce(&val, &valmax, 1, type_to_mpi_type<Tval>(), MPI_MAX, comm);
+    if(rcmpi != MPI_SUCCESS)
+        throw std::runtime_error("MPI_Allreduce failed in all_mpi_ranks_same_scalar");
+
+    Tval valmin;
+    rcmpi = MPI_Allreduce(&val, &valmin, 1, type_to_mpi_type<Tval>(), MPI_MIN, comm);
+    if(rcmpi != MPI_SUCCESS)
+        throw std::runtime_error("MPI_Allreduce failed in all_mpi_ranks_same_scalar");
+
+    return valmax == valmin;
+}
+#endif
+
+rocfft_status allgather_brick_params_mpi(rocfft_plan& plan)
+{
+#if !defined ROCFFT_MPI_ENABLE
+    return rocfft_status_failure;
+#else
+    if(!plan->desc.mpi_comm)
+    {
+        // If the comm type is MPI, but the comm pointer is null, then return an error.
+        return rocfft_status_failure;
+    }
+    auto rcmpi = MPI_SUCCESS;
+
+    // Associate the bricks with the local communicator rank, and while we're at it, check that
+    // all of the bricks have the same number of lengths.
+
+    // TODO: add tests for various brick valid/invalid combinations.
+
+    // Get the local brick array length.  If there are no bricks, this is zero.
+    size_t local_bricklength = 0;
+    for(auto& ifield : plan->desc.inFields)
+    {
+        for(auto& ibrick : ifield.bricks)
+        {
+            ibrick.location.comm_rank = plan->get_local_comm_rank();
+            if(local_bricklength == 0)
+            {
+                local_bricklength = ibrick.lower.size();
+            }
+            else
+            {
+                if(local_bricklength != ibrick.lower.size())
+                {
+                    return rocfft_status_failure;
+                }
+            }
+        }
+    }
+    for(auto& ofield : plan->desc.outFields)
+    {
+        for(auto& obrick : ofield.bricks)
+        {
+            obrick.location.comm_rank = plan->get_local_comm_rank();
+            if(local_bricklength == 0)
+            {
+                local_bricklength = obrick.lower.size();
+            }
+            else
+            {
+                if(local_bricklength != obrick.lower.size())
+                {
+                    return rocfft_status_failure;
+                }
+            }
+        }
+    }
+    // Communicate bricks between ranks.
+
+    // Step 1: get the local brick dimension and then verify that this is the same on all ranks.
+    // If a rank has a brick dimension of zero, that means that this rank didn't provide bricks,
+    // which is ok.  However, it should not build its house out of straw.
+    size_t global_brick_length = 0;
+    {
+        std::vector<decltype(local_bricklength)> all_brick_lengths(plan->get_local_comm_size());
+        rcmpi = MPI_Allgather(&local_bricklength,
+                              1,
+                              type_to_mpi_type<typeof(local_bricklength)>(),
+                              all_brick_lengths.data(),
+                              1,
+                              type_to_mpi_type<typeof(decltype(all_brick_lengths)::value_type)>(),
+                              plan->desc.mpi_comm);
+        if(rcmpi != MPI_SUCCESS)
+        {
+            throw std::runtime_error("MPI_Allgather failed: " + std::to_string(rcmpi));
+        }
+
+        // Find first non-zero element:
+        auto offset
+            = distance(all_brick_lengths.begin(),
+                       find_if(all_brick_lengths.begin(), all_brick_lengths.end(), [](auto x) {
+                           return x != 0;
+                       }));
+        global_brick_length = all_brick_lengths[offset];
+        if(!std::all_of(all_brick_lengths.begin() + offset,
+                        all_brick_lengths.end(),
+                        [global_brick_length](decltype(all_brick_lengths)::value_type i) {
+                            return i != 0 || i == global_brick_length;
+                        }))
+        {
+            // There are different non-zero brick lengths.
+            return rocfft_status_failure;
+        }
+    }
+
+    // Verify that all ranks have the same number of input and output fields.
+    try
+    {
+        if(!all_mpi_ranks_same_scalar(plan->desc.inFields.size(), plan->desc.mpi_comm))
+            return rocfft_status_failure;
+        if(!all_mpi_ranks_same_scalar(plan->desc.outFields.size(), plan->desc.mpi_comm))
+            return rocfft_status_failure;
+    }
+    catch(std::exception& e)
+    {
+        if(LOG_TRACE_ENABLED())
+        {
+            (*LogSingleton::GetInstance().GetTraceOS()) << e.what() << std::endl;
+        }
+        return rocfft_status_failure;
+    }
+
+    // Communicate the brick info so that all ranks know about all the bricks.
+    for(auto& field : plan->desc.inFields)
+    {
+        const auto rcfft = allgather_brick_params_lus_mpi(plan, field, global_brick_length);
+        if(rcfft != rocfft_status_success)
+        {
+            return rcfft;
+        }
+    }
+    for(auto& field : plan->desc.outFields)
+    {
+        const auto rcfft = allgather_brick_params_lus_mpi(plan, field, global_brick_length);
+        if(rcfft != rocfft_status_success)
+        {
+            return rcfft;
+        }
+    }
+
+    // TODO: if some ranks do not have any input (or output), then we should make a
+    // sub-communicator.  Need to figure out how to deal with completion though.
+
+    return rocfft_status_success;
+#endif
 }
 
 void rocfft_plan_t::ValidateFields() const
@@ -1853,6 +2672,43 @@ void rocfft_plan_t::ValidateFields() const
         validateField("input", lengths, batch, desc.inFields.front());
     if(!desc.outFields.empty())
         validateField("output", outputLengths, batch, desc.outFields.front());
+
+    // multi-process transforms must use fields for both input and output
+    if(desc.comm_type != rocfft_comm_none && (desc.inFields.empty() || desc.outFields.empty()))
+        throw std::runtime_error(
+            "multi-process transforms require both input and output fields to be specified");
+}
+
+int rocfft_plan_t::get_local_comm_rank() const
+{
+#ifdef ROCFFT_MPI_ENABLE
+    if(desc.comm_type == rocfft_comm_none || !desc.mpi_comm)
+        return 0;
+
+    int  mpi_rank = 0;
+    auto rcmpi    = MPI_Comm_rank(desc.mpi_comm, &mpi_rank);
+    if(rcmpi != MPI_SUCCESS)
+        throw std::runtime_error("MPI_Comm_rank failed: " + std::to_string(rcmpi));
+    return mpi_rank;
+#else
+    return 0;
+#endif
+}
+
+int rocfft_plan_t::get_local_comm_size() const
+{
+#ifdef ROCFFT_MPI_ENABLE
+    if(desc.comm_type == rocfft_comm_none || !desc.mpi_comm)
+        return 1;
+
+    int  mpi_size = 0;
+    auto rcmpi    = MPI_Comm_size(desc.mpi_comm, &mpi_size);
+    if(rcmpi != MPI_SUCCESS)
+        throw std::runtime_error("MPI_Comm_rank failed: " + std::to_string(rcmpi));
+    return mpi_size;
+#else
+    return 1;
+#endif
 }
 
 rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
@@ -1867,178 +2723,100 @@ rocfft_status rocfft_plan_create_internal(rocfft_plan                   plan,
     if(dimensions > 3)
         return rocfft_status_invalid_dimensions;
 
-    rocfft_plan p = plan;
-    p->rank       = dimensions;
-    std::copy(lengths, lengths + dimensions, std::back_inserter(p->lengths));
-    p->batch         = number_of_transforms;
-    p->placement     = placement;
-    p->precision     = precision;
-    p->transformType = transform_type;
-
-    p->outputLengths = p->lengths;
-    if(transform_type == rocfft_transform_type_real_forward
-       || transform_type == rocfft_transform_type_real_inverse)
-    {
-        p->outputLengths.front() = p->outputLengths.front() / 2 + 1;
-    }
-    if(transform_type == rocfft_transform_type_real_inverse)
-        std::swap(p->outputLengths, p->lengths);
-
-    if(description != nullptr)
-    {
-        p->desc = *description;
-    }
-    p->desc.init_defaults(p->transformType, p->placement, p->lengths, p->outputLengths);
-
-    // sort the parameters to be row major, in case they're not
-    plan->sort();
-
-    // Check plan validity
-    switch(transform_type)
-    {
-    case rocfft_transform_type_complex_forward:
-    case rocfft_transform_type_complex_inverse:
-        // We need complex input data
-        if(!((p->desc.inArrayType == rocfft_array_type_complex_interleaved)
-             || (p->desc.inArrayType == rocfft_array_type_complex_planar)))
-            return rocfft_status_invalid_array_type;
-        // We need complex output data
-        if(!((p->desc.outArrayType == rocfft_array_type_complex_interleaved)
-             || (p->desc.outArrayType == rocfft_array_type_complex_planar)))
-            return rocfft_status_invalid_array_type;
-        // In-place transform requires that the input and output
-        // format be identical
-        if(placement == rocfft_placement_inplace)
-        {
-            if(p->desc.inArrayType != p->desc.outArrayType)
-                return rocfft_status_invalid_array_type;
-        }
-        break;
-    case rocfft_transform_type_real_forward:
-        // Input must be real
-        if(p->desc.inArrayType != rocfft_array_type_real)
-            return rocfft_status_invalid_array_type;
-        // Output must be Hermitian
-        if(!((p->desc.outArrayType == rocfft_array_type_hermitian_interleaved)
-             || (p->desc.outArrayType == rocfft_array_type_hermitian_planar)))
-            return rocfft_status_invalid_array_type;
-        // In-place transform must output to interleaved format
-        if((placement == rocfft_placement_inplace)
-           && (p->desc.outArrayType != rocfft_array_type_hermitian_interleaved))
-            return rocfft_status_invalid_array_type;
-        break;
-    case rocfft_transform_type_real_inverse:
-        // Output must be real
-        if(p->desc.outArrayType != rocfft_array_type_real)
-            return rocfft_status_invalid_array_type;
-        // Input must be Hermitian
-        if(!((p->desc.inArrayType == rocfft_array_type_hermitian_interleaved)
-             || (p->desc.inArrayType == rocfft_array_type_hermitian_planar)))
-            return rocfft_status_invalid_array_type;
-        // In-place transform must have interleaved input
-        if((placement == rocfft_placement_inplace)
-           && (p->desc.inArrayType != rocfft_array_type_hermitian_interleaved))
-            return rocfft_status_invalid_array_type;
-        break;
-    }
-
-    log_bench(rocfft_bench_command(p));
-
-    // construct the plan
     try
     {
-        plan->ValidateFields();
+        plan->rank = dimensions;
+        std::copy(lengths, lengths + dimensions, std::back_inserter(plan->lengths));
+        plan->batch         = number_of_transforms;
+        plan->placement     = placement;
+        plan->precision     = precision;
+        plan->transformType = transform_type;
 
-        // build an optimized multi-device plan, if possible
-        if(!plan->BuildOptMultiDevicePlan())
+        plan->outputLengths = plan->lengths;
+        if(transform_type == rocfft_transform_type_real_forward
+           || transform_type == rocfft_transform_type_real_inverse)
         {
-            // if optimized multi-device was not possible (either because
-            // multi-device was not requested, or we can't optimize for
-            // that case), fall back to single-device plan
+            plan->outputLengths.front() = plan->outputLengths.front() / 2 + 1;
+        }
+        if(transform_type == rocfft_transform_type_real_inverse)
+            std::swap(plan->outputLengths, plan->lengths);
 
-            NodeMetaData rootPlanData(nullptr);
+        if(description != nullptr)
+        {
+            plan->desc = *description;
+        }
+        plan->desc.init_defaults(
+            plan->transformType, plan->placement, plan->lengths, plan->outputLengths);
 
-            rootPlanData.dimension = plan->rank;
-            rootPlanData.batch     = plan->batch;
-            for(size_t i = 0; i < plan->rank; i++)
-            {
-                rootPlanData.length.push_back(plan->lengths[i]);
-                rootPlanData.outputLength.push_back(plan->outputLengths[i]);
+        auto rcfft = rocfft_status_success;
 
-                rootPlanData.inStride.push_back(plan->desc.inStrides[i]);
-                rootPlanData.outStride.push_back(plan->desc.outStrides[i]);
-            }
-            rootPlanData.iDist = plan->desc.inDist;
-            rootPlanData.oDist = plan->desc.outDist;
-
-            rootPlanData.placement = plan->placement;
-
-            // If in+out fields are specified, currently that means we're
-            // gathering the data to one device and doing FFT there.  So
-            // the FFT becomes in-place.
-            if(!plan->desc.inFields.empty() && !plan->desc.outFields.empty())
-            {
-                // c2c can be inplace so both input/output can be
-                // contiguous without needing extra buffers
-                if(plan->transformType == rocfft_transform_type_complex_forward
-                   || plan->transformType == rocfft_transform_type_complex_inverse)
-                {
-                    rootPlanData.placement = rocfft_placement_inplace;
-                }
-                // real-complex would require non-contiguous data to be
-                // inplace (which likely means more packing/unpacking and
-                // extra temp buffer usage anyway), so make it
-                // not-in-place instead
-                else
-                {
-                    rootPlanData.placement = rocfft_placement_notinplace;
-                }
-            }
-            // If we only have outfield, then there's no need to gather.  But we can't assume we can overwrite input, so the FFT will be outplace to a temp buf
-            else if(plan->desc.inFields.empty() && !plan->desc.outFields.empty())
-            {
-                rootPlanData.placement = rocfft_placement_notinplace;
-            }
-            // If we only have infield, then we must gather.
-            else if(!plan->desc.inFields.empty() && plan->desc.outFields.empty())
-            {
-                // If output is contiguous and this is c2c then we can
-                // gather to the output buf and do an inplace FFT.
-                if(plan->is_contiguous_output()
-                   && (plan->transformType == rocfft_transform_type_complex_forward
-                       || plan->transformType == rocfft_transform_type_complex_inverse))
-                    rootPlanData.placement = rocfft_placement_inplace;
-                // Otherwise we must gather to a temp buf and do outplace FFT to output
-                else
-                    rootPlanData.placement = rocfft_placement_notinplace;
-            }
-
-            rootPlanData.precision = plan->precision;
-            if((plan->transformType == rocfft_transform_type_complex_forward)
-               || (plan->transformType == rocfft_transform_type_real_forward))
-                rootPlanData.direction = -1;
-            else
-                rootPlanData.direction = 1;
-
-            rootPlanData.inArrayType  = plan->desc.inArrayType;
-            rootPlanData.outArrayType = plan->desc.outArrayType;
-            rootPlanData.rootIsC2C    = (rootPlanData.inArrayType != rocfft_array_type_real)
-                                     && (rootPlanData.outArrayType != rocfft_array_type_real);
-
-            set_bluestein_strides(plan, rootPlanData);
-
-            rootPlanData.deviceProp = get_curr_device_prop();
-
-            int deviceID;
-            if(hipGetDevice(&deviceID) != hipSuccess)
-                throw std::runtime_error("hipGetDevice failed");
-            auto singleDevicePlan = BuildSingleDevicePlan(
-                rootPlanData, deviceID, plan->transformType, p->desc.loadOps, p->desc.storeOps);
-
-            p->GatherScatterSingleDevicePlan(std::move(singleDevicePlan));
+        if(plan->desc.comm_type == rocfft_comm_mpi)
+        {
+            // Each rank needs to know the global data distribution for plan generation, so we gather
+            // all the brick information here.
+            rcfft = allgather_brick_params_mpi(plan);
+            if(rcfft != rocfft_status_success)
+                throw std::runtime_error("gather brick params failed");
         }
 
-        p->AllocateInternalTempBuffers();
+        // Sort the parameters to be row major, in case they're not
+        plan->sort();
+
+        rcfft = check_array_type_validity(plan);
+        if(rcfft != rocfft_status_success)
+            return rcfft;
+
+        log_bench(rocfft_bench_command(plan));
+
+        // Construct the plan
+
+        // Build an optimized multi-device plan, if possible
+        plan->ValidateFields();
+
+        // If we have no input/output fields, then the single ExecPlan is
+        // exactly what we need to do/
+        // FIXME: this check should actually be single-brick/no bricks.
+        if(plan->desc.inFields.empty() && plan->desc.outFields.empty())
+        {
+            NodeMetaData rootPlanData(nullptr);
+            set_rootplan_params(plan, rootPlanData);
+            set_bluestein_strides(plan, rootPlanData);
+            rootPlanData.deviceProp = get_curr_device_prop();
+
+            auto singleDevicePlan = BuildSingleDevicePlan(rootPlanData,
+                                                          0,
+                                                          rocfft_location_t::rank0_current_device(),
+                                                          plan->transformType,
+                                                          plan->desc.loadOps,
+                                                          plan->desc.storeOps);
+            plan->AddMultiPlanItem(std::move(singleDevicePlan), {});
+        }
+        else
+        {
+            if(!plan->BuildOptMultiDevicePlan())
+            {
+                // If optimized multi-device was not possible (either because
+                // multi-device was not requested, or we can't optimize for
+                // that case), fall back to single-device plan
+
+                NodeMetaData rootPlanData(nullptr);
+                set_rootplan_params(plan, rootPlanData);
+                rootPlanData.deviceProp = get_curr_device_prop();
+                set_bluestein_strides(plan, rootPlanData);
+
+                auto singleDevicePlan
+                    = BuildSingleDevicePlan(rootPlanData,
+                                            0,
+                                            rocfft_location_t::rank0_current_device(),
+                                            plan->transformType,
+                                            plan->desc.loadOps,
+                                            plan->desc.storeOps);
+
+                plan->GatherScatterSingleDevicePlan(std::move(singleDevicePlan));
+            }
+        }
+
+        plan->AllocateInternalTempBuffers();
         return rocfft_status_success;
     }
     catch(std::exception& e)
@@ -2738,23 +3516,19 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
         indentStr += "    ";
 
     os << "\n" << indentStr << "scheme: " << PrintScheme(scheme);
-    os << "\n" << indentStr;
-    os << "dimension: " << dimension;
-    os << "\n" << indentStr;
-    os << "batch: " << batch;
-    os << "\n" << indentStr;
-    os << "length: ";
-    for(size_t i = 0; i < length.size(); i++)
+    os << "\n" << indentStr << "dimension: " << dimension;
+    os << "\n" << indentStr << "batch: " << batch;
+    os << "\n" << indentStr << "length: ";
+    for(const auto val : length)
     {
-        os << length[i] << " ";
+        os << " " << val;
     }
     if(!outputLength.empty() && outputLength != length)
     {
-        os << "\n" << indentStr;
-        os << "outputLength: ";
-        for(size_t i = 0; i < outputLength.size(); i++)
+        os << "\n" << indentStr << "outputLength:";
+        for(const auto val : outputLength)
         {
-            os << outputLength[i] << " ";
+            os << " " << val;
         }
     }
 
@@ -2876,9 +3650,10 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
     os << indentStr << PrintOperatingBuffer(obIn) << " -> " << PrintOperatingBuffer(obOut) << "\n";
     os << indentStr << PrintOperatingBufferCode(obIn) << " -> " << PrintOperatingBufferCode(obOut)
        << "\n";
+
     for(const auto& c : comments)
     {
-        os << indentStr << "comment: " << c << "\n";
+        os << "\n" << indentStr << "comment: " << c;
     }
 
     if(childNodes.size())
@@ -2888,6 +3663,7 @@ void TreeNode::Print(rocfft_ostream& os, const int indent) const
             children_p->Print(os, indent + 1);
         }
     }
+
     os << std::flush;
 }
 
@@ -3019,6 +3795,8 @@ void RuntimeCompilePlan(ExecPlan& execPlan)
     for(size_t i = 0; i < execPlan.execSeq.size(); ++i)
     {
         auto& node = execPlan.execSeq[i];
+
+        // If this isn't for the local rank, don't compile.
 
         node->compiledKernel
             = RTCKernel::runtime_compile(*node, execPlan.deviceProp.gcnArchName, kernel_name);
@@ -3235,13 +4013,15 @@ std::unique_ptr<SchemeTree>
 
             if(cur_leaf_node_id == (size_t)curr_tuning_node_id)
             {
-                // if this kernel is the one we're tuning, then we set the testing phase and config_id
+                // if this kernel is the one we're tuning, then we set the testing phase and
+                // config_id
                 kernel_token += "_phase_" + std::to_string(curr_tuning_phase);
                 kernel_option = curr_tuning_config_id;
             }
             else
             {
-                // if the kernel is not the tuning target: we should fix the kernel to the current winner
+                // if the kernel is not the tuning target: we should fix the kernel to the current
+                // winner
                 int curWinnerPhase = tuningPacket->winner_phases[cur_leaf_node_id];
                 int curWinnerID    = tuningPacket->winner_ids[cur_leaf_node_id];
 
