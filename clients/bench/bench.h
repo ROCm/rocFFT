@@ -22,7 +22,6 @@
 #define ROCFFT_BENCH_H
 
 #include "rocfft/rocfft.h"
-#include <boost/program_options.hpp>
 #include <hip/hip_runtime_api.h>
 #include <vector>
 

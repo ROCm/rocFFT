@@ -242,14 +242,6 @@ void precompile_test_kernels(const std::string& precompile_file)
               << " ms\n";
 }
 
-// Map strings to transform precision enums; used for parsing precision in CLI11
-std::map<std::string, fft_precision>          string_to_precision{{"half", fft_precision_half},
-                                                         {"single", fft_precision_single},
-                                                         {"double", fft_precision_double}};
-std::map<std::string, fft_params::fft_mp_lib> string_to_mp_lib{
-    {"none", fft_params::fft_mp_lib::fft_mp_lib_none},
-    {"mpi", fft_params::fft_mp_lib::fft_mp_lib_mpi}};
-
 int main(int argc, char* argv[])
 {
     // We would like to parse a few arguments before initiating gtest.
@@ -292,9 +284,7 @@ int main(int argc, char* argv[])
     app.add_option("--fftw_compare", fftw_compare, "Compare to FFTW in accuracy tests")
         ->default_val(true);
     app.add_option("--mp_lib", mp_lib, "Multi-process library type: none (default), mpi")
-        ->transform(CLI::CheckedTransformer(string_to_mp_lib, CLI::ignore_case))
         ->default_val("none");
-    ;
     app.add_option("--mp_ranks", mp_ranks, "Number of multi-process ranks to launch")
         ->default_val(1);
     app.add_option("--mp_launch",
@@ -357,8 +347,7 @@ int main(int argc, char* argv[])
         ->default_val(fft_transform_type_complex_forward);
     app.add_option("--precision",
                    manual_params.precision,
-                   "Transform precision: single (default), double, half")
-        ->transform(CLI::CheckedTransformer(string_to_precision, CLI::ignore_case));
+                   "Transform precision: single (default), double, half");
     app.add_option("--itype",
                    manual_params.itype,
                    "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "

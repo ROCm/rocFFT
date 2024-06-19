@@ -30,6 +30,7 @@
 #ifdef _OPENMP
 #include <omp.h>
 #endif
+#include <map>
 #include <random>
 #include <tuple>
 #include <unordered_set>
@@ -71,11 +72,9 @@ enum fft_precision
     fft_precision_double,
 };
 
-static std::istream& operator>>(std::istream& str, fft_precision& precision)
+// Used for CLI11 parsing of input gen enum
+static bool lexical_cast(const std::string& word, fft_precision& precision)
 {
-    std::string word;
-    str >> word;
-
     if(word == "half")
         precision = fft_precision_half;
     else if(word == "single")
@@ -84,6 +83,15 @@ static std::istream& operator>>(std::istream& str, fft_precision& precision)
         precision = fft_precision_double;
     else
         throw std::runtime_error("Invalid precision specified");
+    return true;
+}
+
+// Still in use for Boost enum parsing, can be removed after completely switching to CLI11
+static std::istream& operator>>(std::istream& str, fft_precision& precision)
+{
+    std::string word;
+    str >> word;
+    lexical_cast(word, precision);
     return str;
 }
 
@@ -97,11 +105,9 @@ enum fft_input_generator
     fft_input_generator_host,
 };
 
-static std::istream& operator>>(std::istream& str, fft_input_generator& gen)
+// Used for CLI11 parsing of input gen enum
+static bool lexical_cast(const std::string& word, fft_input_generator& gen)
 {
-    std::string word;
-    str >> word;
-
     if(word == "0")
         gen = fft_input_random_generator_device;
     else if(word == "1")
@@ -112,6 +118,15 @@ static std::istream& operator>>(std::istream& str, fft_input_generator& gen)
         gen = fft_input_generator_host;
     else
         throw std::runtime_error("Invalid input generator specified");
+    return true;
+}
+
+// Still in use for Boost enum parsing, can be removed after completely switching to CLI11
+static std::istream& operator>>(std::istream& str, fft_input_generator& gen)
+{
+    std::string word;
+    str >> word;
+    lexical_cast(word, gen);
     return str;
 }
 
@@ -2132,18 +2147,16 @@ public:
     }
 };
 
-static std::istream& operator>>(std::istream& str, fft_params::fft_mp_lib& mp_lib)
+// Used for CLI11 parsing of multi-process library enum
+static bool lexical_cast(const std::string& word, fft_params::fft_mp_lib& mp_lib)
 {
-    std::string word;
-    str >> word;
-
     if(word == "none")
         mp_lib = fft_params::fft_mp_lib_none;
     else if(word == "mpi")
         mp_lib = fft_params::fft_mp_lib_mpi;
     else
         throw std::runtime_error("Invalid multi-process library specified");
-    return str;
+    return true;
 }
 
 // This is used with the program_options class so that the user can type an integer on the
