@@ -23,7 +23,17 @@
 // which produces fewer type 1 errors where one incorrectly rejects the null hypothesis.
 
 #include <algorithm>
+
+#if __has_include(<filesystem>)
 #include <filesystem>
+#else
+#include <experimental/filesystem>
+namespace std
+{
+    namespace filesystem = experimental::filesystem;
+}
+#endif
+
 #include <hip/hip_runtime_api.h>
 #include <iostream>
 #include <math.h>

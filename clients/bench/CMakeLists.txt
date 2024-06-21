@@ -69,6 +69,11 @@ include( ROCMInstallTargets )
 
 find_package( Boost COMPONENTS program_options REQUIRED)
 
+# Link dyna-rocfft-bench to the experimental filesystem library if
+# it's not available in the standard library.
+include( ../../cmake/std-filesystem.cmake )
+target_link_std_experimental_filesystem( dyna-rocfft-bench )
+
 set( bench_list rocfft-bench dyna-rocfft-bench )
 foreach( bench ${bench_list})
 
@@ -131,7 +136,6 @@ foreach( bench ${bench_list})
   set_target_properties( ${bench} PROPERTIES
     CXX_STANDARD_REQUIRED ON
   )
-
 
   if( ROCFFT_BUILD_SCOPE )
     set( BENCH_OUT_DIR "/../staging" )
