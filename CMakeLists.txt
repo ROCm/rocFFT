@@ -218,6 +218,8 @@ if( BUILD_CLIENTS_SAMPLES
   endif()
   if(CLIENTS_OS STREQUAL "sles")
     set(BOOST_RPM RPM "libboost_program_options${Boost_VERSION_MAJOR}_${Boost_VERSION_MINOR}_${Boost_VERSION_PATCH}")
+  elseif(CLIENTS_OS STREQUAL "mariner")
+    set(BOOST_RPM RPM "boost = ${Boost_VERSION_MAJOR}_${Boost_VERSION_MINOR}_${Boost_VERSION_PATCH}")
   endif()
   rocm_package_setup_component(clients)
   if(BUILD_CLIENTS_TESTS)
