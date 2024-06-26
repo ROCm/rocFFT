@@ -456,6 +456,9 @@ int MultiPlanItem::GetOperationCommTag(size_t multiPlanIdx, size_t opIdx)
 void MultiPlanItem::WaitCommRequests()
 {
 #ifdef ROCFFT_MPI_ENABLE
+    if(comm_requests.empty())
+        return;
+
     std::vector<MPI_Request> mpi_requests;
     mpi_requests.reserve(comm_requests.size());
     for(auto& comm_req : comm_requests)
