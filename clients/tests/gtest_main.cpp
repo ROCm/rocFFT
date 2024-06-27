@@ -266,7 +266,7 @@ int main(int argc, char* argv[])
         "\n"
         "Usage"};
 
-    // Override built-in CLI11 help flag since we parse args multiple times
+    // Override CLI11 help to print after later CLI11 options that are defined, and allow gtest's help
     app.set_help_flag("");
     CLI::Option* opt_help = app.add_flag("-h, --help", "Produces this help message");
 
@@ -274,36 +274,48 @@ int main(int argc, char* argv[])
         ->default_val(0);
     app.add_option("--nrand", n_random_tests, "Number of extra randomized tests")->default_val(0);
     app.add_option("--test_prob", test_prob, "Probability of running individual tests")
-        ->default_val(1.0);
+        ->default_val(1.0)
+        ->check(CLI::Range(0.0, 1.0));
     app.add_option(
            "--planar_prob", planar_prob, "Probability of running individual planar transforms")
-        ->default_val(0.1);
+        ->default_val(0.1)
+        ->check(CLI::Range(0.0, 1.0));
     app.add_option(
            "--callback_prob", planar_prob, "Probability of running individual callback transforms")
-        ->default_val(0.1);
+        ->default_val(0.1)
+        ->check(CLI::Range(0.0, 1.0));
     app.add_option("--fftw_compare", fftw_compare, "Compare to FFTW in accuracy tests")
         ->default_val(true);
     app.add_option("--mp_lib", mp_lib, "Multi-process library type: none (default), mpi")
         ->default_val("none");
     app.add_option("--mp_ranks", mp_ranks, "Number of multi-process ranks to launch")
-        ->default_val(1);
+        ->default_val(1)
+        ->check(CLI::NonNegativeNumber);
     app.add_option("--mp_launch",
                    mp_launch,
                    "Command line prefix to launch multi-process transforms, e.g. \"mpirun --np 4 "
                    "/path/to/rocfft_mpi_worker\"")
-        ->default_val("");
+        ->default_val("")
+        ->each([&](const std::string&) {
+            if(mp_lib == fft_params::fft_mp_lib_none)
+            {
+                std::cout << "--mp_launch requires an mp library (see mp_lib in --help).\n";
+                std::exit(-1);
+            }
+        })
+        ->needs("--mp_lib");
 
     CLI::Option* opt_seed
         = app.add_option("--seed", random_seed, "Random seed; if unset, use an actual random seed");
-    CLI::Option* opt_callback  = app.add_flag("--callback", "Inject load/store callbacks");
-    CLI::Option* opt_smoketest = app.add_flag(
-        "--smoketest", "Run a short (approx 5 minute) randomized selection of tests");
-
-    if((mp_lib == fft_params::fft_mp_lib_none) ^ (mp_launch == ""))
-    {
-        std::cout << "--mp_lib and --mp_launch must be specified together.\n";
-        return 1;
-    }
+    app.add_flag("--callback", "Inject load/store callbacks")->each([&](const std::string&) {
+        manual_params.run_callbacks = true;
+    });
+    app.add_flag("--smoketest", "Run a short (approx 5 minute) randomized selection of tests")
+        ->each([&](const std::string&) {
+            // The objective is to have an test that takes about 5 minutes, so just set the probability
+            // per test to a small value to achieve this result.
+            test_prob = 0.002;
+        });
 
     // Try parsing initial args that will be used to configure tests
     // Allow extras to pass on gtest and rocFFT arguments without error
@@ -317,12 +329,6 @@ int main(int argc, char* argv[])
         return app.exit(e);
     }
 
-    if(*opt_smoketest)
-    {
-        // The objective is to have an test that takes about 5 minutes, so just set the probability
-        // per test to a small value to achieve this result.
-        test_prob = 0.002;
-    }
     // NB: If we initialize gtest first, then it removes all of its own command-line
     // arguments and sets argc and argv correctly;
     ::testing::InitGoogleTest(&argc, argv);
@@ -339,38 +345,65 @@ int main(int argc, char* argv[])
     // Full path to bitwise repro database file
     std::string repro_db_path;
 
-    // Declare the supported options.
-    app.add_option("-t, --transformType",
-                   manual_params.transform_type,
-                   "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
-                   "forward\n3) real inverse")
+    // Declare the supported options. Some option pointers are declared to track passed opts.
+    app.add_flag("--version", "Print queryable version information from the rocfft library")
+        ->each([](const std::string&) {
+            char v[256];
+            rocfft_get_version_string(v, 256);
+            std::cout << "version " << v << std::endl;
+            return EXIT_SUCCESS;
+        });
+
+    app.add_flag("--checkstride", "Check that data is not written outside of output strides")
+        ->each([&](const std::string&) { manual_params.check_output_strides = true; });
+
+    CLI::Option* opt_token
+        = app.add_option("--token", test_token, "Test token name for manual test")->default_val("");
+    // Group together options that conflict with --token
+    auto* non_token = app.add_option_group("Token Conflict", "Options excluded by --token");
+    non_token
+        ->add_flag("--double", "Double precision transform (deprecated: use --precision double)")
+        ->each([&](const std::string&) { manual_params.precision = fft_precision_double; });
+    non_token->excludes(opt_token);
+    non_token
+        ->add_option("-t, --transformType",
+                     manual_params.transform_type,
+                     "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
+                     "forward\n3) real inverse")
         ->default_val(fft_transform_type_complex_forward);
-    app.add_option("--precision",
-                   manual_params.precision,
-                   "Transform precision: single (default), double, half");
-    app.add_option("--itype",
-                   manual_params.itype,
-                   "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
-                   "hermitian interleaved\n4) hermitian planar")
+    non_token
+        ->add_option("--precision",
+                     manual_params.precision,
+                     "Transform precision: single (default), double, half")
+        ->excludes("--double");
+    non_token->add_flag("-o, --notInPlace", "Not in-place FFT transform (default: in-place)")
+        ->each([&](const std::string&) { manual_params.placement = fft_placement_notinplace; });
+    non_token
+        ->add_option("--itype",
+                     manual_params.itype,
+                     "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
+                     "hermitian interleaved\n4) hermitian planar")
         ->default_val(fft_array_type_unset);
-    app.add_option("--otype",
-                   manual_params.otype,
-                   "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
-                   "hermitian interleaved\n4) hermitian planar")
+    non_token
+        ->add_option("--otype",
+                     manual_params.otype,
+                     "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
+                     "hermitian interleaved\n4) hermitian planar")
         ->default_val(fft_array_type_unset);
-    app.add_option("--length", manual_params.length, "lengths");
-    app.add_option("-b, --batchSize",
-                   manual_params.nbatch,
-                   "If this value is greater than one, arrays will be used")
+    non_token->add_option("--length", manual_params.length, "Lengths")->expected(1, 3);
+    non_token
+        ->add_option("-b, --batchSize",
+                     manual_params.nbatch,
+                     "If this value is greater than one, arrays will be used")
         ->default_val(1);
-    app.add_option("--istride", manual_params.istride, "Input stride");
-    app.add_option("--ostride", manual_params.ostride, "Output stride");
-    app.add_option("--idist", manual_params.idist, "Logical distance between input batches")
+    non_token->add_option("--istride", manual_params.istride, "Input stride");
+    non_token->add_option("--ostride", manual_params.ostride, "Output stride");
+    non_token->add_option("--idist", manual_params.idist, "Logical distance between input batches")
         ->default_val(0);
-    app.add_option("--odist", manual_params.odist, "Logical distance between output batches")
+    non_token->add_option("--odist", manual_params.odist, "Logical distance between output batches")
         ->default_val(0);
-    app.add_option("--ioffset", manual_params.ioffset, "Input offset");
-    app.add_option("--ooffset", manual_params.ooffset, "Output offset");
+    non_token->add_option("--ioffset", manual_params.ioffset, "Input offset");
+    non_token->add_option("--ooffset", manual_params.ooffset, "Output offset");
     app.add_option("--isize", manual_params.isize, "Logical size of input buffer");
     app.add_option("--osize", manual_params.osize, "Logical size of output buffer");
     app.add_option("--R", ramgb, "RAM limit in GiB for tests")
@@ -389,9 +422,10 @@ int main(int argc, char* argv[])
     app.add_option("--manual_devices",
                    manual_devices,
                    "Distribute manual test case among this many devices")
-        ->default_val(1);
+        ->default_val(1)
+        ->check(CLI::PositiveNumber);
     app.add_option("--scalefactor", manual_params.scale_factor, "Scale factor to apply to output");
-    app.add_option("--token", test_token, "Test token name for manual test")->default_val("");
+
     app.add_option("--repro-db",
                    repro_db_path,
                    "Database file full path name for bitwise reproducibility tests");
@@ -399,16 +433,6 @@ int main(int argc, char* argv[])
                    precompile_file,
                    "Precompile kernels to a file for all test cases before running tests")
         ->default_val("");
-
-    // Declare supported pure flags.
-    CLI::Option* opt_double = app.add_flag(
-        "--double", "Double precision transform (deprecated: use --precision double)");
-    CLI::Option* opt_version = app.add_flag(
-        "--version", "Print queryable version information from the rocfft library and exit");
-    CLI::Option* opt_not_in_place
-        = app.add_flag("-o, --notInPlace", "Not in-place FFT transform (default: in-place)");
-    CLI::Option* opt_checkstride
-        = app.add_flag("--checkstride", "Check that data is not written outside of output strides");
 
     // Parse rest of args and catch any errors here
     try
@@ -435,14 +459,6 @@ int main(int argc, char* argv[])
             std::cout << i << " ";
         std::cout << "\nRun with --help for more information.\n";
         return EXIT_FAILURE;
-    }
-
-    if(*opt_version)
-    {
-        char v[256];
-        rocfft_get_version_string(v, 256);
-        std::cout << "version " << v << "\n";
-        return EXIT_SUCCESS;
     }
 
     std::cout << "half epsilon: " << half_epsilon << "\tsingle epsilon: " << single_epsilon
@@ -548,24 +564,6 @@ int main(int argc, char* argv[])
         {
             manual_params.length.push_back(8);
             // TODO: add random size?
-        }
-
-        manual_params.placement
-            = *opt_not_in_place ? fft_placement_notinplace : fft_placement_inplace;
-
-        if(*opt_double)
-        {
-            manual_params.precision = fft_precision_double;
-        }
-
-        if(*opt_callback)
-        {
-            manual_params.run_callbacks = true;
-        }
-
-        if(*opt_checkstride)
-        {
-            manual_params.check_output_strides = true;
         }
 
         if(manual_params.istride.empty())

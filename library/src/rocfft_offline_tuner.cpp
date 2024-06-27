@@ -384,95 +384,73 @@ int main(int argc, char* argv[])
     // Token string to fully specify fft params.
     std::string token;
 
-    bool        notInPlace{false};
-    int         verbose;
-    int         deviceId;
-    int         ntrial;
-    std::string str_precision{"single"};
+    bool notInPlace{false};
+    int  verbose;
+    int  deviceId;
+    int  ntrial;
 
     std::string base_sol_filename   = "";
     std::string adding_sol_filename = "";
     std::string adding_problemkey   = "";
     std::string output_sol_filename = "";
 
-    // Declare the supported options.
+    CLI::App app{"rocFFT offline tuner"};
 
-    CLI::App app{"rocfft offline tuner"};
+    // Declare the supported options. Some option pointers are declared to track passed opts.
+    app.add_flag("-v, --version", "Print queryable version information from the rocfft library")
+        ->each([](const std::string& val) {
+            char v[256];
+            rocfft_get_version_string(v, 256);
+            std::cout << "version " << v << std::endl;
+            return EXIT_SUCCESS;
+        });
 
-    CLI::Option* opt_ver = app.add_flag(
-        "-v, --version", "Print queryable version information from the rocfft library");
+    auto tuning = app.add_subcommand("tune", "Tuning solution subcommand");
 
-    auto tuning = app.add_subcommand("tune", "tuning solution subcommand");
-
-    tuning->add_option("-d, --device", deviceId, "Select a specific device id")->default_val(0);
+    tuning->add_option("-d, --device", deviceId, "Select a specific device id")
+        ->default_val(0)
+        ->check(CLI::NonNegativeNumber);
     tuning->add_option("--verbose", verbose, "Control output verbosity")->default_val(0);
-    tuning->add_option("-N, --ntrial", ntrial, "Trial size for the problem")->default_val(1);
-    tuning->add_flag(
-        "-o, --notInPlace", notInPlace, "Not in-place FFT transform (default: in-place)");
-    CLI::Option* opt_precision = tuning->add_option(
-        "--precision", str_precision, "Transform precision: single (default), double, half");
+    tuning->add_option("-N, --ntrial", ntrial, "Trial size for the problem")
+        ->default_val(1)
+        ->check(CLI::NonNegativeNumber);
     tuning
         ->add_option("-t, --transformType",
                      params.transform_type,
                      "Type of transform:\n0) complex forward\n1) complex inverse\n2) real "
                      "forward\n3) real inverse")
         ->default_val(fft_transform_type_complex_forward);
-    tuning
+    CLI::Option* opt_token = tuning->add_option("--token", token, "rocFFT token string");
+
+    auto* non_token = tuning->add_option_group("Token Conflict", "Options excluded by --token");
+    non_token->excludes(opt_token);
+    non_token->add_flag(
+        "-o, --notInPlace", notInPlace, "Not in-place FFT transform (default: in-place)");
+    non_token->add_option("--length", params.length, "Lengths")->required()->expected(1, 3);
+    non_token->add_option(
+        "--precision", params.precision, "Transform precision: single (default), double, half");
+    non_token
         ->add_option("-b, --batchSize",
                      params.nbatch,
                      "If this value is greater than one, arrays will be used")
         ->default_val(1);
-    tuning
+    non_token
         ->add_option("--itype",
                      params.itype,
                      "Array type of input data:\n0) interleaved\n1) planar\n2) real\n3) "
                      "hermitian interleaved\n4) hermitian planar")
         ->default_val(fft_array_type_unset);
-    tuning
+    non_token
         ->add_option("--otype",
                      params.otype,
                      "Array type of output data:\n0) interleaved\n1) planar\n2) real\n3) "
                      "hermitian interleaved\n4) hermitian planar")
         ->default_val(fft_array_type_unset);
-    CLI::Option* opt_length = tuning->add_option("--length", params.length, "Lengths.");
-    tuning->add_option("--token", token, "rocFFT token string.");
 
-    auto merging = app.add_subcommand("merge", "merging solution map subcommand");
-
-    merging->add_option("--base_sol_file", base_sol_filename, "filename of base-solution-map")
-        ->required()
-        ->check(CLI::ExistingFile);
-    merging->add_option("--new_sol_file", adding_sol_filename, "filename of new-solution-map")
-        ->required()
-        ->check(CLI::ExistingFile);
-    merging
-        ->add_option("--new_probkey",
-                     adding_problemkey,
-                     "problemkey (\"arch:token\") of the solution to be added, (looking up the "
-                     "new-solution-map)")
-        ->required();
-    merging->add_option("--output_sol_file", output_sol_filename, "filename of merged-solution-map")
-        ->required()
-        ->check(CLI::ExistingFile);
-
-    app.require_subcommand(0, 1);
-
-    CLI11_PARSE(app, argc, argv);
-
-    if(*opt_ver)
-    {
-        char v[256];
-        rocfft_get_version_string(v, 256);
-        std::cout << "version " << v << std::endl;
-        return EXIT_SUCCESS;
-    }
-
-    if(tuning->parsed())
-    {
-        if(token != "")
+    tuning->callback([&]() {
+        if(*opt_token)
         {
             std::cout << "Reading fft params from token:\n" << token << std::endl;
-
             try
             {
                 params.from_token(token);
@@ -480,44 +458,52 @@ int main(int argc, char* argv[])
             catch(...)
             {
                 std::cout << "Unable to parse token." << std::endl;
-                return 1;
+                std::exit(-1);
             }
+            return;
+        }
+
+        if(!notInPlace)
+        {
+            params.placement = fft_placement_inplace;
+            std::cout << "in-place\n";
         }
         else
         {
-            if(*opt_precision)
-            {
-                if(str_precision == "double")
-                    params.precision = fft_precision_double;
-                else if(str_precision == "half")
-                    params.precision = fft_precision_half;
-            }
-
-            if(notInPlace)
-            {
-                params.placement = fft_placement_notinplace;
-                std::cout << "out-of-place\n";
-            }
-            else
-            {
-                params.placement = fft_placement_inplace;
-                std::cout << "in-place\n";
-            }
-
-            if(opt_length->count())
-            {
-                std::cout << "length:";
-                for(auto& i : params.length)
-                    std::cout << " " << i;
-                std::cout << "\n";
-            }
-            else
-            {
-                std::cout << "Please specify transform length!" << std::endl;
-                return EXIT_SUCCESS;
-            }
+            params.placement = fft_placement_notinplace;
+            std::cout << "out-of-place\n";
         }
 
+        std::cout << "length(s): ";
+        for(auto& len : params.length)
+            std::cout << len << " ";
+        std::cout << "\n";
+    });
+
+    auto merging = app.add_subcommand("merge", "Merging solution map subcommand");
+
+    merging->add_option("--base_sol_file", base_sol_filename, "Filename of base-solution-map")
+        ->required()
+        ->check(CLI::ExistingFile);
+    merging->add_option("--new_sol_file", adding_sol_filename, "Filename of new-solution-map")
+        ->required()
+        ->check(CLI::ExistingFile);
+    merging
+        ->add_option("--new_probkey",
+                     adding_problemkey,
+                     "Problemkey (\"arch:token\") of the solution to be added, (looking up the "
+                     "new-solution-map)")
+        ->required();
+    merging->add_option("--output_sol_file", output_sol_filename, "Filename of merged-solution-map")
+        ->required()
+        ->check(CLI::ExistingFile);
+
+    app.require_subcommand(0, 1);
+
+    CLI11_PARSE(app, argc, argv);
+
+    if(tuning->parsed())
+    {
         std::cout << std::flush;
         return offline_tune_problems(params, verbose, ntrial);
     }
@@ -527,4 +513,7 @@ int main(int argc, char* argv[])
         return merge_solutions(
             base_sol_filename, adding_sol_filename, adding_problemkey, output_sol_filename);
     }
+
+    if(!tuning->parsed() && !merging->parsed())
+        std::cout << app.help() << std::endl;
 }
