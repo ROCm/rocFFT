@@ -69,11 +69,6 @@ include( ROCMInstallTargets )
 
 find_package( Boost COMPONENTS program_options REQUIRED)
 
-# Link dyna-rocfft-bench to the experimental filesystem library if
-# it's not available in the standard library.
-include( ../../cmake/std-filesystem.cmake )
-target_link_std_experimental_filesystem( dyna-rocfft-bench )
-
 set( bench_list rocfft-bench dyna-rocfft-bench )
 foreach( bench ${bench_list})
 
@@ -177,3 +172,8 @@ foreach( bench ${bench_list})
     COMPONENT benchmarks
   )
 endforeach()
+
+# Link dyna-rocfft-bench to the experimental filesystem library if
+# it's not available in the standard library.
+include( ../../cmake/std-filesystem.cmake )
+target_link_std_experimental_filesystem( dyna-rocfft-bench )
