@@ -95,7 +95,9 @@ static std::string get_arch_name(const hipDeviceProp_t& prop)
                                                        "gfx1030",
                                                        "gfx1100",
                                                        "gfx1101",
-                                                       "gfx1102"};
+                                                       "gfx1102",
+                                                       "gfx1200",
+                                                       "gfx1201"};
 
     static const std::string anyArch("any");
     std::string              archName(prop.gcnArchName);
