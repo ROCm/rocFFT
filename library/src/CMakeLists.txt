@@ -343,8 +343,8 @@ add_executable( rocfft_aot_helper
   rocfft_stub.cpp
 )
 
-add_executable( rocfft_config_search
-  rocfft_config_search.cpp
+add_executable( rocfft_kernel_config_search
+  rocfft_kernel_config_search.cpp
   rocfft_stub.cpp
 )
 
@@ -402,7 +402,7 @@ if(TARGET rocfft-device-3)
   target_link_libraries( rocfft PRIVATE rocfft-device-3 )
 endif()
 
-foreach( target rocfft rocfft_offline_tuner rocfft_solmap_convert rocfft_aot_helper rocfft_config_search )
+foreach( target rocfft rocfft_offline_tuner rocfft_solmap_convert rocfft_aot_helper rocfft_kernel_config_search )
 
   if(( NOT ROCFFT_BUILD_OFFLINE_TUNER ) AND ((${target} STREQUAL "rocfft_offline_tuner") OR (${target} STREQUAL "rocfft_solmap_convert")))
     continue()
@@ -447,13 +447,13 @@ rocfft_link_internal_lib( rocfft rocfft-solution-map )
 rocfft_link_internal_lib( rocfft rocfft-tuning-helper )
 target_link_std_experimental_filesystem( rocfft )
 
-target_link_libraries( rocfft_config_search PRIVATE
+target_link_libraries( rocfft_kernel_config_search PRIVATE
   ${ROCFFT_HOST_LINK_LIBS}
   generator
   rocfft-rtc-launch
   rocfft-function-pool
   )
-target_link_std_experimental_filesystem( rocfft_config_search )
+target_link_std_experimental_filesystem( rocfft_kernel_config_search )
 
 target_link_libraries( rocfft_aot_helper PRIVATE
   generator
