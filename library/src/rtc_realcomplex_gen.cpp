@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -372,6 +372,8 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
     Variable half_N{"half_N", "const unsigned int"};
     Variable idist1D{"idist1D", "const unsigned int"};
     Variable odist1D{"odist1D", "const unsigned int"};
+    Variable higherFFTLengths{"higherFFTLengths", "unsigned int"};
+    Variable nbatch{"nbatch", "unsigned int"};
     Variable input{"input", "scalar_type", true, true};
     Variable idist{"idist", "const unsigned int"};
     Variable output{"output", "scalar_type", true, true};
@@ -387,6 +389,8 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
         func.arguments.append(idist1D);
         func.arguments.append(odist1D);
     }
+    func.arguments.append(higherFFTLengths);
+    func.arguments.append(nbatch);
     func.arguments.append(input);
     func.arguments.append(idist);
     func.arguments.append(output);
@@ -395,13 +399,18 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
     for(const auto& arg : get_callback_args().arguments)
         func.arguments.append(arg);
 
-    func.body += CommentLines{"blockIdx.y gives the multi-dimensional offset",
-                              "blockIdx.z gives the batch offset"};
+    Variable global_idx{"global_idx", "unsigned int"};
+    func.body += Declaration{global_idx, "blockIdx.x * blockDim.x + threadIdx.x"};
 
     Variable idx_p{"idx_p", "const auto"};
     Variable idx_q{"idx_q", "const auto"};
-    func.body += Declaration{idx_p, "blockIdx.x * blockDim.x + threadIdx.x"};
+    Variable idx_batch{"idx_batch", "const unsigned int"};
+    Variable idx_batch1D{"idx_batch1D", "const unsigned int"};
+
+    func.body += Declaration{idx_p, global_idx % half_N};
     func.body += Declaration{idx_q, half_N - idx_p};
+
+    func.body += Assign{global_idx, global_idx / half_N};
 
     Variable quarter_N{"quarter_N", "const auto"};
     func.body += Declaration{quarter_N, Parens{half_N + 1} / 2};
@@ -410,17 +419,23 @@ std::string realcomplex_even_rtc(const std::string& kernel_name, const RealCompl
 
     Variable input_offset{"input_offset", "auto"};
     Variable output_offset{"output_offset", "auto"};
-    guard.body += CommentLines{"blockIdx.z gives the batch offset"};
-    guard.body += Declaration(input_offset, Literal{"blockIdx.z"} * idist);
-    guard.body += Declaration{output_offset, Literal{"blockIdx.z"} * odist};
-
+    guard.body += Declaration(input_offset, idx_batch * idist);
+    guard.body += Declaration(output_offset, idx_batch * odist);
     if(specs.dim > 1)
     {
-        guard.body += CommentLines{
-            "blockIdx.y gives the multi-dimensional offset, stride is [i/o]dist1D."};
-        guard.body += AddAssign(input_offset, Literal{"blockIdx.y"} * idist1D);
-        guard.body += AddAssign(output_offset, Literal{"blockIdx.y"} * odist1D);
+        guard.body += AddAssign(input_offset, idx_batch1D * idist1D);
+        guard.body += AddAssign(output_offset, idx_batch1D * odist1D);
     }
+
+    func.body += CommentLines{
+        "this kernel treats all rows as batched 1D (it does not tolerate differing",
+        "strides between higher FFT dimensions), but user-provided batch is tracked",
+        "separately"};
+    func.body += Declaration{idx_batch1D, global_idx % higherFFTLengths};
+    func.body += Declaration{idx_batch, global_idx / higherFFTLengths};
+
+    func.body += CommentLines{"any excess threads will be past the end of batch"};
+    func.body += If{idx_batch >= nbatch, {Return{}}};
 
     if(specs.scheme == CS_KERNEL_R_TO_CMPLX)
     {

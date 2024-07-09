@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -157,16 +157,14 @@ RTCKernel::RTCGenerator RTCKernelRealComplexEven::generate_from_node(const TreeN
     }
     const bool Ndiv4 = half_N % 2 == 0;
 
-    const unsigned int batch = node.batch;
+    size_t elems = std::accumulate(
+        node.length.begin() + 1, node.length.end(), half_N * node.batch, std::multiplies<size_t>());
+    generator.gridDim
+        = {static_cast<unsigned int>(DivRoundingUp<size_t>(elems, LAUNCH_BOUNDS_R2C_C2R_KERNEL)),
+           1,
+           1};
 
-    const unsigned int high_dimension = std::accumulate(
-        node.length.begin() + 1, node.length.end(), 1, std::multiplies<unsigned int>());
-
-    const unsigned int block_size = LAUNCH_BOUNDS_R2C_C2R_KERNEL;
-    const unsigned int blocks     = ((half_N + 1) / 2 + block_size - 1) / block_size;
-
-    generator.gridDim  = {blocks, high_dimension, batch};
-    generator.blockDim = {block_size, 1, 1};
+    generator.blockDim = {LAUNCH_BOUNDS_R2C_C2R_KERNEL, 1, 1};
 
     RealComplexEvenSpecs specs{{node.scheme,
                                 node.length.size(),
@@ -203,6 +201,9 @@ RTCKernelArgs RTCKernelRealComplexEven::get_launch_args(DeviceCallIn& data)
         kargs.append_unsigned_int(data.node->inStride[1]);
         kargs.append_unsigned_int(data.node->outStride[1]);
     }
+    unsigned int higherFFTLengths = product(data.node->length.begin() + 1, data.node->length.end());
+    kargs.append_unsigned_int(higherFFTLengths);
+    kargs.append_unsigned_int(data.node->batch);
     kargs.append_ptr(data.bufIn[0]);
     if(array_type_is_planar(data.node->inArrayType))
         kargs.append_ptr(data.bufIn[1]);

@@ -1,5 +1,5 @@
 
-// Copyright (C) 2021 - 2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2021 - 2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -328,6 +328,8 @@ const auto adhoc_tokens = {
     "1_HI_idist_1073741824_odist_537919488_ioffset_0_0_ooffset_0_0",
     "complex_forward_len_6144_single_ip_batch_34_istride_35_CI_ostride_35_CI_idist_1_odist_1_"
     "ioffset_0_0_ooffset_0_0",
+    "real_forward_len_8192_single_ip_batch_65537_istride_1_R_ostride_1_HI_"
+    "idist_8194_odist_4097_ioffset_0_0_ooffset_0_0",
 };
 
 INSTANTIATE_TEST_SUITE_P(adhoc_token,
