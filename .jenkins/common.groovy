@@ -1,7 +1,7 @@
 // This file is for internal AMD use.
 // If you are interested in running your own Jenkins, please raise a github issue for assistance.
 
-def runCompileCommand(platform, project, jobName, boolean debug=false, boolean buildStatic=false)
+def runCompileCommand(platform, project, jobName, boolean debug=false, boolean buildStatic=false, boolean buildMPI=false)
 {
     project.paths.construct_build_prefix()
 
@@ -19,6 +19,7 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
     String buildTunerArgs = '-DROCFFT_BUILD_OFFLINE_TUNER=ON'
     String buildTypeArg = debug ? '-DCMAKE_BUILD_TYPE=Debug -DROCFFT_DEVICE_FORCE_RELEASE=ON' : '-DCMAKE_BUILD_TYPE=Release'
     String buildTypeDir = debug ? 'debug' : 'release'
+    String buildMPIArgs = buildMPI ? '-DCMAKE_PREFIX_PATH=/usr/local/openmpi -DROCFFT_MPI_ENABLE=ON' : ''
     String staticArg = buildStatic ? '-DBUILD_SHARED_LIBS=off' : ''
     String cmake = platform.jenkinsLabel.contains('centos') ? 'cmake3' : 'cmake'
     //Set CI node's gfx arch as target if PR, otherwise use default targets of the library
@@ -30,17 +31,9 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
                 cd ${project.paths.project_build_prefix}
                 ${getDependenciesCommand}
                 set -e
-                ${auxiliary.gfxTargetParser()}
-
-                # build without MPI enabled to make sure that compiles
-                mkdir -p build/${buildTypeDir}_no_mpi && cd build/${buildTypeDir}_no_mpi
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${buildTunerArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
-                make -j\$(nproc)
-
-                # build and install with MPI enabled so we can enable those test cases
-                cd ../..
                 mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
-                ${cmake} -DCMAKE_PREFIX_PATH=/usr/local/openmpi -DROCFFT_MPI_ENABLE=ON -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${buildTunerArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
+                ${auxiliary.gfxTargetParser()}
+                ${cmake} ${buildMPIArgs} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${buildTunerArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
                 make -j\$(nproc)
                 sudo make install
             """
@@ -69,7 +62,7 @@ def runCompileClientCommand(platform, project, jobName, boolean debug=false)
     platform.runCommand(this, command)
 }
 
-def runTestCommand (platform, project, boolean debug=false, gfilter='')
+def runTestCommand (platform, project, boolean debug=false, gfilter='', extraArgs='')
 {
     String testBinaryName = 'rocfft-test'
     String directory = debug ? 'debug' : 'release'
@@ -83,7 +76,7 @@ def runTestCommand (platform, project, boolean debug=false, gfilter='')
     def command = """#!/usr/bin/env bash
                 set -ex
                 cd ${project.paths.project_build_prefix}/build/${directory}/clients/staging
-                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --precompile=rocfft-test-precompile.db ${gfilterArg} --gtest_color=yes --R 80 --nrand 10 --mp_lib mpi --mp_ranks 4 --mp_launch "/usr/local/openmpi/bin/mpirun --np 4 ./rocfft_mpi_worker"
+                ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./${testBinaryName} --precompile=rocfft-test-precompile.db ${gfilterArg} --gtest_color=yes --R 80 --nrand 10 ${extraArgs}
             """
     platform.runCommand(this, command)
 }

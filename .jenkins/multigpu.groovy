@@ -32,7 +32,8 @@ def runCI =
         platform, project->
 
         commonGroovy = load "${project.paths.project_src_prefix}/.jenkins/common.groovy"
-        commonGroovy.runCompileCommand(platform, project, jobName)
+	# build with MPI enabled
+        commonGroovy.runCompileCommand(platform, project, jobName, false, false, true)
         commonGroovy.runCompileClientCommand(platform, project, jobName, false)
     }
 
@@ -40,14 +41,19 @@ def runCI =
     {
         platform, project->
 
+	# run single-process multi-GPU tests
         commonGroovy.runTestCommand(platform, project, false, "*multi_gpu*")
+	# run MPI tests across 4 ranks
+        commonGroovy.runTestCommand(platform, project, false, "*multi_gpu*", '--mp_lib mpi --mp_ranks 4 --mp_launch "/usr/local/openmpi/bin/mpirun --np 4 ./rocfft_mpi_worker"')
     }
 
     def packageCommand =
     {
         platform, project->
-        
-        commonGroovy.runPackageCommand(platform, project, jobName)
+
+	# don't package anything - we're not distributing MPI-enabled
+        # rocFFT so we don't want to expose any MPI-enabled packages
+        # anywhere that other builds can mistakenly pick up
     }
 
     buildProject(prj, formatCheck, nodes.dockerArray, compileCommand, testCommand, packageCommand)
