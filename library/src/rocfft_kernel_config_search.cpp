@@ -376,8 +376,7 @@ int main(int argc, char** argv)
         "-f, --factorization", factorization, "Factorization for a given FFT problem");
     manual_tuning->add_option("-w, --wgs", wgs, "Work group size")->default_val(64);
     manual_tuning->add_option("--tpt", tpt, "Thread per transform")->default_val(1);
-    manual_tuning->add_option("--half-lds", half_lds, "Use half LDS or not")
-        ->default_val(_GLIBCXX_TR1_POLY_LAGUERRE_TCC);
+    manual_tuning->add_option("--half-lds", half_lds, "Use half LDS or not")->default_val(true);
     manual_tuning->add_option("--direct-reg", tpt, "Direct load to/from reg")->default_val(true);
 
     app.require_subcommand(0, 1);
