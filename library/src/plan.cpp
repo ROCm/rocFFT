@@ -1627,6 +1627,8 @@ static std::unique_ptr<ExecPlan> BuildSingleDevicePlan(NodeMetaData&         roo
                                                        LoadOps&              loadOps,
                                                        StoreOps&             storeOps)
 {
+    rocfft_scoped_device dev(location.device);
+
     auto      execPlanMultiItem = std::make_unique<ExecPlan>();
     ExecPlan& execPlan          = *execPlanMultiItem;
     try
