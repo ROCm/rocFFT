@@ -18,8 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include <boost/program_options.hpp>
-namespace po = boost::program_options;
 #include <complex>
 #include <functional>
 #include <iostream>
@@ -30,6 +28,7 @@ namespace po = boost::program_options;
 #include <hip/hip_vector_types.h>
 #include <rocfft/rocfft.h>
 
+#include "../../../shared/CLI11.hpp"
 #include "examplekernels.h"
 #include "exampleutils.h"
 #include <stdexcept>
@@ -42,39 +41,37 @@ int main(int argc, char* argv[])
     std::vector<size_t> length = {8};
 
     // Gpu device id:
-    int deviceId = 0;
+    size_t deviceId = 0;
 
     // Command-line options:
-    // clang-format off
-    po::options_description desc("rocfft sample command line options");
-    desc.add_options()("help,h", "produces this help message")
-        ("device", po::value<int>(&deviceId)->default_value(0), "Select a specific device id")
-        ("outofplace,o", "Perform an out-of-place transform")
-        ("inverse,i", "Perform an inverse transform")
-        ("length", po::value<std::vector<size_t>>(&length)->multitoken(),
-         "Lengths of the transform separated by spaces");
-    // clang-format on
-    po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);
-    if(vm.count("help"))
+    CLI::App app{"rocfft sample command line options"};
+    app.add_option("--device", deviceId, "Select a specific device id")->default_val(0);
+    CLI::Option* opt_outofplace
+        = app.add_flag("-o, --outofplace", "Perform an out-of-place transform");
+    CLI::Option* opt_inverse = app.add_flag("-i, --inverse", "Perform an inverse transform");
+    app.add_option(
+        "--length", length, "Lengths of the transform separated by spaces (eg: --length 4 4)");
+
+    try
     {
-        std::cout << desc << std::endl;
-        return 0;
+        app.parse(argc, argv);
+    }
+    catch(const CLI::ParseError& e)
+    {
+        return app.exit(e);
     }
 
     // Placeness for the transform
     if(rocfft_setup() != rocfft_status_success)
         throw std::runtime_error("rocfft_setup failed.");
     const rocfft_result_placement place
-        = vm.count("outofplace") ? rocfft_placement_notinplace : rocfft_placement_inplace;
+        = *opt_outofplace ? rocfft_placement_notinplace : rocfft_placement_inplace;
     const bool inplace = place == rocfft_placement_inplace;
 
     // Direction of transform
-    const rocfft_transform_type direction = vm.count("inverse")
-                                                ? rocfft_transform_type_real_inverse
-                                                : rocfft_transform_type_real_forward;
-    const bool                  forward   = direction == rocfft_transform_type_real_forward;
+    const rocfft_transform_type direction
+        = *opt_inverse ? rocfft_transform_type_real_inverse : rocfft_transform_type_real_forward;
+    const bool forward = direction == rocfft_transform_type_real_forward;
 
     // Set up the strides and buffer size for the real values:
     std::vector<size_t> rstride = {1};

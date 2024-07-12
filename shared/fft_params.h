@@ -30,7 +30,6 @@
 #ifdef _OPENMP
 #include <omp.h>
 #endif
-#include <map>
 #include <random>
 #include <tuple>
 #include <unordered_set>
@@ -86,15 +85,6 @@ static bool lexical_cast(const std::string& word, fft_precision& precision)
     return true;
 }
 
-// Still in use for Boost enum parsing, can be removed after completely switching to CLI11
-static std::istream& operator>>(std::istream& str, fft_precision& precision)
-{
-    std::string word;
-    str >> word;
-    lexical_cast(word, precision);
-    return str;
-}
-
 // fft_input_generator: linearly spaced sequence in [-0.5,0.5]
 // fft_input_random_generator: pseudo-random sequence in [-0.5,0.5]
 enum fft_input_generator
@@ -119,15 +109,6 @@ static bool lexical_cast(const std::string& word, fft_input_generator& gen)
     else
         throw std::runtime_error("Invalid input generator specified");
     return true;
-}
-
-// Still in use for Boost enum parsing, can be removed after completely switching to CLI11
-static std::istream& operator>>(std::istream& str, fft_input_generator& gen)
-{
-    std::string word;
-    str >> word;
-    lexical_cast(word, gen);
-    return str;
 }
 
 enum fft_array_type
@@ -2159,7 +2140,7 @@ static bool lexical_cast(const std::string& word, fft_params::fft_mp_lib& mp_lib
     return true;
 }
 
-// This is used with the program_options class so that the user can type an integer on the
+// This is used with CLI11 so that the user can type an integer on the
 // command line and we store into an enum varaible
 template <typename _Elem, typename _Traits>
 std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits>& stream,
@@ -2171,7 +2152,7 @@ std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits
     return stream;
 }
 
-// similarly for transform type
+// Similarly for transform type
 template <typename _Elem, typename _Traits>
 std::basic_istream<_Elem, _Traits>& operator>>(std::basic_istream<_Elem, _Traits>& stream,
                                                fft_transform_type&                 ttype)

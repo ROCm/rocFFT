@@ -66,9 +66,6 @@ endif()
 
 include( ROCMInstallTargets )
 
-
-find_package( Boost COMPONENTS program_options REQUIRED)
-
 set( bench_list rocfft-bench dyna-rocfft-bench )
 foreach( bench ${bench_list})
 
@@ -85,7 +82,6 @@ foreach( bench ${bench_list})
 
   target_include_directories( ${bench}
     PRIVATE
-    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/misc/include>
     ${HIP_CLANG_ROOT}/include
     ${ROCM_CLANG_ROOT}/include
@@ -97,7 +93,6 @@ foreach( bench ${bench_list})
       hip::device
       roc::rocfft
       hip::hiprand
-      Boost::program_options
       )
   else()
     target_link_libraries( ${bench}
@@ -105,7 +100,6 @@ foreach( bench ${bench_list})
       ${CMAKE_DL_LIBS}
       hip::device
       hip::hiprand
-      ${Boost_LIBRARIES}
       )
 
     # We need to include both rocfft.h and rocfft-export.h

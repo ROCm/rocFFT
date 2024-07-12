@@ -280,8 +280,9 @@ int main(int argc, char* argv[])
            "--planar_prob", planar_prob, "Probability of running individual planar transforms")
         ->default_val(0.1)
         ->check(CLI::Range(0.0, 1.0));
-    app.add_option(
-           "--callback_prob", planar_prob, "Probability of running individual callback transforms")
+    app.add_option("--callback_prob",
+                   callback_prob,
+                   "Probability of running individual callback transforms")
         ->default_val(0.1)
         ->check(CLI::Range(0.0, 1.0));
     app.add_option("--fftw_compare", fftw_compare, "Compare to FFTW in accuracy tests")

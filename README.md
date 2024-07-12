@@ -58,9 +58,9 @@ You can install rocFFT using pre-built packages or building from source.
 
     | Client | CMake option | Dependencies |
     |:------|:-----------------|:-----------------|
-    | `rocfft-bench` | `-DBUILD_CLIENTS_BENCH=on` | Boost program options |
-    | `rocfft-test` | `-DBUILD_CLIENTS_TESTS=on` | Boost program options, Fastest Fourier Transform in the West (FFTW), GoogleTest |
-    | samples | `-DBUILD_CLIENTS_SAMPLES=on` | Boost program options, FFTW |
+    | `rocfft-bench` | `-DBUILD_CLIENTS_BENCH=on` | None |
+    | `rocfft-test` | `-DBUILD_CLIENTS_TESTS=on` | Fastest Fourier Transform in the West (FFTW), GoogleTest |
+    | samples | `-DBUILD_CLIENTS_SAMPLES=on` | FFTW |
 
     Clients are not built by default. To build them, use `-DBUILD_CLIENTS=on`. The build process
     downloads and builds GoogleTest and FFTW if they are not already installed.
@@ -77,7 +77,7 @@ You can install rocFFT using pre-built packages or building from source.
     To install client dependencies on Ubuntu, run:
 
     ```bash
-    sudo apt install libgtest-dev libfftw3-dev libboost-program-options-dev
+    sudo apt install libgtest-dev libfftw3-dev
     ```
 
     We use version 1.11 of GoogleTest.

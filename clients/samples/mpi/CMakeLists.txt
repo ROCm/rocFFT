@@ -60,10 +60,6 @@ if( NOT hiprand_FOUND )
   find_package( hiprand REQUIRED )
 endif()
 
-find_package( Boost COMPONENTS program_options REQUIRED)
-set( Boost_DEBUG ON )
-set( Boost_USE_MULTITHREADED ON )
-
 set( sample_list rocfft_mpi_example )
 
 foreach( sample ${sample_list} )
@@ -74,7 +70,6 @@ foreach( sample ${sample_list} )
     ${sample}
     PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
-    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
     ${MPI_CXX_INCLUDE_PATH}
   )
 
@@ -82,7 +77,6 @@ target_link_libraries(
   ${sample}
   PRIVATE roc::rocfft
   hip::hiprand
-  Boost::program_options
   MPI::MPI_CXX
   )
 

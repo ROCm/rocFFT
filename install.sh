@@ -190,10 +190,10 @@ install_packages( )
     local library_dependencies_fedora=( "make" "cmake" "gcc-c++" "libcxx-devel" "rpm-build" )
     local library_dependencies_sles=( "make" "cmake" "gcc-c++" "gcc-fortran" "libcxxtools9" "rpm-build" )
 
-    local client_dependencies_ubuntu=( "libfftw3-dev" "libboost-program-options-dev" )
+    local client_dependencies_ubuntu=( "libfftw3-dev")
     local client_dependencies_centos=( "fftw-devel" "boost-devel" )
     local client_dependencies_fedora=( "fftw-devel" "boost-devel" )
-    local client_dependencies_sles=( "fftw3-devel" "libboost_program_options1_66_0-devel" "pkg-config" "dpkg")
+    local client_dependencies_sles=( "fftw3-devel" "pkg-config" "dpkg")
 
     case "${ID}" in
         ubuntu)

@@ -26,6 +26,7 @@ Documentation for rocFFT is available at
 
 * Add --smoketest option to rocfft-test.
 * Support gfx1200 and gfx1201 architectures.
+* Replace Boost Program Options with CLI11 as the command line parser for clients and samples.
 
 ## rocFFT 1.0.28 for ROCm 6.2.0
 

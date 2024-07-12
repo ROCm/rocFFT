@@ -56,15 +56,6 @@ if( NOT hiprand_FOUND )
   find_package( hiprand REQUIRED )
 endif()
 
-find_package( Boost COMPONENTS program_options REQUIRED)
-set( Boost_DEBUG ON )
-set( Boost_USE_MULTITHREADED ON )
-
-if(NOT Boost_LIBRARIES)
-  # Fixes a bug in Boost's CMAKE where Boost_LIBRARIES is not set.
-  set(Boost_LIBRARIES Boost::program_options)
-endif()
-
 set( sample_list rocfft_example_complexcomplex rocfft_example_realcomplex rocfft_example_set_stream
      rocfft_example_callback )
 
@@ -76,14 +67,12 @@ foreach( sample ${sample_list} )
     ${sample}
     PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
-    $<BUILD_INTERFACE:${Boost_INCLUDE_DIRS}>
   )
 
 target_link_libraries(
   ${sample}
   PRIVATE roc::rocfft
   hip::hiprand
-  ${Boost_LIBRARIES}
   )
 
   target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} -Wno-cpp )

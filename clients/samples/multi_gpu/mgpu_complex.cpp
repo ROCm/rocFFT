@@ -18,14 +18,13 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include <boost/program_options.hpp>
-namespace po = boost::program_options;
 #include <complex>
 #include <functional>
 #include <iostream>
 #include <numeric>
 #include <vector>
 
+#include "../../../shared/CLI11.hpp"
 #include "rocfft/rocfft.h"
 #include <hip/hip_runtime_api.h>
 #include <hip/hip_vector_types.h>
@@ -43,21 +42,18 @@ int main(int argc, char* argv[])
     std::vector<size_t> devices = {0, 1};
 
     // Command-line options:
-    // clang-format off
-    po::options_description desc("rocfft sample command line options");
-    desc.add_options()("help,h", "Produces this help message")
-        ("length", po::value<std::vector<size_t>>(&length)->multitoken(),
-         "2-D FFT size (eg: --length 256 256).")
-        ("devices", po::value<std::vector<size_t>>(&devices)->multitoken(), 
-        "List of devices to use separated by spaces (eg: --devices 1 3)");
-    // clang-format on
-    po::variables_map vm;
-    po::store(po::parse_command_line(argc, argv, desc), vm);
-    po::notify(vm);
-    if(vm.count("help"))
+    CLI::App app{"rocfft sample command line options"};
+    app.add_option("--length", length, "2-D FFT size (eg: --length 256 256)");
+    app.add_option(
+        "--devices", devices, "List of devices to use separated by spaces (eg: --devices 1 3)");
+
+    try
     {
-        std::cout << desc << std::endl;
-        return 0;
+        app.parse(argc, argv);
+    }
+    catch(const CLI::ParseError& e)
+    {
+        return app.exit(e);
     }
 
     int deviceCount = devices.size();
