@@ -55,6 +55,10 @@ TEST(bitwise_repro_test, compare_precisions)
     {
         bitwise_repro(params_1, params_2);
     }
+    catch(std::bad_alloc&)
+    {
+        GTEST_SKIP() << "host memory allocation failure";
+    }
     catch(ROCFFT_GTEST_SKIP& e)
     {
         GTEST_SKIP() << e.msg.str();
@@ -90,6 +94,10 @@ TEST(bitwise_repro_test, compare_lengths)
     {
         bitwise_repro(params_1, params_2);
     }
+    catch(std::bad_alloc&)
+    {
+        GTEST_SKIP() << "host memory allocation failure";
+    }
     catch(ROCFFT_GTEST_SKIP& e)
     {
         GTEST_SKIP() << e.msg.str();
@@ -124,6 +132,10 @@ TEST(bitwise_repro_test, compare_transform_types)
     try
     {
         bitwise_repro(params_1, params_2);
+    }
+    catch(std::bad_alloc&)
+    {
+        GTEST_SKIP() << "host memory allocation failure";
     }
     catch(ROCFFT_GTEST_SKIP& e)
     {
@@ -164,6 +176,10 @@ TEST_P(bitwise_repro_test, compare_to_reference)
     try
     {
         bitwise_repro(params);
+    }
+    catch(std::bad_alloc&)
+    {
+        GTEST_SKIP() << "host memory allocation failure";
     }
     catch(ROCFFT_GTEST_SKIP& e)
     {

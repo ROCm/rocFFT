@@ -24,6 +24,7 @@
 #include "arithmetic.h"
 #include <cstdlib>
 #include <cstring>
+#include <new>
 
 #ifndef WIN32
 #include <stdlib.h>
@@ -100,6 +101,8 @@ public:
         else
             buf = aligned_alloc(64, size);
 #endif
+        if(!buf)
+            throw std::bad_alloc();
     }
 
     size_t size() const

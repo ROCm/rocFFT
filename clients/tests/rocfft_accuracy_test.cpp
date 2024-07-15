@@ -86,6 +86,10 @@ TEST_P(accuracy_test, vs_fftw)
         {
             fft_vs_reference(params, round_trip);
         }
+        catch(std::bad_alloc&)
+        {
+            GTEST_SKIP() << "host memory allocation failure";
+        }
         catch(ROCFFT_GTEST_SKIP& e)
         {
             GTEST_SKIP() << e.msg.str();

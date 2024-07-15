@@ -641,6 +641,10 @@ TEST(manual, vs_fftw) // MANUAL TESTS HERE
     {
         fft_vs_reference(params);
     }
+    catch(std::bad_alloc&)
+    {
+        GTEST_SKIP() << "host memory allocation failure";
+    }
     catch(ROCFFT_GTEST_SKIP& e)
     {
         GTEST_SKIP() << e.msg.str();
@@ -674,6 +678,10 @@ TEST(manual, bitwise_reproducibility) // MANUAL TESTS HERE
     try
     {
         bitwise_repro(params);
+    }
+    catch(std::bad_alloc&)
+    {
+        GTEST_SKIP() << "host memory allocation failure";
     }
     catch(ROCFFT_GTEST_SKIP& e)
     {
