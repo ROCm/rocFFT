@@ -377,7 +377,8 @@ int main(int argc, char** argv)
     manual_tuning->add_option("-w, --wgs", wgs, "Work group size")->default_val(64);
     manual_tuning->add_option("--tpt", tpt, "Thread per transform")->default_val(1);
     manual_tuning->add_option("--half-lds", half_lds, "Use half LDS or not")->default_val(true);
-    manual_tuning->add_option("--direct-reg", tpt, "Direct load to/from reg")->default_val(true);
+    manual_tuning->add_option("--direct-reg", direct_to_from_reg, "Direct load to/from reg")
+        ->default_val(true);
 
     app.require_subcommand(0, 1);
 
@@ -515,7 +516,7 @@ int main(int argc, char** argv)
 
         // print a line with the best config, to go into kernel-generator.py
         std::cout << "  NS(length= " << length << ", workgroup_size= " << best_wgs
-                  << ", threads_per_transform=" << best_tpt << "factors=(";
+                  << ", threads_per_transform=" << best_tpt << ", factors=(";
         bool first_factor = true;
         for(auto f : best_factorization)
         {
@@ -529,7 +530,7 @@ int main(int argc, char** argv)
             std::cout << ", half_lds=False";
         if(!best_direct_to_from_reg)
             std::cout << ", direct_to_from_reg=False";
-        std::cout << std::endl;
+        std::cout << " best_time," << best_time << std::endl;
     }
     else if(manual_tuning->parsed())
     {
