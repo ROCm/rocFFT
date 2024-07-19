@@ -44,7 +44,7 @@ def run(tuner,
         timeout=10):
     """Run rocFFT tuner and return best solution"""
     cmd = [pathlib.Path(tuner).resolve()]
-    cmd += ' tune '
+    cmd += ['tune']
 
     if isinstance(length, int):
         cmd += ['--length', length]
