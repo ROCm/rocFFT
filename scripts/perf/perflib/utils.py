@@ -158,45 +158,56 @@ def find_slower_faster(outdirs, method, multitest, significance, ncompare,
     runs = perflib.utils.by_dat(all_runs)
     refdir, testdir = outdirs
 
+    from dataclasses import dataclass
+
+    @dataclass
+    class tokendata:
+        token: str
+        pval: float
+        measure_a: float
+        measure_b: float
+
     for dat_name, dat_runs in runs.items():
         if (refdir in dat_runs.keys() and testdir in dat_runs.keys()):
             refdat = dat_runs[refdir]
             testdat = dat_runs[testdir]
             for token, sample in refdat.get_samples():
-                if token not in testdat.samples:
-                    continue
+                if token in testdat.samples:
+                    Avals = refdat.samples[token].times
+                    Bvals = testdat.samples[token].times
 
-                #print(token)
-                Avals = refdat.samples[token].times
-                Bvals = testdat.samples[token].times
+                    pval = None
+                    measure_a = None
+                    measure_b = None
+                    if method == 'moods':
+                        _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
+                        measure_a = statistics.median(Avals)
+                        measure_b = statistics.median(Bvals)
 
-                pval = None
-                measure_a = None
-                measure_b = None
-                if method == 'moods':
-                    _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
-                    measure_a = statistics.median(Avals)
-                    measure_b = statistics.median(Bvals)
-                elif method == 'ttest':
-                    _, pval = scipy.stats.ttest_ind(Avals, Bvals)
-                    measure_a = np.mean(Avals)
-                    measure_b = np.mean(Bvals)
-                elif method == 'mwu':
-                    _, pval = scipy.stats.mannwhitneyu(Avals, Bvals)
-                    measure_a = statistics.median(Avals)
-                    measure_b = statistics.median(Bvals)
-                else:
-                    print("unsupported statistical method")
-                    sys.exit(1)
+                    elif method == 'ttest':
+                        _, pval = scipy.stats.ttest_ind(Avals, Bvals)
+                        measure_a = np.mean(Avals)
+                        measure_b = np.mean(Bvals)
+                    elif method == 'mwu':
+                        _, pval = scipy.stats.mannwhitneyu(Avals, Bvals)
+                        measure_a = statistics.median(Avals)
+                        measure_b = statistics.median(Bvals)
+                    else:
+                        print("unsupported statistical method")
+                        sys.exit(1)
 
-                token_p_measures.append([token, pval, measure_a, measure_b])
+                    thistokendata = tokendata(token, pval, measure_a,
+                                              measure_b)
+                    dats = [token, pval, measure_a, measure_b]
+
+                    token_p_measures.append(thistokendata)
 
     if multitest == "bonferroni" and ncompare > 0:
         new_significance /= ncompare
     if multitest == "bh":
         pvals = []
         for stuff in token_p_measures:
-            pvals.append(stuff[1])
+            pvals.append(stuff.pval)
 
         pvals.sort()
 
@@ -215,18 +226,14 @@ def find_slower_faster(outdirs, method, multitest, significance, ncompare,
         #     new_significance = significance
 
     # Now that we have the new significance, decide on cases.
-    for stuff in token_p_measures:
-        #print(stuff)
-        token = stuff[0]
-        pval = stuff[1]
-        measure_a = stuff[2]
-        measure_a = stuff[3]
-
-        if pval < new_significance:
-            if statistics.median(Avals) > statistics.median(Bvals):
-                faster.append([token, measure_a, measure_b])
+    for dat in token_p_measures:
+        if dat.pval < new_significance:
+            #print(measure_a, measure_b)
+            if dat.measure_a > dat.measure_b:
+                faster.append([dat.token, dat.measure_a, dat.measure_b])
             else:
-                slower.append([token, measure_a, measure_b])
+                #print(dat.token, dat.measure_a, dat.measure_b)
+                slower.append([dat.token, dat.measure_a, dat.measure_b])
 
     return slower, faster, new_significance
 

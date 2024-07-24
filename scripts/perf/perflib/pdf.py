@@ -391,7 +391,7 @@ def make_tex(figs,
         tex += "\\begin{tiny}"
         tex += "\\begin{verbatim}"
         for row in df_all_bad.itertuples(index=False):
-            print(row.token)
+            print(row.token, row.speedup)
             tex += str(row.token) + "\n"
             #tex += "\\small\\texttt{" + str(row.token).replace("_", "\\_") + "}\n"
         tex += "\\end{verbatim}"

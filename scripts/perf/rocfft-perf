@@ -195,8 +195,12 @@ def command_test(arguments):
         outdirs, arguments.method, multitest, significance, ncompare, verbose)
 
     if verbose:
-        print("faster:", faster)
-        print("slower:", slower)
+        print("faster:")
+        for case in faster:
+            print(case)
+        print("slower:")
+        for case in slower:
+            print(case)
 
     nh1 = len(faster) + len(slower)
     nh0 = ncompare - nh1
@@ -398,6 +402,7 @@ def command_post(arguments):
                         sys.exit(1)
 
                     speedups.append([sample.token, speedup, low, high, pval])
+
                 path = docdir / (str(otherdat.path.parent.name) + '-over-' +
                                  str(refdat.path.parent.name) + '-' +
                                  dat_name + '.sdat')
