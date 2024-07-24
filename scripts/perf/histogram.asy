@@ -42,8 +42,9 @@ real bounds = infinity; //40000;
 
 real[] a;
 for(int i = 0; i < b.length; ++i) {
-  if(abs(b[i]) < bounds)
+  if(abs(b[i]) < bounds) {
     a.push(b[i]);
+  }
 }
 
 int N = nbinmult * bins(a);
@@ -51,28 +52,49 @@ int N = nbinmult * bins(a);
 real lower = min(0, min(a));
 real upper = max(0, max(a));
 
-histogram(a,
-          lower,
-          upper,
-          N,
-          normalize=false,
-          low=0,
-          lightred,
-          black,
-          bars=true);
+real dx=(upper-lower)/N;
+real[] freq=frequency(a,lower,upper,N);
+write(freq);
+
+if(a.length == 1) {
+  real[] bin = {lower, upper};
+  real[] count = {1};
+  histogram(bins = bin,
+	    count = count,
+	    low=0.0,
+	    fillpen=lightred,
+	    drawpen=black,
+	    bars=false,
+	    legend="",
+	    markersize=legendmarkersize);
+} else {
+  histogram(a,
+	    lower,
+	    upper,
+	    N,
+	    normalize=false,
+	    low=0,
+	    lightred,
+	    black,
+	    bars=true);
+}
 
 xequals(0.0);
 
 //label((min(a), 0), string(min(a), 3), 1.5S);
 //label((max(a), 0), string(max(a), 3), 1.5S);
 
-real Step = 0.0;
-if(max(a) - min(a) < 4) {
+if(a.length > 1) {
+  
+  real Step = 0.0;
+  if(max(a) - min(a) < 4) {
     real order = ceil(log(max(a) - min(a))/log(10));
     Step = 0.5 * 10**(order-1);
+  }
+  xaxis("Speedup \%", BottomTop, LeftTicks(Step=Step));
+} else {
+  xaxis("Speedup \%", BottomTop, LeftTicks);
 }
-
-xaxis("Speedup \%", BottomTop, LeftTicks(Step=Step));
 yaxis("Number of Transforms", LeftRight, RightTicks);
 
 
