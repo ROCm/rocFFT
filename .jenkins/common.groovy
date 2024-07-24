@@ -31,9 +31,11 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
                 cd ${project.paths.project_build_prefix}
                 ${getDependenciesCommand}
                 set -e
+
                 mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
-                ${cmake} ${buildMPIArgs} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${warningArgs} ${buildTunerArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
+                ${cmake} ${buildMPIArgs} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/amdclang++ -DCMAKE_C_COMPILER=/opt/rocm/bin/amdclang ${buildTypeArg} ${clientArgs} ${warningArgs} ${buildTunerArgs} ${staticArg} ${amdgpuTargets} ${rtcBuildCache} ../..
+
                 make -j\$(nproc)
                 sudo make install
             """
@@ -56,7 +58,7 @@ def runCompileClientCommand(platform, project, jobName, boolean debug=false)
                 set -ex
                 cd ${project.paths.project_build_prefix}/clients
                 mkdir -p build && cd build
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArgClients} ${clientArgs} ${warningArgs} ${cmakePrefixPathArg} ${amdgpuTargets} ../
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/amdclang++ -DCMAKE_C_COMPILER=/opt/rocm/bin/amdclang ${buildTypeArgClients} ${clientArgs} ${warningArgs} ${cmakePrefixPathArg} ${amdgpuTargets} ../
                 make -j\$(nproc)
             """
     platform.runCommand(this, command)
@@ -126,7 +128,7 @@ def runSubsetBuildCommand(platform, project, jobName, genPattern, genSmall, genL
                 rm -rf build/${buildTypeDir}
                 mkdir -p build/${buildTypeDir} && cd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc ${buildTypeArg} ${clientArgs} ${kernelArgs} ${warningArgs} ${amdgpuTargets} ${rtcBuildCache} ../..
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/amdclang++ -DCMAKE_C_COMPILER=/opt/rocm/bin/amdclang ${buildTypeArg} ${clientArgs} ${kernelArgs} ${warningArgs} ${amdgpuTargets} ${rtcBuildCache} ../..
                 make -j\$(nproc)
             """
     platform.runCommand(this, command)

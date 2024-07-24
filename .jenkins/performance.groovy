@@ -43,13 +43,13 @@ def runCompileCommand(platform, project, jobName, boolean debug=false, boolean b
                 set -e
                 mkdir -p build/${buildTypeDir} && pushd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch ${buildTypeArg} ${clientArgs} ${warningArgs} ${rtcBuildCache} ../..
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/amdclang++ -DCMAKE_C_COMPILER=/opt/rocm/bin/amdclang -DAMDGPU_TARGETS=\$gfx_arch ${buildTypeArg} ${clientArgs} ${warningArgs} ${rtcBuildCache} ../..
                 make -j\$(nproc)
                 popd
                 cd ref-repo
                 mkdir -p build/${buildTypeDir} && pushd build/${buildTypeDir}
                 ${auxiliary.gfxTargetParser()}
-                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/hipcc -DCMAKE_C_COMPILER=/opt/rocm/bin/hipcc -DAMDGPU_TARGETS=\$gfx_arch ${buildTypeArg} ${noclientArgs} ${warningArgs} ${rtcBuildCache} ../..
+                ${cmake} -DCMAKE_CXX_COMPILER=/opt/rocm/bin/amdclang++ -DCMAKE_C_COMPILER=/opt/rocm/bin/amdclang -DAMDGPU_TARGETS=\$gfx_arch ${buildTypeArg} ${noclientArgs} ${warningArgs} ${rtcBuildCache} ../..
                 make -j\$(nproc)
             """
     platform.runCommand(this, command)

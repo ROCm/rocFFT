@@ -61,7 +61,7 @@ else()
 endif()
 
 if( ROCFFT_MPI_ENABLE )
-  set( ROCFFT_DEVICE_LINK_LIBS "${ROCFFT_HOST_LINK_LIBS}" "MPI::MPI_CXX" )
+  set( ROCFFT_HOST_LINK_LIBS "${ROCFFT_HOST_LINK_LIBS}" "MPI::MPI_CXX" )
 endif()
 
 set( package_targets rocfft )
@@ -333,7 +333,7 @@ foreach( target
   if( ${CMAKE_BUILD_TYPE} STREQUAL Debug )
     target_compile_options( ${target} PRIVATE -Og )
   endif()
-  target_link_libraries( ${target} PUBLIC ${ROCFFT_RTC_LINK_LIBS} )
+  target_link_libraries( ${target} PUBLIC ${ROCFFT_HOST_LINK_LIBS} ${ROCFFT_RTC_LINK_LIBS} )
 
 endforeach()
 
@@ -465,6 +465,7 @@ target_link_std_experimental_filesystem( rocfft_aot_helper )
  # build executable rocfft-offline-tuner
 if( ROCFFT_BUILD_OFFLINE_TUNER )
   target_link_libraries( rocfft_offline_tuner PRIVATE
+    ${ROCFFT_DEVICE_LINK_LIBS}
     rocfft
     generator
     rocfft-function-pool

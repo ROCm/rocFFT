@@ -489,9 +489,9 @@ TEST(rocfft_UnitTest, rtc_test_harness)
     // NOTE: using system() for launching subprocesses for simplicity
     // and portability
 #ifdef WIN32
-    static const char* test_command = "hipcc --version > NUL";
+    static const char* test_command = "amdclang++ --version > NUL";
 #else
-    static const char* test_command = "hipcc --version > /dev/null";
+    static const char* test_command = "amdclang++ --version > /dev/null";
 #endif
     if(std::system(test_command) != 0)
         GTEST_SKIP();
@@ -604,9 +604,10 @@ TEST(rocfft_UnitTest, rtc_test_harness)
         for(i = 0; i < files.size(); ++i)
         {
 #ifdef WIN32
-            const std::string command = "hipcc -c -std=c++17 -o NUL " + files[i].first;
+            const std::string command = "amdclang++ -x hip -c -std=c++17 -o NUL " + files[i].first;
 #else
-            const std::string command = "hipcc -c -std=c++17 -o /dev/null " + files[i].first;
+            const std::string command
+                = "amdclang++ -x hip -c -std=c++17 -o /dev/null " + files[i].first;
 #endif
             files[i].second = std::system(command.c_str());
         }

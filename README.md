@@ -35,12 +35,12 @@ You can install rocFFT using pre-built packages or building from source.
 
 * Building from source:
 
-    rocFFT is compiled with HIPCC and uses CMake. You can specify several options to customize your
+    rocFFT is compiled with AMD's clang++ and uses CMake. You can specify several options to customize your
     build. The following commands build a shared library for supported AMD GPUs:
 
     ```bash
     mkdir build && cd build
-    cmake -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc ..
+    cmake -DCMAKE_CXX_COMPILER=amdclang++ -DCMAKE_C_COMPILER=amdclang ..
     make -j
     ```
 
@@ -70,7 +70,7 @@ You can install rocFFT using pre-built packages or building from source.
 
     ```bash
     mkdir build && cd build
-    cmake -DCMAKE_CXX_COMPILER=hipcc -DCMAKE_C_COMPILER=hipcc -DCMAKE_PREFIX_PATH=/path/to/rocFFT-lib ..
+    cmake -DCMAKE_CXX_COMPILER=amdclang++ -DCMAKE_C_COMPILER=amdclang_PREFIX_PATH=/path/to/rocFFT-lib ..
     make -j
     ```
 

@@ -68,9 +68,9 @@ def build_rocfft(
     build = top / 'build'
     build.mkdir(exist_ok=True)
     defs = [
-        '-DCMAKE_CXX_COMPILER=hipcc', '-DBUILD_CLIENTS_BENCH=ON',
-        '-DROCFFT_CALLBACKS_ENABLED=OFF', '-DSINGLELIB=ON',
-        '-DAMDGPU_TARGETS=' + local_amdgpu_target()
+        '-DCMAKE_CXX_COMPILER=amdclang++', '-DCMAKE_C_COMPILER=amdclang',
+        '-DBUILD_CLIENTS_BENCH=ON', '-DROCFFT_CALLBACKS_ENABLED=OFF',
+        '-DSINGLELIB=ON', '-DAMDGPU_TARGETS=' + local_amdgpu_target()
     ]
     if dest:
         defs += [f'-DCMAKE_INSTALL_PREFIX={dest}']

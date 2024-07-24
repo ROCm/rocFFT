@@ -313,6 +313,7 @@ if( ROCFFT_MPI_ENABLE )
   target_link_libraries( rocfft_mpi_worker
     roc::rocfft
     hip::hiprand
+    hip::device
     MPI::MPI_C
     ${FFTW_LIBRARIES}
   )
