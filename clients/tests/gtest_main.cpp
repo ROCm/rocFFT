@@ -408,7 +408,10 @@ int main(int argc, char* argv[])
     app.add_option("--isize", manual_params.isize, "Logical size of input buffer");
     app.add_option("--osize", manual_params.osize, "Logical size of output buffer");
     app.add_option("--R", ramgb, "RAM limit in GiB for tests")
-        ->default_val((start_memory.total_bytes + ONE_GiB - 1) / ONE_GiB);
+        ->default_val(
+            (static_cast<size_t>(start_memory.total_bytes * system_memory::percentage_usable_memory)
+             + ONE_GiB - 1)
+            / ONE_GiB);
     app.add_option("--V", vramgb, "VRAM limit in GiB for tests")->default_val(0);
     app.add_option("--half_epsilon", half_epsilon)->default_val(9.77e-4);
     app.add_option("--single_epsilon", single_epsilon)->default_val(3.75e-5);

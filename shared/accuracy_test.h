@@ -71,6 +71,13 @@ struct system_memory
 {
     size_t total_bytes = 0;
     size_t free_bytes  = 0;
+    // Limits the amount of memory used throught the tests.
+    // Test RAM limit is: total_bytes * percentage_usable_memory.
+    // If the test system has little swap space (or there are many
+    // other processes running concurrently) and we are too
+    // aggressive with host memory usage, then the test process
+    // may get OOM killed.
+    static constexpr double percentage_usable_memory = .85;
 };
 extern system_memory start_memory;
 
