@@ -34,13 +34,15 @@ TEST(bitwise_repro_test, compare_precisions)
 {
 
     rocfft_params params_1;
-    params_1.from_token(std::string("complex_forward_len_192_single_ip_batch_1_istride_1_CI_"
-                                    "ostride_1_CI_idist_192_odist_192_ioffset_0_0_ooffset_0_0"));
+    // clang-format off
+    params_1.from_token(std::string("complex_forward_len_192_single_ip_batch_1_istride_1_CI_ostride_1_CI_idist_192_odist_192_ioffset_0_0_ooffset_0_0"));
+    // clang-format on
     params_1.validate();
 
     rocfft_params params_2;
-    params_2.from_token(std::string("complex_forward_len_192_double_ip_batch_1_istride_1_CI_"
-                                    "ostride_1_CI_idist_192_odist_192_ioffset_0_0_ooffset_0_0"));
+    // clang-format off
+    params_2.from_token(std::string("complex_forward_len_192_double_ip_batch_1_istride_1_CI_ostride_1_CI_idist_192_odist_192_ioffset_0_0_ooffset_0_0"));
+    // clang-format on
     params_2.validate();
 
     if(!params_1.valid(verbose) || !params_2.valid(verbose))
@@ -73,13 +75,15 @@ TEST(bitwise_repro_test, compare_precisions)
 TEST(bitwise_repro_test, compare_lengths)
 {
     rocfft_params params_1;
-    params_1.from_token(std::string("complex_forward_len_64_single_ip_batch_1_istride_1_CI_ostride_"
-                                    "1_CI_idist_64_odist_64_ioffset_0_0_ooffset_0_0"));
+    // clang-format off
+    params_1.from_token(std::string("complex_forward_len_64_single_ip_batch_1_istride_1_CI_ostride_1_CI_idist_64_odist_64_ioffset_0_0_ooffset_0_0"));
+    // clang-format on
     params_1.validate();
 
     rocfft_params params_2;
-    params_2.from_token(std::string("complex_forward_len_32_single_ip_batch_1_istride_1_CI_ostride_"
-                                    "1_CI_idist_32_odist_32_ioffset_0_0_ooffset_0_0"));
+    // clang-format off
+    params_2.from_token(std::string("complex_forward_len_32_single_ip_batch_1_istride_1_CI_ostride_1_CI_idist_32_odist_32_ioffset_0_0_ooffset_0_0"));
+    // clang-format on
     params_2.validate();
 
     if(!params_1.valid(verbose) || !params_2.valid(verbose))
@@ -112,13 +116,15 @@ TEST(bitwise_repro_test, compare_lengths)
 TEST(bitwise_repro_test, compare_transform_types)
 {
     rocfft_params params_1;
-    params_1.from_token(std::string("complex_forward_len_256_single_ip_batch_1_istride_1_CI_"
-                                    "ostride_1_CI_idist_256_odist_256_ioffset_0_0_ooffset_0_0"));
+    // clang-format off
+    params_1.from_token(std::string("complex_forward_len_256_single_ip_batch_1_istride_1_CI_ostride_1_CI_idist_256_odist_256_ioffset_0_0_ooffset_0_0"));
+    // clang-format on
     params_1.validate();
 
     rocfft_params params_2;
-    params_2.from_token(std::string("complex_inverse_len_256_single_ip_batch_1_istride_1_CI_"
-                                    "ostride_1_CI_idist_256_odist_256_ioffset_0_0_ooffset_0_0"));
+    // clang-format off
+    params_2.from_token(std::string("complex_inverse_len_256_single_ip_batch_1_istride_1_CI_ostride_1_CI_idist_256_odist_256_ioffset_0_0_ooffset_0_0"));
+    // clang-format on
     params_2.validate();
 
     if(!params_1.valid(verbose) || !params_2.valid(verbose))

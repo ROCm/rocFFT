@@ -322,14 +322,12 @@ INSTANTIATE_TEST_SUITE_P(adhoc_stride,
                          accuracy_test::TestName);
 
 const auto adhoc_tokens = {
-    "complex_forward_len_512_64_single_ip_batch_3_istride_192_3_CI_ostride_192_3_CI_idist_1_odist_"
-    "1_ioffset_0_0_ooffset_0_0",
-    "real_forward_len_1024_1024_1024_single_op_batch_1_istride_1048576_1024_1_R_ostride_525312_513_"
-    "1_HI_idist_1073741824_odist_537919488_ioffset_0_0_ooffset_0_0",
-    "complex_forward_len_6144_single_ip_batch_34_istride_35_CI_ostride_35_CI_idist_1_odist_1_"
-    "ioffset_0_0_ooffset_0_0",
-    "real_forward_len_8192_single_ip_batch_65537_istride_1_R_ostride_1_HI_"
-    "idist_8194_odist_4097_ioffset_0_0_ooffset_0_0",
+    // clang-format off
+    "complex_forward_len_512_64_single_ip_batch_3_istride_192_3_CI_ostride_192_3_CI_idist_1_odist_1_ioffset_0_0_ooffset_0_0",
+    "real_forward_len_1024_1024_1024_single_op_batch_1_istride_1048576_1024_1_R_ostride_525312_513_1_HI_idist_1073741824_odist_537919488_ioffset_0_0_ooffset_0_0",
+    "complex_forward_len_6144_single_ip_batch_34_istride_35_CI_ostride_35_CI_idist_1_odist_1_ioffset_0_0_ooffset_0_0",
+    "real_forward_len_8192_single_ip_batch_65537_istride_1_R_ostride_1_HI_idist_8194_odist_4097_ioffset_0_0_ooffset_0_0",
+    // clang-format on
 };
 
 INSTANTIATE_TEST_SUITE_P(adhoc_token,
