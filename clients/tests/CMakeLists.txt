@@ -202,12 +202,17 @@ if( NOT BUILD_SHARED_LIBS )
   list(APPEND rocfft-test_link_libs ${ROCFFT_CLIENTS_HOST_LINK_LIBS} ${ROCFFT_CLIENTS_DEVICE_LINK_LIBS})
 endif()
 
+if( NOT ROCFFT_BUILD_SCOPE )
+  find_package(SQLite3 REQUIRED)
+  set( ROCFFT_SQLITE_LIB SQLite::SQLite3)
+endif()
 
 target_link_libraries( rocfft-test
   PRIVATE
   hip::device
   roc::rocfft
   hip::hiprand
+  ${ROCFFT_SQLITE_LIB}
   ${rocfft-test_link_libs}
   )
 
