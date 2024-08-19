@@ -9,6 +9,7 @@ Documentation for rocFFT is available at
 
 * Implemented multi-device transform for 3D pencil decomposition.  Contiguous dimensions on input and output bricks 
   are transformed locally, with global transposes to make remaining dimensions contiguous.
+* Implemented 1D kernels for factorizable sizes < 1024
 
 ### Changes
 
