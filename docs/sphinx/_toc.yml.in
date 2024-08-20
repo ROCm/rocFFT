@@ -11,6 +11,8 @@ subtrees:
     title: Load and Store Callbacks
   - file: how-to/runtime-compilation
     title: Runtime Compilation
+  - file: how-to/distributed-transforms
+    title: Distributed Transforms
   - file: reference/reference.rst
     title: API Reference
     subtrees:

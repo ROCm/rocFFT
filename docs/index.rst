@@ -26,6 +26,7 @@ The rocFFT documentation is structured as follows:
       * :ref:`working-with-rocfft`
       * :ref:`load-store-callbacks`
       * :ref:`runtime-compilation`
+      * :ref:`distributed-transforms`
 
     .. grid-item-card:: API Reference
 

@@ -22,6 +22,11 @@ The rocFFT library provides a fast and accurate platform for calculating discret
 * Real and complex FFTs
 * Arbitrary lengths, with optimizations for combinations of powers of 2, 3, 5, 7, 11, 13, and 17
 
+rocFFT also has experimental support for:
+
+* Distributing transforms across multiple GPU devices in a single process
+* Distributing transforms across multiple MPI (Message Passing Interface) processes
+
 FFT Computation
 ===============
 
