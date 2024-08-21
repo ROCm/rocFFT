@@ -609,15 +609,14 @@ int main(int argc, char* argv[])
     for(size_t ridx = 0; ridx < ntrial_runs.size(); ++ridx)
     {
 
-        std::vector<size_t> timeindex;
+        std::vector<std::pair<size_t, std::string>> index_lib_string;
         for(size_t i = 0; i < lib_strings.size(); ++i)
         {
-            timeindex.push_back(i);
+            index_lib_string.push_back(std::make_pair(i, lib_strings[i]));
         }
         if(ridx == 1)
         {
-            std::reverse(lib_strings.begin(), lib_strings.end());
-            std::reverse(timeindex.begin(), timeindex.end());
+            std::reverse(index_lib_string.begin(), index_lib_string.end());
         }
 
         // Create the handles to the libs and the associated fft plans.
@@ -662,7 +661,7 @@ int main(int argc, char* argv[])
             run_plan(handle[idx], plan[idx], info[idx], pibuffer.data(), pobuffer.data());
         }
 
-        std::vector<int> testcase(ntrial_runs[ridx] * lib_strings.size());
+        std::vector<int> testcase(ntrial_runs[ridx] * index_lib_string.size());
 
         switch(test_sequence)
         {
@@ -671,9 +670,10 @@ int main(int argc, char* argv[])
             // Random order:
             for(int itrial = 0; itrial < ntrial_runs[ridx]; ++itrial)
             {
-                for(size_t ilib = 0; ilib < lib_strings.size(); ++ilib)
+                for(size_t ilib = 0; ilib < index_lib_string.size(); ++ilib)
                 {
-                    testcase[lib_strings.size() * itrial + ilib] = ilib;
+
+                    testcase[index_lib_string.size() * itrial + ilib] = ilib;
                 }
             }
             std::random_device rd;
@@ -685,9 +685,9 @@ int main(int argc, char* argv[])
             // Alternating order:
             for(int itrial = 0; itrial < ntrial_runs[ridx]; ++itrial)
             {
-                for(size_t ilib = 0; ilib < lib_strings.size(); ++ilib)
+                for(size_t ilib = 0; ilib < index_lib_string.size(); ++ilib)
                 {
-                    testcase[lib_strings.size() * itrial + ilib] = ilib;
+                    testcase[index_lib_string.size() * itrial + ilib] = ilib;
                 }
             }
             break;
@@ -695,7 +695,7 @@ int main(int argc, char* argv[])
             // Sequential order:
             for(int itrial = 0; itrial < ntrial_runs[ridx]; ++itrial)
             {
-                for(size_t ilib = 0; ilib < lib_strings.size(); ++ilib)
+                for(size_t ilib = 0; ilib < index_lib_string.size(); ++ilib)
                 {
                     testcase[ilib * ntrial + itrial] = ilib;
                 }
@@ -721,7 +721,8 @@ int main(int argc, char* argv[])
 
             if(verbose > 3)
             {
-                std::cout << "running test case " << tidx << "\n";
+                std::cout << "running test case " << tidx << " with lib "
+                          << index_lib_string[tidx].second << "\n";
             }
 
             if(is_device_gen)
