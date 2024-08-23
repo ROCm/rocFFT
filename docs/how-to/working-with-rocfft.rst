@@ -347,7 +347,7 @@ The workflow for fields is as follows:
 #. Create the plan by calling :cpp:func:`rocfft_plan_create`.  Pass the plan
    description that has already been allocated.
 
-#. Execute the plan by calling :cpp:func:`rocfft_execute`.  This function accepts
+#. Execute the plan by calling :cpp:func:`rocfft_execute`.  This function takes
    arrays of pointers for input and output.  If fields have been set for input
    or output, then the arrays must contain pointers to each brick in the input
    or output.
@@ -356,7 +356,9 @@ The workflow for fields is as follows:
    added to the field (via calls to :cpp:func:`rocfft_field_add_brick`), and
    must point to memory on the device that was specified at that time.
 
-   For in-place transforms, only pass input pointers and do not pass
+   .. important::
+
+   For in-place transforms, pass a nonempty array of input pointers and
    an empty array of output pointers.
 
 Transforms of real data
