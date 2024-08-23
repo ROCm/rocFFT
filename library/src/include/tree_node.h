@@ -515,9 +515,17 @@ public:
     // insert a newNode before the node "pos"
     void RecursiveInsertNode(TreeNode* pos, std::unique_ptr<TreeNode>& newNode);
 
+    // Get root node of plan
     TreeNode* GetPlanRoot();
+    // If 'this' is a leaf, return it.  Otherwise, return the first
+    // leaf node under 'this' in the execution sequence.
     TreeNode* GetFirstLeaf();
+    // If 'this' is a leaf, return it.  Otherwise, return the last leaf
+    // node under 'this' in the execution sequence.
     TreeNode* GetLastLeaf();
+    // Return ancestor node of 'this' that is real-even (1D/2D/3D), or
+    // nullptr if there is no such ancestor
+    TreeNode* GetRealEvenAncestor();
     bool      IsRootPlanC2CTransform();
 
     // Set length of transpose kernel node, since those are easily
