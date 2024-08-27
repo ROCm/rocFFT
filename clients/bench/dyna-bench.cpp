@@ -498,14 +498,6 @@ int main(int argc, char* argv[])
         return EXIT_SUCCESS;
     }
 
-    const auto vram_footprint = params.vram_footprint();
-    if(!vram_fits_problem(vram_footprint, free))
-    {
-        std::cout << "SKIPPED: Problem size (" << vram_footprint
-                  << ") raw data too large for device.\n";
-        return EXIT_SUCCESS;
-    }
-
     // GPU input buffer:
     auto                ibuffer_sizes = params.ibuffer_sizes();
     std::vector<gpubuf> ibuffer(ibuffer_sizes.size());
@@ -643,6 +635,15 @@ int main(int argc, char* argv[])
         }
 
         std::cout << "Work buffer size: " << wbuffer_size << std::endl;
+
+        if(!vram_fits_problem(raw_vram_footprint + wbuffer_size, free))
+        {
+            std::cout << "SKIPPED: Problem size (" << raw_vram_footprint << " + " << +wbuffer_size
+                      << " = " << raw_vram_footprint + wbuffer_size
+                      << " ) data too large for device.\n";
+            return EXIT_SUCCESS;
+        }
+
         gpubuf wbuffer;
         if(wbuffer_size)
         {
