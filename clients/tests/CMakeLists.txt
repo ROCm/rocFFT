@@ -310,6 +310,7 @@ if( ROCFFT_MPI_ENABLE )
   add_executable( rocfft_mpi_worker rocfft_mpi_worker.cpp )
   target_include_directories( rocfft_mpi_worker
     PRIVATE
+    $<BUILD_INTERFACE:${FFTW_INCLUDES}>
     ${CMAKE_BINARY_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
     ${MPI_C_INCLUDE_PATH}
