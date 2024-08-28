@@ -513,6 +513,9 @@ if ( ROCFFT_KERNEL_CACHE_ENABLE )
   set( AMDGPU_TARGETS_AOT ${AMDGPU_TARGETS} )
   list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx803 )
   list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx900 )
+  list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx906 )
+  list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx940 )
+  list( REMOVE_ITEM AMDGPU_TARGETS_AOT gfx941 )
   # The binary will be having relative RUNPATH with respect to install directory
   # Set LD_LIBRARY_PATH for executing the binary from build directory.
   add_custom_command(

@@ -5,6 +5,11 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.31 (unreleased)
 
+### Changes
+
+* Remove ahead-of-time compiled kernels for gfx906, gfx940, gfx941.  These architectures still
+  function the same, but kernels for them are now compiled at runtime.
+
 ### Fixes
 
 * Fixed incorrect results from 2-kernel 3D FFT plans that used non-default output strides.
