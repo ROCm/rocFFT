@@ -221,8 +221,11 @@ def command_test(arguments):
             sig_speedups.append(case[1] / case[2])
         import scipy
         geomean = scipy.stats.mstats.gmean(sig_speedups)
-    print("geomean:", geomean)
+    print("geomean (significant cases):", geomean)
 
+    globalgeomean = perflib.utils.find_geomean(outdirs, verbose)
+    print("geomean:", globalgeomean)
+    
     return len(slower) > 0
 
 

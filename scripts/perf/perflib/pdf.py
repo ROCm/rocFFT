@@ -160,6 +160,9 @@ def make_tex(figs,
   urlcolor=blue
 }
 '''
+    globalgeomean = perflib.utils.find_geomean(outdirs, False)
+    print("geomean:", globalgeomean)
+
     tex = header
 
     tex += "\n\\section{Introduction}\n"
@@ -296,6 +299,8 @@ def make_tex(figs,
         print(
             "nslowdown (" + label[0] + " is faster): " +
             " " * max(len(label[1]) - len(label[0]), 0), nslowdown)
+        tex += "geometric mean overall cases: " + str(globalgeomean) + "\n"
+
         if ncompare > 0:
             geometric_mean = 1.0
             if len(speedups) > 1:

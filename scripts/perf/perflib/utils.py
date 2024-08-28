@@ -132,6 +132,34 @@ def find_ncompare(runs):
     return ncompare
 
 
+def find_geomean(outdirs, verbose):
+    import perflib.utils
+    all_runs = perflib.utils.read_runs(outdirs, verbose)
+    if len(all_runs) != 2:
+        return None
+    runs = perflib.utils.by_dat(all_runs)
+    refdir, testdir = outdirs
+
+    ratios = []
+
+    import statistics
+    from dataclasses import dataclass
+
+    for dat_name, dat_runs in runs.items():
+        if (refdir in dat_runs.keys() and testdir in dat_runs.keys()):
+            refdat = dat_runs[refdir]
+            testdat = dat_runs[testdir]
+            for token, sample in refdat.get_samples():
+                if token in testdat.samples:
+                    Avals = refdat.samples[token].times
+                    Bvals = testdat.samples[token].times
+                    ratios.append(
+                        statistics.median(Avals) / statistics.median(Bvals))
+
+    import scipy
+    return scipy.stats.mstats.gmean(ratios)
+
+
 def find_slower_faster(outdirs, method, multitest, significance, ncompare,
                        verbose):
     # Takes exactly two outdirs; the first is the reference, the
