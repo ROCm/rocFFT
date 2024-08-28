@@ -5,6 +5,10 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.31 (unreleased)
 
+### Fixes
+
+* Fixed incorrect results from 2-kernel 3D FFT plans that used non-default output strides.
+
 ## rocFFT 1.0.30 for ROCm 6.3.0
 
 ### Additions

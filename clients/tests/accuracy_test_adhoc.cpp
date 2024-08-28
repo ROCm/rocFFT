@@ -323,6 +323,7 @@ INSTANTIATE_TEST_SUITE_P(adhoc_stride,
 
 const auto adhoc_tokens = {
     // clang-format off
+    "complex_forward_len_4_4_4_single_op_batch_2_istride_16_4_1_CI_ostride_4_16_1_CI_idist_64_odist_64_ioffset_0_0_ooffset_0_0",
     "complex_forward_len_512_64_single_ip_batch_3_istride_192_3_CI_ostride_192_3_CI_idist_1_odist_1_ioffset_0_0_ooffset_0_0",
     "real_forward_len_1024_1024_1024_single_op_batch_1_istride_1048576_1024_1_R_ostride_525312_513_1_HI_idist_1073741824_odist_537919488_ioffset_0_0_ooffset_0_0",
     "complex_forward_len_6144_single_ip_batch_34_istride_35_CI_ostride_35_CI_idist_1_odist_1_ioffset_0_0_ooffset_0_0",

@@ -662,11 +662,11 @@ void RC3DNode::AssignParams_internal()
 
     xyPlan->AssignParams();
 
-    zPlan->inStride.push_back(inStride[2]);
-    zPlan->inStride.push_back(inStride[0]);
-    zPlan->inStride.push_back(inStride[1]);
+    zPlan->inStride.push_back(outStride[2]);
+    zPlan->inStride.push_back(outStride[0]);
+    zPlan->inStride.push_back(outStride[1]);
     for(size_t index = 3; index < length.size(); index++)
-        zPlan->inStride.push_back(inStride[index]);
+        zPlan->inStride.push_back(outStride[index]);
 
     zPlan->iDist = xyPlan->oDist;
 
