@@ -2886,6 +2886,7 @@ rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
 
 rocfft_status rocfft_plan_destroy(rocfft_plan plan)
 {
+    log_trace(__func__, "plan", plan);
     delete plan;
     return rocfft_status_success;
 }
