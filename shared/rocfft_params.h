@@ -467,10 +467,6 @@ public:
     fft_status execute(void** in, void** out) override
     {
         auto ret = rocfft_execute(plan, in, out, info);
-        // work around potential problem of following hipMemcpy
-        // not properly waiting for rocFFT's kernels to finish
-        if(hipDeviceSynchronize() != hipSuccess)
-            throw std::runtime_error("hipDeviceSynchronize after execute failed");
         return fft_status_from_rocfftparams(ret);
     }
 
