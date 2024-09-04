@@ -13,6 +13,7 @@ Documentation for rocFFT is available at
 ### Fixes
 
 * Fixed incorrect results from 2-kernel 3D FFT plans that used non-default output strides.
+* Allow plan descriptions to be reused with different strides for different plans.
 
 ## rocFFT 1.0.30 for ROCm 6.3.0
 

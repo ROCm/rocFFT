@@ -101,6 +101,96 @@ TEST(rocfft_UnitTest, plan_description)
     ASSERT_TRUE(rocfft_status_success == rocfft_plan_destroy(plan));
 }
 
+TEST(rocfft_UnitTest, plan_description_reuse)
+{
+    // check that a plan description can be reused between different
+    // plans, with different layout parameters for each.
+
+    // allocate plan description once
+    rocfft_plan_description desc = nullptr;
+    ASSERT_EQ(rocfft_plan_description_create(&desc), rocfft_status_success);
+
+    std::vector<rocfft_complex<float>> output;
+
+    // do length-8 FFTs with different strides.  first one is
+    // stride-1 and we use that as our baseline to know what output
+    // to expect for the rest
+    const size_t length = 8;
+    for(const size_t stride : {1, 2, 4})
+    {
+        // set layout for this stride
+        ASSERT_EQ(rocfft_plan_description_set_data_layout(desc,
+                                                          rocfft_array_type_complex_interleaved,
+                                                          rocfft_array_type_complex_interleaved,
+                                                          nullptr,
+                                                          nullptr,
+                                                          1,
+                                                          &stride,
+                                                          length * stride,
+                                                          1,
+                                                          &stride,
+                                                          length * stride),
+                  rocfft_status_success);
+
+        static const rocfft_complex<float> input[8]{{-0.100, 0.380},
+                                                    {0.0166, 0.439},
+                                                    {-0.475, 0.212},
+                                                    {0.440, -0.432},
+                                                    {0.445, 0.0589},
+                                                    {0.296, 0.164},
+                                                    {-0.084, 0.077},
+                                                    {0.320, 0.087}};
+
+        // allocate host buffer.  initialize the whole thing to zero
+        // but set a known input along the strides we want
+        std::vector<rocfft_complex<float>> data_host(length * stride, {0.0, 0.0});
+        for(size_t i = 0; i < length; ++i)
+        {
+            data_host[i * stride] = input[i];
+        }
+
+        // copy to device
+        const size_t data_bytes = data_host.size() * sizeof(rocfft_complex<float>);
+        gpubuf_t<rocfft_complex<float>> data_dev;
+        ASSERT_EQ(data_dev.alloc(data_bytes), hipSuccess);
+        void* data_dev_ptr = data_dev.data();
+        ASSERT_EQ(hipMemcpy(data_dev_ptr, data_host.data(), data_bytes, hipMemcpyHostToDevice),
+                  hipSuccess);
+
+        // do the transform
+        rocfft_plan plan = nullptr;
+        ASSERT_EQ(rocfft_plan_create(&plan,
+                                     rocfft_placement_inplace,
+                                     rocfft_transform_type_complex_forward,
+                                     rocfft_precision_single,
+                                     1,
+                                     &length,
+                                     1,
+                                     desc),
+                  rocfft_status_success);
+        ASSERT_EQ(rocfft_execute(plan, &data_dev_ptr, nullptr, nullptr), rocfft_status_success);
+        ASSERT_EQ(hipMemcpy(data_host.data(), data_dev_ptr, data_bytes, hipMemcpyDeviceToHost),
+                  hipSuccess);
+        ASSERT_EQ(hipDeviceSynchronize(), hipSuccess);
+
+        // save output for reference on first run
+        if(output.empty())
+        {
+            output = data_host;
+        }
+        else
+        {
+            // check that the output matches output from the first
+            // (stride-1) run.
+            for(size_t i = 0; i < length; ++i)
+                ASSERT_EQ(data_host[i * stride], output[i]);
+        }
+        ASSERT_EQ(rocfft_plan_destroy(plan), rocfft_status_success);
+    }
+
+    ASSERT_EQ(rocfft_plan_description_destroy(desc), rocfft_status_success);
+}
+
 // Check whether logs can be emitted from multiple threads properly
 TEST(rocfft_UnitTest, log_multithreading)
 {

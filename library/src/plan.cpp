@@ -422,6 +422,7 @@ rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description de
 
     if(in_strides != nullptr)
     {
+        description->inStrides.clear();
         std::copy(
             in_strides, in_strides + in_strides_size, std::back_inserter(description->inStrides));
     }
@@ -431,6 +432,7 @@ rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description de
 
     if(out_strides != nullptr)
     {
+        description->outStrides.clear();
         std::copy(out_strides,
                   out_strides + out_strides_size,
                   std::back_inserter(description->outStrides));
