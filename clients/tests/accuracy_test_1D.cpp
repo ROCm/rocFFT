@@ -210,29 +210,34 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_offset_mix_1D,
 
 // small 1D sizes just need to make sure our factorization isn't
 // completely broken, so we just check simple C2C outplace interleaved
-INSTANTIATE_TEST_SUITE_P(small_1D,
-                         accuracy_test,
-                         ::testing::ValuesIn(param_generator_base(
-                             {fft_transform_type_complex_forward},
-                             generate_lengths({small_1D_sizes()}),
-                             {fft_precision_single},
-                             {1},
-                             [](fft_transform_type                       t,
-                                const std::vector<fft_result_placement>& place_range,
-                                const bool                               planar) {
-                                 return std::vector<type_place_io_t>{
-                                     std::make_tuple(t,
-                                                     place_range[0],
-                                                     fft_array_type_complex_interleaved,
-                                                     fft_array_type_complex_interleaved)};
-                             },
-                             stride_range,
-                             stride_range,
-                             ioffset_range_zero,
-                             ooffset_range_zero,
-                             {fft_placement_notinplace},
-                             true)),
-                         accuracy_test::TestName);
+INSTANTIATE_TEST_SUITE_P(
+    small_1D,
+    accuracy_test,
+    ::testing::ValuesIn(param_generator_base(
+        {fft_transform_type_complex_forward, fft_transform_type_real_forward},
+        generate_lengths({small_1D_sizes()}),
+        {fft_precision_single},
+        {1},
+        [](fft_transform_type                       t,
+           const std::vector<fft_result_placement>& place_range,
+           const bool                               planar) {
+            if(t == fft_transform_type_complex_forward)
+                return std::vector<type_place_io_t>{
+                    std::make_tuple(t,
+                                    place_range[0],
+                                    fft_array_type_complex_interleaved,
+                                    fft_array_type_complex_interleaved)};
+            else
+                return std::vector<type_place_io_t>{std::make_tuple(
+                    t, place_range[0], fft_array_type_real, fft_array_type_hermitian_interleaved)};
+        },
+        stride_range,
+        stride_range,
+        ioffset_range_zero,
+        ooffset_range_zero,
+        {fft_placement_inplace},
+        true)),
+    accuracy_test::TestName);
 
 // NB:
 // We have known non-unit strides issues for 1D:

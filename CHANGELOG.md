@@ -16,6 +16,10 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.30 for ROCm 6.3.0
 
+### Fixes
+
+* Fixed plan creation failure on some even-length real-complex transforms that use Bluestein's algorithm.
+
 ### Additions
 
 * Implemented experimental APIs to allow computing FFTs on data

@@ -113,17 +113,14 @@ void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
 
     // Even-length internal nodes have real data for input or output but
     // child nodes treat it as complex interleaved
-    if(node->parent
-       && (node->parent->scheme == CS_REAL_TRANSFORM_EVEN || node->parent->scheme == CS_REAL_2D_EVEN
-           || node->parent->scheme == CS_REAL_3D_EVEN))
+    auto realEvenAncestor = node->GetRealEvenAncestor();
+    if(realEvenAncestor)
     {
         // forward transform, first node (if it's a leaf) needs to treat real input as complex
-        if(node->direction == -1 && node == node->parent->childNodes.front().get()
-           && node->childNodes.empty())
+        if(node->direction == -1 && node == realEvenAncestor->GetFirstLeaf())
             node->inArrayType = rocfft_array_type_complex_interleaved;
         // inverse transform, last node (if it's a leaf) needs to treat real output as complex
-        if(node->direction == 1 && node == node->parent->childNodes.back().get()
-           && node->childNodes.empty())
+        if(node->direction == 1 && node == realEvenAncestor->GetLastLeaf())
             node->outArrayType = rocfft_array_type_complex_interleaved;
     }
 
@@ -174,11 +171,8 @@ void PlacementTrace::Backtracking(ExecPlan& execPlan, int execSeqID)
 
     // if we're here, then 'node' must have already been the first
     // node (and had its input set properly), or it's preceded only
-    // by chirp setup nodes.  in that case, we'll need to use root
-    // input type since the setup nodes are disconnected from the
-    // rest of the data flow.
-    if(node->parent && node != node->parent->childNodes.front().get())
-        node->inArrayType = execPlan.rootPlan->inArrayType;
+    // by chirp setup nodes.  input type we set earlier is already
+    // right.
 }
 
 // test if rootArrayType == testArrayType,

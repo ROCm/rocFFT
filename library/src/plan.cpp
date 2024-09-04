@@ -3742,6 +3742,22 @@ TreeNode* TreeNode::GetLastLeaf()
     return (nodeType == NT_LEAF) ? this : childNodes.back()->GetLastLeaf();
 }
 
+TreeNode* TreeNode::GetRealEvenAncestor()
+{
+    // If no ancestor, stop
+    if(!parent)
+        return nullptr;
+
+    // If parent is directly an even-length plan, then that's what
+    // we're looking for
+    if(parent->scheme == CS_REAL_TRANSFORM_EVEN || parent->scheme == CS_REAL_2D_EVEN
+       || parent->scheme == CS_REAL_3D_EVEN)
+        return parent;
+
+    // Otherwise keep looking up the tree
+    return parent->GetRealEvenAncestor();
+}
+
 bool TreeNode::IsRootPlanC2CTransform()
 {
     auto root = GetPlanRoot();
