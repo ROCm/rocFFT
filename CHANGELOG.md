@@ -37,7 +37,7 @@ Documentation for rocFFT is available at
 
 * Compile with amdclang++ instead of hipcc.
 * Add --smoketest option to rocfft-test.
-* Support gfx1200 and gfx1201 architectures.
+* Support gfx1151, gfx1200, and gfx1201 architectures.
 * Replace Boost Program Options with CLI11 as the command line parser for clients and samples.
 
 ## rocFFT 1.0.29 for ROCm 6.2.1
