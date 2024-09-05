@@ -39,14 +39,10 @@ def run(bench,
         libraries=None,
         verbose=False,
         timeout=300,
-        sequence=None):
+        sequence=None,
+        skiphip=True):
     """Run rocFFT bench and return execution times."""
     cmd = [pathlib.Path(bench).resolve()]
-
-    if isinstance(length, int):
-        cmd += ['--length', length]
-    else:
-        cmd += ['--length'] + list(length)
 
     if libraries is not None:
         for library in libraries:
@@ -55,6 +51,16 @@ def run(bench,
             # only use different randomizations if using dyna-bench
             if sequence is not None:
                 cmd += ['--sequence', str(sequence)]
+
+    if skiphip:
+        cmd += ['--ignore_runtime_failures']
+    else:
+        cmd += ['--no_ignore_runtime_failures']
+
+    if isinstance(length, int):
+        cmd += ['--length', length]
+    else:
+        cmd += ['--length'] + list(length)
 
     cmd += ['-N', ntrial]
     cmd += ['-b', nbatch]
@@ -138,9 +144,11 @@ def run(bench,
     if proc.returncode == 0:
         if "SKIPPED" in cout:
             print('s', end='', flush=True)
+        elif "HIP_V_THROWERROR" in cout:
+            print('h', end='', flush=True)
+            # TODO: print hip runtime failed cases?
         else:
             print('.', end='', flush=True)
-
     else:
         print('x', end='', flush=True)
 

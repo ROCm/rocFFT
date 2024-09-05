@@ -42,6 +42,7 @@ class Timer:
     verbose: bool = False
     timeout: float = 0
     sequence: int = None
+    hipskip: bool = True
 
     def run_cases(self, generator):
 
@@ -68,7 +69,8 @@ class Timer:
                 libraries=self.lib,
                 verbose=self.verbose,
                 timeout=self.timeout,
-                sequence=self.sequence)
+                sequence=self.sequence,
+                skiphip=self.hipskip)
 
             if success:
                 for idx, vals in enumerate(seconds):

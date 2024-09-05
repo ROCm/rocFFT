@@ -497,7 +497,7 @@ def command_run(arguments):
         generator = perflib.generators.RadixProblemGenerator()
         for attr in [
                 'radix', 'xmin', 'xmax', 'ymin', 'ymax', 'zmin', 'zmax',
-                'verbose', 'timeout'
+                'verbose', 'timeout', 'hipskip'
         ]:
             update(attr, generator, arguments)
 
@@ -556,9 +556,9 @@ def command_run(arguments):
 
     failed_tokens = timer.run_cases(filtered(generator))
 
+    print()
+    
     if failed_tokens:
-        print()
-
         logging.info("failed tokens: " + "\n".join(failed_tokens))
         print("failed tokens:\n" + "\n".join(failed_tokens))
 
@@ -804,10 +804,15 @@ def command_bweff(arguments):
 
 
 def main():
+    
     parser = argparse.ArgumentParser(
         prog='rocfft-perf',
         epilog="For a detailed usage overview, run: %(prog)s overview")
     parser.add_argument('-v', '--verbose', action='store_true', default=False)
+    parser.add_argument('--logfile',
+                       type=str,
+                       help="log file name",
+                       default="rocfft-perf.log")
 
     subparsers = parser.add_subparsers(dest='command')
 
@@ -880,6 +885,8 @@ def main():
                        action='append')
 
     run_parser.add_argument('-g', '--device', type=int, help='device number')
+    run_parser.add_argument('--hipskip', action=argparse.BooleanOptionalAction,
+                            help='Do not count hip runtime error codes as failures')
     run_parser.add_argument('-l',
                             '--list',
                             help='list runs (but do not run them)',
@@ -1081,6 +1088,17 @@ def main():
 
     arguments = parser.parse_args()
 
+   
+    logging.basicConfig(filename=arguments.logfile,
+                        format='%(asctime)s %(levelname)s: %(message)s',
+                        level=logging.DEBUG)
+
+    console.setLevel(logging.WARNING)
+    console.setFormatter(logging.Formatter('%(levelname)-8s: %(message)s'))
+    logging.getLogger('').addHandler(console)
+
+
+    
     if arguments.verbose:
         console.setLevel(logging.INFO)
 
@@ -1119,12 +1137,4 @@ def main():
 
 
 if __name__ == '__main__':
-    logging.basicConfig(filename='rocfft-perf.log',
-                        format='%(asctime)s %(levelname)s: %(message)s',
-                        level=logging.DEBUG)
-
-    console.setLevel(logging.WARNING)
-    console.setFormatter(logging.Formatter('%(levelname)-8s: %(message)s'))
-    logging.getLogger('').addHandler(console)
-
     main()

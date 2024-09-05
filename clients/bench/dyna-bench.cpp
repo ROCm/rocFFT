@@ -108,7 +108,7 @@ rocfft_plan make_plan(ROCFFT_LIB libhandle, const fft_params& params)
 {
     auto procfft_setup = (decltype(&rocfft_setup))rocfft_lib_symbol(libhandle, "rocfft_setup");
     if(procfft_setup == NULL)
-        exit(1);
+        throw rocfft_runtime_error("rocfft_setup failed");
     auto procfft_plan_description_create
         = (decltype(&rocfft_plan_description_create))rocfft_lib_symbol(
             libhandle, "rocfft_plan_description_create");
@@ -283,6 +283,10 @@ int main(int argc, char* argv[])
     // hip Device number for running tests:
     int deviceId{};
 
+    // Ignore runtime failures.
+    // eg: hipMalloc failing when there isn't enough free vram.
+    bool ignore_hip_runtime_failures{true};
+
     // Number of performance trial samples:
     int ntrial{};
 
@@ -364,6 +368,10 @@ int main(int argc, char* argv[])
     CLI::Option* opt_ioffset = non_token->add_option("--ioffset", params.ioffset, "Input offset");
     CLI::Option* opt_ooffset = non_token->add_option("--ooffset", params.ooffset, "Output offset");
 
+    app.add_flag("--ignore_runtime_failures,!--no-ignore_runtime_failures",
+                 ignore_hip_runtime_failures,
+                 "Ignore hip runtime failures");
+
     app.add_option("--device", deviceId, "Select a specific device id")->default_val(0);
     app.add_option("--verbose", verbose, "Control output verbosity")->default_val(0);
     app.add_option("-N, --ntrial", ntrial, "Trial size for the problem")
@@ -399,7 +407,7 @@ int main(int argc, char* argv[])
         if(!std::filesystem::exists(lib_string))
         {
             std::cerr << "Error: lib " << lib_string << " does not exist\n";
-            exit(1);
+            return EXIT_FAILURE;
         }
     }
 
@@ -414,7 +422,7 @@ int main(int argc, char* argv[])
         catch(...)
         {
             std::cout << "Unable to parse token." << std::endl;
-            return 1;
+            return EXIT_FAILURE;
         }
     }
     else
@@ -475,7 +483,7 @@ int main(int argc, char* argv[])
 
     if(!params.valid(verbose))
     {
-        throw std::runtime_error("Invalid parameters, add --verbose=1 for detail");
+        throw rocfft_runtime_error("Invalid parameters, add --verbose=1 for detail");
     }
 
     std::cout << "Token: " << params.token() << std::endl;
@@ -487,7 +495,14 @@ int main(int argc, char* argv[])
     // Check free and total available memory:
     size_t free  = 0;
     size_t total = 0;
-    HIP_V_THROW(hipMemGetInfo(&free, &total), "hipMemGetInfo failed");
+    try
+    {
+        HIP_V_THROW(hipMemGetInfo(&free, &total), "hipMemGetInfo failed");
+    }
+    catch(rocfft_hip_runtime_error)
+    {
+        return ignore_hip_runtime_failures ? EXIT_SUCCESS : EXIT_FAILURE;
+    }
 
     const auto raw_vram_footprint
         = params.fft_params_vram_footprint() + twiddle_table_vram_footprint(params);
@@ -504,7 +519,14 @@ int main(int argc, char* argv[])
     std::vector<void*>  pibuffer(ibuffer_sizes.size());
     for(unsigned int i = 0; i < ibuffer.size(); ++i)
     {
-        HIP_V_THROW(ibuffer[i].alloc(ibuffer_sizes[i]), "Creating input Buffer failed");
+        try
+        {
+            HIP_V_THROW(ibuffer[i].alloc(ibuffer_sizes[i]), "Creating input Buffer failed");
+        }
+        catch(rocfft_hip_runtime_error)
+        {
+            return ignore_hip_runtime_failures ? EXIT_SUCCESS : EXIT_FAILURE;
+        }
         pibuffer[i] = ibuffer[i].data();
     }
 
@@ -527,11 +549,18 @@ int main(int argc, char* argv[])
             ibuffer_cpu = allocate_host_buffer(params.precision, params.itype, params.isize);
             for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
             {
-                HIP_V_THROW(hipMemcpy(ibuffer_cpu.at(idx).data(),
-                                      ibuffer[idx].data(),
-                                      ibuffer_sizes[idx],
-                                      hipMemcpyDeviceToHost),
-                            "hipMemcpy failed");
+                try
+                {
+                    HIP_V_THROW(hipMemcpy(ibuffer_cpu.at(idx).data(),
+                                          ibuffer[idx].data(),
+                                          ibuffer_sizes[idx],
+                                          hipMemcpyDeviceToHost),
+                                "hipMemcpy failed");
+                }
+                catch(rocfft_hip_runtime_error)
+                {
+                    return ignore_hip_runtime_failures ? EXIT_SUCCESS : EXIT_FAILURE;
+                }
             }
 
             std::cout << "GPU input:\n";
@@ -553,11 +582,18 @@ int main(int argc, char* argv[])
 
         for(unsigned int idx = 0; idx < ibuffer_cpu.size(); ++idx)
         {
-            HIP_V_THROW(hipMemcpy(pibuffer[idx],
-                                  ibuffer_cpu[idx].data(),
-                                  ibuffer_cpu[idx].size(),
-                                  hipMemcpyHostToDevice),
-                        "hipMemcpy failed");
+            try
+            {
+                HIP_V_THROW(hipMemcpy(pibuffer[idx],
+                                      ibuffer_cpu[idx].data(),
+                                      ibuffer_cpu[idx].size(),
+                                      hipMemcpyHostToDevice),
+                            "hipMemcpy failed");
+            }
+            catch(rocfft_hip_runtime_error)
+            {
+                return ignore_hip_runtime_failures ? EXIT_SUCCESS : EXIT_FAILURE;
+            }
         }
     }
 
@@ -574,7 +610,15 @@ int main(int argc, char* argv[])
         obuffer_data.resize(obuffer_sizes.size());
         for(unsigned int i = 0; i < obuffer_data.size(); ++i)
         {
-            HIP_V_THROW(obuffer_data[i].alloc(obuffer_sizes[i]), "Creating output Buffer failed");
+            try
+            {
+                HIP_V_THROW(obuffer_data[i].alloc(obuffer_sizes[i]),
+                            "Creating output Buffer failed");
+            }
+            catch(rocfft_hip_runtime_error)
+            {
+                return ignore_hip_runtime_failures ? EXIT_SUCCESS : EXIT_FAILURE;
+            }
         }
     }
     std::vector<void*> pobuffer(obuffer->size());
@@ -647,7 +691,14 @@ int main(int argc, char* argv[])
         gpubuf wbuffer;
         if(wbuffer_size)
         {
-            HIP_V_THROW(wbuffer.alloc(wbuffer_size), "Creating intermediate Buffer failed");
+            try
+            {
+                HIP_V_THROW(wbuffer.alloc(wbuffer_size), "Creating intermediate Buffer failed");
+            }
+            catch(rocfft_hip_runtime_error)
+            {
+                return ignore_hip_runtime_failures ? EXIT_SUCCESS : EXIT_FAILURE;
+            }
         }
 
         // Associate the work buffer to the individual libraries:
@@ -659,7 +710,14 @@ int main(int argc, char* argv[])
         // Run the plan using its associated rocFFT library:
         for(unsigned int idx = 0; idx < handle.size(); ++idx)
         {
-            run_plan(handle[idx], plan[idx], info[idx], pibuffer.data(), pobuffer.data());
+            try
+            {
+                run_plan(handle[idx], plan[idx], info[idx], pibuffer.data(), pobuffer.data());
+            }
+            catch(rocfft_hip_runtime_error)
+            {
+                return ignore_hip_runtime_failures ? EXIT_SUCCESS : EXIT_FAILURE;
+            }
         }
 
         std::vector<int> testcase(ntrial_runs[ridx] * index_lib_string.size());
@@ -734,28 +792,49 @@ int main(int argc, char* argv[])
             {
                 for(unsigned int bidx = 0; bidx < ibuffer_cpu.size(); ++bidx)
                 {
-                    HIP_V_THROW(hipMemcpy(pibuffer[bidx],
-                                          ibuffer_cpu[bidx].data(),
-                                          ibuffer_cpu[bidx].size(),
-                                          hipMemcpyHostToDevice),
-                                "hipMemcpy failed");
+                    try
+                    {
+                        HIP_V_THROW(hipMemcpy(pibuffer[bidx],
+                                              ibuffer_cpu[bidx].data(),
+                                              ibuffer_cpu[bidx].size(),
+                                              hipMemcpyHostToDevice),
+                                    "hipMemcpy failed");
+                    }
+                    catch(rocfft_hip_runtime_error)
+                    {
+                        return ignore_hip_runtime_failures ? EXIT_SUCCESS : EXIT_FAILURE;
+                    }
                 }
             }
 
             // Run the plan using its associated rocFFT library:
-            time[tidx].push_back(
-                run_plan(handle[tidx], plan[tidx], info[tidx], pibuffer.data(), pobuffer.data()));
+            try
+            {
+                time[tidx].push_back(run_plan(
+                    handle[tidx], plan[tidx], info[tidx], pibuffer.data(), pobuffer.data()));
+            }
+            catch(rocfft_hip_runtime_error)
+            {
+                return ignore_hip_runtime_failures ? EXIT_SUCCESS : EXIT_FAILURE;
+            }
 
             if(verbose > 2)
             {
                 auto output = allocate_host_buffer(params.precision, params.otype, params.osize);
                 for(unsigned int iout = 0; iout < output.size(); ++iout)
                 {
-                    HIP_V_THROW(hipMemcpy(output[iout].data(),
-                                          pobuffer[iout],
-                                          output[iout].size(),
-                                          hipMemcpyDeviceToHost),
-                                "hipMemcpy failed");
+                    try
+                    {
+                        HIP_V_THROW(hipMemcpy(output[iout].data(),
+                                              pobuffer[iout],
+                                              output[iout].size(),
+                                              hipMemcpyDeviceToHost),
+                                    "hipMemcpy failed");
+                    }
+                    catch(rocfft_hip_runtime_error)
+                    {
+                        return ignore_hip_runtime_failures ? EXIT_SUCCESS : EXIT_FAILURE;
+                    }
                 }
                 std::cout << "GPU output:\n";
                 params.print_obuffer(output);

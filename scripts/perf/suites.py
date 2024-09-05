@@ -662,7 +662,7 @@ def batch_const_count():
     # batch * length = 2^25 ... 2^30
     for direction in [-1, 1]:
         for precision in all_precisions:
-            for exp in [25, 26, 27, 28, 29, 30]:
+            for exp in [25, 26, 27, 28, 29, 30, 31, 32]:
                 for place in all_inplaces:
                     for lexp in range(4, exp + 1):
                         length = 2**lexp

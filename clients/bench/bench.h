@@ -25,6 +25,15 @@
 #include <hip/hip_runtime_api.h>
 #include <vector>
 
+class rocfft_hip_runtime_error : public std::runtime_error
+{
+public:
+    rocfft_hip_runtime_error(const std::string& msg = "")
+        : runtime_error(msg)
+    {
+    }
+};
+
 // This is used to either wrap a HIP function call, or to explicitly check a variable
 // for an error condition.  If an error occurs, we throw.
 // Note: std::runtime_error does not take unicode strings as input, so only strings
@@ -45,9 +54,18 @@ inline void
         tmp << msg;
         std::string errorm(tmp.str());
         std::cout << errorm << std::endl;
-        throw std::runtime_error(errorm);
+        throw rocfft_hip_runtime_error(errorm);
     }
 }
+
+class rocfft_runtime_error : public std::runtime_error
+{
+public:
+    rocfft_runtime_error(const std::string& msg = "")
+        : runtime_error(msg)
+    {
+    }
+};
 
 inline void lib_V_Throw(rocfft_status      res,
                         const std::string& msg,
@@ -67,7 +85,7 @@ inline void lib_V_Throw(rocfft_status      res,
         tmp << msg;
         std::string errorm(tmp.str());
         std::cout << errorm << std::endl;
-        throw std::runtime_error(errorm);
+        throw rocfft_runtime_error(errorm);
     }
 }
 
