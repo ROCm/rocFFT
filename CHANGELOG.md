@@ -5,6 +5,10 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.31 (unreleased)
 
+### Optimizations
+
+* Implemented 1D kernels for factorizable sizes > 1024 and < 2048
+
 ### Changes
 
 * Remove ahead-of-time compiled kernels for gfx906, gfx940, gfx941.  These architectures still
