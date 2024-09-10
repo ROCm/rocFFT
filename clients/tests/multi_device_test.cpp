@@ -135,8 +135,8 @@ std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
             }
 
             p_dist.mp_lib = mp_lib;
-            p_dist.distribute_input(input_grid);
-            p_dist.distribute_output(output_grid);
+            p_dist.distribute_input(localDeviceCount, input_grid);
+            p_dist.distribute_output(localDeviceCount, output_grid);
 
             // "placement" flag is meaningless if exactly one of
             // input+output is a field.  So just add those cases if

@@ -2034,7 +2034,8 @@ public:
     // number of bricks to split that dimension on.  Field length
     // starts with batch dimension, followed by FFT dimensions
     // slowest to fastest.
-    void distribute_field(const std::vector<unsigned int>& brick_grid,
+    void distribute_field(int                              localDeviceCount,
+                          const std::vector<unsigned int>& brick_grid,
                           std::vector<fft_field>&          fields,
                           const std::vector<size_t>&       field_length)
     {
@@ -2103,28 +2104,35 @@ public:
             if(mp_lib == fft_mp_lib_none)
                 b.device = brickIdx++;
             else
+            {
                 b.rank = brickIdx++;
+
+                // if there are at least as many devices as bricks,
+                // give each rank a separate device
+                if(localDeviceCount >= static_cast<int>(field.bricks.size()))
+                    b.device = b.rank;
+            }
         }
     }
 
     // Distribute problem input among specified grid of devices.  Grid
     // specifies number of bricks per dimension, starting with batch
     // and ending with fastest FFT dimension.
-    void distribute_input(const std::vector<unsigned int>& brick_grid)
+    void distribute_input(int localDeviceCount, const std::vector<unsigned int>& brick_grid)
     {
         auto len = length;
         len.insert(len.begin(), nbatch);
-        distribute_field(brick_grid, ifields, len);
+        distribute_field(localDeviceCount, brick_grid, ifields, len);
     }
 
     // Distribute problem output among specified grid of devices.  Grid
     // specifies number of bricks per dimension, starting with batch
     // and ending with fastest FFT dimension.
-    void distribute_output(const std::vector<unsigned int>& brick_grid)
+    void distribute_output(int localDeviceCount, const std::vector<unsigned int>& brick_grid)
     {
         auto len = olength();
         len.insert(len.begin(), nbatch);
-        distribute_field(brick_grid, ofields, len);
+        distribute_field(localDeviceCount, brick_grid, ofields, len);
     }
 };
 

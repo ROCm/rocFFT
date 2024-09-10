@@ -356,6 +356,32 @@ void usage()
          "  rocfft_mpi_worker token --benchmark\n");
 }
 
+// get the device that the field's bricks are on, for this rank.
+// throws std::runtime_error if bricks for this rank are on multiple
+// devices since that's not something we currently handle.
+int get_field_device(int mpi_rank, const fft_params::fft_field& field)
+{
+    // get first brick on this rank
+    auto first
+        = std::find_if(field.bricks.begin(),
+                       field.bricks.end(),
+                       [mpi_rank](const fft_params::fft_brick& b) { return b.rank == mpi_rank; });
+
+    if(first == field.bricks.end())
+        return true;
+
+    int first_device = first->device;
+
+    // check if remaining bricks are either not on this rank or on
+    // the same device
+    if(std::all_of(
+           first, field.bricks.end(), [mpi_rank, first_device](const fft_params::fft_brick& b) {
+               return b.rank != mpi_rank || b.device == first_device;
+           }))
+        return first_device;
+    throw std::runtime_error("field spans multiple devices");
+}
+
 int main(int argc, char* argv[])
 {
     if(argc != 3)
@@ -405,6 +431,14 @@ int main(int argc, char* argv[])
 
     auto in_elem_size  = var_size<size_t>(params.precision, params.itype);
     auto out_elem_size = var_size<size_t>(params.precision, params.otype);
+
+    // currently, MPI worker requires that any rank only uses a
+    // single device
+    int input_device  = get_field_device(mpi_rank, params.ifields.front());
+    int output_device = get_field_device(mpi_rank, params.ifields.front());
+    if(input_device != output_device)
+        throw std::runtime_error("input field uses different device from output field");
+    rocfft_scoped_device dev(input_device);
 
     alloc_local_bricks(
         mpi_comm, params.ifields.back().bricks, in_elem_size, local_input, local_input_ptrs);
