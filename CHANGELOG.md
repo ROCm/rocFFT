@@ -14,6 +14,11 @@ Documentation for rocFFT is available at
 * Remove ahead-of-time compiled kernels for gfx906, gfx940, gfx941.  These architectures still
   function the same, but kernels for them are now compiled at runtime.
 
+* Consumer GPU architectures are removed from the precompiled kernel cache that ships with
+  rocFFT.  rocFFT continues to ship with a cache of precompiled RTC kernels for data-center
+  and workstation architectures.  As before, user-level caches can be enabled by setting the
+  environment variable ROCFFT_RTC_CACHE_PATH to a writeable file location.
+
 ### Fixes
 
 * Fixed incorrect results from 2-kernel 3D FFT plans that used non-default output strides.

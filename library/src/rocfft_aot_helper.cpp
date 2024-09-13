@@ -728,7 +728,7 @@ void build_solution_kernels(CompileQueue& queue)
 
 int main(int argc, char** argv)
 {
-    if(argc < 5)
+    if(argc < 4)
     {
         puts("Usage: rocfft_aot_helper temp_cachefile.db output_cachefile.db "
              "path/to/rocfft_rtc_helper gfx000 gfx001 ...");
