@@ -3,11 +3,7 @@
 Documentation for rocFFT is available at
 [https://rocm.docs.amd.com/projects/rocFFT/en/latest/](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
 
-## rocFFT 1.0.31 (unreleased)
-
-### Optimizations
-
-* Implemented 1D kernels for factorizable sizes > 1024 and < 2048
+## rocFFT 1.0.32 (unreleased)
 
 ### Changes
 
@@ -24,11 +20,7 @@ Documentation for rocFFT is available at
 * Fixed incorrect results from 2-kernel 3D FFT plans that used non-default output strides.
 * Allow plan descriptions to be reused with different strides for different plans.
 
-## rocFFT 1.0.30 for ROCm 6.3.0
-
-### Fixes
-
-* Fixed plan creation failure on some even-length real-complex transforms that use Bluestein's algorithm.
+## rocFFT 1.0.31 for ROCm 6.3.0
 
 ### Additions
 
@@ -53,6 +45,16 @@ Documentation for rocFFT is available at
 * Add --smoketest option to rocfft-test.
 * Support gfx1151, gfx1200, and gfx1201 architectures.
 * Replace Boost Program Options with CLI11 as the command line parser for clients and samples.
+
+## rocFFT 1.0.30 for ROCm 6.2.2
+
+### Optimizations
+
+* Implemented 1D kernels for factorizable sizes > 1024 and < 2048.
+
+### Fixes
+
+* Fixed plan creation failure on some even-length real-complex transforms that use Bluestein's algorithm.
 
 ## rocFFT 1.0.29 for ROCm 6.2.1
 
