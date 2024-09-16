@@ -131,52 +131,26 @@ add_custom_target(gen_headers_target
   VERBATIM
 )
 
-# device library starts empty and is built from generated files
-set( rocfft_device_source
-)
-
-set_property(
-  SOURCE ${rocfft_device_source}
-  PROPERTY COMPILE_OPTIONS ${WARNING_FLAGS}
-  )
-
 prepend_path( "../.."
   rocfft_headers_public relative_rocfft_device_headers_public )
 
 option(ROCFFT_CALLBACKS_ENABLED "Enable user-defined callbacks for load/stores from global memory" ON)
 
-# add generated files to the source list - do this after setting
-# warning flags so that they apply only to manually-maintained files
-list( APPEND rocfft_device_source ${gen_headers} )
-
-# split device lib into 4 so that no single library gets too large to
-# link
-#
-# sort the list to keep the split library contents relatively stable
-# over time
-list( SORT rocfft_device_source )
-
-# function pool is a generated file, but put it in its own
-# library so it's easier to link to.
-list( FILTER rocfft_device_source EXCLUDE REGEX function_pool.cpp )
+# function pool is a generated file, but put it in its own library so it's easier to link to.
 add_library( rocfft-function-pool OBJECT
   function_pool.cpp
 )
-
-foreach( pool rocfft-function-pool )
-  target_include_directories( ${pool}
-    PRIVATE
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/device>
-    $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
-    $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
+target_include_directories( rocfft-function-pool
+  PRIVATE
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/device>
+  $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/include>
+  $<BUILD_INTERFACE:${PROJECT_BINARY_DIR}/include>
   )
-  set_target_properties( ${pool} PROPERTIES
-    CXX_VISIBILITY_PRESET "hidden"
-    VISIBILITY_INLINES_HIDDEN ON
-    CXX_STANDARD 17
-    CXX_STANDARD_REQUIRED ON
-    POSITION_INDEPENDENT_CODE ON
+set_target_properties( rocfft-function-pool PROPERTIES
+  CXX_VISIBILITY_PRESET "hidden"
+  VISIBILITY_INLINES_HIDDEN ON
+  CXX_STANDARD 17
+  CXX_STANDARD_REQUIRED ON
+  POSITION_INDEPENDENT_CODE ON
   )
-  add_dependencies(${pool} gen_headers_target)
-endforeach()
-
+add_dependencies(rocfft-function-pool gen_headers_target)
