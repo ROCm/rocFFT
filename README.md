@@ -58,8 +58,8 @@ You can install rocFFT using pre-built packages or building from source.
 
     | Client | CMake option | Dependencies |
     |:------|:-----------------|:-----------------|
-    | `rocfft-bench` | `-DBUILD_CLIENTS_BENCH=on` | None |
-    | `rocfft-test` | `-DBUILD_CLIENTS_TESTS=on` | Fastest Fourier Transform in the West (FFTW), GoogleTest |
+    | `rocfft-bench` | `-DBUILD_CLIENTS_BENCH=on` | hipRAND |
+    | `rocfft-test` | `-DBUILD_CLIENTS_TESTS=on` | FFTW (Fastest Fourier Transform in the West), GoogleTest, hipRAND |
     | samples | `-DBUILD_CLIENTS_SAMPLES=on` | FFTW |
 
     Clients are not built by default. To build them, use `-DBUILD_CLIENTS=on`. The build process

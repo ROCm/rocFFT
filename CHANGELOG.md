@@ -19,6 +19,7 @@ Documentation for rocFFT is available at
 
 * Fixed incorrect results from 2-kernel 3D FFT plans that used non-default output strides.
 * Allow plan descriptions to be reused with different strides for different plans.
+* Fixed client packages to depend on hipRAND, not rocRAND.
 
 ## rocFFT 1.0.31 for ROCm 6.3.0
 

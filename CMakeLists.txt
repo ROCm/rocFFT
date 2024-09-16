@@ -216,16 +216,16 @@ if( BUILD_CLIENTS_SAMPLES
     rocm_package_setup_client_component(
       tests
       DEPENDS
-        DEB ${OPENMP_DEB} ${FFTW_DEB} rocrand
-        RPM ${OPENMP_RPM} ${FFTW_RPM} rocrand
+        DEB ${OPENMP_DEB} ${FFTW_DEB} hiprand
+        RPM ${OPENMP_RPM} ${FFTW_RPM} hiprand
     )
   endif()
   if(BUILD_CLIENTS_BENCH)
     rocm_package_setup_client_component(
       benchmarks
       DEPENDS
-        DEB rocrand
-        RPM rocrand
+        DEB hiprand
+        RPM hiprand
     )
   endif()
   add_subdirectory( clients )
