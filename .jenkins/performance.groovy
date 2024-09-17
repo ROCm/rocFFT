@@ -67,6 +67,7 @@ def runTestCommand (platform, project, boolean debug=false)
                     set -ex
                     pwd
                     cd ${project.paths.project_build_prefix}
+		    export ROCFFT_RTC_CACHE_PATH="\$JENKINS_HOME_LOCAL/rocfft_build_cache.db"
                     ./scripts/perf/rocfft-perf run --bench ./build/${directory}/clients/staging/dyna-rocfft-bench --lib ./ref-repo/build/${directory}/library/src/librocfft.so --lib ./build/${directory}/library/src/librocfft.so --out ./${dataType}_ref --out ./${dataType}_change --device 0 --precision ${dataType} --suite benchmarks
                     ls ${dataType}_change
                     ls ${dataType}_ref
