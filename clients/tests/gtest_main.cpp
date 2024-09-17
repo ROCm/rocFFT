@@ -129,6 +129,35 @@ system_memory get_system_memory()
         return memory_data;
     memory_data.total_bytes = info.totalram * info.mem_unit;
     memory_data.free_bytes  = info.freeram * info.mem_unit;
+
+    // top-level memory cgroup may restrict this further
+
+    // check cgroup v1
+    std::ifstream memcg1_limit_file("/sys/fs/cgroup/memory/memory.limit_in_bytes");
+    std::ifstream memcg1_usage_file("/sys/fs/cgroup/memory/memory.usage_in_bytes");
+    size_t        memcg1_limit_bytes;
+    size_t        memcg1_usage_bytes;
+    // use cgroupv1 limit if we can read the cgroup files and it's
+    // smaller
+    if((memcg1_limit_file >> memcg1_limit_bytes) && (memcg1_usage_file >> memcg1_usage_bytes))
+    {
+        memory_data.total_bytes = std::min<size_t>(memory_data.total_bytes, memcg1_limit_bytes);
+        memory_data.free_bytes  = memcg1_limit_bytes - memcg1_usage_bytes;
+    }
+
+    // check cgroup v2
+    std::ifstream memcg2_max_file("/sys/fs/cgroup/memory.max");
+    std::ifstream memcg2_current_file("/sys/fs/cgroup/memory.current");
+    size_t        memcg2_max_bytes;
+    size_t        memcg2_current_bytes;
+    // use cgroupv2 limit if we can read the cgroup files and it's
+    // smaller
+    if((memcg2_max_file >> memcg2_max_bytes) && (memcg2_current_file >> memcg2_current_bytes))
+    {
+        memory_data.total_bytes = std::min<size_t>(memory_data.total_bytes, memcg2_max_bytes);
+        memory_data.free_bytes  = memcg2_max_bytes - memcg2_current_bytes;
+    }
+
 #endif
     return memory_data;
 }
