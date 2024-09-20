@@ -5,6 +5,14 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.29 (unreleased)
 
+### Changes
+
+* Building with the address sanitizer option sets xnack+ on relevant GPU
+  architectures and address-sanitizer support is added to runtime-compiled
+  kernels.
+
+## rocFFT 1.0.31 for ROCm 6.3.0
+
 ### Additions
 
 * Implemented experimental APIs to allow computing FFTs on data

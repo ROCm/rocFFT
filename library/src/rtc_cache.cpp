@@ -562,6 +562,11 @@ std::vector<char> RTCCache::cached_compile(const std::string&          kernel_na
                                            kernel_src_gen_t            generate_src,
                                            const std::array<char, 32>& generator_sum)
 {
+#ifdef ADDRESS_SANITIZER
+    // The address sanitizer is reported to work better when we include xnack+, so don't strip this
+    // from the architecture string when building:
+    const std::string gpu_arch = gpu_arch_with_flags;
+#else
     // Supplied gpu arch may have extra flags on it
     // (e.g. gfx90a:sramecc+:xnack-), Strip those from the arch name
     // since omitting them will generate code that handles either
@@ -570,8 +575,8 @@ std::vector<char> RTCCache::cached_compile(const std::string&          kernel_na
     // As of this writing, there are no known performance benefits to
     // including the flags.  If that changes, we may need to be more
     // selective about which flags to strip.
-    std::string gpu_arch = gpu_arch_strip_flags(gpu_arch_with_flags);
-
+    const std::string gpu_arch = gpu_arch_strip_flags(gpu_arch_with_flags);
+#endif
     std::shared_future<std::vector<char>> result;
 
     const pending_key                    key{kernel_name, gpu_arch};
