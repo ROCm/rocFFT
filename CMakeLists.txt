@@ -116,11 +116,6 @@ option(ROCFFT_RUNTIME_COMPILE_DEFAULT "Compile kernels at runtime by default" OF
 # Set default to OFF since users are not likely to tune
 option(ROCFFT_BUILD_OFFLINE_TUNER "Build with offline tuner executable rocfft_offline_tuner" OFF)
 
-if(BUILD_ADDRESS_SANITIZER)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -shared-libasan")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -shared-libasan")
-  add_link_options(-fuse-ld=lld)
-endif()
 
 # FOR HANDLING ENABLE/DISABLE OPTIONAL BACKWARD COMPATIBILITY for FILE/FOLDER REORG
 option(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY "Build with file/folder reorg with backward compatibility enabled" OFF)
@@ -138,12 +133,52 @@ if( WERROR )
   set( WARNING_FLAGS ${WARNING_FLAGS} -Werror )
 endif( )
 
-# Use target ID syntax if supported for AMDGPU_TARGETS
-rocm_check_target_ids(DEFAULT_AMDGPU_TARGETS
-  TARGETS "gfx803;gfx900;gfx906;gfx908;gfx90a;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1151;gfx1200;gfx1201")
-set(AMDGPU_TARGETS "${DEFAULT_AMDGPU_TARGETS}" CACHE STRING "List of specific machine types for library to target")
-list(LENGTH AMDGPU_TARGETS AMDGPU_TARGETS_LENGTH)
+set(DEFAULT_GPUS
+  gfx803
+  gfx900
+  gfx906
+  gfx908
+  gfx90a
+  gfx940
+  gfx941
+  gfx942
+  gfx1030
+  gfx1100
+  gfx1101
+  gfx1102
+  gfx1151
+  gfx1200
+  gfx1201)
 
+if(BUILD_ADDRESS_SANITIZER)
+  add_compile_options(-fsanitize=address)
+  add_link_options(-fsanitize=address)
+  add_link_options(-shared-libasan)
+  SET(DEFAULT_GPUS
+    gfx908:xnack+
+    gfx90a:xnack+
+    gfx940:xnack+
+    gfx941:xnack+
+    gfx942:xnack+)
+  add_link_options(-fuse-ld=lld)
+  set(ROCFFT_KERNEL_CACHE_ENABLE off)
+  add_compile_definitions(ADDRESS_SANITIZER)
+endif()
+
+# Build only for local GPU architecture
+if (BUILD_LOCAL_GPU_TARGET_ONLY)
+  message(STATUS "Building only for local GPU target")
+  if (COMMAND rocm_local_targets)
+    rocm_local_targets(DEFAULT_GPUS)
+  else()
+    message(WARNING "Unable to determine local GPU targets. Falling back to default GPUs.")
+  endif()
+endif()
+
+
+set(AMDGPU_TARGETS "${DEFAULT_GPUS}" CACHE STRING "Target default GPUs if AMDGPU_TARGETS is not defined.")
+rocm_check_target_ids(AMDGPU_TARGETS TARGETS "${AMDGPU_TARGETS}")
+  
 # HIP is required - library and clients use HIP to access the device
 find_package( HIP REQUIRED )
 

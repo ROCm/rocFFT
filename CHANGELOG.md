@@ -7,6 +7,10 @@ Documentation for rocFFT is available at
 
 ### Changes
 
+* Building with the address sanitizer option sets xnack+ on relevant GPU
+  architectures and address-sanitizer support is added to runtime-compiled
+  kernels.
+
 * Remove ahead-of-time compiled kernels for gfx906, gfx940, gfx941.  These architectures still
   function the same, but kernels for them are now compiled at runtime.
 

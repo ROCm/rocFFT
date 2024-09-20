@@ -36,11 +36,13 @@ std::vector<char> compile_inprocess(const std::string& kernel_src, const std::st
     std::string gpu_arch_arg = "--gpu-architecture=" + gpu_arch;
 
     std::vector<const char*> options;
-    options.reserve(4);
     options.push_back("-O3");
     options.push_back("-std=c++14");
     options.push_back(gpu_arch_arg.c_str());
     options.push_back("-mcumode");
+#ifdef ADDRESS_SANITIZER
+    options.push_back("-fsanitize=address");
+#endif
 
     auto compileResult = hiprtcCompileProgram(prog, options.size(), options.data());
     if(compileResult != HIPRTC_SUCCESS)
