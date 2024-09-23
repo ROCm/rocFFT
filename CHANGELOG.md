@@ -3,7 +3,7 @@
 Documentation for rocFFT is available at
 [https://rocm.docs.amd.com/projects/rocFFT/en/latest/](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
 
-## rocFFT 1.0.32 (unreleased)
+## (Unreleased) rocFFT 1.0.32 
 
 ### Changes
 
@@ -65,7 +65,7 @@ Documentation for rocFFT is available at
 
 ### Optimizations
 
-* Implemented 1D kernels for factorizable sizes < 1024
+* Implemented 1D kernels for factorizable sizes greater than 1024.
 
 ## rocFFT 1.0.28 for ROCm 6.2.0
 
