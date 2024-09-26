@@ -22,6 +22,7 @@
 
 #include "../../shared/rocfft_params.h"
 
+#include "../../shared/CLI11.hpp"
 #include "../../shared/gpubuf.h"
 #include "../../shared/hostbuf.h"
 #include "../../shared/ptrdiff.h"
@@ -349,13 +350,6 @@ double half_epsilon    = default_half_epsilon();
 double single_epsilon  = default_single_epsilon();
 double double_epsilon  = default_double_epsilon();
 
-void usage()
-{
-    puts("Usage:\n"
-         "  rocfft_mpi_worker token --accuracy\n"
-         "  rocfft_mpi_worker token --benchmark\n");
-}
-
 // get the device that the field's bricks are on, for this rank.
 // throws std::runtime_error if bricks for this rank are on multiple
 // devices since that's not something we currently handle.
@@ -384,10 +378,26 @@ int get_field_device(int mpi_rank, const fft_params::fft_field& field)
 
 int main(int argc, char* argv[])
 {
-    if(argc != 3)
+    CLI::App    app{"rocFFT MPI worker process"};
+    size_t      ntrial = 1;
+    std::string token;
+    bool        run_fftw  = false;
+    bool        run_bench = false;
+    auto        bench_flag
+        = app.add_flag("--benchmark", run_bench, "Benchmark a specified number of MPI transforms");
+    app.add_option("-N, --ntrial", ntrial, "Number of trials to benchmark")
+        ->default_val(1)
+        ->check(CLI::PositiveNumber);
+    app.add_flag("--accuracy", run_fftw, "Check accuracy of an MPI transform")
+        ->excludes(bench_flag);
+    app.add_option("--token", token, "Problem token to test")->required();
+    try
     {
-        usage();
-        return 1;
+        app.parse(argc, argv);
+    }
+    catch(const CLI::ParseError& e)
+    {
+        return app.exit(e);
     }
 
     MPI_Init(&argc, &argv);
@@ -402,20 +412,6 @@ int main(int argc, char* argv[])
 
     int mpi_rank = 0;
     MPI_Comm_rank(mpi_comm, &mpi_rank);
-
-    std::string token = argv[1];
-
-    bool run_fftw  = false;
-    bool run_bench = false;
-    if(strcmp(argv[2], "--accuracy") == 0)
-        run_fftw = true;
-    else if(strcmp(argv[2], "--benchmark") == 0)
-        run_bench = true;
-    else
-    {
-        usage();
-        return 1;
-    }
 
     rocfft_params params;
     params.from_token(token);
@@ -516,41 +512,66 @@ int main(int argc, char* argv[])
     params.create_plan();
 
     std::chrono::time_point<std::chrono::steady_clock> start, stop;
+    std::vector<double>                                gpu_time;
+    if(mpi_rank == 0)
+        gpu_time.reserve(ntrial);
 
-    if(run_bench)
+    for(size_t i = 0; i < ntrial; ++i)
     {
-        // ensure plan is finished building, synchronize all devices
-        // in the output bricks
-        synchronize_brick_devices(params.ifields.back().bricks);
+        if(run_bench)
+        {
+            // reinit input for trials after the first one
+            if(i > 0)
+                init_local_input(mpi_comm, params, in_elem_size, local_input_ptrs);
 
-        MPI_Barrier(mpi_comm);
+            // ensure plan is finished building, synchronize all devices
+            // in the input bricks
+            synchronize_brick_devices(params.ifields.back().bricks);
 
-        // start timer
-        start = std::chrono::steady_clock::now();
+            MPI_Barrier(mpi_comm);
+
+            // start timer
+            start = std::chrono::steady_clock::now();
+        }
+
+        params.execute(local_input_ptrs.data(), local_output_ptrs.data());
+
+        if(run_bench)
+        {
+            // ensure FFT is finished executing - synchronize all devices
+            // on output bricks
+            synchronize_brick_devices(params.ofields.back().bricks);
+
+            stop = std::chrono::steady_clock::now();
+
+            std::chrono::duration<double, std::milli> diff = stop - start;
+
+            double diff_ms = diff.count();
+
+            double max_diff_ms = 0.0;
+            // reduce max runtime to root
+            MPI_Reduce(&diff_ms, &max_diff_ms, 1, MPI_DOUBLE, MPI_MAX, 0, mpi_comm);
+
+            if(mpi_rank == 0)
+                gpu_time.push_back(max_diff_ms);
+        }
     }
 
-    params.execute(local_input_ptrs.data(), local_output_ptrs.data());
-
-    if(run_bench)
+    if(run_bench && mpi_rank == 0)
     {
-        // ensure FFT is finished executing - synchronize all devices
-        // on output bricks
-        synchronize_brick_devices(params.ofields.back().bricks);
+        std::cout << "Max rank time:";
+        for(auto i : gpu_time)
+            std::cout << " " << i;
+        std::cout << " ms" << std::endl;
 
-        stop = std::chrono::steady_clock::now();
-
-        std::chrono::duration<double, std::milli> diff = stop - start;
-
-        double diff_ms = diff.count();
-
-        double max_diff_ms = 0.0;
-        // reduce max runtime to root
-        MPI_Reduce(&diff_ms, &max_diff_ms, 1, MPI_DOUBLE, MPI_MAX, 0, mpi_comm);
-
-        if(mpi_rank == 0)
-        {
-            printf("Max rank time %f ms\n", max_diff_ms);
-        }
+        std::sort(gpu_time.begin(), gpu_time.end());
+        // print median
+        double median;
+        if(ntrial % 2)
+            median = (gpu_time[ntrial / 2] + gpu_time[(ntrial + 1) / 2]) / 2;
+        else
+            median = gpu_time[ntrial / 2];
+        std::cout << "Median: " << median << std::endl;
     }
 
     if(run_fftw)

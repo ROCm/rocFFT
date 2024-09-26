@@ -119,6 +119,7 @@ TEST_P(accuracy_test, vs_fftw)
                 argv.push_back(t);
         }
         // append test token and ask for accuracy test
+        argv.push_back("--token");
         argv.push_back(testcase_token);
         argv.push_back("--accuracy");
 
