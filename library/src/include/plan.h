@@ -27,16 +27,10 @@
 #include <list>
 #include <vector>
 
-#ifdef ROCFFT_MPI_ENABLE
-#include <mpi.h>
-#if defined(OPEN_MPI) && OPEN_MPI
-#include <mpi-ext.h>
-#endif
-#endif
-
 #include "../../../shared/array_predicate.h"
 #include "function_pool.h"
 #include "load_store_ops.h"
+#include "rocfft_mpi.h"
 #include "tree_node.h"
 
 // Calculate the maximum pow number with the given base number
@@ -119,76 +113,6 @@ struct rocfft_field_t
     std::vector<rocfft_brick_t> bricks;
 };
 
-#ifdef ROCFFT_MPI_ENABLE
-class MPI_Comm_wrapper_t
-{
-public:
-    MPI_Comm_wrapper_t() = default;
-
-    // conversion to unwrapped communicator for passing to MPI APIs
-    operator MPI_Comm() const
-    {
-        return mpi_comm;
-    }
-
-    // copy, duplicating the communicator
-    MPI_Comm_wrapper_t(const MPI_Comm_wrapper_t& other)
-    {
-        duplicate(other.mpi_comm);
-    }
-    MPI_Comm_wrapper_t& operator=(const MPI_Comm_wrapper_t& other)
-    {
-        duplicate(other.mpi_comm);
-        return *this;
-    }
-
-    // move communicator
-    MPI_Comm_wrapper_t(MPI_Comm_wrapper_t&& other)
-    {
-        std::swap(this->mpi_comm, other.mpi_comm);
-    }
-    MPI_Comm_wrapper_t& operator=(MPI_Comm_wrapper_t&& other)
-    {
-        std::swap(this->mpi_comm, other.mpi_comm);
-        return *this;
-    }
-
-    ~MPI_Comm_wrapper_t()
-    {
-        free();
-    }
-
-    void free()
-    {
-        if(mpi_comm != MPI_COMM_NULL)
-            MPI_Comm_free(&mpi_comm);
-        mpi_comm = MPI_COMM_NULL;
-    }
-
-    void duplicate(MPI_Comm in_comm)
-    {
-        free();
-        if(in_comm != MPI_COMM_NULL && MPI_Comm_dup(in_comm, &mpi_comm) != MPI_SUCCESS)
-        {
-            throw std::runtime_error("failed to duplicate MPI communicator");
-        }
-    }
-
-    // check if communicator has been initialized
-    operator bool() const
-    {
-        return mpi_comm != MPI_COMM_NULL;
-    }
-    bool operator!() const
-    {
-        return mpi_comm == MPI_COMM_NULL;
-    }
-
-private:
-    MPI_Comm mpi_comm = MPI_COMM_NULL;
-};
-#endif
-
 struct rocfft_plan_description_t
 {
     rocfft_array_type inArrayType  = rocfft_array_type_unset;
@@ -247,6 +171,11 @@ struct rocfft_plan_description_t
         }
         return fieldPtrs;
     }
+
+    // returns true if a field:
+    // - has bricks across multiple ranks (i.e. MPI), and
+    // - any rank has bricks on more than one device
+    static bool multiple_ranks_devices(const rocfft_field_t& field);
 };
 
 struct rocfft_plan_t
@@ -404,6 +333,27 @@ private:
                          const std::vector<size_t>& inputAntecedents,
                          std::vector<size_t>&       outputItems,
                          size_t                     transposeNumber);
+
+    // global transpose implemented as an all-to-all communication.
+    void GlobalTransposeA2A(size_t                     elem_size,
+                            const rocfft_field_t&      inField,
+                            const rocfft_field_t&      outField,
+                            std::vector<BufferPtr>&    input,
+                            std::vector<BufferPtr>&    output,
+                            const std::vector<size_t>& inputAntecedents,
+                            std::vector<size_t>&       outputItems,
+                            const std::string&         itemGroup);
+
+    // fallback case for global transpose that uses point-to-point
+    // communications, for when all-to-all isn't possible.
+    void GlobalTransposeP2P(size_t                     elem_size,
+                            const rocfft_field_t&      inField,
+                            const rocfft_field_t&      outField,
+                            std::vector<BufferPtr>&    input,
+                            std::vector<BufferPtr>&    output,
+                            const std::vector<size_t>& inputAntecedents,
+                            std::vector<size_t>&       outputItems,
+                            const std::string&         itemGroup);
 
     // Transform (complex-complex FFT) a whole field along specified
     // dimensions.  Input and output ptrs are provided as a vector of

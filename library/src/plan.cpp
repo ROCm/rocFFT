@@ -33,6 +33,7 @@
 #include "node_factory.h"
 #include "rocfft/rocfft-version.h"
 #include "rocfft/rocfft.h"
+#include "rocfft_mpi.h"
 #include "rocfft_ostream.hpp"
 #include "rtc_kernel.h"
 #include "solution_map.h"
@@ -51,7 +52,6 @@
 #include <vector>
 
 #ifdef ROCFFT_MPI_ENABLE
-#include <mpi.h>
 #include <type_traits>
 #include <typeinfo>
 #endif
@@ -194,6 +194,31 @@ void rocfft_plan_description_t::init_defaults(rocfft_transform_type      transfo
         else
             outDist = outputLengths[rank - 1] * outStrides[rank - 1];
     }
+}
+
+bool rocfft_plan_description_t::multiple_ranks_devices(const rocfft_field_t& field)
+{
+    // map ranks to a set of distinct devices
+    std::map<int, std::set<int>> rank_devices;
+
+    // collect information on bricks in the field
+    for(const auto& brick : field.bricks)
+    {
+        auto& devices = rank_devices[brick.location.comm_rank];
+        devices.insert(brick.location.device);
+    }
+
+    // need to have multiple ranks to return true
+    if(rank_devices.size() <= 1)
+        return false;
+
+    // any rank needs to have multiple devices to return true
+    for(const auto& rank_device : rank_devices)
+    {
+        if(rank_device.second.size() > 1)
+            return true;
+    }
+    return false;
 }
 
 void rocfft_plan_t::sort()
@@ -1889,7 +1914,34 @@ void rocfft_plan_t::GlobalTranspose(size_t                     elem_size,
                                     std::vector<size_t>&       outputItems,
                                     size_t                     transposeNumber)
 {
-    std::string                  itemGroup = "transpose_" + std::to_string(transposeNumber);
+    // All-to-all transpose is preferred as it's faster.  But we use
+    // MPI Alltoallv, which requires that each rank have a single base
+    // pointer to send/receive with offsets for every other rank.
+    // That's only feasible if each rank has data on just one device
+    // (since we can hipMalloc a single buffer per device and have
+    // offsets into it).
+    //
+    // Fall back to point-to-point transfers if all-to-all is not
+    // possible.
+    std::string itemGroup = "transpose_" + std::to_string(transposeNumber);
+    if(rocfft_plan_description_t::multiple_ranks_devices(inField)
+       || rocfft_plan_description_t::multiple_ranks_devices(outField))
+        GlobalTransposeP2P(
+            elem_size, inField, outField, input, output, inputAntecedents, outputItems, itemGroup);
+    else
+        GlobalTransposeA2A(
+            elem_size, inField, outField, input, output, inputAntecedents, outputItems, itemGroup);
+}
+
+void rocfft_plan_t::GlobalTransposeP2P(size_t                     elem_size,
+                                       const rocfft_field_t&      inField,
+                                       const rocfft_field_t&      outField,
+                                       std::vector<BufferPtr>&    input,
+                                       std::vector<BufferPtr>&    output,
+                                       const std::vector<size_t>& inputAntecedents,
+                                       std::vector<size_t>&       outputItems,
+                                       const std::string&         itemGroup)
+{
     std::vector<TempBufferLease> packBufs;
 
     const auto local_comm_rank = get_local_comm_rank();
@@ -1976,6 +2028,195 @@ void rocfft_plan_t::GlobalTranspose(size_t                     elem_size,
             outputItems.push_back(unpackIdx);
         }
     }
+}
+
+void rocfft_plan_t::GlobalTransposeA2A(size_t                     elem_size,
+                                       const rocfft_field_t&      inField,
+                                       const rocfft_field_t&      outField,
+                                       std::vector<BufferPtr>&    input,
+                                       std::vector<BufferPtr>&    output,
+                                       const std::vector<size_t>& inputAntecedents,
+                                       std::vector<size_t>&       outputItems,
+                                       const std::string&         itemGroup)
+{
+    const auto local_comm_rank = get_local_comm_rank();
+    const auto local_comm_size = get_local_comm_size();
+
+    // for us to be attempting an AlltoAll, bricks send/received
+    // from/to the local rank should be on only one device
+    std::optional<int> local_send_device;
+    std::optional<int> local_recv_device;
+
+    // keep track of the things this rank will need to send/receive,
+    // as we will be allocating a single buffer for each of
+    // send+receive, and then sending/receiving to/from multiple
+    // ranks into offsets of that buffer.
+    size_t              cumulative_send_elems = 0;
+    std::vector<size_t> send_offsets(local_comm_size);
+    std::vector<size_t> send_counts(local_comm_size);
+    size_t              cumulative_recv_elems = 0;
+    std::vector<size_t> recv_offsets(local_comm_size);
+    std::vector<size_t> recv_counts(local_comm_size);
+
+    // pack operations before the all-to-all communication
+    std::vector<size_t> pack_ops;
+    // unpack operations after the all-to-all communication
+    std::vector<size_t> unpack_ops;
+
+    // loop over each input brick, finding the intersection of it with
+    // every output brick
+    for(size_t inBrickIdx = 0; inBrickIdx < inField.bricks.size(); ++inBrickIdx)
+    {
+        const auto& inBrick = inField.bricks[inBrickIdx];
+        const auto  inRank  = inBrick.location.comm_rank;
+        for(size_t outBrickIdx = 0; outBrickIdx < outField.bricks.size(); ++outBrickIdx)
+        {
+            const auto& outBrick = outField.bricks[outBrickIdx];
+            const auto  outRank  = outBrick.location.comm_rank;
+
+            auto intersection = inBrick.intersect(outBrick);
+            if(intersection.empty())
+                continue;
+
+            const auto elems = intersection.count_elems();
+
+            if(inRank == local_comm_rank)
+            {
+                // assert that all send bricks on this rank use the
+                // same device
+                if(local_send_device && *local_send_device != inBrick.location.device)
+                    throw std::runtime_error("multiple devices for send during AlltoAll");
+                local_send_device     = inBrick.location.device;
+                send_offsets[outRank] = cumulative_send_elems;
+                send_counts[outRank]  = elems;
+                cumulative_send_elems += elems;
+            }
+            if(outRank == local_comm_rank)
+            {
+                if(local_recv_device && *local_recv_device != outBrick.location.device)
+                    throw std::runtime_error("multiple devices for recv during AlltoAll");
+                local_recv_device    = outBrick.location.device;
+                recv_offsets[inRank] = cumulative_recv_elems;
+                recv_counts[inRank]  = elems;
+                cumulative_recv_elems += elems;
+            }
+        }
+    }
+
+    // ensure that we actually found send/recv devices
+    if(!local_send_device)
+        throw std::runtime_error("no local send device for all-to-all communication");
+    if(!local_recv_device)
+        throw std::runtime_error("no local recv device for all-to-all communication");
+
+    // now we know how much we'll need to send/recv in total on this
+    // rank.  allocate send/receive buffers.
+    TempBufferLease send_buf(tempBuffers,
+                             local_comm_rank,
+                             {local_comm_rank, *local_send_device},
+                             cumulative_send_elems,
+                             elem_size);
+    TempBufferLease recv_buf(tempBuffers,
+                             local_comm_rank,
+                             {local_comm_rank, *local_recv_device},
+                             cumulative_recv_elems,
+                             elem_size);
+
+    // go over all the intersections of in/out bricks again, this
+    // time packing/unpacking the data to/from the newly-allocated
+    // send/recv buffers
+    for(size_t inBrickIdx = 0; inBrickIdx < inField.bricks.size(); ++inBrickIdx)
+    {
+        const auto& inBrick = inField.bricks[inBrickIdx];
+        const auto  inRank  = inBrick.location.comm_rank;
+        for(size_t outBrickIdx = 0; outBrickIdx < outField.bricks.size(); ++outBrickIdx)
+        {
+            const auto& outBrick = outField.bricks[outBrickIdx];
+            const auto  outRank  = outBrick.location.comm_rank;
+
+            auto intersection = inBrick.intersect(outBrick);
+            if(intersection.empty())
+                continue;
+            intersection.stride = intersection.contiguous_strides();
+
+            // this transpose will only actually run if inRank ==
+            // local_comm_rank, but adding it to the plan so all
+            // ranks see a consistent plan.
+            //
+            // if(inRank == local_comm_rank)
+            {
+                auto pack_op = AddMultiPlanItem(
+                    transpose_brick(local_comm_rank,
+                                    inBrick.location,
+                                    intersection.length(),
+                                    precision,
+                                    desc.inArrayType,
+                                    input[inBrickIdx],
+                                    intersection.offset_in_field(inBrick.stride)
+                                        - inBrick.offset_in_field(inBrick.stride),
+                                    inBrick.stride,
+                                    BufferPtr::temp(send_buf.data()),
+                                    send_offsets[outRank],
+                                    intersection.stride,
+                                    "pack brick for global transpose"),
+                    inputAntecedents);
+                multiPlan[pack_op]->group = itemGroup;
+                multiPlan[pack_op]->description
+                    = "pack " + std::to_string(inBrickIdx) + " + " + std::to_string(outBrickIdx);
+
+                pack_ops.push_back(pack_op);
+            }
+            // this transpose will only actually run if outRank ==
+            // local_comm_rank, but adding it to the plan so all
+            // ranks see a consistent plan
+            //
+            // if(outRank == local_comm_rank)
+            {
+                auto unpack_op = AddMultiPlanItem(
+                    transpose_brick(local_comm_rank,
+                                    outBrick.location,
+                                    intersection.length(),
+                                    precision,
+                                    desc.inArrayType,
+                                    BufferPtr::temp(recv_buf.data()),
+                                    recv_offsets[inRank],
+                                    intersection.stride,
+                                    output[outBrickIdx],
+                                    intersection.offset_in_field(outBrick.stride)
+                                        - outBrick.offset_in_field(outBrick.stride),
+                                    outBrick.stride,
+                                    "unpack brick for global transpose"),
+                    {});
+                multiPlan[unpack_op]->group = itemGroup;
+                multiPlan[unpack_op]->description
+                    = "unpack " + std::to_string(inBrickIdx) + " + " + std::to_string(outBrickIdx);
+                unpack_ops.push_back(unpack_op);
+            }
+        }
+    }
+
+    // add the all-to-all op itself, which depends on pack ops
+    auto alltoall_ptr                   = std::make_unique<CommAllToAllv>();
+    alltoall_ptr->precision             = precision;
+    alltoall_ptr->arrayType             = desc.inArrayType;
+    alltoall_ptr->sendOffsets           = send_offsets;
+    alltoall_ptr->sendCounts            = send_counts;
+    alltoall_ptr->recvOffsets           = recv_offsets;
+    alltoall_ptr->recvCounts            = recv_counts;
+    alltoall_ptr->sendBuf               = BufferPtr::temp(send_buf.data());
+    alltoall_ptr->recvBuf               = BufferPtr::temp(recv_buf.data());
+    auto alltoall_op                    = AddMultiPlanItem(std::move(alltoall_ptr), pack_ops);
+    multiPlan[alltoall_op]->group       = itemGroup;
+    multiPlan[alltoall_op]->description = "all-to-all communication";
+
+    // update the unpack ops to depend on the all-to-all
+    for(auto op : unpack_ops)
+    {
+        AddAntecedent(op, alltoall_op);
+    }
+
+    // subsequent operations can depend on the unpack ops
+    outputItems = unpack_ops;
 }
 
 bool rocfft_plan_t::BuildOptMultiDevicePlan()

@@ -1171,6 +1171,49 @@ struct CommGather : public MultiPlanItem
     std::vector<hipEvent_wrapper_t> events;
 };
 
+// Send data from all ranks to all ranks in the plan.  Each rank must
+// send from/to a single buffer (with different read/write offsets
+// for each other rank).
+struct CommAllToAllv : public MultiPlanItem
+{
+    CommAllToAllv() = default;
+
+    rocfft_precision  precision;
+    rocfft_array_type arrayType;
+
+    // counts and offsets are all in elements (where element size is
+    // knowable from precision + array type), for the current rank
+    std::vector<size_t> sendOffsets;
+    std::vector<size_t> sendCounts;
+    std::vector<size_t> recvOffsets;
+    std::vector<size_t> recvCounts;
+
+    // send/receive buffers
+    BufferPtr sendBuf;
+    BufferPtr recvBuf;
+
+    void ExecuteAsync(const rocfft_plan     plan,
+                      void*                 in_buffer[],
+                      void*                 out_buffer[],
+                      rocfft_execution_info info,
+                      size_t                multiPlanIdx) override;
+    void Wait() override;
+
+    void Print(rocfft_ostream& os, const int indent) const override;
+
+    bool WritesToBuffer(const BufferPtr& ptr) const override
+    {
+        // only writes to receive buffer
+        return ptr == recvBuf;
+    }
+
+    bool ExecutesOnRank(int comm_rank) const override
+    {
+        // runs on all ranks
+        return true;
+    }
+};
+
 // Tree-structured FFT plan.  This is specific to a single device on
 // a single rank, since the TreeNodes inside here will have device
 // memory allocated for things like kernel arguments and twiddles.

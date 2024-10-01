@@ -5,6 +5,11 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.32 (unreleased)
 
+### Optimizations
+
+* Improve MPI transform performance by using all-to-all communication for global transpose operations.  
+  Point-to-point communications are still used when all-to-all is not possible.
+
 ### Changes
 
 * Building with the address sanitizer option sets xnack+ on relevant GPU
