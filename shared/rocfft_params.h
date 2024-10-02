@@ -30,6 +30,15 @@
 #include <mpi.h>
 #endif
 
+#ifdef WIN32
+#include <windows.h>
+// psapi.h requires windows.h to be included first
+#include <psapi.h>
+#else
+#include <dlfcn.h>
+#include <link.h>
+#endif
+
 // Return the string of the rocfft_status code
 static std::string rocfft_status_to_string(const rocfft_status ret)
 {
@@ -151,23 +160,41 @@ inline rocfft_result_placement
     }
 }
 
-class rocfft_params : public fft_params
+template <typename Funcs>
+class rocfft_params_base : public fft_params
 {
 public:
+    mutable Funcs rocfft;
+
     rocfft_plan             plan = nullptr;
     rocfft_execution_info   info = nullptr;
     rocfft_plan_description desc = nullptr;
     gpubuf_t<void>          wbuffer;
 
-    explicit rocfft_params(){};
+    explicit rocfft_params_base() = default;
 
-    explicit rocfft_params(const fft_params& p)
-        : fft_params(p){};
+    explicit rocfft_params_base(Funcs&& funcs)
+        : rocfft(std::move(funcs)){};
 
-    rocfft_params(const rocfft_params&) = delete;
-    rocfft_params& operator=(const rocfft_params&) = delete;
+    explicit rocfft_params_base(const fft_params& p, Funcs&& funcs)
+        : fft_params(p)
+        , rocfft(std::move(funcs))
+    {
+    }
 
-    ~rocfft_params()
+    explicit rocfft_params_base(const fft_params& p)
+        : fft_params(p)
+    {
+    }
+
+    rocfft_params_base(const rocfft_params_base&) = delete;
+    rocfft_params_base& operator=(const rocfft_params_base&) = delete;
+
+    // move construct
+    rocfft_params_base(rocfft_params_base&&) = default;
+    rocfft_params_base& operator=(rocfft_params_base&&) = default;
+
+    ~rocfft_params_base()
     {
         free();
     };
@@ -176,17 +203,17 @@ public:
     {
         if(plan != nullptr)
         {
-            rocfft_plan_destroy(plan);
+            rocfft.plan_destroy(plan);
             plan = nullptr;
         }
         if(info != nullptr)
         {
-            rocfft_execution_info_destroy(info);
+            rocfft.execution_info_destroy(info);
             info = nullptr;
         }
         if(desc != nullptr)
         {
-            rocfft_plan_description_destroy(desc);
+            rocfft.plan_description_destroy(desc);
             desc = nullptr;
         }
         wbuffer.free();
@@ -265,7 +292,7 @@ public:
         if(f.bricks.empty())
             return rfield;
 
-        if(rocfft_field_create(&rfield) != rocfft_status_success)
+        if(rocfft.field_create(&rfield) != rocfft_status_success)
             throw std::runtime_error("rocfft_field_create failed");
         for(const auto& b : f.bricks)
         {
@@ -294,7 +321,7 @@ public:
             std::copy(b.stride.rbegin(), b.stride.rend(), std::back_inserter(stride_cm));
 
             rocfft_brick rbrick = nullptr;
-            if(rocfft_brick_create(&rbrick,
+            if(rocfft.brick_create(&rbrick,
                                    lower_cm.data(), // field_lower
                                    upper_cm.data(), // field_upper
                                    stride_cm.data(), // brick_stride
@@ -303,10 +330,10 @@ public:
                != rocfft_status_success)
                 throw std::runtime_error("rocfft_brick_create failed");
 
-            if(rocfft_field_add_brick(rfield, rbrick) != rocfft_status_success)
+            if(rocfft.field_add_brick(rfield, rbrick) != rocfft_status_success)
                 throw std::runtime_error("rocfft_field_add_brick failed");
 
-            rocfft_brick_destroy(rbrick);
+            rocfft.brick_destroy(rbrick);
         }
         return rfield;
     }
@@ -316,12 +343,12 @@ public:
         rocfft_status fft_status = rocfft_status_success;
         if(desc == nullptr)
         {
-            rocfft_plan_description_create(&desc);
+            rocfft.plan_description_create(&desc);
             if(fft_status != rocfft_status_success)
                 return fft_status_from_rocfftparams(fft_status);
 
             fft_status
-                = rocfft_plan_description_set_data_layout(desc,
+                = rocfft.plan_description_set_data_layout(desc,
                                                           rocfft_array_type_from_fftparams(itype),
                                                           rocfft_array_type_from_fftparams(otype),
                                                           ioffset.data(),
@@ -339,7 +366,7 @@ public:
 
             if(scale_factor != 1.0)
             {
-                fft_status = rocfft_plan_description_set_scale_factor(desc, scale_factor);
+                fft_status = rocfft.plan_description_set_scale_factor(desc, scale_factor);
                 if(fft_status != rocfft_status_success)
                 {
                     throw std::runtime_error("rocfft_plan_description_set_scale_factor failed");
@@ -349,22 +376,22 @@ public:
             for(const auto& ifield : ifields)
             {
                 rocfft_field infield = fft_field_to_rocfft_field(ifield);
-                if(rocfft_plan_description_add_infield(desc, infield) != rocfft_status_success)
+                if(rocfft.plan_description_add_infield(desc, infield) != rocfft_status_success)
                     throw std::runtime_error("rocfft_description_add_infield failed");
-                rocfft_field_destroy(infield);
+                rocfft.field_destroy(infield);
             }
 
             for(const auto& ofield : ofields)
             {
                 rocfft_field outfield = fft_field_to_rocfft_field(ofield);
-                if(rocfft_plan_description_add_outfield(desc, outfield) != rocfft_status_success)
+                if(rocfft.plan_description_add_outfield(desc, outfield) != rocfft_status_success)
                     throw std::runtime_error("rocfft_description_add_outfield failed");
-                rocfft_field_destroy(outfield);
+                rocfft.field_destroy(outfield);
             }
 
             if(mp_lib == fft_mp_lib_mpi)
             {
-                if(rocfft_plan_description_set_comm(desc, rocfft_comm_mpi, mp_comm)
+                if(rocfft.plan_description_set_comm(desc, rocfft_comm_mpi, mp_comm)
                    != rocfft_status_success)
                     throw std::runtime_error("rocfft_plan_description_set_comm failed");
             }
@@ -372,7 +399,7 @@ public:
 
         if(plan == nullptr)
         {
-            fft_status = rocfft_plan_create(&plan,
+            fft_status = rocfft.plan_create(&plan,
                                             rocfft_result_placement_from_fftparams(placement),
                                             rocfft_transform_type_from_fftparams(transform_type),
                                             get_rocfft_precision(),
@@ -388,14 +415,14 @@ public:
 
         if(info == nullptr)
         {
-            fft_status = rocfft_execution_info_create(&info);
+            fft_status = rocfft.execution_info_create(&info);
             if(fft_status != rocfft_status_success)
             {
                 throw std::runtime_error("rocfft_execution_info_create failed");
             }
         }
 
-        fft_status = rocfft_plan_get_work_buffer_size(plan, &workbuffersize);
+        fft_status = rocfft.plan_get_work_buffer_size(plan, &workbuffersize);
         if(fft_status != rocfft_status_success)
         {
             throw std::runtime_error("rocfft_plan_get_work_buffer_size failed");
@@ -434,7 +461,7 @@ public:
             }
 
             auto rocret
-                = rocfft_execution_info_set_work_buffer(info, wbuffer.data(), workbuffersize);
+                = rocfft.execution_info_set_work_buffer(info, wbuffer.data(), workbuffersize);
             if(rocret != rocfft_status_success)
             {
                 throw std::runtime_error("rocfft_execution_info_set_work_buffer failed");
@@ -452,12 +479,12 @@ public:
         if(run_callbacks)
         {
             auto roc_status
-                = rocfft_execution_info_set_load_callback(info, &load_cb_host, &load_cb_data, 0);
+                = rocfft.execution_info_set_load_callback(info, &load_cb_host, &load_cb_data, 0);
             if(roc_status != rocfft_status_success)
                 return fft_status_from_rocfftparams(roc_status);
 
             roc_status
-                = rocfft_execution_info_set_store_callback(info, &store_cb_host, &store_cb_data, 0);
+                = rocfft.execution_info_set_store_callback(info, &store_cb_host, &store_cb_data, 0);
             if(roc_status != rocfft_status_success)
                 return fft_status_from_rocfftparams(roc_status);
         }
@@ -466,7 +493,7 @@ public:
 
     fft_status execute(void** in, void** out) override
     {
-        auto ret = rocfft_execute(plan, in, out, info);
+        auto ret = rocfft.execute(plan, in, out, info);
         return fft_status_from_rocfftparams(ret);
     }
 
@@ -677,4 +704,211 @@ private:
     }
 };
 
+#define ROCFFT_API_WRAP(func)                            \
+    template <typename... Arg>                           \
+    rocfft_status func(Arg&&... arg)                     \
+    {                                                    \
+        return rocfft_##func(std::forward<Arg>(arg)...); \
+    }
+
+struct rocfft_funcs
+{
+    ROCFFT_API_WRAP(brick_create);
+    ROCFFT_API_WRAP(brick_destroy);
+    ROCFFT_API_WRAP(cleanup);
+    ROCFFT_API_WRAP(execute);
+    ROCFFT_API_WRAP(execution_info_create);
+    ROCFFT_API_WRAP(execution_info_destroy);
+    ROCFFT_API_WRAP(execution_info_set_load_callback);
+    ROCFFT_API_WRAP(execution_info_set_store_callback);
+    ROCFFT_API_WRAP(execution_info_set_work_buffer);
+    ROCFFT_API_WRAP(field_add_brick);
+    ROCFFT_API_WRAP(field_create);
+    ROCFFT_API_WRAP(field_destroy);
+    ROCFFT_API_WRAP(plan_create);
+    ROCFFT_API_WRAP(plan_description_add_infield);
+    ROCFFT_API_WRAP(plan_description_add_outfield);
+    ROCFFT_API_WRAP(plan_description_create);
+    ROCFFT_API_WRAP(plan_description_destroy);
+    ROCFFT_API_WRAP(plan_description_set_comm);
+    ROCFFT_API_WRAP(plan_description_set_data_layout);
+    ROCFFT_API_WRAP(plan_description_set_scale_factor);
+    ROCFFT_API_WRAP(plan_destroy);
+    ROCFFT_API_WRAP(plan_get_work_buffer_size);
+    ROCFFT_API_WRAP(setup);
+};
+
+#define ROCFFT_DYNA_API_WRAP(func) decltype(&rocfft_##func) func = nullptr
+
+#define ROCFFT_DYNA_API_LOAD(func) \
+    func = reinterpret_cast<decltype(&rocfft_##func)>(lib_symbol(lib, "rocfft_" #func))
+
+struct dyna_rocfft_funcs
+{
+#ifdef WIN32
+    typedef HMODULE ROCFFT_LIB;
+#else
+    typedef void* ROCFFT_LIB;
+#endif
+
+    // Load the rocfft library
+    static ROCFFT_LIB lib_load(const std::string& path)
+    {
+#ifdef WIN32
+        return LoadLibraryA(path.c_str());
+#else
+        return dlopen(path.c_str(), RTLD_LAZY);
+#endif
+    }
+
+    // Return a string describing the error loading rocfft
+    static const char* lib_load_error()
+    {
+#ifdef WIN32
+        // just return the error number
+        static std::string error_str;
+        error_str = std::to_string(GetLastError());
+        return error_str.c_str();
+#else
+        return dlerror();
+#endif
+    }
+
+    // Get symbol from rocfft lib
+    static void* lib_symbol(ROCFFT_LIB libhandle, const char* sym)
+    {
+#ifdef WIN32
+        return reinterpret_cast<void*>(GetProcAddress(libhandle, sym));
+#else
+        return dlsym(libhandle, sym);
+#endif
+    }
+
+    static void lib_close(ROCFFT_LIB libhandle)
+    {
+        if(!libhandle)
+            return;
+#ifdef WIN32
+        FreeLibrary(libhandle);
+#else
+        dlclose(libhandle);
+#endif
+    }
+
+    ROCFFT_LIB lib = nullptr;
+    ROCFFT_DYNA_API_WRAP(brick_create);
+    ROCFFT_DYNA_API_WRAP(brick_destroy);
+    ROCFFT_DYNA_API_WRAP(cleanup);
+    ROCFFT_DYNA_API_WRAP(execute);
+    ROCFFT_DYNA_API_WRAP(execution_info_create);
+    ROCFFT_DYNA_API_WRAP(execution_info_destroy);
+    ROCFFT_DYNA_API_WRAP(execution_info_set_load_callback);
+    ROCFFT_DYNA_API_WRAP(execution_info_set_store_callback);
+    ROCFFT_DYNA_API_WRAP(execution_info_set_work_buffer);
+    ROCFFT_DYNA_API_WRAP(field_add_brick);
+    ROCFFT_DYNA_API_WRAP(field_create);
+    ROCFFT_DYNA_API_WRAP(field_destroy);
+    ROCFFT_DYNA_API_WRAP(plan_create);
+    ROCFFT_DYNA_API_WRAP(plan_description_add_infield);
+    ROCFFT_DYNA_API_WRAP(plan_description_add_outfield);
+    ROCFFT_DYNA_API_WRAP(plan_description_create);
+    ROCFFT_DYNA_API_WRAP(plan_description_destroy);
+    ROCFFT_DYNA_API_WRAP(plan_description_set_comm);
+    ROCFFT_DYNA_API_WRAP(plan_description_set_data_layout);
+    ROCFFT_DYNA_API_WRAP(plan_description_set_scale_factor);
+    ROCFFT_DYNA_API_WRAP(plan_destroy);
+    ROCFFT_DYNA_API_WRAP(plan_get_work_buffer_size);
+    ROCFFT_DYNA_API_WRAP(setup);
+
+    dyna_rocfft_funcs(const std::string& path)
+        : path(path)
+    {
+        lib = lib_load(path);
+        if(!lib)
+            throw std::runtime_error(lib_load_error());
+
+        ROCFFT_DYNA_API_LOAD(brick_create);
+        ROCFFT_DYNA_API_LOAD(brick_destroy);
+        ROCFFT_DYNA_API_LOAD(cleanup);
+        ROCFFT_DYNA_API_LOAD(execute);
+        ROCFFT_DYNA_API_LOAD(execution_info_create);
+        ROCFFT_DYNA_API_LOAD(execution_info_destroy);
+        ROCFFT_DYNA_API_LOAD(execution_info_set_load_callback);
+        ROCFFT_DYNA_API_LOAD(execution_info_set_store_callback);
+        ROCFFT_DYNA_API_LOAD(execution_info_set_work_buffer);
+        ROCFFT_DYNA_API_LOAD(field_add_brick);
+        ROCFFT_DYNA_API_LOAD(field_create);
+        ROCFFT_DYNA_API_LOAD(field_destroy);
+        ROCFFT_DYNA_API_LOAD(plan_create);
+        ROCFFT_DYNA_API_LOAD(plan_description_add_infield);
+        ROCFFT_DYNA_API_LOAD(plan_description_add_outfield);
+        ROCFFT_DYNA_API_LOAD(plan_description_create);
+        ROCFFT_DYNA_API_LOAD(plan_description_destroy);
+        ROCFFT_DYNA_API_LOAD(plan_description_set_comm);
+        ROCFFT_DYNA_API_LOAD(plan_description_set_data_layout);
+        ROCFFT_DYNA_API_LOAD(plan_description_set_scale_factor);
+        ROCFFT_DYNA_API_LOAD(plan_destroy);
+        ROCFFT_DYNA_API_LOAD(plan_get_work_buffer_size);
+        ROCFFT_DYNA_API_LOAD(setup);
+    }
+
+    ~dyna_rocfft_funcs()
+    {
+        lib_close(lib);
+        lib = nullptr;
+    }
+
+    // copy not allowed
+    dyna_rocfft_funcs(const dyna_rocfft_funcs&) = delete;
+    dyna_rocfft_funcs& operator=(const dyna_rocfft_funcs&) = delete;
+
+    void swap(dyna_rocfft_funcs& other)
+    {
+        std::swap(this->lib, other.lib);
+        std::swap(this->brick_create, other.brick_create);
+        std::swap(this->brick_destroy, other.brick_destroy);
+        std::swap(this->cleanup, other.cleanup);
+        std::swap(this->execute, other.execute);
+        std::swap(this->execution_info_create, other.execution_info_create);
+        std::swap(this->execution_info_destroy, other.execution_info_destroy);
+        std::swap(this->execution_info_set_load_callback, other.execution_info_set_load_callback);
+        std::swap(this->execution_info_set_store_callback, other.execution_info_set_store_callback);
+        std::swap(this->execution_info_set_work_buffer, other.execution_info_set_work_buffer);
+        std::swap(this->field_add_brick, other.field_add_brick);
+        std::swap(this->field_create, other.field_create);
+        std::swap(this->field_destroy, other.field_destroy);
+        std::swap(this->plan_create, other.plan_create);
+        std::swap(this->plan_description_add_infield, other.plan_description_add_infield);
+        std::swap(this->plan_description_add_outfield, other.plan_description_add_outfield);
+        std::swap(this->plan_description_create, other.plan_description_create);
+        std::swap(this->plan_description_destroy, other.plan_description_destroy);
+        std::swap(this->plan_description_set_comm, other.plan_description_set_comm);
+        std::swap(this->plan_description_set_data_layout, other.plan_description_set_data_layout);
+        std::swap(this->plan_description_set_scale_factor, other.plan_description_set_scale_factor);
+        std::swap(this->plan_destroy, other.plan_destroy);
+        std::swap(this->plan_get_work_buffer_size, other.plan_get_work_buffer_size);
+        std::swap(this->setup, other.setup);
+
+        this->path.swap(other.path);
+    }
+
+    // move is allowed
+    dyna_rocfft_funcs(dyna_rocfft_funcs&& other)
+    {
+        other.swap(*this);
+    }
+    dyna_rocfft_funcs& operator=(dyna_rocfft_funcs&& other)
+    {
+        other.swap(*this);
+        return *this;
+    }
+
+    std::string path;
+
+private:
+    dyna_rocfft_funcs() = default;
+};
+
+typedef rocfft_params_base<rocfft_funcs>      rocfft_params;
+typedef rocfft_params_base<dyna_rocfft_funcs> dyna_rocfft_params;
 #endif

@@ -572,6 +572,12 @@ public:
     fft_params(){};
     virtual ~fft_params(){};
 
+    // copying and moving
+    fft_params(const fft_params&) = default;
+    fft_params& operator=(const fft_params&) = default;
+    fft_params(fft_params&&)                 = default;
+    fft_params& operator=(fft_params&&) = default;
+
     // Given an array type, return the name as a string.
     static std::string array_type_name(const fft_array_type type, bool verbose = true)
     {

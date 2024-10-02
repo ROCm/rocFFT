@@ -46,25 +46,10 @@ struct match_rank
     }
 };
 
-void synchronize_brick_devices(const std::vector<fft_params::fft_brick>& bricks)
-{
-    // NOTE: bricks are expected to already be sorted by rank +
-    // device
-    auto b = bricks.begin();
-    while(b != bricks.end())
-    {
-        rocfft_scoped_device dev(b->device);
-        (void)hipDeviceSynchronize();
-        // move to next different device
-        b = std::find_if(b, bricks.end(), [b](const fft_params::fft_brick& next_b) {
-            return next_b.device != b->device;
-        });
-    }
-}
-
 // Initialize input for the bricks on the current rank.
+template <typename Tparams>
 void init_local_input(MPI_Comm                  mpi_comm,
-                      const rocfft_params&      params,
+                      const Tparams&            params,
                       size_t                    elem_size,
                       const std::vector<void*>& input_ptrs)
 {
@@ -185,14 +170,14 @@ static size_t add_brick_elems(size_t val, const fft_params::fft_brick& b)
 // Gather a whole field to a host buffer on rank 0.  local_bricks is
 // the contiguous buffer allocated by alloc_local_bricks with all of
 // the current rank's bricks.
-void gather_field(MPI_Comm                            mpi_comm,
-                  std::vector<fft_params::fft_brick>& bricks,
-                  const std::vector<size_t>&          field_stride,
-                  size_t                              field_dist,
-                  const fft_precision                 precision,
-                  const fft_array_type                array_type,
-                  gpubuf&                             local_bricks,
-                  hostbuf&                            output)
+void gather_field(MPI_Comm                                  mpi_comm,
+                  const std::vector<fft_params::fft_brick>& bricks,
+                  const std::vector<size_t>&                field_stride,
+                  size_t                                    field_dist,
+                  const fft_precision                       precision,
+                  const fft_array_type                      array_type,
+                  gpubuf&                                   local_bricks,
+                  hostbuf&                                  output)
 {
     int mpi_rank = 0;
     MPI_Comm_rank(mpi_comm, &mpi_rank);
@@ -296,11 +281,11 @@ void gather_field(MPI_Comm                            mpi_comm,
 // Allocate a device buffer to hold all of the bricks for this rank.
 // A rank can have N bricks on it but this will allocate one
 // contiguous buffer and return pointers to each of the N bricks.
-void alloc_local_bricks(MPI_Comm                            mpi_comm,
-                        std::vector<fft_params::fft_brick>& bricks,
-                        size_t                              elem_size,
-                        gpubuf&                             buffer,
-                        std::vector<void*>&                 buffer_ptrs)
+void alloc_local_bricks(MPI_Comm                                  mpi_comm,
+                        const std::vector<fft_params::fft_brick>& bricks,
+                        size_t                                    elem_size,
+                        gpubuf&                                   buffer,
+                        std::vector<void*>&                       buffer_ptrs)
 {
     int mpi_rank = 0;
     MPI_Comm_rank(mpi_comm, &mpi_rank);
@@ -376,57 +361,91 @@ int get_field_device(int mpi_rank, const fft_params::fft_field& field)
     throw std::runtime_error("field spans multiple devices");
 }
 
-int main(int argc, char* argv[])
+// execute the specific number of trials on a vec of libraries
+void exec_testcases(MPI_Comm                          mpi_comm,
+                    int                               mpi_rank,
+                    bool                              run_bench,
+                    bool                              run_fftw,
+                    int                               test_sequence,
+                    const std::string&                token,
+                    const std::vector<std::string>&   lib_strings,
+                    std::vector<std::vector<double>>& gpu_time,
+                    gpubuf&                           local_input,
+                    std::vector<void*>&               local_input_ptrs,
+                    gpubuf&                           local_output,
+                    std::vector<void*>&               local_output_ptrs,
+                    size_t                            ntrial)
 {
-    CLI::App    app{"rocFFT MPI worker process"};
-    size_t      ntrial = 1;
-    std::string token;
-    bool        run_fftw  = false;
-    bool        run_bench = false;
-    auto        bench_flag
-        = app.add_flag("--benchmark", run_bench, "Benchmark a specified number of MPI transforms");
-    app.add_option("-N, --ntrial", ntrial, "Number of trials to benchmark")
-        ->default_val(1)
-        ->check(CLI::PositiveNumber);
-    app.add_flag("--accuracy", run_fftw, "Check accuracy of an MPI transform")
-        ->excludes(bench_flag);
-    app.add_option("--token", token, "Problem token to test")->required();
-    try
+#ifdef ROCFFT_DYNA_MPI_WORKER
+    std::vector<dyna_rocfft_params> all_params;
+    for(auto& lib : lib_strings)
+        all_params.emplace_back(lib);
+#else
+    std::array<rocfft_params, 1> all_params;
+#endif
+
+    for(auto& p : all_params)
     {
-        app.parse(argc, argv);
+        p.rocfft.setup();
+
+        p.from_token(token);
+        p.validate();
+        p.ifields.front().sort_by_rank();
+        p.ofields.front().sort_by_rank();
+
+        p.mp_lib  = fft_params::fft_mp_lib_mpi;
+        p.mp_comm = &mpi_comm;
     }
-    catch(const CLI::ParseError& e)
+
+    // allocate library test order in advance so we can communicate
+    // it to all ranks
+    std::vector<size_t> testcases;
+    testcases.reserve(ntrial * lib_strings.size());
+    if(mpi_rank == 0)
     {
-        return app.exit(e);
+        switch(test_sequence)
+        {
+        case 0:
+        case 2:
+        {
+            // Random and sequential order:
+            for(size_t ilib = 0; ilib < lib_strings.size(); ++ilib)
+                std::fill_n(std::back_inserter(testcases), ntrial, ilib);
+            if(test_sequence == 0)
+            {
+                std::random_device rd;
+                std::mt19937       g(rd());
+                std::shuffle(testcases.begin(), testcases.end(), g);
+            }
+            break;
+        }
+        case 1:
+            // Alternating order:
+            for(size_t itrial = 0; itrial < ntrial; ++itrial)
+            {
+                for(size_t ilib = 0; ilib < lib_strings.size(); ++ilib)
+                {
+                    testcases.push_back(ilib);
+                }
+            }
+            break;
+        default:
+            throw std::runtime_error("Invalid test sequence choice.");
+        }
     }
 
-    MPI_Init(&argc, &argv);
+    // for all other ranks, resize to what rank 0 has, in preparation
+    // for receiving the test case order
+    testcases.resize(ntrial * lib_strings.size());
 
-    rocfft_setup();
+    // send test case order from rank 0 to all ranks
+    MPI_Bcast(testcases.data(), testcases.size(), MPI_UINT64_T, 0, mpi_comm);
 
-    MPI_Comm mpi_comm = MPI_COMM_WORLD;
-    MPI_Comm_set_errhandler(mpi_comm, MPI_ERRORS_ARE_FATAL);
-
-    int mpi_size = 0;
-    MPI_Comm_size(mpi_comm, &mpi_size);
-
-    int mpi_rank = 0;
-    MPI_Comm_rank(mpi_comm, &mpi_rank);
-
-    rocfft_params params;
-    params.from_token(token);
-    params.validate();
-    params.ifields.front().sort_by_rank();
-    params.ofields.front().sort_by_rank();
-
-    params.mp_lib  = fft_params::fft_mp_lib_mpi;
-    params.mp_comm = &mpi_comm;
-
-    gpubuf             local_input;
-    std::vector<void*> local_input_ptrs;
-
-    auto in_elem_size  = var_size<size_t>(params.precision, params.itype);
-    auto out_elem_size = var_size<size_t>(params.precision, params.otype);
+    // use first params to know things like precision, type that
+    // won't change between libraries
+    const auto& params        = all_params.front();
+    const auto  in_elem_size  = var_size<size_t>(params.precision, params.itype);
+    const auto  out_elem_size = var_size<size_t>(params.precision, params.otype);
 
     // currently, MPI worker requires that any rank only uses a
     // single device
@@ -434,99 +453,108 @@ int main(int argc, char* argv[])
     int output_device = get_field_device(mpi_rank, params.ifields.front());
     if(input_device != output_device)
         throw std::runtime_error("input field uses different device from output field");
+
     rocfft_scoped_device dev(input_device);
 
-    alloc_local_bricks(
-        mpi_comm, params.ifields.back().bricks, in_elem_size, local_input, local_input_ptrs);
-    init_local_input(mpi_comm, params, in_elem_size, local_input_ptrs);
-
-    // allocate local output bricks
-    gpubuf             local_output;
-    std::vector<void*> local_output_ptrs;
-    if(params.placement == fft_placement_inplace)
-    {
-        local_output_ptrs = local_input_ptrs;
-    }
-    else
-    {
-        alloc_local_bricks(
-            mpi_comm, params.ofields.back().bricks, out_elem_size, local_output, local_output_ptrs);
-    }
-
+    // check accuracy vs. FFTW - we only do this if FFTW actually ran
+    // on this iteration
+    bool                 check_fftw = false;
     std::vector<hostbuf> cpu_data(1);
     VectorNorms          cpu_output_norm;
-    if(run_fftw)
+
+    // allocate input/output if it hasn't been allocated already
+    if(local_input_ptrs.empty())
     {
-        if(mpi_rank == 0)
-            cpu_data.front().alloc(std::max(params.isize.front() * in_elem_size,
-                                            params.osize.front() * out_elem_size));
+        alloc_local_bricks(
+            mpi_comm, params.ifields.back().bricks, in_elem_size, local_input, local_input_ptrs);
+        init_local_input(mpi_comm, params, in_elem_size, local_input_ptrs);
 
-        gather_field(mpi_comm,
-                     params.ifields.front().bricks,
-                     params.istride,
-                     params.idist,
-                     params.precision,
-                     params.itype,
-                     local_input,
-                     cpu_data.front());
-
-        if(mpi_rank == 0)
+        // allocate local output bricks
+        if(params.placement == fft_placement_inplace)
         {
-            fft_params params_inplace = params;
-            params_inplace.placement  = fft_placement_inplace;
+            local_output_ptrs = local_input_ptrs;
+        }
+        else
+        {
+            alloc_local_bricks(mpi_comm,
+                               params.ofields.back().bricks,
+                               out_elem_size,
+                               local_output,
+                               local_output_ptrs);
+        }
 
-            // create fftw plan and run it
-            switch(params_inplace.precision)
-            {
-            case fft_precision_half:
-            {
-                execute_reference_fft<_Float16>(params_inplace, cpu_data);
-                break;
-            }
-            case fft_precision_single:
-            {
-                execute_reference_fft<float>(params_inplace, cpu_data);
-                break;
-            }
-            case fft_precision_double:
-            {
-                execute_reference_fft<double>(params_inplace, cpu_data);
-                break;
-            }
-            }
+        if(run_fftw)
+        {
+            check_fftw = true;
+            if(mpi_rank == 0)
+                cpu_data.front().alloc(std::max(params.isize.front() * in_elem_size,
+                                                params.osize.front() * out_elem_size));
 
-            cpu_output_norm = norm(cpu_data,
-                                   params_inplace.ilength(),
-                                   params_inplace.nbatch,
-                                   params_inplace.precision,
-                                   params_inplace.itype,
-                                   params_inplace.istride,
-                                   params_inplace.idist,
-                                   params_inplace.ioffset);
+            gather_field(mpi_comm,
+                         params.ifields.front().bricks,
+                         params.istride,
+                         params.idist,
+                         params.precision,
+                         params.itype,
+                         local_input,
+                         cpu_data.front());
+
+            if(mpi_rank == 0)
+            {
+                fft_params params_inplace = params;
+                params_inplace.placement  = fft_placement_inplace;
+
+                // create fftw plan and run it
+                switch(params_inplace.precision)
+                {
+                case fft_precision_half:
+                {
+                    execute_reference_fft<_Float16>(params_inplace, cpu_data);
+                    break;
+                }
+                case fft_precision_single:
+                {
+                    execute_reference_fft<float>(params_inplace, cpu_data);
+                    break;
+                }
+                case fft_precision_double:
+                {
+                    execute_reference_fft<double>(params_inplace, cpu_data);
+                    break;
+                }
+                }
+
+                cpu_output_norm = norm(cpu_data,
+                                       params_inplace.ilength(),
+                                       params_inplace.nbatch,
+                                       params_inplace.precision,
+                                       params_inplace.itype,
+                                       params_inplace.istride,
+                                       params_inplace.idist,
+                                       params_inplace.ioffset);
+            }
         }
     }
 
     // now all ranks are ready to start FFT
 
     // call rocfft_plan_create
-    params.create_plan();
+    for(auto& p : all_params)
+        p.create_plan();
 
     std::chrono::time_point<std::chrono::steady_clock> start, stop;
-    std::vector<double>                                gpu_time;
-    if(mpi_rank == 0)
-        gpu_time.reserve(ntrial);
-
-    for(size_t i = 0; i < ntrial; ++i)
+    for(size_t i = 0; i < testcases.size(); ++i)
     {
+        size_t testcase = testcases[i];
         if(run_bench)
         {
-            // reinit input for trials after the first one
+            // reinit input for tests after the first one
             if(i > 0)
                 init_local_input(mpi_comm, params, in_elem_size, local_input_ptrs);
 
             // ensure plan is finished building, synchronize all devices
             // in the input bricks
-            synchronize_brick_devices(params.ifields.back().bricks);
+            (void)hipDeviceSynchronize();
 
             MPI_Barrier(mpi_comm);
 
@@ -534,13 +562,16 @@ int main(int argc, char* argv[])
             start = std::chrono::steady_clock::now();
         }
 
-        params.execute(local_input_ptrs.data(), local_output_ptrs.data());
+        all_params[testcase].execute(local_input_ptrs.data(), local_output_ptrs.data());
 
         if(run_bench)
         {
             // ensure FFT is finished executing - synchronize all devices
             // on output bricks
-            synchronize_brick_devices(params.ofields.back().bricks);
+            {
+                rocfft_scoped_device dev(output_device);
+                (void)hipDeviceSynchronize();
+            }
 
             stop = std::chrono::steady_clock::now();
 
@@ -553,28 +584,11 @@ int main(int argc, char* argv[])
             MPI_Reduce(&diff_ms, &max_diff_ms, 1, MPI_DOUBLE, MPI_MAX, 0, mpi_comm);
 
             if(mpi_rank == 0)
-                gpu_time.push_back(max_diff_ms);
+                gpu_time[testcase].push_back(max_diff_ms);
         }
     }
 
-    if(run_bench && mpi_rank == 0)
-    {
-        std::cout << "Max rank time:";
-        for(auto i : gpu_time)
-            std::cout << " " << i;
-        std::cout << " ms" << std::endl;
-
-        std::sort(gpu_time.begin(), gpu_time.end());
-        // print median
-        double median;
-        if(ntrial % 2)
-            median = (gpu_time[ntrial / 2] + gpu_time[(ntrial + 1) / 2]) / 2;
-        else
-            median = gpu_time[ntrial / 2];
-        std::cout << "Median: " << median << std::endl;
-    }
-
-    if(run_fftw)
+    if(check_fftw)
     {
         // gather output
         std::vector<hostbuf> gpu_output(1);
@@ -627,8 +641,137 @@ int main(int argc, char* argv[])
         }
     }
 
-    params.free();
-    rocfft_cleanup();
+    for(auto& p : all_params)
+    {
+        p.free();
+        p.rocfft.cleanup();
+    }
+}
+
+int main(int argc, char* argv[])
+{
+    CLI::App    app{"rocFFT MPI worker process"};
+    size_t      ntrial = 1;
+    std::string token;
+
+    // Test sequence choice:
+    int test_sequence = 0;
+
+    // Vector of test target libraries
+    std::vector<std::string> lib_strings;
+
+    // Bool to specify whether the libs are loaded in forward or forward+reverse order.
+    int reverse{};
+
+    bool run_fftw  = false;
+    bool run_bench = false;
+    auto bench_flag
+        = app.add_flag("--benchmark", run_bench, "Benchmark a specified number of MPI transforms");
+    app.add_option("-N, --ntrial", ntrial, "Number of trials to benchmark")
+        ->default_val(1)
+        ->check(CLI::PositiveNumber);
+    app.add_flag("--accuracy", run_fftw, "Check accuracy of an MPI transform")
+        ->excludes(bench_flag);
+    app.add_option("--token", token, "Problem token to test")->required();
+    app.add_option(
+           "--sequence", test_sequence, "Test sequence:\n0) random\n1) alternating\n2) sequential")
+        ->check(CLI::Range(0, 2))
+        ->default_val(0);
+#ifdef ROCFFT_DYNA_MPI_WORKER
+    app.add_option("--lib", lib_strings, "Set test target library full path (appendable)")
+        ->required();
+    app.add_flag("--reverse", reverse, "Load libs in forward and reverse order")->default_val(1);
+#else
+    // add a library string to represent the rocFFT that we are
+    // linked to
+    lib_strings.push_back("");
+#endif
+    try
+    {
+        app.parse(argc, argv);
+    }
+    catch(const CLI::ParseError& e)
+    {
+        return app.exit(e);
+    }
+
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm mpi_comm = MPI_COMM_WORLD;
+    MPI_Comm_set_errhandler(mpi_comm, MPI_ERRORS_ARE_FATAL);
+
+    int mpi_rank = 0;
+    MPI_Comm_rank(mpi_comm, &mpi_rank);
+
+    gpubuf             local_input;
+    std::vector<void*> local_input_ptrs;
+    gpubuf             local_output;
+    std::vector<void*> local_output_ptrs;
+
+    // timing results - for each lib, store a vector of measured
+    // times
+    std::vector<std::vector<double>> gpu_time;
+    gpu_time.resize(lib_strings.size());
+
+    // if reversing, cut runs in half for first pass
+    size_t ntrial_pass1 = reverse ? (ntrial + 1) / 2 : ntrial;
+    exec_testcases(mpi_comm,
+                   mpi_rank,
+                   run_bench,
+                   run_fftw,
+                   test_sequence,
+                   token,
+                   lib_strings,
+                   gpu_time,
+                   local_input,
+                   local_input_ptrs,
+                   local_output,
+                   local_output_ptrs,
+                   ntrial_pass1);
+    if(reverse)
+    {
+        size_t ntrial_pass2 = ntrial / 2;
+
+        // do libraries in reverse order
+        std::reverse(lib_strings.begin(), lib_strings.end());
+        std::reverse(gpu_time.begin(), gpu_time.end());
+        exec_testcases(mpi_comm,
+                       mpi_rank,
+                       run_bench,
+                       run_fftw,
+                       test_sequence,
+                       token,
+                       lib_strings,
+                       gpu_time,
+                       local_input,
+                       local_input_ptrs,
+                       local_output,
+                       local_output_ptrs,
+                       ntrial_pass2);
+        // put back to normal order
+        std::reverse(lib_strings.begin(), lib_strings.end());
+        std::reverse(gpu_time.begin(), gpu_time.end());
+    }
+
+    if(run_bench && mpi_rank == 0)
+    {
+        for(auto& times : gpu_time)
+        {
+            std::cout << "Max rank time:";
+            for(auto i : times)
+                std::cout << " " << i;
+            std::cout << " ms" << std::endl;
+
+            std::sort(times.begin(), times.end());
+            // print median
+            double median;
+            if(ntrial % 2)
+                median = (times[ntrial / 2] + times[(ntrial + 1) / 2]) / 2;
+            else
+                median = times[ntrial / 2];
+            std::cout << "Median: " << median << std::endl;
+        }
+    }
 
     MPI_Finalize();
     return 0;

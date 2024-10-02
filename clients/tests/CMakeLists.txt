@@ -307,27 +307,40 @@ if (WIN32)
 endif()
 
 if( ROCFFT_MPI_ENABLE )
-  add_executable( rocfft_mpi_worker rocfft_mpi_worker.cpp )
-  target_include_directories( rocfft_mpi_worker
-    PRIVATE
-    $<BUILD_INTERFACE:${FFTW_INCLUDES}>
-    ${CMAKE_BINARY_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
-    ${MPI_C_INCLUDE_PATH}
-  )
-  target_compile_options( rocfft_mpi_worker PRIVATE ${WARNING_FLAGS} )
+  # normal and dynamic-loading MPI worker processes
+  foreach(worker rocfft_mpi_worker dyna_rocfft_mpi_worker)
+    add_executable( ${worker} rocfft_mpi_worker.cpp )
+    target_include_directories( ${worker}
+      PRIVATE
+      $<BUILD_INTERFACE:${FFTW_INCLUDES}>
+      ${CMAKE_BINARY_DIR}/include
+      ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
+      ${MPI_C_INCLUDE_PATH}
+    )
+    target_compile_options( ${worker} PRIVATE ${WARNING_FLAGS} )
+    target_link_libraries( ${worker}
+      hip::hiprand
+      hip::device
+      MPI::MPI_C
+      ${FFTW_LIBRARIES}
+    )
+    set_target_properties(${worker}
+                          PROPERTIES 
+                          RUNTIME_OUTPUT_DIRECTORY 
+                          ${TESTS_OUT_DIR})
+    rocm_install(TARGETS ${worker} COMPONENT tests)
+    
+  endforeach()
+
+  # link normal MPI worker against rocFFT
   target_link_libraries( rocfft_mpi_worker
     roc::rocfft
-    hip::hiprand
-    hip::device
-    MPI::MPI_C
-    ${FFTW_LIBRARIES}
   )
 
-  set_target_properties(rocfft_mpi_worker
-                        PROPERTIES 
-                        RUNTIME_OUTPUT_DIRECTORY 
-                        ${TESTS_OUT_DIR})
+  # dyna worker only needs to dynamically load libraries
+  target_compile_definitions( dyna_rocfft_mpi_worker PRIVATE ROCFFT_DYNA_MPI_WORKER )
+  target_link_libraries( dyna_rocfft_mpi_worker
+    ${CMAKE_DL_LIBS}
+  )
 
-  rocm_install(TARGETS rocfft_mpi_worker COMPONENT tests)
 endif()
