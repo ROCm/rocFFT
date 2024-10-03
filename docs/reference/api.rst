@@ -94,6 +94,32 @@ information such as the work buffer and compute stream for the transform.
 
 .. comment doxygenfunction:: rocfft_execution_info_get_events
 
+HIP graph Support for rocFFT
+============================
+
+rocFFT supports capturing kernels launched by
+:cpp:func:`rocfft_execute` into HIP graph nodes.  This way, users can
+capture FFT execution, along with other work, into a HIP graph and
+launch the work in the graph multiple times.
+
+Graph capture is only supported for single-process transforms.
+Multi-process transforms such as those that use Message Passing
+Interface cannot use graph capture, as rocFFT performs inter-process
+communication in addition to launching kernels.
+
+Note that each launch of a HIP graph will provide the same arguments
+to the kernels in the graph.  In particular, this implies that all of
+the parameters to :cpp:func:`rocfft_execute` remain valid while the
+HIP graph is in use:
+
+* The rocFFT plan
+
+* The input and output buffers
+
+* The :cpp:type:`rocfft_execution_info` object, if one was provided
+
+rocFFT does not support capturing work performed by other API
+functions aside from :cpp:func:`rocfft_execute` into HIP graphs.
 
 Enumerations
 ============
@@ -111,3 +137,4 @@ This section provides all the enumerations used.
 .. doxygenenum:: rocfft_array_type
 
 .. comment doxygenenum:: rocfft_execution_mode
+
