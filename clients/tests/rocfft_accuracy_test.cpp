@@ -69,11 +69,7 @@ TEST_P(accuracy_test, vs_fftw)
 
     if(!params.valid(verbose))
     {
-        if(verbose)
-        {
-            std::cout << "Invalid parameters, skip this test." << std::endl;
-        }
-        GTEST_SKIP();
+        GTEST_FAIL() << "Invalid parameters";
     }
 
     // single-proc FFT
