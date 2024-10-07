@@ -7,8 +7,8 @@ NVIDIA GPUs.
 
 ## Documentation
 
-Documentation for rocFFT is available at
-[rocm.docs.amd.com](https://rocm.docs.amd.com/projects/rocFFT/en/latest/).
+> [!NOTE]
+> The published rocFFT documentation is available at [rocFFT](https://rocm.docs.amd.com/projects/rocFFT/en/latest/index.html) in an organized, easy-to-read format, with search and a table of contents. The documentation source files reside in the rocFFT/docs folder of this repository. As with all ROCm projects, the documentation is open source. For more information, see [Contribute to ROCm documentation](https://rocm.docs.amd.com/en/latest/contribute/contributing.html).
 
 To build our documentation locally, use the following code:
 

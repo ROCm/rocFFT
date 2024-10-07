@@ -1,3 +1,7 @@
+.. meta::
+  :description: rocFFT real data documentation
+  :keywords: rocFFT, ROCm, API, real data, FFT, DFT, documentation
+
 Real data
 =========
 
