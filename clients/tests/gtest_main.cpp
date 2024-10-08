@@ -558,6 +558,13 @@ int main(int argc, char* argv[])
                    precompile_file,
                    "Precompile kernels to a file for all test cases before running tests")
         ->default_val("");
+    // Default value is set in fft_params.h based on if device-side PRNG was enabled.
+    app.add_option("-g, --inputGen",
+                   manual_params.igen,
+                   "Input data generation:\n0) PRNG sequence (device)\n"
+                   "1) PRNG sequence (host)\n"
+                   "2) linearly-spaced sequence (device)\n"
+                   "3) linearly-spaced sequence (host)");
 
     // Parse rest of args and catch any errors here
     try

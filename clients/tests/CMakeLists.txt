@@ -60,7 +60,7 @@ if( NOT ROCM_FOUND )
   find_package( ROCM 0.7.3 REQUIRED )
 endif()
 
-if( NOT hiprand_FOUND )
+if( USE_HIPRAND AND NOT hiprand_FOUND )
   find_package( hiprand REQUIRED )
 endif()
 
@@ -212,10 +212,16 @@ target_link_libraries( rocfft-test
   PRIVATE
   hip::device
   roc::rocfft
-  hip::hiprand
   ${ROCFFT_SQLITE_LIB}
   ${rocfft-test_link_libs}
   )
+
+if ( USE_HIPRAND )
+  target_link_libraries( rocfft-test
+  PRIVATE
+  hip::hiprand
+  )
+endif()
 
 if( ROCFFT_MPI_ENABLE )
   target_link_libraries( rocfft-test

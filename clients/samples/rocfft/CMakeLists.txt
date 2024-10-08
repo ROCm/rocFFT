@@ -52,7 +52,7 @@ if( NOT HIP_FOUND )
   find_package( HIP REQUIRED )
 endif()
 
-if( NOT hiprand_FOUND )
+if( USE_HIPRAND AND NOT hiprand_FOUND )
   find_package( hiprand REQUIRED )
 endif()
 
@@ -69,11 +69,18 @@ foreach( sample ${sample_list} )
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/../include>
   )
 
-target_link_libraries(
-  ${sample}
-  PRIVATE roc::rocfft
-  hip::hiprand
-  )
+  target_link_libraries(
+    ${sample}
+    PRIVATE roc::rocfft
+    )
+
+  if( USE_HIPRAND )
+    target_link_libraries(
+      ${sample}
+      PRIVATE
+      hip::hiprand
+      )
+  endif()
 
   target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} -Wno-cpp )
 

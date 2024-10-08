@@ -161,11 +161,14 @@ void compute_fft_data(Tparams&              params,
     for(auto& buf : ibuffer_sizes_elems)
         buf /= var_size<size_t>(params.precision, params.itype);
 
-    //generate the input directly on the gpu
+    fft_input = allocate_host_buffer(params.precision, params.itype, ibuffer_sizes_elems);
+
+// generate input based on either cpu/gpu
+#ifdef USE_HIPRAND
+    // generate the input directly on the gpu
     params.compute_input(ibuffer);
 
     // Copy input to CPU
-    fft_input = allocate_host_buffer(params.precision, params.itype, ibuffer_sizes_elems);
     for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
     {
         hip_status = hipMemcpy(fft_input.at(idx).data(),
@@ -184,6 +187,34 @@ void compute_fft_data(Tparams&              params,
                 throw ROCFFT_GTEST_FAIL{std::move(msg)};
         }
     }
+#else
+    // generate the input on the cpu
+    params.compute_input(fft_input);
+
+    // Copy input to GPU
+    for(unsigned int idx = 0; idx < fft_input.size(); ++idx)
+    {
+        hip_status = hipMemcpy(ibuffer[idx].data(),
+                               fft_input.at(idx).data(),
+                               ibuffer_sizes[idx],
+                               hipMemcpyHostToDevice);
+
+        if(hip_status != hipSuccess)
+        {
+            ++n_hip_failures;
+            std::stringstream ss;
+            ss << "hipMemcpy failure with error " << hip_status;
+            if(skip_runtime_fails)
+            {
+                throw ROCFFT_GTEST_SKIP{std::move(ss)};
+            }
+            else
+            {
+                throw ROCFFT_GTEST_FAIL{std::move(ss)};
+            }
+        }
+    }
+#endif
 
     std::vector<gpubuf>  obuffer_data;
     std::vector<gpubuf>* obuffer = &obuffer_data;

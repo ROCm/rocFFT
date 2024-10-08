@@ -1108,80 +1108,151 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         }
     }
 
+    // Host-side buffer used to store input to transfer to GPU, copy GPU input
+    // to contiguous layout for FFTW, and reused to store IFFT output.
     std::vector<hostbuf> gpu_input_data;
+
+    auto is_host_gen = (params.igen == fft_input_generator_host
+                        || params.igen == fft_input_random_generator_host);
 
     // allocate and populate the input buffer (cpu/gpu)
     if(run_fftw)
     {
         gpu_input_data = allocate_host_buffer(params.precision, params.itype, ibuffer_sizes_elems);
 
-        //generate the input directly on the gpu
-        params.compute_input(ibuffer);
-
-        // Copy the input to CPU
-        if(params.itype != contiguous_params.itype || params.istride != contiguous_params.istride
-           || params.idist != contiguous_params.idist || params.isize != contiguous_params.isize)
+#ifdef USE_HIPRAND
+        if(!is_host_gen)
         {
-            // Copy input to CPU
-            for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
+            // generate the input directly on the gpu
+            params.compute_input(ibuffer);
+
+            // Copy the input to CPU
+            if(params.itype != contiguous_params.itype
+               || params.istride != contiguous_params.istride
+               || params.idist != contiguous_params.idist
+               || params.isize != contiguous_params.isize)
             {
-                hip_status = hipMemcpy(gpu_input_data.at(idx).data(),
-                                       ibuffer[idx].data(),
-                                       ibuffer_sizes[idx],
-                                       hipMemcpyDeviceToHost);
-                if(hip_status != hipSuccess)
+                // Copy input to CPU
+                for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
                 {
-                    ++n_hip_failures;
-                    std::stringstream ss;
-                    ss << "hipMemcpy failure with error " << hip_status;
-                    if(skip_runtime_fails)
+                    hip_status = hipMemcpy(gpu_input_data.at(idx).data(),
+                                           ibuffer[idx].data(),
+                                           ibuffer_sizes[idx],
+                                           hipMemcpyDeviceToHost);
+                    if(hip_status != hipSuccess)
                     {
-                        throw ROCFFT_GTEST_SKIP{std::move(ss)};
+                        ++n_hip_failures;
+                        std::stringstream ss;
+                        ss << "hipMemcpy failure with error " << hip_status;
+                        if(skip_runtime_fails)
+                        {
+                            throw ROCFFT_GTEST_SKIP{std::move(ss)};
+                        }
+                        else
+                        {
+                            throw ROCFFT_GTEST_FAIL{std::move(ss)};
+                        }
                     }
-                    else
+                }
+
+                copy_buffers(gpu_input_data,
+                             cpu_input,
+                             params.ilength(),
+                             params.nbatch,
+                             params.precision,
+                             params.itype,
+                             params.istride,
+                             params.idist,
+                             contiguous_params.itype,
+                             contiguous_params.istride,
+                             contiguous_params.idist,
+                             params.ioffset,
+                             contiguous_params.ioffset);
+            }
+            else
+            {
+                // Copy input to CPU
+                for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
+                {
+                    hip_status = hipMemcpy(cpu_input.at(idx).data(),
+                                           ibuffer[idx].data(),
+                                           ibuffer_sizes[idx],
+                                           hipMemcpyDeviceToHost);
+                    if(hip_status != hipSuccess)
                     {
-                        throw ROCFFT_GTEST_FAIL{std::move(ss)};
+                        ++n_hip_failures;
+                        std::stringstream ss;
+                        ss << "hipMemcpy failure with error " << hip_status;
+                        if(skip_runtime_fails)
+                        {
+                            throw ROCFFT_GTEST_SKIP{std::move(ss)};
+                        }
+                        else
+                        {
+                            throw ROCFFT_GTEST_FAIL{std::move(ss)};
+                        }
                     }
                 }
             }
-
-            copy_buffers(gpu_input_data,
-                         cpu_input,
-                         params.ilength(),
-                         params.nbatch,
-                         params.precision,
-                         params.itype,
-                         params.istride,
-                         params.idist,
-                         contiguous_params.itype,
-                         contiguous_params.istride,
-                         contiguous_params.idist,
-                         params.ioffset,
-                         contiguous_params.ioffset);
         }
-        else
+
+#endif
+        if(is_host_gen)
         {
-            // Copy input to CPU
-            for(unsigned int idx = 0; idx < ibuffer.size(); ++idx)
+            params.compute_input(gpu_input_data);
+            // Copy the input to CPU
+            if(params.itype != contiguous_params.itype
+               || params.istride != contiguous_params.istride
+               || params.idist != contiguous_params.idist
+               || params.isize != contiguous_params.isize)
             {
-                hip_status = hipMemcpy(cpu_input.at(idx).data(),
-                                       ibuffer[idx].data(),
-                                       ibuffer_sizes[idx],
-                                       hipMemcpyDeviceToHost);
-                if(hip_status != hipSuccess)
+                // Copy input to CPU and make input contiguous
+                copy_buffers(gpu_input_data,
+                             cpu_input,
+                             params.ilength(),
+                             params.nbatch,
+                             params.precision,
+                             params.itype,
+                             params.istride,
+                             params.idist,
+                             contiguous_params.itype,
+                             contiguous_params.istride,
+                             contiguous_params.idist,
+                             params.ioffset,
+                             contiguous_params.ioffset);
+            }
+            else
+            {
+                // Direct copy input to cpu_input as is
+                for(unsigned int idx = 0; idx < gpu_input_data.size(); ++idx)
                 {
-                    ++n_hip_failures;
-                    std::stringstream ss;
-                    ss << "hipMemcpy failure with error " << hip_status;
-                    if(skip_runtime_fails)
+                    hip_status = hipMemcpy(cpu_input.at(idx).data(),
+                                           gpu_input_data.at(idx).data(),
+                                           gpu_input_data.at(idx).size(),
+                                           hipMemcpyHostToHost);
+                    if(hip_status != hipSuccess)
                     {
-                        throw ROCFFT_GTEST_SKIP{std::move(ss)};
-                    }
-                    else
-                    {
-                        throw ROCFFT_GTEST_FAIL{std::move(ss)};
+                        ++n_hip_failures;
+                        std::stringstream ss;
+                        ss << "hipMemcpy failure with error " << hip_status;
+                        if(skip_runtime_fails)
+                        {
+                            throw ROCFFT_GTEST_SKIP{std::move(ss)};
+                        }
+                        else
+                        {
+                            throw ROCFFT_GTEST_FAIL{std::move(ss)};
+                        }
                     }
                 }
+            }
+            // Copy input to GPU
+            for(unsigned int idx = 0; idx < gpu_input_data.size(); ++idx)
+            {
+                hip_status = hipMemcpy(ibuffer[idx].data(),
+                                       gpu_input_data.at(idx).data(),
+                                       ibuffer_sizes[idx],
+                                       hipMemcpyHostToDevice);
             }
         }
     }

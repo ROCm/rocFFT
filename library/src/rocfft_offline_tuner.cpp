@@ -162,8 +162,25 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
         pibuffer[i] = ibuffer[i].data();
     }
 
-    // Input data:
+// Input data:
+#ifdef USE_HIPRAND
     params.compute_input(ibuffer);
+#else
+    // Use host-side input generation
+    std::vector<hostbuf> gpu_input_data
+        = allocate_host_buffer(params.precision, params.itype, ibuffer_sizes);
+    params.compute_input(gpu_input_data);
+
+    // Copy input to GPU
+    for(unsigned int idx = 0; idx < gpu_input_data.size(); ++idx)
+    {
+        HIP_V_THROW(hipMemcpy(ibuffer[idx].data(),
+                              gpu_input_data.at(idx).data(),
+                              ibuffer_sizes[idx],
+                              hipMemcpyHostToDevice),
+                    "hipMemcpy failed");
+    }
+#endif
 
     // GPU output buffer:
     std::vector<gpubuf>  obuffer_data;

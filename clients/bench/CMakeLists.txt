@@ -60,7 +60,7 @@ if( NOT ROCM_FOUND )
   find_package( ROCM 0.7.3 REQUIRED )
 endif()
 
-if( NOT hiprand_FOUND )
+if( USE_HIPRAND AND NOT hiprand_FOUND )
   find_package( hiprand REQUIRED )
 endif()
 
@@ -92,15 +92,21 @@ foreach( bench ${bench_list})
       PRIVATE
       hip::device
       roc::rocfft
-      hip::hiprand
       )
   else()
     target_link_libraries( ${bench}
       PRIVATE
       ${CMAKE_DL_LIBS}
       hip::device
-      hip::hiprand
       )
+    
+  if ( USE_HIPRAND )
+    target_link_libraries( ${bench}
+    PRIVATE
+    hip::hiprand
+    )
+  endif()
+
 
     # We need to include both rocfft.h and rocfft-export.h
     target_include_directories( ${bench}

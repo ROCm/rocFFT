@@ -116,6 +116,12 @@ option(ROCFFT_RUNTIME_COMPILE_DEFAULT "Compile kernels at runtime by default" OF
 # Set default to OFF since users are not likely to tune
 option(ROCFFT_BUILD_OFFLINE_TUNER "Build with offline tuner executable rocfft_offline_tuner" OFF)
 
+# Provide ability to disable hipRAND dependency
+option(USE_HIPRAND "Use hipRAND to provide device-side input generation" ON)
+
+if( USE_HIPRAND )
+  add_compile_definitions(USE_HIPRAND)
+endif( )
 
 # FOR HANDLING ENABLE/DISABLE OPTIONAL BACKWARD COMPATIBILITY for FILE/FOLDER REORG
 option(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY "Build with file/folder reorg with backward compatibility enabled" OFF)
@@ -250,17 +256,19 @@ if( BUILD_CLIENTS_SAMPLES
   if(BUILD_CLIENTS_TESTS)
     rocm_package_setup_client_component(
       tests
-      DEPENDS
-        DEB ${OPENMP_DEB} ${FFTW_DEB} hiprand
-        RPM ${OPENMP_RPM} ${FFTW_RPM} hiprand
+      if( USE_HIPRAND )
+        DEPENDS
+          DEB ${OPENMP_DEB} ${FFTW_DEB} hiprand
+          RPM ${OPENMP_RPM} ${FFTW_RPM} hiprand
     )
   endif()
   if(BUILD_CLIENTS_BENCH)
     rocm_package_setup_client_component(
       benchmarks
-      DEPENDS
-        DEB hiprand
-        RPM hiprand
+      if( USE_HIPRAND )
+        DEPENDS
+          DEB hiprand
+          RPM hiprand
     )
   endif()
   add_subdirectory( clients )

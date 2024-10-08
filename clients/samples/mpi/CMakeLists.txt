@@ -56,7 +56,7 @@ if( NOT MPI_FOUND )
   find_package( MPI REQUIRED )
 endif()
   
-if( NOT hiprand_FOUND )
+if( USE_HIPRAND AND NOT hiprand_FOUND )
   find_package( hiprand REQUIRED )
 endif()
 
@@ -73,12 +73,19 @@ foreach( sample ${sample_list} )
     ${MPI_CXX_INCLUDE_PATH}
   )
 
-target_link_libraries(
-  ${sample}
-  PRIVATE roc::rocfft
-  hip::hiprand
-  MPI::MPI_CXX
-  )
+  target_link_libraries(
+    ${sample}
+    PRIVATE roc::rocfft
+    MPI::MPI_CXX
+    )
+
+  if ( USE_HIPRAND )
+    target_link_libraries(
+    ${sample}
+    PRIVATE
+    hip::hiprand
+    )
+  endif()
 
   target_compile_options( ${sample} PRIVATE ${WARNING_FLAGS} -Wno-cpp )
 

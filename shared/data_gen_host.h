@@ -533,9 +533,11 @@ static void generate_random_interleaved_data(std::vector<hostbuf>& input,
                 // brick index to write to
                 auto write_idx = compute_index(index, whole_stride, i_base);
 
-                const Tfloat               x = (Tfloat)gen() / (Tfloat)gen.max();
-                const Tfloat               y = (Tfloat)gen() / (Tfloat)gen.max();
-                const std::complex<Tfloat> val(x, y);
+                // generate number and ensure it is small enough to avoid overflow
+                const Tfloat               x      = gen() / gen.max();
+                const Tfloat               y      = gen() / gen.max();
+                const Tfloat               offset = 0.5;
+                const std::complex<Tfloat> val(x - offset, y - offset);
                 idata[write_idx] = val;
             } while(increment_rowmajor(index, length));
         }
@@ -554,7 +556,7 @@ static void generate_interleaved_data(std::vector<hostbuf>& input,
     auto   partitions  = partition_rowmajor(whole_length);
     auto   unit_stride = make_unit_stride(whole_length);
 
-    const Tfloat inv_scale = 1.0 / static_cast<Tfloat>(count_iters(whole_length) - 1);
+    const Tfloat inv_scale = 1.0 / (count_iters(whole_length) - 1);
 
     for(unsigned int b = 0; b < nbatch; b++, i_base += idist)
     {
@@ -566,7 +568,8 @@ static void generate_interleaved_data(std::vector<hostbuf>& input,
             do
             {
                 const auto val_xy
-                    = -0.5 + static_cast<Tfloat>(compute_index(index, unit_stride, 0)) * inv_scale;
+                    = static_cast<Tfloat>(-0.5)
+                      + static_cast<Tfloat>(compute_index(index, unit_stride, 0)) * inv_scale;
 
                 const std::complex<Tfloat> val(val_xy, val_xy);
 
@@ -609,10 +612,10 @@ static void generate_random_planar_data(std::vector<hostbuf>& input,
                 // brick index to write to
                 auto write_idx = compute_index(index, whole_stride, i_base);
 
-                const std::complex<Tfloat> val((Tfloat)gen() / (Tfloat)gen.max(),
-                                               (Tfloat)gen() / (Tfloat)gen.max());
-                ireal[write_idx] = val.real();
-                iimag[write_idx] = val.imag();
+                const std::complex<Tfloat> val(gen() / gen.max(), gen() / gen.max());
+                const Tfloat               offset = 0.5;
+                ireal[write_idx]                  = val.real() - offset;
+                iimag[write_idx]                  = val.imag() - offset;
             } while(increment_rowmajor(index, length));
         }
     }
@@ -632,7 +635,7 @@ static void generate_planar_data(std::vector<hostbuf>& input,
     auto   partitions  = partition_rowmajor(whole_length);
     auto   unit_stride = make_unit_stride(whole_length);
 
-    const Tfloat inv_scale = 1.0 / static_cast<Tfloat>(count_iters(whole_length) - 1);
+    const Tfloat inv_scale = 1.0 / (count_iters(whole_length) - 1);
 
     for(unsigned int b = 0; b < nbatch; b++, i_base += idist)
     {
@@ -644,7 +647,8 @@ static void generate_planar_data(std::vector<hostbuf>& input,
             do
             {
                 const auto val_xy
-                    = -0.5 + static_cast<Tfloat>(compute_index(index, unit_stride, 0)) * inv_scale;
+                    = static_cast<Tfloat>(-0.5)
+                      + static_cast<Tfloat>(compute_index(index, unit_stride, 0)) * inv_scale;
 
                 const auto i = compute_index(index, whole_stride, i_base);
 
@@ -686,8 +690,8 @@ static void generate_random_real_data(std::vector<hostbuf>& input,
                 // brick index to write to
                 auto write_idx = compute_index(index, whole_stride, i_base);
 
-                const Tfloat val = (Tfloat)gen() / (Tfloat)gen.max();
-                idata[write_idx] = val;
+                const Tfloat val = gen() / gen.max();
+                idata[write_idx] = val - static_cast<Tfloat>(0.5);
             } while(increment_rowmajor(index, length));
         }
     }
@@ -706,7 +710,7 @@ static void generate_real_data(std::vector<hostbuf>& input,
     auto   partitions  = partition_rowmajor(whole_length);
     auto   unit_stride = make_unit_stride(whole_length);
 
-    const Tfloat inv_scale = 1.0 / static_cast<Tfloat>(count_iters(whole_length) - 1);
+    const Tfloat inv_scale = 1.0 / (count_iters(whole_length) - 1);
 
     for(unsigned int b = 0; b < nbatch; b++, i_base += idist)
     {
@@ -719,8 +723,8 @@ static void generate_real_data(std::vector<hostbuf>& input,
             {
                 const auto i = compute_index(index, whole_stride, i_base);
 
-                idata[i]
-                    = -0.5 + static_cast<Tfloat>(compute_index(index, unit_stride, 0)) * inv_scale;
+                idata[i] = static_cast<Tfloat>(-0.5)
+                           + static_cast<Tfloat>(compute_index(index, unit_stride, 0)) * inv_scale;
             } while(increment_rowmajor(index, length));
         }
     }

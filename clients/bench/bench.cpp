@@ -127,14 +127,13 @@ int main(int argc, char* argv[])
         ->each([&](const std::string& val) {
             std::cout << "Running profile with " << val << " samples\n";
         });
-
+    // Default value is set in fft_params.h based on if device-side PRNG was enabled.
     app.add_option("-g, --inputGen",
                    params.igen,
                    "Input data generation:\n0) PRNG sequence (device)\n"
                    "1) PRNG sequence (host)\n"
                    "2) linearly-spaced sequence (device)\n"
-                   "3) linearly-spaced sequence (host)")
-        ->default_val(fft_input_random_generator_device);
+                   "3) linearly-spaced sequence (host)");
     app.add_option("--isize", params.isize, "Logical size of input buffer");
     app.add_option("--osize", params.osize, "Logical size of output buffer");
     app.add_option("--scalefactor", params.scale_factor, "Scale factor to apply to output");
@@ -283,15 +282,14 @@ int main(int argc, char* argv[])
         pibuffer[i] = ibuffer[i].data();
     }
 
-    // CPU input buffer
+    // CPU-side input buffer
     std::vector<hostbuf> ibuffer_cpu;
 
-    auto is_device_gen = (params.igen == fft_input_generator_device
-                          || params.igen == fft_input_random_generator_device);
-    auto is_host_gen   = (params.igen == fft_input_generator_host
+    auto is_host_gen = (params.igen == fft_input_generator_host
                         || params.igen == fft_input_random_generator_host);
 
-    if(is_device_gen)
+#ifdef USE_HIPRAND
+    if(!is_host_gen)
     {
         // Input data:
         params.compute_input(ibuffer);
@@ -327,7 +325,7 @@ int main(int argc, char* argv[])
             params.print_ibuffer(ibuffer_cpu);
         }
     }
-
+#endif
     if(is_host_gen)
     {
         // Input data:
@@ -396,12 +394,11 @@ int main(int argc, char* argv[])
         // Create input at every iteration to avoid overflow
         if(params.ifields.empty())
         {
+#ifdef USE_HIPRAND
             // Compute input on default device
-            if(is_device_gen)
-            {
+            if(!is_host_gen)
                 params.compute_input(ibuffer);
-            }
-
+#endif
             if(is_host_gen)
             {
                 for(unsigned int idx = 0; idx < ibuffer_cpu.size(); ++idx)

@@ -40,8 +40,10 @@
 #include "../shared/data_gen_device.h"
 #include "../shared/data_gen_host.h"
 #include "../shared/device_properties.h"
+#include "../shared/gpubuf.h"
 #include "../shared/printbuffer.h"
 #include "../shared/ptrdiff.h"
+#include "../shared/rocfft_complex.h"
 
 enum fft_status
 {
@@ -108,6 +110,11 @@ static bool lexical_cast(const std::string& word, fft_input_generator& gen)
         gen = fft_input_generator_host;
     else
         throw std::runtime_error("Invalid input generator specified");
+#ifndef USE_HIPRAND
+    if(gen == fft_input_random_generator_device || gen == fft_input_generator_device)
+        throw std::runtime_error(
+            "Device input generation is not available, as hipRAND support is not enabled");
+#endif
     return true;
 }
 
@@ -156,6 +163,7 @@ inline Tsize var_size(const fft_precision precision, const fft_array_type type)
     return var_size;
 }
 
+#ifdef USE_HIPRAND
 // Given an array type and transform length, strides, etc, initialize
 // values into the input device buffer.
 //
@@ -279,6 +287,7 @@ inline void set_input(std::vector<gpubuf>&       input,
         throw std::runtime_error("Input layout format not yet supported");
     }
 }
+#endif // USE_HIPRAND
 
 // Given an array type and transform length, strides, etc, initialize
 // values into the input host buffer.
@@ -463,7 +472,6 @@ public:
     std::vector<size_t>  ostride;
     size_t               nbatch         = 1;
     fft_precision        precision      = fft_precision_single;
-    fft_input_generator  igen           = fft_input_random_generator_device;
     fft_transform_type   transform_type = fft_transform_type_complex_forward;
     fft_result_placement placement      = fft_placement_inplace;
     size_t               idist          = 0;
@@ -475,6 +483,12 @@ public:
 
     std::vector<size_t> isize;
     std::vector<size_t> osize;
+
+#ifdef USE_HIPRAND
+    fft_input_generator igen = fft_input_random_generator_device;
+#else
+    fft_input_generator igen = fft_input_random_generator_host;
+#endif
 
     size_t workbuffersize = 0;
 
