@@ -990,7 +990,7 @@ public:
 
         // strides, bricks etc are mixed in from here, so just keep
         // looking at the next token to decide what to do
-        while(pos < vals.size())
+        while(pos < vals.size() - 1)
         {
             const auto& next_token = vals[pos];
             if(next_token == "istride")
