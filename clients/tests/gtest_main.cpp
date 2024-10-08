@@ -32,6 +32,9 @@
 #include <string>
 #include <thread>
 
+#include <initializer_list>
+#include <list>
+
 #include "../../shared/CLI11.hpp"
 #include "../../shared/concurrency.h"
 #include "../../shared/environment.h"
@@ -53,12 +56,19 @@ int verbose;
 
 // User-defined random seed
 size_t random_seed;
-// Overall probability of running any given test
+// Overall probability of running conventional tests
 double test_prob;
-// Probability of running individual planar FFTs
-double planar_prob;
-// Probability of running individual callback FFTs
-double callback_prob;
+// Probability of running tests from the emulation suite
+double emulation_prob;
+// Modifier for probability of running tests with complex interleaved data
+double complex_interleaved_prob_factor;
+// Modifier for probability of running tests with real data
+double real_prob_factor;
+// Modifier for probability of running tests with complex planar data
+double complex_planar_prob_factor;
+// Modifier for probability of running tests with callbacks
+double callback_prob_factor;
+
 // Number of random tests per suite
 size_t n_random_tests = 0;
 
@@ -295,10 +305,15 @@ int main(int argc, char* argv[])
         "\n"
         "Usage"};
 
-    // Override CLI11 help to print after later CLI11 options that are defined, and allow gtest's help
-    app.set_help_flag("");
-    CLI::Option* opt_help = app.add_flag("-h, --help", "Produces this help message");
+    // Override CLI11 help to print after later CLI11 options that are defined, and allow gtest's
+    // help.
+    // After removing the stage-1 options, individual options are set to null (even if set), but we
+    // can still capture the behaviour by using a flag.
 
+    for(auto opt : app.get_options())
+    {
+        app.remove_option(opt);
+    }
     app.add_option("-v, --verbose", verbose, "Print out detailed information for the tests")
         ->default_val(0);
     app.add_option("--nrand", n_random_tests, "Number of extra randomized tests")->default_val(0);
@@ -306,14 +321,71 @@ int main(int argc, char* argv[])
         ->default_val(1.0)
         ->check(CLI::Range(0.0, 1.0));
     app.add_option(
-           "--planar_prob", planar_prob, "Probability of running individual planar transforms")
-        ->default_val(0.1)
+           "--emulation_prob", test_prob, "Probability of running individual emulation tests")
+        ->default_val(1.0)
         ->check(CLI::Range(0.0, 1.0));
+    app.add_option("--planar_prob",
+                   complex_planar_prob_factor,
+                   "Probability multiplier for running individual planar transforms")
+        ->default_val(0.1)
+        ->check(CLI::NonNegativeNumber);
+    app.add_option(
+           "--complex_interleaved_prob_factor",
+           complex_interleaved_prob_factor,
+           "Probability multiplier for running individual transforms with complex interleaved data")
+        ->default_val(1)
+        ->check(CLI::NonNegativeNumber);
     app.add_option("--callback_prob",
-                   callback_prob,
-                   "Probability of running individual callback transforms")
+                   callback_prob_factor,
+                   "Probability multiplier for running individual callback transforms")
         ->default_val(0.1)
-        ->check(CLI::Range(0.0, 1.0));
+        ->check(CLI::NonNegativeNumber);
+
+    constexpr std::array<std::string_view, 4> emulation_types
+        = {"none", "smoke", "regression", "extended"};
+    app.add_option("--emulation", "Run emulation tests")
+        ->check(CLI::IsMember(emulation_types))
+        ->each([&](const std::string& emulationtype) {
+            constexpr auto nidx = [emulation_types](const auto name) {
+                return std::find(emulation_types.begin(), emulation_types.end(), name)
+                       - emulation_types.begin();
+            };
+
+            // Emulation test suites focus on well-established software paths; we are looking for
+            // information about the hardware, which means that we aren't trying to find out a lot
+            // of information about the software.  Thus, no randomly-generated tests.
+            n_random_tests = 0;
+
+            // Run all of the emulation tests:
+            emulation_prob = 1.0;
+
+            // Callbacks are not an emulation test target.
+            callback_prob_factor = 0;
+
+            switch(nidx(emulationtype))
+            {
+            case nidx("smoke"):
+                ::testing::GTEST_FLAG(filter) = "manual.vs_fftw:*emulation*";
+                // 2GB vram limit, approx 1 minute GPU time with short tests.
+                vramgb         = 2;
+                test_prob      = 0;
+                emulation_prob = 0.005;
+                break;
+            case nidx("regression"):
+                vramgb         = 16;
+                emulation_prob = 1;
+                test_prob      = 0.01;
+                break;
+            case nidx("extended"):
+                emulation_prob = 1;
+                test_prob      = 0.02;
+                break;
+            default:
+                std::cerr << "Invalid emulation test option\n";
+                exit(EXIT_FAILURE);
+            }
+        });
+
     app.add_option("--fftw_compare", fftw_compare, "Compare to FFTW in accuracy tests")
         ->default_val(true);
     app.add_option("--mp_lib", mp_lib, "Multi-process library type: none (default), mpi")
@@ -342,13 +414,19 @@ int main(int argc, char* argv[])
     });
     app.add_flag("--smoketest", "Run a short (approx 5 minute) randomized selection of tests")
         ->each([&](const std::string&) {
-            // The objective is to have an test that takes about 5 minutes, so just set the probability
-            // per test to a small value to achieve this result.
-            test_prob = 0.002;
+            // The objective is to have an test that takes about 5 minutes, so just set the
+            // probability per test to a small value to achieve this result.
+            test_prob      = 0.002;
+            emulation_prob = 0.1;
+            n_random_tests = 10;
         });
 
-    // Try parsing initial args that will be used to configure tests
-    // Allow extras to pass on gtest and rocFFT arguments without error
+    // Save argv[0] because CLI doesn't include this in the remaining args, and it's expected when
+    // we re-parse the arguments with gtest and CLI.
+    std::string argv0 = argv[0];
+
+    // Try parsing initial args that will be used to configure tests.
+    // Allow extras to pass on gtest and rocFFT arguments without error.
     app.allow_extras();
     try
     {
@@ -359,9 +437,23 @@ int main(int argc, char* argv[])
         return app.exit(e);
     }
 
+    app.set_help_flag("");
+    auto opt_help = app.add_flag("-h, --help", "Produces this help message");
+
+    std::vector<std::string> remaining_args = app.remaining();
+    // Google test ignores the first element, so add something there so that it parses all of hte
+    // arguments that we want it to parse.:
+    remaining_args.insert(remaining_args.begin(), argv0);
     // NB: If we initialize gtest first, then it removes all of its own command-line
     // arguments and sets argc and argv correctly;
-    ::testing::InitGoogleTest(&argc, argv);
+    std::vector<char*> carg;
+    for(std::string& s : remaining_args)
+    {
+        carg.push_back(&s[0]);
+    }
+    carg.push_back(NULL);
+    decltype(argc) cargc = carg.size() - 1;
+    ::testing::InitGoogleTest(&cargc, carg.data());
 
     // Filename for fftw and fftwf wisdom.
     std::string fftw_wisdom_filename;
@@ -470,7 +562,7 @@ int main(int argc, char* argv[])
     // Parse rest of args and catch any errors here
     try
     {
-        app.parse(argc, argv);
+        app.parse(cargc, carg.data());
     }
     catch(const CLI::ParseError& e)
     {
@@ -484,11 +576,11 @@ int main(int argc, char* argv[])
     }
 
     // Ensure there are no leftover options used by neither gtest nor CLI11
-    std::vector<std::string> remaining_args = app.remaining();
-    if(!remaining_args.empty())
+    const auto leftover_args = app.remaining();
+    if(!leftover_args.empty())
     {
         std::cout << "Unrecognised option(s) found:\n  ";
-        for(auto i : app.remaining())
+        for(auto i : leftover_args)
             std::cout << i << " ";
         std::cout << "\nRun with --help for more information.\n";
         return EXIT_FAILURE;
@@ -504,10 +596,10 @@ int main(int argc, char* argv[])
     }
     std::cout << "Random seed: " << random_seed << "\n";
 
-    // if precompiling, tell rocFFT to use the specified cache file
+    // If precompiling, tell rocFFT to use the specified cache file
     // to write kernels to
     //
-    // but if our environment already has a cache file for RTC, then
+    // But if our environment already has a cache file for RTC, then
     // we should just use that
     std::unique_ptr<EnvironmentSetTemp> env_precompile;
     if(!precompile_file.empty() && rocfft_getenv("ROCFFT_RTC_CACHE_PATH").empty())

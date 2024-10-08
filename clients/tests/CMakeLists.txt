@@ -44,7 +44,7 @@ endif()
 
 project( rocfft-clients-tests LANGUAGES CXX )
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 
 list( APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake )
 
@@ -75,6 +75,7 @@ set( rocfft-test_source
   accuracy_test_2D.cpp
   accuracy_test_3D.cpp
   accuracy_test_adhoc.cpp
+  accuracy_test_emulation.cpp
   accuracy_test_callback.cpp
   accuracy_test_checkstride.cpp
   multithread_test.cpp

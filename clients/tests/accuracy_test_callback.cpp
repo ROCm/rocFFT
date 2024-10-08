@@ -106,7 +106,8 @@ auto forward_transform_types
 
 INSTANTIATE_TEST_SUITE_P(callback,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator_base(forward_transform_types,
+                         ::testing::ValuesIn(param_generator_base(test_prob,
+                                                                  forward_transform_types,
                                                                   callback_sizes,
                                                                   precision_range_sp_dp,
                                                                   batch_range,
@@ -122,7 +123,8 @@ INSTANTIATE_TEST_SUITE_P(callback,
 
 INSTANTIATE_TEST_SUITE_P(DISABLED_callback,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator_base(forward_transform_types,
+                         ::testing::ValuesIn(param_generator_base(test_prob,
+                                                                  forward_transform_types,
                                                                   callback_sizes,
                                                                   precision_range_sp_dp,
                                                                   batch_range,
@@ -141,7 +143,8 @@ INSTANTIATE_TEST_SUITE_P(DISABLED_callback,
 // result scaling feature.
 inline auto param_generator_scaling(const std::vector<std::vector<size_t>>& v_lengths)
 {
-    auto params = param_generator(callback_sizes,
+    auto params = param_generator(test_prob,
+                                  callback_sizes,
                                   precision_range_sp_dp,
                                   batch_range,
                                   stride_range,

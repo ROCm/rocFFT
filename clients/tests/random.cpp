@@ -36,7 +36,7 @@ class random_params
 // TODO: Add batch and stride
 
 auto random_param_generator(const int                                dimension,
-                            const std::vector<fft_precision>&        precision_range,
+                            const std::vector<fft_precision>&        precisions,
                             const std::vector<fft_result_placement>& place_range,
                             const fft_transform_type                 transform_type)
 
@@ -63,40 +63,40 @@ auto random_param_generator(const int                                dimension,
     // Mean value of the exponential distribution is maxlen:
     std::exponential_distribution<double> distribution(1.0 / maxlen);
 
+    std::uniform_int_distribution<int> precision_distr(0, precisions.size() - 1);
+    std::uniform_int_distribution<int> place_distr(0, place_range.size() - 1);
+
     while(params.size() < n_random_tests)
     {
-        for(const auto precision : precision_range)
+        const auto precision = precisions[precision_distr(rgen)];
+        const auto placement = place_range[place_distr(rgen)];
+
+        fft_params param;
+
+        param.transform_type = transform_type;
+        param.precision      = precision;
+        param.placement      = placement;
+        for(int idim = 0; idim < dimension; ++idim)
         {
-            for(const auto placement : place_range)
+            // NB: the distribution can return 0, so add 1 to avoid this issue.
+            param.length.push_back(1 + (size_t)distribution(rgen));
+        }
+
+        param.validate();
+        if(param.valid(0))
+        {
+            bool found = false;
+            for(size_t idx = 0; idx < params.size(); ++idx)
             {
-                fft_params param;
-
-                param.transform_type = transform_type;
-                param.precision      = precision;
-                param.placement      = placement;
-                for(int idim = 0; idim < dimension; ++idim)
+                if(param.token() == params[idx].token())
                 {
-                    // NB: the distribution can return 0, so add 1 to avoid this issue.
-                    param.length.push_back(1 + (size_t)distribution(rgen));
+                    found = true;
+                    break;
                 }
-
-                param.validate();
-                if(param.valid(0))
-                {
-                    bool found = false;
-                    for(size_t idx = 0; idx < params.size(); ++idx)
-                    {
-                        if(param.token() == params[idx].token())
-                        {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if(!found)
-                    {
-                        params.push_back(param);
-                    }
-                }
+            }
+            if(!found)
+            {
+                params.push_back(param);
             }
         }
     }

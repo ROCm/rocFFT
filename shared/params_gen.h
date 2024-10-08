@@ -236,9 +236,10 @@ struct stride_generator_3D_inner_batch : public stride_generator
 
 // Create an array of parameters to pass to gtest.  Base generator
 // that allows choosing transform type.
-inline auto param_generator_base(const std::vector<fft_transform_type>&   type_range,
+inline auto param_generator_base(const double                             base_prob,
+                                 const std::vector<fft_transform_type>&   type_range,
                                  const std::vector<std::vector<size_t>>&  v_lengths,
-                                 const std::vector<fft_precision>&        precision_range,
+                                 const std::vector<fft_precision>&        precisions,
                                  const std::vector<size_t>&               batch_range,
                                  decltype(generate_types)                 types_generator,
                                  const stride_generator&                  istride,
@@ -249,8 +250,10 @@ inline auto param_generator_base(const std::vector<fft_transform_type>&   type_r
                                  const bool                               planar        = true,
                                  const bool                               run_callbacks = false)
 {
-
     std::vector<fft_params> params;
+
+    if(base_prob == 0)
+        return params;
 
     // For any length, we compute double-precision CPU reference
     // for largest batch size first and reuse for smaller batch
@@ -267,7 +270,7 @@ inline auto param_generator_base(const std::vector<fft_transform_type>&   type_r
                 continue;
             }
             {
-                for(const auto precision : precision_range)
+                for(const auto precision : precisions)
                 {
                     for(const auto batch : batch_range)
                     {
@@ -319,16 +322,21 @@ inline auto param_generator_base(const std::vector<fft_transform_type>&   type_r
                                             const double roll
                                                 = hash_prob(random_seed, param.token());
                                             const double run_prob
-                                                = test_prob
-                                                  * (param.is_planar() ? planar_prob : 1.0)
-                                                  * (run_callbacks ? callback_prob : 1.0);
+                                                = base_prob
+                                                  * (param.is_planar() ? complex_planar_prob_factor
+                                                                       : 1.0)
+                                                  * (param.is_interleaved()
+                                                         ? complex_interleaved_prob_factor
+                                                         : 1.0)
+                                                  * (param.is_real() ? real_prob_factor : 1.0)
+                                                  * (run_callbacks ? callback_prob_factor : 1.0);
 
                                             if(roll > run_prob)
                                             {
                                                 if(verbose > 4)
                                                 {
-                                                    std::cout << "Test skipped (probability "
-                                                              << run_prob << " > " << roll << ")\n";
+                                                    std::cout << "Test skipped: (roll=" << roll
+                                                              << " > " << run_prob << ")\n";
                                                 }
                                                 continue;
                                             }
@@ -351,7 +359,8 @@ inline auto param_generator_base(const std::vector<fft_transform_type>&   type_r
 
 // Create an array of parameters to pass to gtest.  Default generator
 // that picks all transform types.
-inline auto param_generator(const std::vector<std::vector<size_t>>&  v_lengths,
+inline auto param_generator(const double                             base_prob,
+                            const std::vector<std::vector<size_t>>&  v_lengths,
                             const std::vector<fft_precision>&        precision_range,
                             const std::vector<size_t>&               batch_range,
                             const stride_generator&                  istride,
@@ -360,9 +369,11 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&  v_lengths,
                             const std::vector<std::vector<size_t>>&  ooffset_range,
                             const std::vector<fft_result_placement>& place_range,
                             const bool                               planar,
-                            const bool                               run_callbacks = false)
+
+                            const bool run_callbacks = false)
 {
-    return param_generator_base(trans_type_range,
+    return param_generator_base(base_prob,
+                                trans_type_range,
                                 v_lengths,
                                 precision_range,
                                 batch_range,
@@ -372,12 +383,14 @@ inline auto param_generator(const std::vector<std::vector<size_t>>&  v_lengths,
                                 ioffset_range,
                                 ooffset_range,
                                 place_range,
+
                                 planar,
                                 run_callbacks);
 }
 
 // Create an array of parameters to pass to gtest.  Only tests complex-type transforms
-inline auto param_generator_complex(const std::vector<std::vector<size_t>>&  v_lengths,
+inline auto param_generator_complex(const double                             base_prob,
+                                    const std::vector<std::vector<size_t>>&  v_lengths,
                                     const std::vector<fft_precision>&        precision_range,
                                     const std::vector<size_t>&               batch_range,
                                     const stride_generator&                  istride,
@@ -385,10 +398,12 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&  v_l
                                     const std::vector<std::vector<size_t>>&  ioffset_range,
                                     const std::vector<std::vector<size_t>>&  ooffset_range,
                                     const std::vector<fft_result_placement>& place_range,
-                                    const bool                               planar,
-                                    const bool                               run_callbacks = false)
+
+                                    const bool planar,
+                                    const bool run_callbacks = false)
 {
-    return param_generator_base(trans_type_range_complex,
+    return param_generator_base(base_prob,
+                                trans_type_range_complex,
                                 v_lengths,
                                 precision_range,
                                 batch_range,
@@ -398,12 +413,14 @@ inline auto param_generator_complex(const std::vector<std::vector<size_t>>&  v_l
                                 ioffset_range,
                                 ooffset_range,
                                 place_range,
+
                                 planar,
                                 run_callbacks);
 }
 
 // Create an array of parameters to pass to gtest.
-inline auto param_generator_real(const std::vector<std::vector<size_t>>&  v_lengths,
+inline auto param_generator_real(const double                             base_prob,
+                                 const std::vector<std::vector<size_t>>&  v_lengths,
                                  const std::vector<fft_precision>&        precision_range,
                                  const std::vector<size_t>&               batch_range,
                                  const stride_generator&                  istride,
@@ -411,10 +428,12 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&  v_leng
                                  const std::vector<std::vector<size_t>>&  ioffset_range,
                                  const std::vector<std::vector<size_t>>&  ooffset_range,
                                  const std::vector<fft_result_placement>& place_range,
-                                 const bool                               planar,
-                                 const bool                               run_callbacks = false)
+
+                                 const bool planar,
+                                 const bool run_callbacks = false)
 {
-    return param_generator_base(trans_type_range_real,
+    return param_generator_base(test_prob,
+                                trans_type_range_real,
                                 v_lengths,
                                 precision_range,
                                 batch_range,
@@ -424,19 +443,48 @@ inline auto param_generator_real(const std::vector<std::vector<size_t>>&  v_leng
                                 ioffset_range,
                                 ooffset_range,
                                 place_range,
+
                                 planar,
                                 run_callbacks);
 }
 
 template <class Tcontainer>
-auto param_generator_token(const Tcontainer& tokens)
+auto param_generator_token(const double base_prob, const Tcontainer& tokens)
 {
     std::vector<fft_params> params;
-    params.reserve(tokens.size());
-    for(auto t : tokens)
+
+    if(base_prob == 0)
+        return params;
+
+    for(const auto& token : tokens)
     {
-        params.push_back({});
-        params.back().from_token(t);
+        fft_params param;
+        param.from_token(token);
+        param.validate();
+        if(param.valid())
+        {
+            const double roll = hash_prob(random_seed, param.token());
+            const double run_prob
+                = base_prob * (param.is_planar() ? complex_planar_prob_factor : 1.0)
+                  * (param.is_interleaved() ? complex_interleaved_prob_factor : 1.0)
+                  * (param.is_real() ? real_prob_factor : 1.0)
+                  * (param.is_callback() ? callback_prob_factor : 1.0);
+
+            if(roll > run_prob)
+            {
+                if(verbose > 4)
+                {
+                    std::cout << "Test skipped: (roll=" << roll << " > " << run_prob << ")\n";
+                }
+                continue;
+            }
+
+            params.push_back(param);
+        }
+        else
+        {
+            std::cout << "invalid token\n";
+        }
     }
     return params;
 }

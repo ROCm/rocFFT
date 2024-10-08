@@ -98,8 +98,11 @@ inline auto param_checkstride()
 
                         param.validate();
 
-                        const double run_prob = test_prob * (param.is_planar() ? planar_prob : 1.0);
-                        const double roll     = hash_prob(random_seed, param.token());
+                        const double roll = hash_prob(random_seed, param.token());
+                        const double run_prob
+                            = test_prob * (param.is_planar() ? complex_planar_prob_factor : 1.0)
+                              * (param.is_interleaved() ? complex_interleaved_prob_factor : 1.0)
+                              * (param.is_real() ? real_prob_factor : 1.0);
 
                         if(roll > run_prob)
                         {

@@ -26,8 +26,8 @@
 std::vector<char> compile_inprocess(const std::string& kernel_src, const std::string& gpu_arch)
 {
     hiprtcProgram prog;
-    // give it a .cu extension so it'll be compiled as HIP code
-    if(hiprtcCreateProgram(&prog, kernel_src.c_str(), "rocfft_rtc.cu", 0, nullptr, nullptr)
+    // give it a .hip extension so it'll be compiled as HIP code
+    if(hiprtcCreateProgram(&prog, kernel_src.c_str(), "rocfft_rtc.hip", 0, nullptr, nullptr)
        != HIPRTC_SUCCESS)
     {
         throw std::runtime_error("unable to create program");

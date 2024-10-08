@@ -68,7 +68,8 @@ static std::vector<std::vector<size_t>> ooffset_range = {{0, 0}, {1, 1}};
 
 INSTANTIATE_TEST_SUITE_P(adhoc,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(adhoc_sizes,
+                         ::testing::ValuesIn(param_generator(test_prob,
+                                                             adhoc_sizes,
                                                              precision_range_sp_dp,
                                                              batch_range,
                                                              stride_range,
@@ -81,7 +82,8 @@ INSTANTIATE_TEST_SUITE_P(adhoc,
 
 INSTANTIATE_TEST_SUITE_P(DISABLED_offset_adhoc,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator(adhoc_sizes,
+                         ::testing::ValuesIn(param_generator(test_prob,
+                                                             adhoc_sizes,
                                                              precision_range_full,
                                                              batch_range,
                                                              stride_range,
@@ -124,8 +126,11 @@ inline auto param_permissive_iodist()
 
                     param.validate();
 
-                    const double roll     = hash_prob(random_seed, param.token());
-                    const double run_prob = test_prob * (param.is_planar() ? planar_prob : 1.0);
+                    const double roll = hash_prob(random_seed, param.token());
+                    const double run_prob
+                        = test_prob * (param.is_planar() ? complex_planar_prob_factor : 1.0)
+                          * (param.is_interleaved() ? complex_interleaved_prob_factor : 1.0)
+                          * (param.is_real() ? real_prob_factor : 1.0);
 
                     if(roll > run_prob)
                     {
@@ -156,7 +161,8 @@ INSTANTIATE_TEST_SUITE_P(adhoc_dist,
 inline auto param_adhoc_colmajor()
 {
     // generate basic FFTs of adhoc sizes
-    auto params = param_generator(adhoc_sizes,
+    auto params = param_generator(test_prob,
+                                  adhoc_sizes,
                                   {fft_precision_single},
                                   {2},
                                   stride_range,
@@ -254,8 +260,11 @@ inline auto param_adhoc_stride()
             param.validate();
 
             {
-                const double run_prob = test_prob * (param.is_planar() ? planar_prob : 1.0);
-                const double roll     = hash_prob(random_seed, param.token());
+                const double roll = hash_prob(random_seed, param.token());
+                const double run_prob
+                    = test_prob * (param.is_planar() ? complex_planar_prob_factor : 1.0)
+                      * (param.is_interleaved() ? complex_interleaved_prob_factor : 1.0)
+                      * (param.is_real() ? real_prob_factor : 1.0);
 
                 if(roll > run_prob)
                 {
@@ -290,8 +299,11 @@ inline auto param_adhoc_stride()
             param.validate();
 
             {
-                const double run_prob = test_prob * (param.is_planar() ? planar_prob : 1.0);
-                const double roll     = hash_prob(random_seed, param.token());
+                const double roll = hash_prob(random_seed, param.token());
+                const double run_prob
+                    = test_prob * (param.is_planar() ? complex_planar_prob_factor : 1.0)
+                      * (param.is_interleaved() ? complex_interleaved_prob_factor : 1.0)
+                      * (param.is_real() ? real_prob_factor : 1.0);
 
                 if(roll > run_prob)
                 {
@@ -340,5 +352,5 @@ const auto adhoc_tokens = {
 
 INSTANTIATE_TEST_SUITE_P(adhoc_token,
                          accuracy_test,
-                         ::testing::ValuesIn(param_generator_token(adhoc_tokens)),
+                         ::testing::ValuesIn(param_generator_token(test_prob, adhoc_tokens)),
                          accuracy_test::TestName);

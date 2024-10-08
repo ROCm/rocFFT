@@ -58,7 +58,8 @@ std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
     if(localDeviceCount < 2 && mp_lib == fft_params::fft_mp_lib_none)
         return {};
 
-    auto params_complex = param_generator_complex(multi_gpu_sizes,
+    auto params_complex = param_generator_complex(test_prob,
+                                                  multi_gpu_sizes,
                                                   precision_range_sp_dp,
                                                   {4, 1},
                                                   stride_generator({{1}}),
@@ -68,7 +69,8 @@ std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
                                                   {fft_placement_inplace, fft_placement_notinplace},
                                                   false);
 
-    auto params_real = param_generator_real(multi_gpu_sizes,
+    auto params_real = param_generator_real(test_prob,
+                                            multi_gpu_sizes,
                                             precision_range_sp_dp,
                                             {4, 1},
                                             stride_generator({{1}}),

@@ -1442,7 +1442,7 @@ public:
     }
 
     // Return true if the given GPU parameters would produce a valid transform.
-    bool valid(const int verbose) const
+    bool valid(const int verbose = 0) const
     {
         if(ioffset.size() < nibuffer() || ooffset.size() < nobuffer())
             return false;
@@ -1626,6 +1626,16 @@ public:
         std::reverse(std::begin(ostride_cm), std::end(ostride_cm));
         return ostride_cm;
     }
+    bool is_interleaved() const
+    {
+        if(itype == fft_array_type_complex_interleaved
+           || itype == fft_array_type_hermitian_interleaved)
+            return true;
+        if(otype == fft_array_type_complex_interleaved
+           || otype == fft_array_type_hermitian_interleaved)
+            return true;
+        return false;
+    }
     bool is_planar() const
     {
         if(itype == fft_array_type_complex_planar || itype == fft_array_type_hermitian_planar)
@@ -1633,6 +1643,14 @@ public:
         if(otype == fft_array_type_complex_planar || otype == fft_array_type_hermitian_planar)
             return true;
         return false;
+    }
+    bool is_real() const
+    {
+        return (itype == fft_array_type_real || otype == fft_array_type_real);
+    }
+    bool is_callback() const
+    {
+        return run_callbacks;
     }
 
     // Given a data type and dimensions, fill the buffer, imposing Hermitian symmetry if necessary.

@@ -73,6 +73,7 @@ const static std::vector<std::vector<size_t>> stride_range = {{1}};
 INSTANTIATE_TEST_SUITE_P(callback,
                          change_type,
                          ::testing::ValuesIn(param_generator_base(
+                             test_prob,
                              {fft_transform_type_complex_forward, fft_transform_type_real_forward},
                              callback_type_sizes,
                              {fft_precision_single},
