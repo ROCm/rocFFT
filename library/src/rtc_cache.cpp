@@ -108,7 +108,10 @@ sqlite3_ptr RTCCache::connect_db(const fs::path& path, bool readonly)
         flags |= SQLITE_OPEN_MEMORY;
     }
     if(sqlite3_open_v2(path.string().c_str(), &db_raw, flags, nullptr) != SQLITE_OK)
+    {
+        sqlite3_close(db_raw);
         return nullptr;
+    }
 
     sqlite3_ptr db(db_raw);
 
