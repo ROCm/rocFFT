@@ -283,6 +283,8 @@ void precompile_test_kernels(const std::string& precompile_file)
 
 int main(int argc, char* argv[])
 {
+    const auto test_begin = std::chrono::system_clock::now();
+
     // We would like to parse a few arguments before initiating gtest.
 
     CLI::App app{
@@ -729,7 +731,13 @@ int main(int argc, char* argv[])
 
     rocfft_cleanup();
 
-    std::cout << "Random seed: " << random_seed << "\n";
+    const auto test_duration = std::chrono::system_clock::now() - test_begin;
+    const auto test_hours    = std::chrono::duration_cast<std::chrono::hours>(test_duration);
+    const auto test_minutes
+        = std::chrono::duration_cast<std::chrono::minutes>(test_duration - test_hours);
+    std::cout << "Test suite took " << test_hours.count() << " hours " << test_minutes.count()
+              << " minutes\n\n";
+
     std::cout << "half precision max l-inf epsilon: " << max_linf_eps_half << "\n";
     std::cout << "half precision max l2 epsilon:     " << max_l2_eps_half << "\n";
     std::cout << "single precision max l-inf epsilon: " << max_linf_eps_single << "\n";
@@ -737,6 +745,8 @@ int main(int argc, char* argv[])
     std::cout << "double precision max l-inf epsilon: " << max_linf_eps_double << "\n";
     std::cout << "double precision max l2 epsilon:     " << max_l2_eps_double << "\n";
     std::cout << "Number of runtime issues: " << n_hip_failures << "\n";
+
+    std::cout << "\nRandom seed: " << random_seed << "\n";
 
     return retval;
 }
