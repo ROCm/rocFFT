@@ -5,56 +5,57 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.32 (unreleased)
 
-### Optimizations
-
-* Improve MPI transform performance by using all-to-all communication for global transpose operations.  
-  Point-to-point communications are still used when all-to-all is not possible.
-
-### Changes
+### Changed
 
 * Building with the address sanitizer option sets xnack+ on relevant GPU
-  architectures and address-sanitizer support is added to runtime-compiled
+  architectures and adds address-sanitizer support to runtime-compiled
   kernels.
 
-* Remove ahead-of-time compiled kernels for gfx906, gfx940, gfx941.  These architectures still
-  function the same, but kernels for them are now compiled at runtime.
+### Removed
 
-* Consumer GPU architectures are removed from the precompiled kernel cache that ships with
-  rocFFT.  rocFFT continues to ship with a cache of precompiled RTC kernels for data-center
-  and workstation architectures.  As before, user-level caches can be enabled by setting the
+* Removed ahead-of-time compiled kernels for the gfx906, gfx940, and gfx941 architectures. These architectures still
+  function the same, but kernels for them are now compiled at runtime.
+* Removed consumer GPU architectures from the precompiled kernel cache that ships with
+  rocFFT. rocFFT continues to ship with a cache of precompiled RTC kernels for data-center
+  and workstation architectures. As before, user-level caches can be enabled by setting the
   environment variable ROCFFT_RTC_CACHE_PATH to a writeable file location.
 
-### Fixes
+### Optimized
 
-* Fixed incorrect results from 2-kernel 3D FFT plans that used non-default output strides.
-* Allow plan descriptions to be reused with different strides for different plans.
-* Fixed client packages to depend on hipRAND, not rocRAND.
+* Improved MPI transform performance by using all-to-all communication for global transpose operations.  
+  Point-to-point communications are still used when all-to-all is not possible.
+
+### Resolved issues
+
+* Fixed incorrect results from 2-kernel 3D FFT plans that used non-default output strides. For more information, see the [rocFFT GitHub issue](https://github.com/ROCm/rocFFT/issues/507).
+* Plan descriptions can be reused with different strides for different plans. For more information, see the [rocFFT GitHub issue](https://github.com/ROCm/rocFFT/issues/504).
+* Fixed client packages to depend on hipRAND instead of rocRAND.
 
 ## rocFFT 1.0.31 for ROCm 6.3.0
 
-### Additions
+### Added
 
+* rocfft-test now includes a --smoketest option.
+* Support for the gfx1151, gfx1200, and gfx1201 architectures.
 * Implemented experimental APIs to allow computing FFTs on data
-  distributed across multiple MPI ranks, enabled with the
-  `ROCFFT_MPI_ENABLE` CMake option.  This option defaults to `OFF`.
+  distributed across multiple MPI ranks. These APIs can be enabled with the
+  `ROCFFT_MPI_ENABLE` CMake option. This option defaults to `OFF`.
 
-  When `ROCFFT_MPI_ENABLE` is `ON`:
+  When `ROCFFT_MPI_ENABLE` is set to `ON`:
 
   * `rocfft_plan_description_set_comm` can be called to provide an
     MPI communicator to a plan description, which can then be passed
-    to `rocfft_plan_create`.  Each rank calls
+    to `rocfft_plan_create`. Each rank calls
     `rocfft_field_add_brick` to specify the layout of data bricks on
     that rank.
 
   * An MPI library with ROCm acceleration enabled is required at
     build time and at runtime.
 
-### Changes
+### Changed
 
-* Compile with amdclang++ instead of hipcc.
-* Add --smoketest option to rocfft-test.
-* Support gfx1151, gfx1200, and gfx1201 architectures.
-* Replace Boost Program Options with CLI11 as the command line parser for clients and samples.
+* Compilation uses amdclang++ instead of hipcc.
+* CLI11 replaces Boost Program Options as the command line parser for clients and samples.
 
 ## rocFFT 1.0.30 for ROCm 6.2.2
 
