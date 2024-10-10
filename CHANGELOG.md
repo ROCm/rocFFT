@@ -7,7 +7,7 @@ Documentation for rocFFT is available at
 
 ### Added
 
-* GFX1151 Support
+* Support for the gfx1034 and gfx1151 architectures
 
 ### Optimized
 
