@@ -28,6 +28,9 @@ Documentation for rocFFT is available at
 
 * Compilation uses amdclang++ instead of hipcc.
 * CLI11 replaces Boost Program Options as the command line parser for clients and samples.
+* Building with the address sanitizer option sets xnack+ on relevant GPU
+  architectures and address-sanitizer support is added to runtime-compiled
+  kernels.
 
 ## rocFFT 1.0.30 for ROCm 6.2.4
 
