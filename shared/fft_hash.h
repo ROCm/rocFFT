@@ -26,6 +26,7 @@
 #include "../../../shared/hostbuf.h"
 #include "../../../shared/increment.h"
 #include "../../../shared/index_partition_omp.h"
+#include "../../../shared/rocfft_complex.h"
 
 #include <algorithm>
 #include <iostream>
@@ -87,10 +88,10 @@ static inline double get_weight(const size_t counter, const size_t max_counter)
 }
 
 template <typename Tint>
-static inline void hash_value(Tint&           hash_value,
-                              const size_t    counter,
-                              const size_t    max_counter,
-                              const _Float16& input_value)
+static inline void hash_value(Tint&              hash_value,
+                              const size_t       counter,
+                              const size_t       max_counter,
+                              const rocfft_fp16& input_value)
 {
     auto weight = get_weight(counter, max_counter);
     hash_value += std::hash<float>{}(weight * input_value);
@@ -356,14 +357,14 @@ static inline void compute_hash(const std::vector<hostbuf>& buffer,
     switch(hash_in.buf_precision)
     {
     case rocfft_precision_half:
-        compute_buffer_hash<_Float16>(buffer,
-                                      btype,
-                                      blength,
-                                      bstride,
-                                      bdist,
-                                      hash_in.nbatch,
-                                      hash_out.buffer_real,
-                                      hash_out.buffer_imag);
+        compute_buffer_hash<rocfft_fp16>(buffer,
+                                         btype,
+                                         blength,
+                                         bstride,
+                                         bdist,
+                                         hash_in.nbatch,
+                                         hash_out.buffer_real,
+                                         hash_out.buffer_imag);
         break;
     case rocfft_precision_double:
         compute_buffer_hash<double>(buffer,

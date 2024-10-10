@@ -42,7 +42,7 @@ void fft_vs_reference(rocfft_params& params, bool round_trip)
     switch(params.precision)
     {
     case fft_precision_half:
-        fft_vs_reference_impl<_Float16, rocfft_params>(params, round_trip);
+        fft_vs_reference_impl<rocfft_fp16, rocfft_params>(params, round_trip);
         break;
     case fft_precision_single:
         fft_vs_reference_impl<float, rocfft_params>(params, round_trip);

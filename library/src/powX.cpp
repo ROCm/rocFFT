@@ -337,7 +337,7 @@ void DebugPrintBuffer(rocfft_ostream&             stream,
         {
         case rocfft_precision_half:
         {
-            buffer_printer<_Float16> s;
+            buffer_printer<rocfft_fp16> s;
             s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
             break;
         }
@@ -366,13 +366,13 @@ void DebugPrintBuffer(rocfft_ostream&             stream,
             case rocfft_array_type_complex_interleaved:
             case rocfft_array_type_hermitian_interleaved:
             {
-                buffer_printer<rocfft_complex<_Float16>> s;
+                buffer_printer<rocfft_complex<rocfft_fp16>> s;
                 s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
                 break;
             }
             case rocfft_array_type_real:
             {
-                buffer_printer<_Float16> s;
+                buffer_printer<rocfft_fp16> s;
                 s.print_buffer(bufvec, length_rm, stride_rm, batch, dist, print_offset, stream);
                 break;
             }

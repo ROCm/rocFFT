@@ -105,6 +105,6 @@ gpubuf chirp_create(size_t                 N,
     case rocfft_precision_double:
         return chirp_create_pr<rocfft_complex<double>>(N, precision, deviceId, deviceProp);
     case rocfft_precision_half:
-        return chirp_create_pr<rocfft_complex<_Float16>>(N, precision, deviceId, deviceProp);
+        return chirp_create_pr<rocfft_complex<rocfft_fp16>>(N, precision, deviceId, deviceProp);
     }
 }

@@ -67,9 +67,9 @@ public:
     {
         append(&f, sizeof(float));
     }
-    void append_half(_Float16 f)
+    void append_half(rocfft_fp16 f)
     {
-        append(&f, sizeof(_Float16));
+        append(&f, sizeof(rocfft_fp16));
     }
     template <typename T>
     void append_struct(const T& data)
@@ -245,8 +245,8 @@ static const char* rtc_precision_type_decl(rocfft_precision precision, bool is_c
         return is_complex ? "typedef rocfft_complex<double> scalar_type;\n"
                           : "typedef double scalar_type;\n";
     case rocfft_precision_half:
-        return is_complex ? "typedef rocfft_complex<_Float16> scalar_type;\n"
-                          : "typedef _Float16 scalar_type;\n";
+        return is_complex ? "typedef rocfft_complex<rocfft_fp16> scalar_type;\n"
+                          : "typedef rocfft_fp16 scalar_type;\n";
     }
 }
 

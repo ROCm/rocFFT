@@ -464,7 +464,7 @@ gpubuf twiddles_create(size_t                     N,
         return twiddles_create_pr<rocfft_complex<double>>(
             N, length_limit, precision, deviceProp, largeTwdBase, attach_halfN, radices, deviceId);
     case rocfft_precision_half:
-        return twiddles_create_pr<rocfft_complex<_Float16>>(
+        return twiddles_create_pr<rocfft_complex<rocfft_fp16>>(
             N, length_limit, precision, deviceProp, largeTwdBase, attach_halfN, radices, deviceId);
     }
 }
@@ -529,14 +529,14 @@ gpubuf twiddles_create_2D(size_t                     N1,
                                                              radices2,
                                                              deviceId);
     case rocfft_precision_half:
-        return twiddles_create_2D_pr<rocfft_complex<_Float16>>(N1,
-                                                               N2,
-                                                               precision,
-                                                               deviceProp,
-                                                               attach_halfN,
-                                                               attach_halfN2,
-                                                               radices1,
-                                                               radices2,
-                                                               deviceId);
+        return twiddles_create_2D_pr<rocfft_complex<rocfft_fp16>>(N1,
+                                                                  N2,
+                                                                  precision,
+                                                                  deviceProp,
+                                                                  attach_halfN,
+                                                                  attach_halfN2,
+                                                                  radices1,
+                                                                  radices2,
+                                                                  deviceId);
     }
 }

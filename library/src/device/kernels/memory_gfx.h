@@ -67,7 +67,7 @@ struct CacheOperation
     };
 };
 
-using float16_t = _Float16;
+using float16_t = rocfft_fp16;
 using float32_t = float;
 
 template <typename T, int N>

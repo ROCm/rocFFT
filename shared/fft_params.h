@@ -142,7 +142,7 @@ inline Tsize var_size(const fft_precision precision, const fft_array_type type)
     switch(precision)
     {
     case fft_precision_half:
-        var_size = sizeof(_Float16);
+        var_size = sizeof(rocfft_fp16);
         break;
     case fft_precision_single:
         var_size = sizeof(float);
@@ -1680,19 +1680,19 @@ public:
         switch(precision)
         {
         case fft_precision_half:
-            set_input<Tbuff, _Float16>(input,
-                                       igen,
-                                       itype,
-                                       length,
-                                       ilength(),
-                                       istride,
-                                       idist,
-                                       nbatch,
-                                       deviceProp,
-                                       field_lower,
-                                       0,
-                                       contiguous_stride,
-                                       contiguous_dist);
+            set_input<Tbuff, rocfft_fp16>(input,
+                                          igen,
+                                          itype,
+                                          length,
+                                          ilength(),
+                                          istride,
+                                          idist,
+                                          nbatch,
+                                          deviceProp,
+                                          field_lower,
+                                          0,
+                                          contiguous_stride,
+                                          contiguous_dist);
             break;
         case fft_precision_double:
             set_input<Tbuff, double>(input,
@@ -1739,7 +1739,7 @@ public:
             {
             case fft_precision_half:
             {
-                buffer_printer<rocfft_complex<_Float16>> s;
+                buffer_printer<rocfft_complex<rocfft_fp16>> s;
                 s.print_buffer(buf, ilength(), istride, nbatch, idist, ioffset);
                 break;
             }
@@ -1766,7 +1766,7 @@ public:
             {
             case fft_precision_half:
             {
-                buffer_printer<_Float16> s;
+                buffer_printer<rocfft_fp16> s;
                 s.print_buffer(buf, ilength(), istride, nbatch, idist, ioffset);
                 break;
             }
@@ -1802,7 +1802,7 @@ public:
             {
             case fft_precision_half:
             {
-                buffer_printer<rocfft_complex<_Float16>> s;
+                buffer_printer<rocfft_complex<rocfft_fp16>> s;
                 s.print_buffer(buf, olength(), ostride, nbatch, odist, ooffset);
                 break;
             }
@@ -1827,7 +1827,7 @@ public:
             {
             case fft_precision_half:
             {
-                buffer_printer<_Float16> s;
+                buffer_printer<rocfft_fp16> s;
                 s.print_buffer(buf, olength(), ostride, nbatch, odist, ooffset);
                 break;
             }
@@ -1863,7 +1863,7 @@ public:
             {
             case fft_precision_half:
             {
-                buffer_printer<rocfft_complex<_Float16>> s;
+                buffer_printer<rocfft_complex<rocfft_fp16>> s;
                 s.print_buffer_flat(buf, osize, ooffset);
                 break;
             }
@@ -1888,7 +1888,7 @@ public:
             {
             case fft_precision_half:
             {
-                buffer_printer<_Float16> s;
+                buffer_printer<rocfft_fp16> s;
                 s.print_buffer_flat(buf, osize, ooffset);
                 break;
             }
@@ -1923,7 +1923,7 @@ public:
             {
             case fft_precision_half:
             {
-                buffer_printer<rocfft_complex<_Float16>> s;
+                buffer_printer<rocfft_complex<rocfft_fp16>> s;
                 s.print_buffer_flat(buf, osize, ooffset);
                 break;
             }
@@ -1948,7 +1948,7 @@ public:
             {
             case fft_precision_half:
             {
-                buffer_printer<_Float16> s;
+                buffer_printer<rocfft_fp16> s;
                 s.print_buffer_flat(buf, osize, ooffset);
                 break;
             }
@@ -2396,8 +2396,8 @@ inline void copy_buffers(const std::vector<hostbuf>& input,
             {
             case fft_precision_half:
                 copy_buffers_1to1(
-                    reinterpret_cast<const rocfft_complex<_Float16>*>(input[0].data()),
-                    reinterpret_cast<rocfft_complex<_Float16>*>(output[0].data()),
+                    reinterpret_cast<const rocfft_complex<rocfft_fp16>*>(input[0].data()),
+                    reinterpret_cast<rocfft_complex<rocfft_fp16>*>(output[0].data()),
                     length,
                     nbatch,
                     istride,
@@ -2441,8 +2441,8 @@ inline void copy_buffers(const std::vector<hostbuf>& input,
                 switch(precision)
                 {
                 case fft_precision_half:
-                    copy_buffers_1to1(reinterpret_cast<const _Float16*>(input[idx].data()),
-                                      reinterpret_cast<_Float16*>(output[idx].data()),
+                    copy_buffers_1to1(reinterpret_cast<const rocfft_fp16*>(input[idx].data()),
+                                      reinterpret_cast<rocfft_fp16*>(output[idx].data()),
                                       length,
                                       nbatch,
                                       istride,
@@ -2491,9 +2491,9 @@ inline void copy_buffers(const std::vector<hostbuf>& input,
         switch(precision)
         {
         case fft_precision_half:
-            copy_buffers_1to2(reinterpret_cast<const rocfft_complex<_Float16>*>(input[0].data()),
-                              reinterpret_cast<_Float16*>(output[0].data()),
-                              reinterpret_cast<_Float16*>(output[1].data()),
+            copy_buffers_1to2(reinterpret_cast<const rocfft_complex<rocfft_fp16>*>(input[0].data()),
+                              reinterpret_cast<rocfft_fp16*>(output[0].data()),
+                              reinterpret_cast<rocfft_fp16*>(output[1].data()),
                               length,
                               nbatch,
                               istride,
@@ -2539,9 +2539,9 @@ inline void copy_buffers(const std::vector<hostbuf>& input,
         switch(precision)
         {
         case fft_precision_half:
-            copy_buffers_2to1(reinterpret_cast<const _Float16*>(input[0].data()),
-                              reinterpret_cast<const _Float16*>(input[1].data()),
-                              reinterpret_cast<rocfft_complex<_Float16>*>(output[0].data()),
+            copy_buffers_2to1(reinterpret_cast<const rocfft_fp16*>(input[0].data()),
+                              reinterpret_cast<const rocfft_fp16*>(input[1].data()),
+                              reinterpret_cast<rocfft_complex<rocfft_fp16>*>(output[0].data()),
                               length,
                               nbatch,
                               istride,
@@ -2930,8 +2930,8 @@ inline VectorNorms distance(const std::vector<hostbuf>&             input,
             {
             case fft_precision_half:
                 dist = distance_1to1_complex(
-                    reinterpret_cast<const rocfft_complex<_Float16>*>(input[0].data()),
-                    reinterpret_cast<const rocfft_complex<_Float16>*>(output[0].data()),
+                    reinterpret_cast<const rocfft_complex<rocfft_fp16>*>(input[0].data()),
+                    reinterpret_cast<const rocfft_complex<rocfft_fp16>*>(output[0].data()),
                     length,
                     nbatch,
                     istride,
@@ -2988,8 +2988,8 @@ inline VectorNorms distance(const std::vector<hostbuf>&             input,
                 switch(precision)
                 {
                 case fft_precision_half:
-                    d = distance_1to1_real(reinterpret_cast<const _Float16*>(input[idx].data()),
-                                           reinterpret_cast<const _Float16*>(output[idx].data()),
+                    d = distance_1to1_real(reinterpret_cast<const rocfft_fp16*>(input[idx].data()),
+                                           reinterpret_cast<const rocfft_fp16*>(output[idx].data()),
                                            length,
                                            nbatch,
                                            istride,
@@ -3048,20 +3048,21 @@ inline VectorNorms distance(const std::vector<hostbuf>&             input,
         switch(precision)
         {
         case fft_precision_half:
-            dist = distance_1to2(reinterpret_cast<const rocfft_complex<_Float16>*>(input[0].data()),
-                                 reinterpret_cast<const _Float16*>(output[0].data()),
-                                 reinterpret_cast<const _Float16*>(output[1].data()),
-                                 length,
-                                 nbatch,
-                                 istride,
-                                 idist,
-                                 ostride,
-                                 odist,
-                                 linf_failures,
-                                 linf_cutoff,
-                                 ioffset,
-                                 ooffset,
-                                 output_scalar);
+            dist = distance_1to2(
+                reinterpret_cast<const rocfft_complex<rocfft_fp16>*>(input[0].data()),
+                reinterpret_cast<const rocfft_fp16*>(output[0].data()),
+                reinterpret_cast<const rocfft_fp16*>(output[1].data()),
+                length,
+                nbatch,
+                istride,
+                idist,
+                ostride,
+                odist,
+                linf_failures,
+                linf_cutoff,
+                ioffset,
+                ooffset,
+                output_scalar);
             break;
         case fft_precision_single:
             dist = distance_1to2(reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
@@ -3105,21 +3106,21 @@ inline VectorNorms distance(const std::vector<hostbuf>&             input,
         switch(precision)
         {
         case fft_precision_half:
-            dist
-                = distance_1to2(reinterpret_cast<const rocfft_complex<_Float16>*>(output[0].data()),
-                                reinterpret_cast<const _Float16*>(input[0].data()),
-                                reinterpret_cast<const _Float16*>(input[1].data()),
-                                length,
-                                nbatch,
-                                ostride,
-                                odist,
-                                istride,
-                                idist,
-                                linf_failures,
-                                linf_cutoff,
-                                ioffset,
-                                ooffset,
-                                output_scalar);
+            dist = distance_1to2(
+                reinterpret_cast<const rocfft_complex<rocfft_fp16>*>(output[0].data()),
+                reinterpret_cast<const rocfft_fp16*>(input[0].data()),
+                reinterpret_cast<const rocfft_fp16*>(input[1].data()),
+                length,
+                nbatch,
+                ostride,
+                odist,
+                istride,
+                idist,
+                linf_failures,
+                linf_cutoff,
+                ioffset,
+                ooffset,
+                output_scalar);
             break;
         case fft_precision_single:
             dist = distance_1to2(reinterpret_cast<const rocfft_complex<float>*>(output[0].data()),
@@ -3379,12 +3380,13 @@ inline VectorNorms norm(const std::vector<hostbuf>& input,
         switch(precision)
         {
         case fft_precision_half:
-            norm = norm_complex(reinterpret_cast<const rocfft_complex<_Float16>*>(input[0].data()),
-                                length,
-                                nbatch,
-                                istride,
-                                idist,
-                                offset);
+            norm = norm_complex(
+                reinterpret_cast<const rocfft_complex<rocfft_fp16>*>(input[0].data()),
+                length,
+                nbatch,
+                istride,
+                idist,
+                offset);
             break;
         case fft_precision_single:
             norm = norm_complex(reinterpret_cast<const rocfft_complex<float>*>(input[0].data()),
@@ -3414,7 +3416,7 @@ inline VectorNorms norm(const std::vector<hostbuf>& input,
             switch(precision)
             {
             case fft_precision_half:
-                n = norm_real(reinterpret_cast<const _Float16*>(input[idx].data()),
+                n = norm_real(reinterpret_cast<const rocfft_fp16*>(input[idx].data()),
                               length,
                               nbatch,
                               istride,

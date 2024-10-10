@@ -122,7 +122,7 @@ static void shuffle_buffer(const fft_params& param, const size_t seed, std::vect
     switch(param.precision)
     {
     case fft_precision_half:
-        shuffle_buffer<_Float16>(N, seed, buffer);
+        shuffle_buffer<rocfft_fp16>(N, seed, buffer);
         break;
     case fft_precision_double:
         shuffle_buffer<double>(N, seed, buffer);
@@ -163,7 +163,7 @@ static void
     switch(param.precision)
     {
     case fft_precision_half:
-        corrupt_buffer_single<_Float16>(N, seed, buffer);
+        corrupt_buffer_single<rocfft_fp16>(N, seed, buffer);
         break;
     case fft_precision_double:
         corrupt_buffer_single<double>(N, seed, buffer);
@@ -204,7 +204,7 @@ static void
     switch(param.precision)
     {
     case fft_precision_half:
-        corrupt_buffer_full<_Float16>(N, seed, buffer);
+        corrupt_buffer_full<rocfft_fp16>(N, seed, buffer);
         break;
     case fft_precision_double:
         corrupt_buffer_full<double>(N, seed, buffer);
@@ -241,7 +241,7 @@ static void init_buffer(const fft_params& params, const size_t seed, std::vector
     switch(params.precision)
     {
     case fft_precision_half:
-        init_buffer<_Float16>(N, seed, buffer);
+        init_buffer<rocfft_fp16>(N, seed, buffer);
         break;
     case fft_precision_double:
         init_buffer<double>(N, seed, buffer);

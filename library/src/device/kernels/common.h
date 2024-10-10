@@ -194,9 +194,9 @@ struct real_type<rocfft_complex<double>>
 };
 
 template <>
-struct real_type<rocfft_complex<_Float16>>
+struct real_type<rocfft_complex<rocfft_fp16>>
 {
-    typedef _Float16 type;
+    typedef rocfft_fp16 type;
 };
 
 template <class T>

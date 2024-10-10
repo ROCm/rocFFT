@@ -214,7 +214,7 @@ inline double type_epsilon(const fft_precision precision)
     switch(precision)
     {
     case fft_precision_half:
-        return type_epsilon<_Float16>();
+        return type_epsilon<rocfft_fp16>();
         break;
     case fft_precision_single:
         return type_epsilon<float>();

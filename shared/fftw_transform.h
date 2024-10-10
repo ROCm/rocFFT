@@ -45,7 +45,7 @@
 template <typename Tfloat>
 inline double type_epsilon();
 template <>
-inline double type_epsilon<_Float16>()
+inline double type_epsilon<rocfft_fp16>()
 {
     return half_epsilon;
 }
@@ -82,7 +82,7 @@ static constexpr double default_double_epsilon()
 template <typename Tfloat>
 struct fftw_trait;
 template <>
-struct fftw_trait<_Float16>
+struct fftw_trait<rocfft_fp16>
 {
     // fftw does not support half precision, so use single precision and convert
     using fftw_complex_type = fftwf_complex;
@@ -108,8 +108,9 @@ struct fftw_trait<double>
 static hostbuf half_to_single_copy(const hostbuf& in)
 {
     auto out      = in.copy();
-    auto in_begin = reinterpret_cast<const _Float16*>(in.data());
-    std::copy_n(in_begin, in.size() / sizeof(_Float16) / 2, reinterpret_cast<float*>(out.data()));
+    auto in_begin = reinterpret_cast<const rocfft_fp16*>(in.data());
+    std::copy_n(
+        in_begin, in.size() / sizeof(rocfft_fp16) / 2, reinterpret_cast<float*>(out.data()));
     return out;
 }
 
@@ -128,7 +129,7 @@ void narrow_precision_inplace(hostbuf& in)
 
 static void single_to_half_inplace(hostbuf& in)
 {
-    narrow_precision_inplace<float, _Float16>(in);
+    narrow_precision_inplace<float, rocfft_fp16>(in);
 }
 
 // Template wrappers for real-valued FFTW allocators:
@@ -233,15 +234,15 @@ inline typename fftw_trait<Tfloat>::fftw_plan_type
                          unsigned                                        flags);
 
 template <>
-inline typename fftw_trait<_Float16>::fftw_plan_type
-    fftw_plan_guru64_dft<_Float16>(int                                               rank,
-                                   const fftw_iodim64*                               dims,
-                                   int                                               howmany_rank,
-                                   const fftw_iodim64*                               howmany_dims,
-                                   typename fftw_trait<_Float16>::fftw_complex_type* in,
-                                   typename fftw_trait<_Float16>::fftw_complex_type* out,
-                                   int                                               sign,
-                                   unsigned                                          flags)
+inline typename fftw_trait<rocfft_fp16>::fftw_plan_type
+    fftw_plan_guru64_dft<rocfft_fp16>(int                 rank,
+                                      const fftw_iodim64* dims,
+                                      int                 howmany_rank,
+                                      const fftw_iodim64* howmany_dims,
+                                      typename fftw_trait<rocfft_fp16>::fftw_complex_type* in,
+                                      typename fftw_trait<rocfft_fp16>::fftw_complex_type* out,
+                                      int                                                  sign,
+                                      unsigned                                             flags)
 {
     return fftwf_plan_guru64_dft(rank, dims, howmany_rank, howmany_dims, in, out, sign, flags);
 }
@@ -281,9 +282,10 @@ inline void fftw_plan_execute_c2c(typename fftw_trait<Tfloat>::fftw_plan_type pl
                                   std::vector<hostbuf>&                       out);
 
 template <>
-inline void fftw_plan_execute_c2c<_Float16>(typename fftw_trait<_Float16>::fftw_plan_type plan,
-                                            std::vector<hostbuf>&                         in,
-                                            std::vector<hostbuf>&                         out)
+inline void
+    fftw_plan_execute_c2c<rocfft_fp16>(typename fftw_trait<rocfft_fp16>::fftw_plan_type plan,
+                                       std::vector<hostbuf>&                            in,
+                                       std::vector<hostbuf>&                            out)
 {
     // since FFTW does not natively support half precision, convert
     // input to single, execute, then convert output back to half
@@ -325,14 +327,14 @@ inline typename fftw_trait<Tfloat>::fftw_plan_type
                          typename fftw_trait<Tfloat>::fftw_complex_type* out,
                          unsigned                                        flags);
 template <>
-inline typename fftw_trait<_Float16>::fftw_plan_type
-    fftw_plan_guru64_r2c<_Float16>(int                                               rank,
-                                   const fftw_iodim64*                               dims,
-                                   int                                               howmany_rank,
-                                   const fftw_iodim64*                               howmany_dims,
-                                   _Float16*                                         in,
-                                   typename fftw_trait<_Float16>::fftw_complex_type* out,
-                                   unsigned                                          flags)
+inline typename fftw_trait<rocfft_fp16>::fftw_plan_type
+    fftw_plan_guru64_r2c<rocfft_fp16>(int                 rank,
+                                      const fftw_iodim64* dims,
+                                      int                 howmany_rank,
+                                      const fftw_iodim64* howmany_dims,
+                                      rocfft_fp16*        in,
+                                      typename fftw_trait<rocfft_fp16>::fftw_complex_type* out,
+                                      unsigned                                             flags)
 {
     return fftwf_plan_guru64_dft_r2c(
         rank, dims, howmany_rank, howmany_dims, reinterpret_cast<float*>(in), out, flags);
@@ -368,9 +370,9 @@ inline void fftw_plan_execute_r2c(typename fftw_trait<Tfloat>::fftw_plan_type pl
                                   std::vector<hostbuf>&                       in,
                                   std::vector<hostbuf>&                       out);
 template <>
-inline void fftw_plan_execute_r2c<_Float16>(typename fftw_trait<float>::fftw_plan_type plan,
-                                            std::vector<hostbuf>&                      in,
-                                            std::vector<hostbuf>&                      out)
+inline void fftw_plan_execute_r2c<rocfft_fp16>(typename fftw_trait<float>::fftw_plan_type plan,
+                                               std::vector<hostbuf>&                      in,
+                                               std::vector<hostbuf>&                      out)
 {
     // since FFTW does not natively support half precision, convert
     // input to single, execute, then convert output back to half
@@ -410,14 +412,14 @@ inline typename fftw_trait<Tfloat>::fftw_plan_type
                          Tfloat*                                         out,
                          unsigned                                        flags);
 template <>
-inline typename fftw_trait<_Float16>::fftw_plan_type
-    fftw_plan_guru64_c2r<_Float16>(int                                               rank,
-                                   const fftw_iodim64*                               dims,
-                                   int                                               howmany_rank,
-                                   const fftw_iodim64*                               howmany_dims,
-                                   typename fftw_trait<_Float16>::fftw_complex_type* in,
-                                   _Float16*                                         out,
-                                   unsigned                                          flags)
+inline typename fftw_trait<rocfft_fp16>::fftw_plan_type
+    fftw_plan_guru64_c2r<rocfft_fp16>(int                 rank,
+                                      const fftw_iodim64* dims,
+                                      int                 howmany_rank,
+                                      const fftw_iodim64* howmany_dims,
+                                      typename fftw_trait<rocfft_fp16>::fftw_complex_type* in,
+                                      rocfft_fp16*                                         out,
+                                      unsigned                                             flags)
 {
     return fftwf_plan_guru64_dft_c2r(
         rank, dims, howmany_rank, howmany_dims, in, reinterpret_cast<float*>(out), flags);
@@ -453,9 +455,9 @@ inline void fftw_plan_execute_c2r(typename fftw_trait<Tfloat>::fftw_plan_type pl
                                   std::vector<hostbuf>&                       in,
                                   std::vector<hostbuf>&                       out);
 template <>
-inline void fftw_plan_execute_c2r<_Float16>(typename fftw_trait<float>::fftw_plan_type plan,
-                                            std::vector<hostbuf>&                      in,
-                                            std::vector<hostbuf>&                      out)
+inline void fftw_plan_execute_c2r<rocfft_fp16>(typename fftw_trait<float>::fftw_plan_type plan,
+                                               std::vector<hostbuf>&                      in,
+                                               std::vector<hostbuf>&                      out)
 {
     // since FFTW does not natively support half precision, convert
     // input to single, execute, then convert output back to half
@@ -489,7 +491,8 @@ inline void fftw_plan_execute_c2r<double>(typename fftw_trait<double>::fftw_plan
 template <typename Tfloat>
 inline char* fftw_sprint_plan(const typename fftw_trait<Tfloat>::fftw_plan_type plan);
 template <>
-inline char* fftw_sprint_plan<_Float16>(const typename fftw_trait<_Float16>::fftw_plan_type plan)
+inline char*
+    fftw_sprint_plan<rocfft_fp16>(const typename fftw_trait<rocfft_fp16>::fftw_plan_type plan)
 {
     return fftwf_sprint_plan(plan);
 }

@@ -71,7 +71,7 @@ std::string cleanup_type(std::string type, const std::string& function_name)
         if(function_name.find("_sp") != std::string::npos)
             type = "float";
         if(function_name.find("_half") != std::string::npos)
-            type = "_Float16";
+            type = "rocfft_fp16";
     }
     return type;
 }
@@ -96,7 +96,7 @@ std::string test_harness_init(const Function& f)
     else if(name.find("_sp") != std::string::npos)
         scalar_type += "float";
     else if(name.find("_half") != std::string::npos)
-        scalar_type += "_Float16";
+        scalar_type += "rocfft_fp16";
     scalar_type += "> scalar_type;\n";
 
     StatementList globals;
@@ -180,7 +180,7 @@ std::string test_harness_launch(const Function& f)
             launch.body += Call{"kargs.append_double", {"1.0"}};
         else if(actual_type == "float")
             launch.body += Call{"kargs.append_float", {"1.0"}};
-        else if(actual_type == "_Float16")
+        else if(actual_type == "rocfft_fp16")
             launch.body += Call{"kargs.append_half", {"1.0"}};
         else
         {
@@ -307,12 +307,12 @@ void write_standalone_test_harness(const Function& f, const std::string& src)
 
     main_file << "#define ROCFFT_DEBUG_GENERATE_KERNEL_HARNESS\n";
     main_file << rocfft_hip_h;
+    main_file << rocfft_complex_h;
     main_file << gpubuf_h;
     main_file << device_properties_h;
     main_file << rtc_kernel_h;
     main_file << rtc_kernel_cpp;
     main_file << rtc_test_harness_helper_cpp;
-    main_file << rocfft_complex_h;
 
     main_file << test_harness_init(f);
     main_file << "\n\n";

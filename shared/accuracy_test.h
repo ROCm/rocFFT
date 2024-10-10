@@ -1024,19 +1024,19 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
                     if(last_cpu_fft_data.precision == fft_precision_double)
                     {
                         convert_cpu_output_precision = std::async(std::launch::async, [&]() {
-                            narrow_precision_inplace<double, _Float16>(cpu_output.front());
+                            narrow_precision_inplace<double, rocfft_fp16>(cpu_output.front());
                         });
                         convert_cpu_input_precision  = std::async(std::launch::async, [&]() {
-                            narrow_precision_inplace<double, _Float16>(cpu_input.front());
+                            narrow_precision_inplace<double, rocfft_fp16>(cpu_input.front());
                         });
                     }
                     else if(last_cpu_fft_data.precision == fft_precision_single)
                     {
                         convert_cpu_output_precision = std::async(std::launch::async, [&]() {
-                            narrow_precision_inplace<float, _Float16>(cpu_output.front());
+                            narrow_precision_inplace<float, rocfft_fp16>(cpu_output.front());
                         });
                         convert_cpu_input_precision  = std::async(std::launch::async, [&]() {
-                            narrow_precision_inplace<float, _Float16>(cpu_input.front());
+                            narrow_precision_inplace<float, rocfft_fp16>(cpu_input.front());
                         });
                     }
                     else

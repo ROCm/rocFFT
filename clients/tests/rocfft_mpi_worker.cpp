@@ -87,19 +87,19 @@ void init_local_input(MPI_Comm                  mpi_comm,
         switch(params.precision)
         {
         case fft_precision_half:
-            set_input<gpubuf, _Float16>(bufvec,
-                                        fft_input_random_generator_device,
-                                        params.itype,
-                                        brick_len_nobatch,
-                                        brick_len_nobatch,
-                                        brick_stride_nobatch,
-                                        brick_dist,
-                                        brick_batch,
-                                        get_curr_device_prop(),
-                                        brick_lower_nobatch,
-                                        brick_lower_batch,
-                                        contiguous_stride,
-                                        contiguous_dist);
+            set_input<gpubuf, rocfft_fp16>(bufvec,
+                                           fft_input_random_generator_device,
+                                           params.itype,
+                                           brick_len_nobatch,
+                                           brick_len_nobatch,
+                                           brick_stride_nobatch,
+                                           brick_dist,
+                                           brick_batch,
+                                           get_curr_device_prop(),
+                                           brick_lower_nobatch,
+                                           brick_lower_batch,
+                                           contiguous_stride,
+                                           contiguous_dist);
             break;
         case fft_precision_single:
             set_input<gpubuf, float>(bufvec,
@@ -509,7 +509,7 @@ void exec_testcases(MPI_Comm                          mpi_comm,
                 {
                 case fft_precision_half:
                 {
-                    execute_reference_fft<_Float16>(params_inplace, cpu_data);
+                    execute_reference_fft<rocfft_fp16>(params_inplace, cpu_data);
                     break;
                 }
                 case fft_precision_single:

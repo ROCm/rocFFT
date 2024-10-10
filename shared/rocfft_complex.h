@@ -29,7 +29,9 @@
 #include <type_traits>
 
 #ifdef __HIP_PLATFORM_NVIDIA__
-typedef __half _Float16;
+typedef __half rocfft_fp16;
+#else
+typedef _Float16 rocfft_fp16;
 #endif
 
 template <typename Treal>
@@ -245,7 +247,7 @@ struct rocfft_complex
 
 // Stream operators
 #if !defined(__HIPCC_RTC__)
-static std::ostream& operator<<(std::ostream& stream, const _Float16& f)
+static std::ostream& operator<<(std::ostream& stream, const rocfft_fp16& f)
 {
     return stream << static_cast<double>(f);
 }

@@ -626,9 +626,10 @@ __device__ static float make_random_val(hiprandStatePhilox4_32_10* gen_state, fl
     return hiprand_uniform(gen_state) + offset;
 }
 
-__device__ static _Float16 make_random_val(hiprandStatePhilox4_32_10* gen_state, _Float16 offset)
+__device__ static rocfft_fp16 make_random_val(hiprandStatePhilox4_32_10* gen_state,
+                                              rocfft_fp16                offset)
 {
-    return static_cast<_Float16>(hiprand_uniform(gen_state)) + offset;
+    return static_cast<rocfft_fp16>(hiprand_uniform(gen_state)) + offset;
 }
 
 template <typename Tint, typename Treal>

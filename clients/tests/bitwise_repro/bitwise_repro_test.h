@@ -366,7 +366,7 @@ inline void bitwise_repro(rocfft_params& params)
     switch(params.precision)
     {
     case fft_precision_half:
-        bitwise_repro_impl<_Float16, rocfft_params>(params);
+        bitwise_repro_impl<rocfft_fp16, rocfft_params>(params);
         break;
     case fft_precision_single:
         bitwise_repro_impl<float, rocfft_params>(params);
@@ -382,7 +382,7 @@ inline void bitwise_repro(rocfft_params& params, rocfft_params& params_comp)
     switch(params.precision)
     {
     case fft_precision_half:
-        bitwise_repro_impl<_Float16, rocfft_params>(params, params_comp);
+        bitwise_repro_impl<rocfft_fp16, rocfft_params>(params, params_comp);
         break;
     case fft_precision_single:
         bitwise_repro_impl<float, rocfft_params>(params, params_comp);
