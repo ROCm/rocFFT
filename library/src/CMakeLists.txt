@@ -374,6 +374,7 @@ add_library( rocfft
 
 if( ROCFFT_MPI_ENABLE )
   target_compile_definitions(rocfft PRIVATE ROCFFT_MPI_ENABLE)
+  include_directories(SYSTEM ${MPI_INCLUDE_PATH})
 endif()
 
 add_library( roc::rocfft ALIAS rocfft )

@@ -217,6 +217,7 @@ endif()
 option(ROCFFT_MPI_ENABLE "Enable MPI" OFF)
 if( ROCFFT_MPI_ENABLE )
   find_package( MPI REQUIRED )
+  include_directories(SYSTEM ${MPI_INCLUDE_PATH})
 endif()
 
 add_subdirectory( library )

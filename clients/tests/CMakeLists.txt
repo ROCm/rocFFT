@@ -168,6 +168,8 @@ if( BUILD_FFTW OR NOT FFTW_FOUND )
     DESTINATION ${CMAKE_INSTALL_LIBDIR}/fftw
     COMPONENT clients-common
   )
+else()
+  include_directories(${FFTW_INCLUDE_DIRS})
 endif()
 
 set( rocfft-test_include_dirs
@@ -317,15 +319,16 @@ if( ROCFFT_MPI_ENABLE )
   # normal and dynamic-loading MPI worker processes
   foreach(worker rocfft_mpi_worker dyna_rocfft_mpi_worker)
     add_executable( ${worker} rocfft_mpi_worker.cpp )
+    target_compile_options( ${worker} PRIVATE -fopenmp )
     target_include_directories( ${worker}
       PRIVATE
-      $<BUILD_INTERFACE:${FFTW_INCLUDES}>
       ${CMAKE_BINARY_DIR}/include
       ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
       ${MPI_C_INCLUDE_PATH}
     )
     target_compile_options( ${worker} PRIVATE ${WARNING_FLAGS} )
     target_link_libraries( ${worker}
+      -fopenmp
       hip::hiprand
       hip::device
       MPI::MPI_C
