@@ -326,22 +326,27 @@ int main(int argc, char* argv[])
            "--emulation_prob", test_prob, "Probability of running individual emulation tests")
         ->default_val(1.0)
         ->check(CLI::Range(0.0, 1.0));
+    app.add_option("--real_prob",
+                   real_prob_factor,
+                   "Probability multiplier for running individual real/complex transforms")
+        ->default_val(1.0)
+        ->check(CLI::PositiveNumber);
     app.add_option("--planar_prob",
                    complex_planar_prob_factor,
                    "Probability multiplier for running individual planar transforms")
         ->default_val(0.1)
-        ->check(CLI::NonNegativeNumber);
+        ->check(CLI::PositiveNumber);
     app.add_option(
            "--complex_interleaved_prob_factor",
            complex_interleaved_prob_factor,
            "Probability multiplier for running individual transforms with complex interleaved data")
         ->default_val(1)
-        ->check(CLI::NonNegativeNumber);
+        ->check(CLI::PositiveNumber);
     app.add_option("--callback_prob",
                    callback_prob_factor,
                    "Probability multiplier for running individual callback transforms")
         ->default_val(0.1)
-        ->check(CLI::NonNegativeNumber);
+        ->check(CLI::PositiveNumber);
 
     constexpr std::array<std::string_view, 4> emulation_types
         = {"none", "smoke", "regression", "extended"};
