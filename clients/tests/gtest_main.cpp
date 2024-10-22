@@ -37,6 +37,7 @@
 
 #include "../../shared/CLI11.hpp"
 #include "../../shared/concurrency.h"
+#include "../../shared/device_properties.h"
 #include "../../shared/environment.h"
 #include "../../shared/rocfft_accuracy_test.h"
 #include "../../shared/test_params.h"
@@ -169,6 +170,14 @@ system_memory get_system_memory()
     }
 
 #endif
+
+    auto deviceProp = get_curr_device_prop();
+    // on integrated APU, we can't expect to reuse "device" memory
+    // for "host" things.
+    if(deviceProp.integrated)
+    {
+        memory_data.total_bytes -= deviceProp.totalGlobalMem;
+    }
     return memory_data;
 }
 
