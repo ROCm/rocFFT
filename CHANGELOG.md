@@ -57,7 +57,7 @@ Documentation for rocFFT is available at
 * Compilation uses amdclang++ instead of hipcc.
 * CLI11 replaces Boost Program Options as the command line parser for clients and samples.
 
-## rocFFT 1.0.30 for ROCm 6.2.2
+## rocFFT 1.0.30 for ROCm 6.2.4
 
 ### Optimizations
 
@@ -66,6 +66,10 @@ Documentation for rocFFT is available at
 ### Fixes
 
 * Fixed plan creation failure on some even-length real-complex transforms that use Bluestein's algorithm.
+
+### Additions
+
+* GFX1151 Support
 
 ## rocFFT 1.0.29 for ROCm 6.2.1
 
