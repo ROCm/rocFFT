@@ -390,19 +390,6 @@ endif()
 
 target_link_libraries( rocfft PRIVATE ${ROCFFT_DEVICE_LINK_LIBS} )
 
-if(TARGET rocfft-device-0)
-  target_link_libraries( rocfft PRIVATE rocfft-device-0 )
-endif()
-if(TARGET rocfft-device-1)
-  target_link_libraries( rocfft PRIVATE rocfft-device-1 )
-endif()
-if(TARGET rocfft-device-2)
-  target_link_libraries( rocfft PRIVATE rocfft-device-2 )
-endif()
-if(TARGET rocfft-device-3)
-  target_link_libraries( rocfft PRIVATE rocfft-device-3 )
-endif()
-
 foreach( target rocfft rocfft_offline_tuner rocfft_solmap_convert rocfft_aot_helper rocfft_kernel_config_search )
 
   if(( NOT ROCFFT_BUILD_OFFLINE_TUNER ) AND ((${target} STREQUAL "rocfft_offline_tuner") OR (${target} STREQUAL "rocfft_solmap_convert")))

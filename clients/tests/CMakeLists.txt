@@ -331,7 +331,7 @@ if( ROCFFT_MPI_ENABLE )
       -fopenmp
       hip::hiprand
       hip::device
-      MPI::MPI_C
+      MPI::MPI_CXX
       ${FFTW_LIBRARIES}
     )
     set_target_properties(${worker}
