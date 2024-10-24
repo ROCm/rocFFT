@@ -227,10 +227,21 @@ endif()
 
 if( ROCFFT_MPI_ENABLE )
   target_link_libraries( rocfft-test
-  PRIVATE
-  MPI::MPI_CXX
-  )
+    PRIVATE
+    MPI::MPI_CXX
+    )
   add_compile_definitions( ROCFFT_MPI_ENABLE )
+
+  if ( MPI_CXX_LIB_NAMES STREQUAL "mpi_cray")
+    target_link_libraries( rocfft-test
+      PRIVATE
+      "mpi_gtl_hsa"
+      )
+    get_filename_component( MPI_LIBDIR ${MPI_LIBRARY} DIRECTORY )
+    target_link_directories( rocfft-test
+      PRIVATE
+      ${MPI_LIBDIR}/../../../../gtl/lib )
+  endif()
 endif()
 
 
@@ -327,13 +338,29 @@ if( ROCFFT_MPI_ENABLE )
       ${MPI_C_INCLUDE_PATH}
     )
     target_compile_options( ${worker} PRIVATE ${WARNING_FLAGS} )
+
+  if ( MPI_CXX_LIB_NAMES STREQUAL "mpi_cray")
+      target_link_libraries( ${worker}
+      -fopenmp
+      hip::hiprand
+      hip::device
+      MPI::MPI_CXX
+      ${FFTW_LIBRARIES}
+      "mpi_gtl_hsa"
+    )
+      get_filename_component( MPI_LIBDIR ${MPI_LIBRARY} DIRECTORY )
+      target_link_directories( ${worker}
+	PRIVATE
+	${MPI_LIBDIR}/../../../../gtl/lib )
+    else()
     target_link_libraries( ${worker}
       -fopenmp
       hip::hiprand
       hip::device
       MPI::MPI_CXX
       ${FFTW_LIBRARIES}
-    )
+    )    
+    endif()
     set_target_properties(${worker}
                           PROPERTIES 
                           RUNTIME_OUTPUT_DIRECTORY 

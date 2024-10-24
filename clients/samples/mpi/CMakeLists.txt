@@ -78,6 +78,16 @@ foreach( sample ${sample_list} )
     PRIVATE roc::rocfft
     MPI::MPI_CXX
     )
+  if ( MPI_CXX_LIB_NAMES STREQUAL "mpi_cray")
+    target_link_libraries( ${sample}
+      PRIVATE
+      "mpi_gtl_hsa"
+      )
+      get_filename_component( MPI_LIBDIR ${MPI_LIBRARY} DIRECTORY )
+      target_link_directories( ${sample}
+	PRIVATE
+	${MPI_LIBDIR}/../../../../gtl/lib )
+    endif()
 
   if ( USE_HIPRAND )
     target_link_libraries(

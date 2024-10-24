@@ -62,6 +62,11 @@ endif()
 
 if( ROCFFT_MPI_ENABLE )
   set( ROCFFT_HOST_LINK_LIBS "${ROCFFT_HOST_LINK_LIBS}" "MPI::MPI_CXX" )
+  if ( MPI_CXX_LIB_NAMES STREQUAL "mpi_cray")
+    set( ROCFFT_HOST_LINK_LIBS "${ROCFFT_HOST_LINK_LIBS}" "mpi_gtl_hsa" )
+    get_filename_component(MPI_LIBDIR ${MPI_LIBRARY} DIRECTORY)
+    set( ROCFFT_HOST_LINK_DIRS ${MPI_LIBDIR}/../../../../gtl/lib)
+  endif()
 endif()
 
 set( package_targets rocfft )
@@ -76,6 +81,7 @@ target_link_libraries( rocfft_rtc_helper PRIVATE rocfft-rtc-compile )
 set_target_properties( rocfft_rtc_helper PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON
                                          BUILD_WITH_INSTALL_RPATH TRUE
                                          INSTALL_RPATH "${APPEND_ROCMLIB_RPATH}" )
+target_link_directories( rocfft_rtc_helper PRIVATE ${ROCFFT_HOST_LINK_DIRS} )
 
 # Package that helps me set visibility for function names exported
 # from shared library
@@ -334,6 +340,7 @@ foreach( target
     target_compile_options( ${target} PRIVATE -Og )
   endif()
   target_link_libraries( ${target} PUBLIC ${ROCFFT_HOST_LINK_LIBS} ${ROCFFT_RTC_LINK_LIBS} )
+  target_link_directories( ${target} PRIVATE ${ROCFFT_HOST_LINK_DIRS} )
 
 endforeach()
 
@@ -386,6 +393,7 @@ endif()
 if( NOT BUILD_SHARED_LIBS )
   target_link_libraries( rocfft INTERFACE ${ROCFFT_HOST_LINK_LIBS} )
   target_compile_options( rocfft PRIVATE -DROCFFT_STATIC_LIB )
+  target_link_directories( rocfft PRIVATE ${ROCFFT_HOST_LINK_DIRS} )
 endif()
 
 target_link_libraries( rocfft PRIVATE ${ROCFFT_DEVICE_LINK_LIBS} )
@@ -441,6 +449,7 @@ target_link_libraries( rocfft_kernel_config_search PRIVATE
   rocfft-rtc-launch
   rocfft-function-pool
   )
+target_link_directories( rocfft_kernel_config_search PRIVATE ${ROCFFT_HOST_LINK_DIRS} )
 target_link_std_experimental_filesystem( rocfft_kernel_config_search )
 
 target_link_libraries( rocfft_aot_helper PRIVATE
