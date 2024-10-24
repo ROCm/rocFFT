@@ -378,27 +378,29 @@ int main(int argc, char* argv[])
             // Callbacks are not an emulation test target.
             callback_prob_factor = 0;
 
-            switch(nidx(emulationtype))
+            // We can do a switch on nidx(emulationtype) when we have C++20
+            // switch(nidx(emulationtype))
+            // {
+            // case nidx("smoke"):
+            // etc.
+
+            if(nidx(emulationtype) == nidx("smoke"))
             {
-            case nidx("smoke"):
-                ::testing::GTEST_FLAG(filter) = "manual.vs_fftw:*emulation*";
                 // 2GB vram limit, approx 1 minute GPU time with short tests.
                 vramgb         = 2;
                 test_prob      = 0;
                 emulation_prob = 0.005;
-                break;
-            case nidx("regression"):
+            }
+            if(nidx(emulationtype) == nidx("regression"))
+            {
                 vramgb         = 16;
                 emulation_prob = 1;
                 test_prob      = 0.01;
-                break;
-            case nidx("extended"):
+            }
+            if(nidx(emulationtype) == nidx("extended"))
+            {
                 emulation_prob = 1;
                 test_prob      = 0.02;
-                break;
-            default:
-                std::cerr << "Invalid emulation test option\n";
-                exit(EXIT_FAILURE);
             }
         });
 
