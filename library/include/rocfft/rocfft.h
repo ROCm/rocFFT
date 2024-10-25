@@ -356,7 +356,8 @@ ROCFFT_EXPORT rocfft_status rocfft_plan_description_set_comm(rocfft_plan_descrip
  * One must also provide a stride for the brick data which specifies
  * how the brick's data is arranged in memory.
  *
- * All coordinates and strides include batch dimensions.
+ * All coordinates and strides include batch dimensions, and are in
+ * column-major order (fastest-moving dimension first).
  *
  * A HIP device ID is also provided - each brick may reside on a
  * different device.
