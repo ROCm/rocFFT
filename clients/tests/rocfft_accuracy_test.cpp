@@ -72,10 +72,12 @@ TEST_P(accuracy_test, vs_fftw)
         GTEST_FAIL() << "Invalid parameters";
     }
 
-    // single-proc FFT
-    if(params.mp_lib == fft_params::fft_mp_lib_none)
+    switch(params.mp_lib)
     {
-        // only do round trip for non-field FFTs
+    case fft_params::fft_mp_lib_none:
+    {
+        // Single-proc FFT.
+        // Only do round trip for non-field FFTs
         bool round_trip = params.ifields.empty() && params.ofields.empty();
 
         try
@@ -94,11 +96,12 @@ TEST_P(accuracy_test, vs_fftw)
         {
             GTEST_FAIL() << e.msg.str();
         }
+        break;
     }
-    // multi-proc FFT
-    else if(params.mp_lib == fft_params::fft_mp_lib_mpi)
+    case fft_params::fft_mp_lib_mpi:
     {
-        // split launcher into tokens since the first one is the exe
+        // Multi-proc FFT.
+        // Split launcher into tokens since the first one is the exe
         // and the remainder is the start of its argv
         boost::escaped_list_separator<char>                   sep('\\', ' ', '\"');
         boost::tokenizer<boost::escaped_list_separator<char>> tokenizer(mp_launch, sep);
@@ -122,6 +125,11 @@ TEST_P(accuracy_test, vs_fftw)
         // throws an exception if launch fails or if subprocess
         // returns nonzero exit code
         execute_subprocess(exe, argv, {});
+        break;
+    }
+    default:
+        GTEST_FAIL() << "Invalid communicator choice!";
+        break;
     }
 
     SUCCEED();
