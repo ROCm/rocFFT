@@ -139,7 +139,10 @@ rocfft_status rocfft_setup()
 // library cleanup function, called once in program after end of library use
 rocfft_status rocfft_cleanup()
 {
-    log_trace(__func__);
+    // Logging is potentially unsafe if we're in the middle of static
+    // deinitialization, as log structures might have already been
+    // cleaned up.
+    // log_trace(__func__);
 
     // close the RTC cache and clear the repo, so that subsequent
     // rocfft_setup() + plan creation will start from scratch
