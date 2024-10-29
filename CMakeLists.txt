@@ -184,6 +184,8 @@ endif()
 
 set(AMDGPU_TARGETS "${DEFAULT_GPUS}" CACHE STRING "Target default GPUs if AMDGPU_TARGETS is not defined.")
 rocm_check_target_ids(AMDGPU_TARGETS TARGETS "${AMDGPU_TARGETS}")
+# Don't force, as users should be able to override this if so desired
+set(GPU_TARGETS "${AMDGPU_TARGETS}" CACHE STRING "The architectures to build the library for.")
   
 # HIP is required - library and clients use HIP to access the device
 find_package( HIP REQUIRED )
