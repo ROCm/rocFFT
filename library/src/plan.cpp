@@ -3444,6 +3444,16 @@ bool TreeNode::isLeafNode() const
     return nodeType == NT_LEAF;
 }
 
+LeafNode& TreeNode::getLeafNode()
+{
+    return dynamic_cast<LeafNode&>(*this);
+}
+
+const LeafNode& TreeNode::getLeafNode() const
+{
+    return dynamic_cast<const LeafNode&>(*this);
+}
+
 // Tree node builders
 
 // NB:
@@ -4060,8 +4070,8 @@ void RuntimeCompilePlan(ExecPlan& execPlan)
 
         // If this isn't for the local rank, don't compile.
 
-        node->compiledKernel
-            = RTCKernel::runtime_compile(*node, execPlan.deviceProp.gcnArchName, kernel_name);
+        node->compiledKernel = RTCKernel::runtime_compile(
+            node->getLeafNode(), execPlan.deviceProp.gcnArchName, kernel_name);
 
         // Log kernel name when tuning
         if(is_tuning)
@@ -4085,12 +4095,12 @@ void RuntimeCompilePlan(ExecPlan& execPlan)
     if(need_callbacks && !is_tuning)
     {
         load_node->compiledKernelWithCallbacks = RTCKernel::runtime_compile(
-            *load_node, execPlan.deviceProp.gcnArchName, kernel_name, true);
+            load_node->getLeafNode(), execPlan.deviceProp.gcnArchName, kernel_name, true);
 
         if(store_node != load_node)
         {
             store_node->compiledKernelWithCallbacks = RTCKernel::runtime_compile(
-                *store_node, execPlan.deviceProp.gcnArchName, kernel_name, true);
+                store_node->getLeafNode(), execPlan.deviceProp.gcnArchName, kernel_name, true);
         }
     }
 

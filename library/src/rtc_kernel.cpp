@@ -123,7 +123,7 @@ bool RTCKernel::get_occupancy(dim3 blockDim, unsigned int lds_bytes, int& occupa
 }
 
 std::shared_future<std::unique_ptr<RTCKernel>>
-    RTCKernel::runtime_compile(const TreeNode&    node,
+    RTCKernel::runtime_compile(const LeafNode&    node,
                                const std::string& gpu_arch,
                                std::string&       kernel_name,
                                bool               enable_callbacks)

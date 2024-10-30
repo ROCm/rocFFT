@@ -165,6 +165,7 @@ using SchemeVec = std::vector<ComputeScheme>;
 static SchemeVec EmptySchemeVec = {};
 
 class TreeNode;
+class LeafNode;
 
 // The mininal tree node data needed to decide the scheme
 struct NodeMetaData
@@ -445,6 +446,10 @@ public:
     bool isOutArrayTypeAllowed(rocfft_array_type) const;
     bool isRootNode() const;
     bool isLeafNode() const;
+    // Get the current node downcasted to a LeafNode.  Throws bad_cast
+    // if this node isn't actually a leaf.
+    LeafNode&       getLeafNode();
+    const LeafNode& getLeafNode() const;
 
     // whether or not the input/output access pattern may benefit from padding
     virtual bool PaddingBenefitsInput()

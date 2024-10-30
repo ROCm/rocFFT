@@ -36,6 +36,7 @@
 
 struct DeviceCallIn;
 class TreeNode;
+class LeafNode;
 struct GridParam;
 
 // Helper class that handles alignment of kernel arguments
@@ -113,7 +114,7 @@ struct RTCKernel
     // supported scheme + problem size.  throws runtime_error on
     // error.
     static std::shared_future<std::unique_ptr<RTCKernel>>
-        runtime_compile(const TreeNode&    node,
+        runtime_compile(const LeafNode&    node,
                         const std::string& gpu_arch,
                         std::string&       kernel_name,
                         bool               enable_callbacks = false);

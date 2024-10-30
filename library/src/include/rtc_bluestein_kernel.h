@@ -35,7 +35,7 @@ struct RTCKernelBluesteinSingle : public RTCKernel
     {
     }
 
-    static RTCKernel::RTCGenerator generate_from_node(const TreeNode&    node,
+    static RTCKernel::RTCGenerator generate_from_node(const LeafNode&    node,
                                                       const std::string& gpu_arch,
                                                       bool               enable_callbacks);
 
@@ -63,7 +63,7 @@ struct RTCKernelBluesteinMulti : public RTCKernel
     {
     }
 
-    static RTCKernel::RTCGenerator generate_from_node(const TreeNode&    node,
+    static RTCKernel::RTCGenerator generate_from_node(const LeafNode&    node,
                                                       const std::string& gpu_arch,
                                                       bool               enable_callbacks);
 

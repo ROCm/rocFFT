@@ -27,7 +27,7 @@
 #include "rtc_bluestein_gen.h"
 #include "tree_node.h"
 
-RTCKernel::RTCGenerator RTCKernelBluesteinSingle::generate_from_node(const TreeNode&    node,
+RTCKernel::RTCGenerator RTCKernelBluesteinSingle::generate_from_node(const LeafNode&    node,
                                                                      const std::string& gpu_arch,
                                                                      bool enable_callbacks)
 {
@@ -120,7 +120,7 @@ RTCKernelArgs RTCKernelBluesteinSingle::get_launch_args(DeviceCallIn& data)
     return kargs;
 }
 
-RTCKernel::RTCGenerator RTCKernelBluesteinMulti::generate_from_node(const TreeNode&    node,
+RTCKernel::RTCGenerator RTCKernelBluesteinMulti::generate_from_node(const LeafNode&    node,
                                                                     const std::string& gpu_arch,
                                                                     bool enable_callbacks)
 {

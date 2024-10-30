@@ -28,7 +28,7 @@
 
 #include "device/kernel-generator-embed.h"
 
-RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const TreeNode&    node,
+RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const LeafNode&    node,
                                                               const std::string& gpu_arch,
                                                               bool               enable_callbacks)
 {

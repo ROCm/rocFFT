@@ -26,7 +26,7 @@
 #include "rtc_realcomplex_kernel.h"
 #include "tree_node.h"
 
-RTCKernel::RTCGenerator RTCKernelRealComplex::generate_from_node(const TreeNode&    node,
+RTCKernel::RTCGenerator RTCKernelRealComplex::generate_from_node(const LeafNode&    node,
                                                                  const std::string& gpu_arch,
                                                                  bool enable_callbacks)
 {
@@ -131,7 +131,7 @@ RTCKernelArgs RTCKernelRealComplex::get_launch_args(DeviceCallIn& data)
     return kargs;
 }
 
-RTCKernel::RTCGenerator RTCKernelRealComplexEven::generate_from_node(const TreeNode&    node,
+RTCKernel::RTCGenerator RTCKernelRealComplexEven::generate_from_node(const LeafNode&    node,
                                                                      const std::string& gpu_arch,
                                                                      bool enable_callbacks)
 {
@@ -225,7 +225,7 @@ RTCKernelArgs RTCKernelRealComplexEven::get_launch_args(DeviceCallIn& data)
 }
 
 RTCKernel::RTCGenerator RTCKernelRealComplexEvenTranspose::generate_from_node(
-    const TreeNode& node, const std::string& gpu_arch, bool enable_callbacks)
+    const LeafNode& node, const std::string& gpu_arch, bool enable_callbacks)
 {
     RTCGenerator generator;
     if(node.scheme != CS_KERNEL_R_TO_CMPLX_TRANSPOSE

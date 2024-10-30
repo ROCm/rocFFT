@@ -26,7 +26,7 @@
 #include "rtc_transpose_kernel.h"
 #include "tree_node.h"
 
-RTCKernel::RTCGenerator RTCKernelTranspose::generate_from_node(const TreeNode&    node,
+RTCKernel::RTCGenerator RTCKernelTranspose::generate_from_node(const LeafNode&    node,
                                                                const std::string& gpu_arch,
                                                                bool               enable_callbacks)
 {
