@@ -1,4 +1,4 @@
-// Copyright (C) 2023 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2023 - 2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,7 @@
 #include <random>
 #include <tuple>
 #include <unordered_set>
+#include <valarray>
 #include <vector>
 
 #include "../shared/arithmetic.h"
@@ -555,6 +556,146 @@ public:
             });
         }
     };
+
+    // heuristic algorithm to create a 3D grid that covers a field starting in index (0,0,0),
+    // this approach intends to minimize the surface area of field bricks
+    void set_default_3d_grid(unsigned int               mp_ranks,
+                             std::vector<size_t> const  grid_dims,
+                             std::vector<unsigned int>& fft_grid)
+    {
+        std::valarray<unsigned int> global_indices = {static_cast<unsigned int>(grid_dims[0]),
+                                                      static_cast<unsigned int>(grid_dims[1]),
+                                                      static_cast<unsigned int>(grid_dims[2])};
+
+        // set initial grid as ones
+        std::valarray<unsigned int> selected_grid = {1, 1, 1};
+
+        // helper method to compute the surface of a brick
+        auto surface = [&](std::valarray<unsigned int> const& proc_grid) -> unsigned int {
+            auto brick_size = global_indices / proc_grid;
+            return (brick_size * brick_size.cshift(1)).sum();
+        };
+
+        unsigned int selected_surface = std::numeric_limits<unsigned int>::max();
+
+        for(unsigned int i = 1; i <= mp_ranks; i++)
+        {
+            if(mp_ranks % i == 0)
+            {
+                unsigned int remainder = mp_ranks / i;
+                for(unsigned int j = 1; j <= remainder; j++)
+                {
+                    if(remainder % j == 0)
+                    {
+                        std::valarray<unsigned int> grid = {i, j, remainder / j};
+                        unsigned int const          surf = surface(grid);
+                        if(surf < selected_surface)
+                        {
+                            selected_surface = surf;
+                            selected_grid    = grid;
+                        }
+                    }
+                }
+            }
+        }
+
+        assert(selected_grid[0] * selected_grid[1] * selected_grid[2] == mp_ranks);
+
+        fft_grid = {selected_grid[0], selected_grid[1], selected_grid[2]};
+    }
+
+    // heuristic algorithm to create a 2D grid that covers a field starting in index (0,0),
+    // this approach intends to minimize the surface area of field bricks
+    void set_default_2d_grid(unsigned int               mp_ranks,
+                             std::vector<size_t> const  grid_dims,
+                             std::vector<unsigned int>& fft_grid)
+    {
+        std::valarray<unsigned int> global_indices
+            = {static_cast<unsigned int>(grid_dims[0]), static_cast<unsigned int>(grid_dims[1])};
+
+        // set initial grid as ones
+        std::valarray<unsigned int> selected_grid = {1, 1};
+
+        // helper method to compute the surface of a brick
+        auto surface = [&](std::valarray<unsigned int> const& proc_grid) -> unsigned int {
+            auto brick_size = global_indices / proc_grid;
+            return (brick_size * brick_size.cshift(1)).sum();
+        };
+
+        unsigned int selected_surface = std::numeric_limits<unsigned int>::max();
+
+        for(unsigned int i = 1; i <= mp_ranks; i++)
+        {
+            if(mp_ranks % i == 0)
+            {
+                std::valarray<unsigned int> grid = {i, mp_ranks / i};
+                unsigned int const          surf = surface(grid);
+                if(surf < selected_surface)
+                {
+                    selected_surface = surf;
+                    selected_grid    = grid;
+                }
+            }
+        }
+
+        assert(selected_grid[0] * selected_grid[1] == mp_ranks);
+
+        fft_grid = {selected_grid[0], selected_grid[1]};
+    }
+
+    void set_default_grid(const int&                 mp_ranks,
+                          std::vector<unsigned int>& ingrid,
+                          std::vector<unsigned int>& outgrid)
+    {
+        if(ingrid.empty())
+        {
+            if(length.size() == 3)
+            {
+                set_default_3d_grid(mp_ranks, length, ingrid);
+            }
+            else if(length.size() == 2)
+            {
+                set_default_2d_grid(mp_ranks, length, ingrid);
+            }
+            else if(length.size() == 1)
+            {
+                ingrid.push_back(mp_ranks);
+            }
+        }
+        if(outgrid.empty())
+        {
+            if(length.size() == 3)
+            {
+                set_default_3d_grid(mp_ranks, length, outgrid);
+            }
+            else if(length.size() == 2)
+            {
+                set_default_2d_grid(mp_ranks, length, outgrid);
+            }
+            else if(length.size() == 1)
+            {
+                outgrid.push_back(mp_ranks);
+            }
+        }
+
+        // sanity checks
+        int ingrid_size = std::accumulate(ingrid.begin(), ingrid.end(), 1, std::multiplies<int>());
+        int outgrid_size
+            = std::accumulate(outgrid.begin(), outgrid.end(), 1, std::multiplies<int>());
+
+        if((ingrid.size() != length.size()) || (outgrid.size() != length.size()))
+        {
+            throw std::runtime_error(
+                "Grid of processors must be of the same dimension as the FFT!");
+        }
+
+        if((ingrid_size != mp_ranks) || (outgrid_size != mp_ranks))
+        {
+            throw std::runtime_error("Number of GPUs defined by input/output grids must be "
+                                     "equal to the number of available GPUs!");
+        }
+    }
+
     // optional brick decomposition of inputs/outputs
     std::vector<fft_field> ifields;
     std::vector<fft_field> ofields;
@@ -1603,8 +1744,6 @@ public:
 
     virtual void validate_fields() const
     {
-        if(!ifields.empty() || !ofields.empty())
-            throw std::runtime_error("input/output fields are unsupported");
         if(multiGPU > 1)
             throw std::runtime_error("library-decomposed multi-GPU is unsupported");
     }
@@ -2153,8 +2292,8 @@ public:
         }
     }
 
-    // Distribute problem input among specified grid of devices.  Grid
-    // specifies number of bricks per dimension, starting with batch
+    // Distribute problem input among specified grid of devices/processors.
+    // Grid specifies number of bricks per dimension, starting with batch
     // and ending with fastest FFT dimension.
     void distribute_input(int localDeviceCount, const std::vector<unsigned int>& brick_grid)
     {
@@ -2163,8 +2302,8 @@ public:
         distribute_field(localDeviceCount, brick_grid, ifields, len);
     }
 
-    // Distribute problem output among specified grid of devices.  Grid
-    // specifies number of bricks per dimension, starting with batch
+    // Distribute problem output among specified grid of devices/processors.
+    // Grid specifies number of bricks per dimension, starting with batch
     // and ending with fastest FFT dimension.
     void distribute_output(int localDeviceCount, const std::vector<unsigned int>& brick_grid)
     {

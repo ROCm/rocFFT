@@ -311,7 +311,7 @@ int main(int argc, char* argv[])
     // FIXME: version needs to be implemented
     app.add_flag("--version",
                  "Print queryable version information from the rocfft library and exit");
-    app.add_option("--reverse", reverse, "Load libs in forward and reverse order")->default_val(1);
+    app.add_flag("--reverse", reverse, "Load libs in forward and reverse order")->default_val(1);
     app.add_option(
            "--sequence", test_sequence, "Test sequence:\n0) random\n1) alternating\n2) sequential")
         ->default_val(0);
