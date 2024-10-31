@@ -733,6 +733,9 @@ public:
     fft_params(fft_params&&)                 = default;
     fft_params& operator=(fft_params&&) = default;
 
+    virtual void setup() {}
+    virtual void cleanup() {}
+
     // Given an array type, return the name as a string.
     static std::string array_type_name(const fft_array_type type, bool verbose = true)
     {
@@ -1740,6 +1743,51 @@ public:
         compute_osize();
 
         validate_fields();
+    }
+
+    // validate that the bricks in the fields have positive volume
+    // (i.e. upper index is above lower index).  also check that they
+    // have the right number of dimensions for the fields
+    void validate_brick_volume() const
+    {
+        // row-major lengths including batch (i.e. batch is at the front)
+        std::vector<size_t> length_with_batch{nbatch};
+        std::copy(length.begin(), length.end(), std::back_inserter(length_with_batch));
+
+        auto validate_field = [&](const fft_field& f) {
+            for(const auto& b : f.bricks)
+            {
+                // bricks must have same dim as FFT, including batch
+                if(b.lower.size() != length.size() + 1 || b.upper.size() != length.size() + 1
+                   || b.stride.size() != length.size() + 1)
+                    throw std::runtime_error(
+                        "brick dimension does not match FFT + batch dimension");
+
+                // ensure lower < upper, and that both fit in the FFT + batch dims
+                if(!std::lexicographical_compare(
+                       b.lower.begin(), b.lower.end(), b.upper.begin(), b.upper.end()))
+                    throw std::runtime_error("brick lower index is not less than upper index");
+
+                if(!std::lexicographical_compare(b.lower.begin(),
+                                                 b.lower.end(),
+                                                 length_with_batch.begin(),
+                                                 length_with_batch.end()))
+                    throw std::runtime_error(
+                        "brick lower index is not less than FFT + batch length");
+
+                if(!std::lexicographical_compare(b.upper.begin(),
+                                                 b.upper.end(),
+                                                 length_with_batch.begin(),
+                                                 length_with_batch.end())
+                   && b.upper != length_with_batch)
+                    throw std::runtime_error("brick upper index is not <= FFT + batch length");
+            }
+        };
+
+        for(const auto& ifield : ifields)
+            validate_field(ifield);
+        for(const auto& ofield : ofields)
+            validate_field(ofield);
     }
 
     virtual void validate_fields() const
