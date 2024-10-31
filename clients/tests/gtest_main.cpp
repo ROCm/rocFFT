@@ -346,6 +346,10 @@ int main(int argc, char* argv[])
 
     // We would like to parse a few arguments before initiating gtest.
 
+    // Save argv[0] because CLI doesn't include this in the remaining args, and it's expected when
+    // we re-parse the arguments with gtest and CLI.
+    std::string argv0 = argv[0];
+
     CLI::App app{
         "\n"
         "rocFFT Runtime Test command line options\n"
@@ -475,11 +479,6 @@ int main(int argc, char* argv[])
         })
         ->needs("--mp_lib");
 
-    CLI::Option* opt_seed
-        = app.add_option("--seed", random_seed, "Random seed; if unset, use an actual random seed");
-    app.add_flag("--callback", "Inject load/store callbacks")->each([&](const std::string&) {
-        manual_params.run_callbacks = true;
-    });
     app.add_flag("--smoketest", "Run a short (approx 5 minute) randomized selection of tests")
         ->each([&](const std::string&) {
             // The objective is to have an test that takes about 5 minutes, so just set the
@@ -489,20 +488,37 @@ int main(int argc, char* argv[])
             n_random_tests = 10;
         });
 
-    // Save argv[0] because CLI doesn't include this in the remaining args, and it's expected when
-    // we re-parse the arguments with gtest and CLI.
-    std::string argv0 = argv[0];
+    app.add_flag("--callback", "Inject load/store callbacks")->each([&](const std::string&) {
+        manual_params.run_callbacks = true;
+    });
 
-    // Try parsing initial args that will be used to configure tests.
-    // Allow extras to pass on gtest and rocFFT arguments without error.
-    app.allow_extras();
-    try
     {
-        app.parse(argc, argv);
-    }
-    catch(const CLI::ParseError& e)
-    {
-        return app.exit(e);
+        // We explicitly scope opt_seed so that the object falls out of scope before the final
+        // parsing of the command line arguments.  Otherwise, the second parsing would mark the
+        // option as not having been specified, which can get rather confusing.
+
+        auto opt_seed = app.add_option(
+            "--seed", random_seed, "Random seed; if unset, use an actual random seed");
+
+        // Try parsing initial args that will be used to configure tests.
+        // Allow extras to pass on gtest and rocFFT arguments without error.
+        app.allow_extras();
+        try
+        {
+            app.parse(argc, argv);
+        }
+        catch(const CLI::ParseError& e)
+        {
+            return app.exit(e);
+        }
+
+        if(!*opt_seed)
+        {
+            std::cout << "Generating random seed: ";
+            std::random_device dev;
+            random_seed = dev();
+            std::cout << random_seed << "\n";
+        }
     }
 
     app.set_help_flag("");
@@ -547,7 +563,7 @@ int main(int argc, char* argv[])
     app.add_flag("--checkstride", "Check that data is not written outside of output strides")
         ->each([&](const std::string&) { manual_params.check_output_strides = true; });
 
-    CLI::Option* opt_token
+    auto opt_token
         = app.add_option("--token", test_token, "Test token name for manual test")->default_val("");
     // Group together options that conflict with --token
     auto* non_token = app.add_option_group("Token Conflict", "Options excluded by --token");
@@ -663,12 +679,6 @@ int main(int argc, char* argv[])
 
     std::cout << "half epsilon: " << half_epsilon << "\tsingle epsilon: " << single_epsilon
               << "\tdouble epsilon: " << double_epsilon << "\n";
-
-    if(!*opt_seed)
-    {
-        std::random_device dev;
-        random_seed = dev();
-    }
     std::cout << "Random seed: " << random_seed << "\n";
 
     // If precompiling, tell rocFFT to use the specified cache file
