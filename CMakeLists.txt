@@ -254,22 +254,23 @@ if( BUILD_CLIENTS_SAMPLES
     endif()
   endif()
   rocm_package_setup_component(clients)
+  if( USE_HIPRAND )
+    set( HIPRAND_DEP hiprand )
+  endif()
   if(BUILD_CLIENTS_TESTS)
     rocm_package_setup_client_component(
       tests
-      if( USE_HIPRAND )
-        DEPENDS
-          DEB ${OPENMP_DEB} ${FFTW_DEB} hiprand
-          RPM ${OPENMP_RPM} ${FFTW_RPM} hiprand
+      DEPENDS
+        DEB ${OPENMP_DEB} ${FFTW_DEB} ${HIPRAND_DEP}
+        RPM ${OPENMP_RPM} ${FFTW_RPM} ${HIPRAND_DEP}
     )
   endif()
   if(BUILD_CLIENTS_BENCH)
     rocm_package_setup_client_component(
       benchmarks
-      if( USE_HIPRAND )
-        DEPENDS
-          DEB hiprand
-          RPM hiprand
+      DEPENDS
+        DEB ${HIPRAND_DEP}
+        RPM ${HIPRAND_DEP}
     )
   endif()
   add_subdirectory( clients )

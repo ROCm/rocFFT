@@ -68,7 +68,6 @@ include( ROCMInstallTargets )
 
 set( bench_list rocfft-bench dyna-rocfft-bench )
 foreach( bench ${bench_list})
-
   if(${bench} STREQUAL "rocfft-bench")
     add_executable( ${bench} ../../shared/array_validator.cpp bench.cpp bench.h )
   else()
@@ -99,23 +98,22 @@ foreach( bench ${bench_list})
       ${CMAKE_DL_LIBS}
       hip::device
       )
+  endif()
     
-  if ( USE_HIPRAND )
+  if( USE_HIPRAND )
     target_link_libraries( ${bench}
     PRIVATE
     hip::hiprand
     )
   endif()
 
-
-    # We need to include both rocfft.h and rocfft-export.h
-    target_include_directories( ${bench}
-      PRIVATE
-      ${CMAKE_BINARY_DIR}/include
-      ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
-      ${HIP_CLANG_ROOT}/include
-      )
-  endif()
+  # We need to include both rocfft.h and rocfft-export.h
+  target_include_directories( ${bench}
+    PRIVATE
+    ${CMAKE_BINARY_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
+    ${HIP_CLANG_ROOT}/include
+    )
 
   target_link_libraries( ${bench} PUBLIC
     ${ROCFFT_CLIENTS_HOST_LINK_LIBS}
