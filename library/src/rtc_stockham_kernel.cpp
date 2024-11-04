@@ -65,6 +65,10 @@ RTCKernel::RTCGenerator RTCKernelStockham::generate_from_node(const LeafNode&   
     case CS_KERNEL_STOCKHAM_BLOCK_CR:
     case CS_KERNEL_STOCKHAM_BLOCK_RC:
     {
+        // Partial-pass nodes have their own generators
+        if(node.applyPartialPass)
+            return generator;
+
         // for sbrc variant, the sbrcTranstype should be assigned when we are here
         // since the value is assigned in KernelCheck()
         if((pool_scheme == CS_KERNEL_STOCKHAM_BLOCK_RC) && (node.sbrcTranstype == NONE))

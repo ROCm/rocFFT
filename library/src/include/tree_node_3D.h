@@ -129,6 +129,10 @@ protected:
         scheme = CS_3D_RC;
     }
 
+    // Determines if the current node suports
+    // the partial pass optimization.
+    bool CheckPartialPassSupport();
+
     void AssignParams_internal() override;
     void BuildTree_internal(SchemeTreeVec& child_scheme_trees = EmptySchemeTreeVec) override;
 };

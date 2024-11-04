@@ -179,12 +179,13 @@ struct NodeMetaData
     size_t                  iDist = 0, oDist = 0;
     size_t                  iDistBlue = 0, oDistBlue = 0;
     size_t                  iOffset = 0, oOffset = 0;
-    int                     direction    = -1;
-    rocfft_result_placement placement    = rocfft_placement_inplace;
-    rocfft_precision        precision    = rocfft_precision_single;
-    rocfft_array_type       inArrayType  = rocfft_array_type_unset;
-    rocfft_array_type       outArrayType = rocfft_array_type_unset;
-    hipDeviceProp_t         deviceProp   = {};
+    bool                    applyPartialPass = false;
+    int                     direction        = -1;
+    rocfft_result_placement placement        = rocfft_placement_inplace;
+    rocfft_precision        precision        = rocfft_precision_single;
+    rocfft_array_type       inArrayType      = rocfft_array_type_unset;
+    rocfft_array_type       outArrayType     = rocfft_array_type_unset;
+    hipDeviceProp_t         deviceProp       = {};
     bool                    rootIsC2C;
 
     explicit NodeMetaData(TreeNode* refNode);
@@ -375,6 +376,9 @@ public:
     size_t lengthBlue  = 0;
     size_t lengthBlueN = 0;
 
+    // enables partial pass for this node
+    bool applyPartialPass = false;
+
     //
     BluesteinType     typeBlue   = BluesteinType::BT_NONE;
     BluesteinFuseType fuseBlue   = BluesteinFuseType::BFT_NONE;
@@ -386,6 +390,8 @@ public:
     size_t           twiddles_size       = 0;
     void*            twiddles_large      = nullptr;
     size_t           twiddles_large_size = 0;
+    void*            twiddles_pp         = nullptr;
+    size_t           twiddles_pp_size    = 0;
     void*            chirp               = nullptr;
     size_t           chirp_size          = 0;
     gpubuf_t<size_t> devKernArg;
@@ -646,6 +652,7 @@ public:
     bool                twd_no_radices   = false;
     bool                twd_attach_halfN = false;
     std::vector<size_t> kernelFactors    = {};
+    std::vector<size_t> kernelFactorsPP  = {}; // factors for off-direction partial pass(es)
     size_t              bwd              = 1; // bwd, wgs, lds are for grid param lds_bytes
     size_t              wgs              = 0;
     size_t              lds              = 0;
@@ -675,6 +682,7 @@ public:
     void         SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp) override;
     FMKey        GetKernelKey() const override;
     virtual void GetKernelFactors();
+    virtual void GetKernelPartialPassFactors();
 };
 
 /*****************************************************

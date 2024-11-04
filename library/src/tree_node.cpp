@@ -106,6 +106,43 @@ void LeafNode::GetKernelFactors()
 {
     FMKey key     = GetKernelKey();
     kernelFactors = function_pool::get_kernel(key).factors;
+
+    // Hard-coded kernel factors for len 64x64x64 partial-pass
+    // TODO: Remove this hard-coded logic once
+    // partial-pass is integrated into the stockham generators.
+    if(scheme == CS_KERNEL_STOCKHAM && applyPartialPass)
+        kernelFactors = {8, 8};
+    if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC && applyPartialPass)
+        kernelFactors = {8, 8};
+}
+
+void LeafNode::GetKernelPartialPassFactors()
+{
+    // Hard-coded kernel partial-pass factors for len 64x64x64.
+    // TODO: Remove this hard-coded logic once
+    // partial-pass is integrated into the Stockham generators.
+    if(scheme == CS_KERNEL_STOCKHAM && applyPartialPass)
+    {
+        kernelFactorsPP = {16};
+        std::stringstream msg;
+        msg << "work in the off-dimension:" << std::endl;
+        msg << "\t     radix: [";
+        for(const auto factor : kernelFactorsPP)
+            msg << " " << factor;
+        msg << " ] pass(es) + Hadamard product with twiddle factors. \n";
+        comments.push_back(msg.str());
+    }
+    if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC && applyPartialPass)
+    {
+        kernelFactorsPP = {4};
+        std::stringstream msg;
+        msg << "work in the off-dimension:" << std::endl;
+        msg << "\t     local data transposition + radix: [";
+        for(const auto factor : kernelFactorsPP)
+            msg << " " << factor;
+        msg << " ] pass(es). \n";
+        comments.push_back(msg.str());
+    }
 }
 
 bool LeafNode::KernelCheck(std::vector<FMKey>& kernel_keys)
@@ -174,6 +211,10 @@ bool LeafNode::KernelCheck(std::vector<FMKey>& kernel_keys)
                       : DirectRegType::FORCE_OFF_OR_NOT_SUPPORT;
 
     GetKernelFactors();
+
+    if(applyPartialPass)
+        GetKernelPartialPassFactors();
+
     return true;
 }
 

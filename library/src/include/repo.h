@@ -90,6 +90,24 @@ class Repo
             return deviceId < other.deviceId;
         }
     };
+    // key structure for partial-pass twiddles
+    struct repo_pp_twd_key_t
+    {
+        size_t           length    = 0;
+        rocfft_precision precision = rocfft_precision_single;
+        // buffers are in device memory, so we need per-device
+        // twiddles
+        int deviceId = 0;
+
+        bool operator<(const repo_pp_twd_key_t& other) const
+        {
+            if(length != other.length)
+                return length < other.length;
+            if(precision != other.precision)
+                return precision < other.precision;
+            return deviceId < other.deviceId;
+        }
+    };
     // key structure for chirp table
     struct repo_chirp_key_t
     {
@@ -117,6 +135,7 @@ class Repo
     // shareable with a same-length attach_halfN buffer)
     std::map<repo_twd_key_1D_t, std::pair<gpubuf, unsigned int>> twiddles_1D;
     std::map<repo_twd_key_2D_t, std::pair<gpubuf, unsigned int>> twiddles_2D;
+    std::map<repo_pp_twd_key_t, std::pair<gpubuf, unsigned int>> twiddles_PP;
 
     std::map<repo_chirp_key_t, std::pair<gpubuf, unsigned int>> chirp;
 
@@ -124,6 +143,7 @@ class Repo
     // free the pointer they were given
     std::map<void*, repo_twd_key_1D_t> twiddles_1D_reverse;
     std::map<void*, repo_twd_key_2D_t> twiddles_2D_reverse;
+    std::map<void*, repo_pp_twd_key_t> twiddles_PP_reverse;
 
     std::map<void*, repo_chirp_key_t> chirp_reverse;
 
@@ -185,9 +205,12 @@ public:
                                                   const std::vector<size_t>& radices1,
                                                   const std::vector<size_t>& radices2);
     static std::pair<void*, size_t>
+        GetTwiddlesPP(size_t length, rocfft_precision precision, const hipDeviceProp_t& deviceProp);
+    static std::pair<void*, size_t>
         GetChirp(size_t length, rocfft_precision precision, const hipDeviceProp_t& deviceProp);
     static void ReleaseTwiddle1D(void* ptr);
     static void ReleaseTwiddle2D(void* ptr);
+    static void ReleaseTwiddlePP(void* ptr);
     static void ReleaseChirp(void* ptr);
     // remove cached twiddles/chirp
     static void Clear();

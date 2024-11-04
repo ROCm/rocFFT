@@ -219,6 +219,20 @@ std::pair<void*, size_t> Repo::GetTwiddles2D(size_t                     length0,
         });
 }
 
+std::pair<void*, size_t> Repo::GetTwiddlesPP(size_t                 length,
+                                             rocfft_precision       precision,
+                                             const hipDeviceProp_t& deviceProp)
+{
+    std::lock_guard<std::mutex> lck(mtx);
+    Repo&                       repo = Repo::GetRepo();
+
+    repo_pp_twd_key_t key{length, precision};
+    return GetTwiddlesInternal(
+        key, repo.twiddles_PP, repo.twiddles_PP_reverse, [&](unsigned int deviceId) {
+            return twiddles_pp_create(length, precision, deviceProp, deviceId);
+        });
+}
+
 std::pair<void*, size_t>
     Repo::GetChirp(size_t length, rocfft_precision precision, const hipDeviceProp_t& deviceProp)
 {
@@ -247,6 +261,14 @@ void Repo::ReleaseTwiddle2D(void* ptr)
     return ReleaseTwiddlesInternal(ptr, repo.twiddles_2D, repo.twiddles_2D_reverse);
 }
 
+void Repo::ReleaseTwiddlePP(void* ptr)
+{
+    std::lock_guard<std::mutex> lck(mtx);
+
+    Repo& repo = Repo::GetRepo();
+    return ReleaseTwiddlesInternal(ptr, repo.twiddles_PP, repo.twiddles_PP_reverse);
+}
+
 void Repo::ReleaseChirp(void* ptr)
 {
     std::lock_guard<std::mutex> lck(mtx);
@@ -264,6 +286,7 @@ void Repo::Clear()
 
     repo.twiddles_1D.clear();
     repo.twiddles_2D.clear();
+    repo.twiddles_PP.clear();
     twiddle_streams_cleanup();
 
     repo.chirp.clear();

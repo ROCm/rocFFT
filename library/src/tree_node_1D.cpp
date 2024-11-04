@@ -24,6 +24,7 @@
 #include "function_pool.h"
 #include "fuse_shim.h"
 #include "node_factory.h"
+#include "repo.h"
 #include "tuning_helper.h"
 #include <numeric>
 
@@ -906,6 +907,19 @@ void Stockham1DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
     if(ebtype != EmbeddedType::NONE)
         lds_padding = 1;
 
+    if(applyPartialPass)
+    {
+        // Special case for partial pass 64 x 64 x 64.
+        // Kernel configuration is hardcoded for now.
+        // TODO: Once the partial-pass kernels are properly
+        // integrated into the Stockham kernel generators,
+        // this configuration will come from the usual location
+        // in kernel-generator.py.
+        kernel.threads_per_transform[0] = 8;
+        kernel.workgroup_size           = 128;
+        kernel.transforms_per_block     = kernel.workgroup_size / kernel.threads_per_transform[0];
+    }
+
     bwd      = kernel.transforms_per_block;
     wgs      = kernel.workgroup_size;
     gp.b_x   = (batch_accum + bwd - 1) / bwd;
@@ -923,19 +937,29 @@ void Stockham1DNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
         //   When lds conflict becomes significant enough, we can apply lds bank shift to reduce it.
         //   One of the costs is extra lds allocation. We enable it for small pow of 2 cases on all
         //   supported archs for now.
-        if(length[0] == 64)
-        {
+        //   Bank-shift not supported in partial pass mode.
+        if(length[0] == 64 && !applyPartialPass)
             lds = (length[0] + lds_padding) * bwd + length[0] * bwd / LDS_BANK_SHIFT;
-        }
         else
-        {
             lds = (length[0] + lds_padding) * bwd;
-        }
     }
 }
 
 bool Stockham1DNode::CreateDeviceResources()
 {
+    if(applyPartialPass)
+    {
+        // handles partial pass 64 x 64 x 64 case.
+        // current dimension y is the dimension to split
+        // into x and z.
+
+        // Create twiddle table for partial pass along y
+        size_t pp_dim = 1;
+
+        std::tie(twiddles_pp, twiddles_pp_size)
+            = Repo::GetTwiddlesPP(length[pp_dim], precision, deviceProp);
+    }
+
     twd_attach_halfN = (ebtype != EmbeddedType::NONE);
     return LeafNode::CreateDeviceResources();
 }
@@ -944,6 +968,10 @@ std::vector<size_t> Stockham1DNode::CollapsibleDims()
 {
     // do not collapse on multi-kernel fused Bluestein nodes
     if(typeBlue == BT_MULTI_KERNEL_FUSED)
+        return {};
+
+    // do not collapse on partial-pass nodes
+    if(applyPartialPass)
         return {};
 
     // fastest dim is FFT, the rest is collapsible
@@ -1105,10 +1133,36 @@ void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
     fnPtr       = kernel.device_function;
     bwd         = kernel.transforms_per_block;
     wgs         = kernel.workgroup_size;
-    lds         = length[0] * bwd;
-    gp.b_x      = ((length[1]) - 1) / bwd + 1;
+
+    if(applyPartialPass)
+    {
+        // Special case for partial pass 64 x 64 x 64.
+        // Kernel configration is hardcoded for now.
+        // TODO: Once the partial-pass kernels are integrated
+        // into the stockham kernel generators, change this
+        // configuration to use kernel-generator.py data.
+        auto tpt = 8;
+        wgs      = 64;
+        bwd      = wgs / tpt;
+    }
+
+    lds = length[0] * bwd;
+
+    gp.b_x = ((length[1]) - 1) / bwd + 1;
     gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
     gp.wgs_x = wgs;
+
+    if(applyPartialPass)
+    {
+        // grid and thread organization is different
+        // on partial pass sbcc kernels (for improved
+        // global memory access patterns).
+        auto factor = *std::max_element(kernelFactorsPP.begin(), kernelFactorsPP.end());
+
+        gp.b_x /= factor;
+        gp.wgs_x *= factor;
+        lds *= factor;
+    }
 }
 
 std::vector<size_t> SBCCNode::CollapsibleDims()

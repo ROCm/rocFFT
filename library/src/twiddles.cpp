@@ -205,6 +205,21 @@ protected:
             kargs, dim3(numBlocksX, numBlocksY), dim3(blockSize, blockSize), 0, deviceProp, stream);
     }
 
+    void launch_pp_twiddle_kernel(hipStream_t& stream, T* output, size_t N)
+    {
+        auto blockSize = TWIDDLES_THREADS;
+
+        auto kernel = RTCKernelTwiddle::generate(
+            deviceProp.gcnArchName, TwiddleTableType::PARTIAL_PASS_N, precision);
+        RTCKernelArgs kargs;
+        kargs.append_size_t(N);
+        kargs.append_ptr(output);
+
+        auto numBlocks_N = DivRoundingUp<size_t>(N, blockSize);
+
+        kernel.launch(kargs, dim3(numBlocks_N), dim3(blockSize), 0, deviceProp, stream);
+    }
+
     void launch_half_N_kernel(hipStream_t& stream, T* output, size_t half_N, size_t N)
     {
         auto blockSize = TWIDDLES_THREADS;
@@ -395,6 +410,58 @@ public:
     }
 };
 
+// Twiddle table for partial pass
+template <typename T>
+class TwiddleTablePP
+{
+protected:
+    size_t N;
+
+    const rocfft_precision precision;
+    hipDeviceProp_t        deviceProp;
+
+    void launch_twiddle_kernel(hipStream_t& stream, T* output, size_t N)
+    {
+        auto blockSize = TWIDDLES_THREADS;
+
+        auto kernel = RTCKernelTwiddle::generate(
+            deviceProp.gcnArchName, TwiddleTableType::PARTIAL_PASS_N, precision);
+        RTCKernelArgs kargs;
+        kargs.append_size_t(N);
+        kargs.append_ptr(output);
+
+        auto numBlocksX = DivRoundingUp<size_t>(N, blockSize);
+        auto numBlocksY = DivRoundingUp<size_t>(N, blockSize);
+
+        kernel.launch(
+            kargs, dim3(numBlocksX, numBlocksY), dim3(blockSize, blockSize), 0, deviceProp, stream);
+    }
+
+public:
+    TwiddleTablePP(rocfft_precision precision, const hipDeviceProp_t& deviceProp, size_t _N)
+        : N(_N)
+        , precision(precision)
+        , deviceProp(deviceProp)
+    {
+    }
+
+    void GenerateTwiddleTable(hipStream_t& stream, gpubuf& twts)
+    {
+        auto table_bytes = N * N * sizeof(T);
+
+        if(table_bytes == 0)
+            return;
+
+        if(twts.alloc(table_bytes) != hipSuccess)
+            throw std::runtime_error("unable to allocate partial-pass twiddle table of length "
+                                     + std::to_string(N * N));
+
+        auto device_data_ptr = static_cast<T*>(twts.data());
+
+        launch_twiddle_kernel(stream, device_data_ptr, N);
+    }
+};
+
 template <typename T>
 gpubuf twiddles_create_pr(size_t                     N,
                           size_t                     length_limit,
@@ -538,5 +605,47 @@ gpubuf twiddles_create_2D(size_t                     N1,
                                                                   radices1,
                                                                   radices2,
                                                                   deviceId);
+    }
+}
+
+template <typename T>
+gpubuf twiddles_pp_create_pr(size_t                 N,
+                             rocfft_precision       precision,
+                             const hipDeviceProp_t& deviceProp,
+                             unsigned int           deviceId)
+{
+    gpubuf twts;
+    if(deviceId >= twiddle_streams.size())
+        twiddle_streams.resize(deviceId + 1);
+    if(twiddle_streams[deviceId] == nullptr)
+        twiddle_streams[deviceId].alloc();
+    hipStream_wrapper_t& stream = twiddle_streams[deviceId];
+
+    if(!stream)
+        stream.alloc();
+
+    TwiddleTablePP<T> twTable(precision, deviceProp, N);
+    twTable.GenerateTwiddleTable(stream, twts);
+
+    if(hipStreamSynchronize(stream) != hipSuccess)
+        throw std::runtime_error("hipStream failure");
+
+    return twts;
+}
+
+gpubuf twiddles_pp_create(size_t                 N,
+                          rocfft_precision       precision,
+                          const hipDeviceProp_t& deviceProp,
+                          unsigned int           deviceId)
+{
+    switch(precision)
+    {
+    case rocfft_precision_single:
+        return twiddles_pp_create_pr<rocfft_complex<float>>(N, precision, deviceProp, deviceId);
+    case rocfft_precision_double:
+        return twiddles_pp_create_pr<rocfft_complex<double>>(N, precision, deviceProp, deviceId);
+    case rocfft_precision_half:
+        return twiddles_pp_create_pr<rocfft_complex<rocfft_fp16>>(
+            N, precision, deviceProp, deviceId);
     }
 }

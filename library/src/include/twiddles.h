@@ -47,6 +47,11 @@ gpubuf twiddles_create_2D(size_t                     N1,
                           const std::vector<size_t>& radices2,
                           unsigned int               deviceId);
 
+gpubuf twiddles_pp_create(size_t                 N,
+                          rocfft_precision       precision,
+                          const hipDeviceProp_t& deviceProp,
+                          unsigned int           deviceId);
+
 void twiddle_streams_cleanup();
 
 #endif // defined( TWIDDLES_H )

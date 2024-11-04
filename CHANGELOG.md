@@ -24,6 +24,7 @@ Documentation for rocFFT is available at
 
 * Improved MPI transform performance by using all-to-all communication for global transpose operations.  
   Point-to-point communications are still used when all-to-all is not possible.
+* Improved the performance of unit-strided, complex interleaved, forward and inverse, length (64,64,64) FFTs.
 
 ### Resolved issues
 

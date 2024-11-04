@@ -240,3 +240,32 @@ INSTANTIATE_TEST_SUITE_P(
                                         place_range,
                                         true)),
     accuracy_test::TestName);
+
+INSTANTIATE_TEST_SUITE_P(partial_pass_3D,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator(test_prob,
+                                                             partial_pass_adhoc_3D,
+                                                             precision_range_sp_dp,
+                                                             partial_pass_batch_range_3D,
+                                                             stride_range,
+                                                             stride_range,
+                                                             ioffset_range_zero,
+                                                             ooffset_range_zero,
+                                                             place_range,
+                                                             false)),
+                         accuracy_test::TestName);
+
+INSTANTIATE_TEST_SUITE_P(partial_pass_3D_callback,
+                         accuracy_test,
+                         ::testing::ValuesIn(param_generator(test_prob,
+                                                             partial_pass_adhoc_3D,
+                                                             precision_range_sp_dp,
+                                                             partial_pass_batch_range_3D,
+                                                             stride_range,
+                                                             stride_range,
+                                                             ioffset_range_zero,
+                                                             ooffset_range_zero,
+                                                             place_range,
+                                                             false,
+                                                             true)),
+                         accuracy_test::TestName);

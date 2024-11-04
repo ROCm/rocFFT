@@ -56,6 +56,8 @@ enum struct TwiddleTableType
     // "large" twiddle table, decomposed into pow2 base and multiple
     // steps
     LARGE,
+    // N * N table for length N partial pass
+    PARTIAL_PASS_N
 };
 
 // generate name for twiddle-compute kernel

@@ -3351,24 +3351,25 @@ void TreeNode::CopyNodeData(const TreeNode& srcNode)
     length    = srcNode.length;
     if(!srcNode.outputLength.empty())
         outputLength = srcNode.outputLength;
-    inStride        = srcNode.inStride;
-    inStrideBlue    = srcNode.inStrideBlue;
-    outStride       = srcNode.outStride;
-    outStrideBlue   = srcNode.outStrideBlue;
-    iDist           = srcNode.iDist;
-    iDistBlue       = srcNode.iDistBlue;
-    oDist           = srcNode.oDist;
-    oDistBlue       = srcNode.oDistBlue;
-    iOffset         = srcNode.iOffset;
-    oOffset         = srcNode.oOffset;
-    placement       = srcNode.placement;
-    precision       = srcNode.precision;
-    direction       = srcNode.direction;
-    inArrayType     = srcNode.inArrayType;
-    outArrayType    = srcNode.outArrayType;
-    allowInplace    = srcNode.allowInplace;
-    allowOutofplace = srcNode.allowOutofplace;
-    deviceProp      = srcNode.deviceProp;
+    inStride         = srcNode.inStride;
+    inStrideBlue     = srcNode.inStrideBlue;
+    outStride        = srcNode.outStride;
+    outStrideBlue    = srcNode.outStrideBlue;
+    iDist            = srcNode.iDist;
+    iDistBlue        = srcNode.iDistBlue;
+    oDist            = srcNode.oDist;
+    oDistBlue        = srcNode.oDistBlue;
+    iOffset          = srcNode.iOffset;
+    oOffset          = srcNode.oOffset;
+    placement        = srcNode.placement;
+    precision        = srcNode.precision;
+    applyPartialPass = srcNode.applyPartialPass;
+    direction        = srcNode.direction;
+    inArrayType      = srcNode.inArrayType;
+    outArrayType     = srcNode.outArrayType;
+    allowInplace     = srcNode.allowInplace;
+    allowOutofplace  = srcNode.allowOutofplace;
+    deviceProp       = srcNode.deviceProp;
 
     // conditional
     large1D        = srcNode.large1D;
@@ -3401,22 +3402,23 @@ void TreeNode::CopyNodeData(const NodeMetaData& data)
     length    = data.length;
     if(!data.outputLength.empty())
         outputLength = data.outputLength;
-    inStride      = data.inStride;
-    inStrideBlue  = data.inStrideBlue;
-    outStride     = data.outStride;
-    outStrideBlue = data.outStrideBlue;
-    iDist         = data.iDist;
-    iDistBlue     = data.iDistBlue;
-    oDist         = data.oDist;
-    oDistBlue     = data.oDistBlue;
-    iOffset       = data.iOffset;
-    oOffset       = data.oOffset;
-    placement     = data.placement;
-    precision     = data.precision;
-    direction     = data.direction;
-    inArrayType   = data.inArrayType;
-    outArrayType  = data.outArrayType;
-    deviceProp    = data.deviceProp;
+    inStride         = data.inStride;
+    inStrideBlue     = data.inStrideBlue;
+    outStride        = data.outStride;
+    outStrideBlue    = data.outStrideBlue;
+    iDist            = data.iDist;
+    iDistBlue        = data.iDistBlue;
+    oDist            = data.oDist;
+    oDistBlue        = data.oDistBlue;
+    iOffset          = data.iOffset;
+    oOffset          = data.oOffset;
+    placement        = data.placement;
+    precision        = data.precision;
+    applyPartialPass = data.applyPartialPass;
+    direction        = data.direction;
+    inArrayType      = data.inArrayType;
+    outArrayType     = data.outArrayType;
+    deviceProp       = data.deviceProp;
 }
 
 bool TreeNode::isPlacementAllowed(rocfft_result_placement test_placement) const

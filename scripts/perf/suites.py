@@ -922,3 +922,23 @@ def tuning_suite():
                       real=False,
                       precision='single',
                       min_wgs=128)
+
+
+def partial_pass():
+    for direction in [-1, 1]:
+        for precision in ['single', 'double']:
+            for batch in [
+                    1, 2, 5, 10, 15, 20, 25, 50, 75, 100, 200, 250, 500, 750,
+                    1000, 2000, 5000, 10000
+            ]:
+                for place in all_inplaces:
+                    length = (64, 64, 64)
+                    yield Problem(length,
+                                  tag=mktag("partial_pass_batch_" + str(batch),
+                                            3, precision, direction, False,
+                                            False),
+                                  nbatch=batch,
+                                  direction=direction,
+                                  inplace=place,
+                                  real=False,
+                                  precision=precision)
