@@ -115,6 +115,10 @@ string ylabel = "Time [s]";
 string primaryaxis = "time";
 string secondaryaxis = "speedup";
 
+string ivariable = "lengths";
+//ivariable = "batch";
+//ivariable = "placeness";
+
 usersetting();
 
 if(primaryaxis == "gflops") {
@@ -149,7 +153,11 @@ pair[][] ylowhigh = new real[testlist.length][];
 // Data containers:
 datapoint[][] datapoints = new datapoint[testlist.length][];
 readfiles(testlist, datapoints);
-
+for(int ridx = 0; ridx < datapoints.length; ++ridx) {
+  for(int idx = 0; idx < datapoints[ridx].length; ++idx) {
+    datapoints[ridx][idx].mklabel(ivariable);
+  }
+}
 
 //readbarfiles(testlist, data);
 

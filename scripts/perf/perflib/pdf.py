@@ -48,6 +48,7 @@ class BaseFigure:
     primary: List[Path]
     secondary: List[Path]
     figtype: str
+    metadata: dict[str, str]
 
 
 class PDFFigure(BaseFigure):
@@ -64,6 +65,9 @@ class PDFFigure(BaseFigure):
             asycmd.append(str(top / "datagraphs.asy"))
         elif ndata == 1 or self.figtype == "bargraph":
             asycmd.append(str(top / "bargraph.asy"))
+            ivariable = self.metadata.get('ivariable')
+            if ivariable != None:
+                asycmd.extend(['-u', f'ivariable="{ivariable}"'])
 
         primary = [x.resolve() for x in self.primary]
         asycmd.extend(['-u', f'filenames="{cjoin(primary)}"'])

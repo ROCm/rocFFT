@@ -456,7 +456,7 @@ def command_generate(arguments):
         primary, secondary = perflib.utils.get_post_processed(
             tag, docdir, outdirs)
         figure = Figure(tag, title, caption, docdir, label, primary, secondary,
-                        figtype)
+                        figtype, reference.dats[datname.stem].meta)
         figures.append(figure)
 
     for figure in figures:

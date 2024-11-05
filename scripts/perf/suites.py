@@ -941,4 +941,8 @@ def partial_pass():
                                   direction=direction,
                                   inplace=place,
                                   real=False,
+                                  meta={
+                                      'figtype': 'bargraph',
+                                      'ivariable': 'placeness'
+                                  },
                                   precision=precision)
