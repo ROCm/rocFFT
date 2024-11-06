@@ -196,7 +196,7 @@ void rocfft_plan_description_t::init_defaults(rocfft_transform_type      transfo
     }
 }
 
-bool rocfft_plan_description_t::multiple_ranks_devices(const rocfft_field_t& field)
+bool rocfft_plan_description_t::multiple_devices_in_rank(const rocfft_field_t& field)
 {
     // map ranks to a set of distinct devices
     std::map<int, std::set<int>> rank_devices;
@@ -207,10 +207,6 @@ bool rocfft_plan_description_t::multiple_ranks_devices(const rocfft_field_t& fie
         auto& devices = rank_devices[brick.location.comm_rank];
         devices.insert(brick.location.device);
     }
-
-    // need to have multiple ranks to return true
-    if(rank_devices.size() <= 1)
-        return false;
 
     // any rank needs to have multiple devices to return true
     for(const auto& rank_device : rank_devices)
@@ -1924,8 +1920,8 @@ void rocfft_plan_t::GlobalTranspose(size_t                     elem_size,
     // Fall back to point-to-point transfers if all-to-all is not
     // possible.
     std::string itemGroup = "transpose_" + std::to_string(transposeNumber);
-    if(rocfft_plan_description_t::multiple_ranks_devices(inField)
-       || rocfft_plan_description_t::multiple_ranks_devices(outField))
+    if(rocfft_plan_description_t::multiple_devices_in_rank(inField)
+       || rocfft_plan_description_t::multiple_devices_in_rank(outField))
         GlobalTransposeP2P(
             elem_size, inField, outField, input, output, inputAntecedents, outputItems, itemGroup);
     else

@@ -172,10 +172,9 @@ struct rocfft_plan_description_t
         return fieldPtrs;
     }
 
-    // returns true if a field:
-    // - has bricks across multiple ranks (i.e. MPI), and
-    // - any rank has bricks on more than one device
-    static bool multiple_ranks_devices(const rocfft_field_t& field);
+    // returns true if a field has bricks such that any rank has
+    // bricks on more than one device
+    static bool multiple_devices_in_rank(const rocfft_field_t& field);
 };
 
 struct rocfft_plan_t
