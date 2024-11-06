@@ -1,4 +1,4 @@
-# Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (C) 2021 - 2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,8 @@ from pathlib import Path as path
 from typing import List
 from typing import Set
 
+from numpy import ceil
+
 
 @dataclass
 class Timer:
@@ -39,6 +41,7 @@ class Timer:
     out: List[str] = field(default_factory=list)
     device: int = 0
     ntrial: int = 10
+    ngpus: int = 1
     verbose: bool = False
     timeout: float = 0
     sequence: int = None
@@ -51,41 +54,63 @@ class Timer:
             raise RuntimeError(f"Unable to find (dyna-)bench: {self.bench}")
 
         failed_tokens = []
+        scaling_flag = False
+
+        # get a list of powers of two less or equal than the number of requested resources,
+        # to be used for scalability experiments
+        gpu_list_pow2 = lambda n: [
+            2**i for i in range(int(ceil(n**0.5)) + 1) if 2**i <= n
+        ]
 
         total_prob_count = 0
         no_accutest_prob_count = 0
         for prob in generator.generate_problems():
             total_prob_count += 1
-            token, seconds, success, __, __ = perflib.bench.run(
-                self.bench,
-                prob.length,
-                direction=prob.direction,
-                real=prob.real,
-                inplace=prob.inplace,
-                precision=prob.precision,
-                nbatch=prob.nbatch,
-                ntrial=self.ntrial,
-                device=self.device,
-                libraries=self.lib,
-                verbose=self.verbose,
-                timeout=self.timeout,
-                sequence=self.sequence,
-                skiphip=self.hipskip)
 
-            if success:
-                for idx, vals in enumerate(seconds):
-                    out = path(self.out[idx])
-                    logging.info("output: " + str(out))
-                    meta = {'title': prob.tag}
-                    meta.update(prob.meta)
-                    perflib.utils.write_dat(out, token, seconds[idx], meta)
+            if (prob.strong_scaling or prob.weak_scaling):
+                list_of_gpus = gpu_list_pow2(self.ngpus)
+                scaling_flag = True
             else:
-                failed_tokens.append(token)
+                list_of_gpus = [self.ngpus]
 
-            if self.active_tests_tokens and token.encode(
-            ) not in self.active_tests_tokens:
-                no_accutest_prob_count += 1
-                logging.info(f'No accuracy test coverage for: ' + token)
+            ws_factor = 1
+
+            for g in list_of_gpus:
+                token, seconds, success, __, __ = perflib.bench.run(
+                    self.bench,
+                    tuple([ws_factor * l for l in prob.length]),
+                    direction=prob.direction,
+                    real=prob.real,
+                    inplace=prob.inplace,
+                    precision=prob.precision,
+                    nbatch=prob.nbatch,
+                    ngpus=g,
+                    ntrial=self.ntrial,
+                    device=self.device,
+                    libraries=self.lib,
+                    verbose=self.verbose,
+                    timeout=self.timeout,
+                    sequence=self.sequence,
+                    skiphip=self.hipskip,
+                    scalability=scaling_flag)
+
+                if (prob.weak_scaling):
+                    ws_factor *= 2
+
+                if success:
+                    for idx, vals in enumerate(seconds):
+                        out = path(self.out[idx])
+                        logging.info("output: " + str(out))
+                        meta = {'title': prob.tag}
+                        meta.update(prob.meta)
+                        perflib.utils.write_dat(out, token, seconds[idx], meta)
+                else:
+                    failed_tokens.append(token)
+
+                if self.active_tests_tokens and token.encode(
+                ) not in self.active_tests_tokens:
+                    no_accutest_prob_count += 1
+                    logging.info(f'No accuracy test coverage for: ' + token)
 
         if no_accutest_prob_count > 0:
             print('\t')
@@ -107,6 +132,7 @@ class GroupedTimer:
     out: List[str] = field(default_factory=list)
     device: int = 0
     ntrial: int = 10
+    ngpus: int = 1
     verbose: bool = False
     timeout: float = 0
 

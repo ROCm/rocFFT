@@ -1,4 +1,4 @@
-# Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (C) 2021 - 2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -35,12 +35,14 @@ def run(bench,
         precision='single',
         nbatch=1,
         ntrial=1,
+        ngpus=1,
         device=None,
         libraries=None,
         verbose=False,
         timeout=300,
         sequence=None,
-        skiphip=True):
+        skiphip=True,
+        scalability=False):
     """Run rocFFT bench and return execution times."""
     cmd = [pathlib.Path(bench).resolve()]
 
@@ -62,6 +64,9 @@ def run(bench,
     else:
         cmd += ['--length'] + list(length)
 
+    if (ngpus > 1):
+        cmd += ['--ngpus', ngpus]
+
     cmd += ['-N', ntrial]
     cmd += ['-b', nbatch]
     if not inplace:
@@ -74,6 +79,16 @@ def run(bench,
         cmd += ['--precision', 'double']
     if device is not None:
         cmd += ['--device', device]
+
+    # default to slab decomposition for scalability experiments,
+    # which grants the least number of transpositions
+    if (scalability and (ngpus > 1 or mp_size > 1)):
+        if (len(length) == 3):
+            cmd += ['--ingrid'] + list([1, 1, ngpus])
+            cmd += ['--outgrid'] + list([ngpus, 1, 1])
+        elif (len(length) == 2):
+            cmd += ['--ingrid'] + list([1, ngpus])
+            cmd += ['--outgrid'] + list([ngpus, 1])
 
     itype, otype = 0, 0
     if real:

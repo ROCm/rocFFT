@@ -1,4 +1,4 @@
-# Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (C) 2021 - 2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -34,6 +34,8 @@ all_reals = [True, False]
 def_tuning_min_wgs = 64
 def_tuning_max_wgs = 512
 def_export_full_token = False
+def_scaling = False
+default_ngpus = 1
 
 # yapf: disable
 lengths = {
@@ -324,6 +326,25 @@ lengths = {
          79860, 81920, 83521, 87808, 95832, 98304, 102400, 106496, 110592,
          114688, 117649,
      ],
+
+    'mgpu': [
+        (256),
+        (256, 256),
+        (256, 256, 256),
+        (128, 256, 512),
+        (512, 512, 512),
+        (630, 630, 630),
+    ],
+
+    'strongScaling': [
+        (512, 512),
+        (512, 512, 512),
+    ],
+
+    'weakScaling': [
+        (128, 128),
+        (128, 128, 128),
+    ],
 }
 # yapf: enable
 
@@ -346,9 +367,10 @@ def mktag(tag, dimension, precision, direction, inplace, real):
 
 
 # yield problem sizes with default precision, direction, etc
-def default_length_params(tag, lengths, nbatch, precisions=all_precisions, \
+def default_length_params(tag, lengths, nbatch, ngpus=default_ngpus, precisions=all_precisions, \
     directions=all_directions, inplaces=all_inplaces, reals=all_reals, min_wgs=def_tuning_min_wgs, \
-    max_wgs=def_tuning_max_wgs, full_token=def_export_full_token):
+    max_wgs=def_tuning_max_wgs, full_token=def_export_full_token, strong_scaling=def_scaling, \
+    weak_scaling=def_scaling):
 
     # workaround: disable failing token on gfx906
     if perflib.specs.get_machine_specs(0).gpuid == '0x66a1':
@@ -371,12 +393,15 @@ def default_length_params(tag, lengths, nbatch, precisions=all_precisions, \
                           tag=mktag(tag, len(length), precision, direction,
                                     inplace, real),
                           nbatch=nbatch,
+                          ngpus=ngpus,
                           direction=direction,
                           inplace=inplace,
                           real=real,
                           precision=precision,
                           min_wgs=min_wgs,
                           max_wgs=max_wgs,
+                          strong_scaling=strong_scaling,
+                          weak_scaling=weak_scaling,
                           full_token=full_token)
 
 
@@ -592,6 +617,42 @@ def new_large_1d():
                                      lengths['newLarge1D'],
                                      1000,
                                      reals=[False])
+
+
+def mgpu():
+    """Multi-GPU sizes."""
+
+    yield from default_length_params("mgpu",
+                                     lengths['mgpu'],
+                                     1,
+                                     precisions=['single'],
+                                     reals=[False])
+
+
+def strongScaling():
+    """Strong scalability test sizes."""
+
+    yield from default_length_params("strongScaling",
+                                     lengths['strongScaling'],
+                                     nbatch=1,
+                                     precisions=['single'],
+                                     directions=[-1],
+                                     inplaces=[True],
+                                     reals=[False],
+                                     strong_scaling=True)
+
+
+def weakScaling():
+    """Weak scalability test sizes."""
+
+    yield from default_length_params("weakScaling",
+                                     lengths['weakScaling'],
+                                     nbatch=1,
+                                     precisions=['single'],
+                                     directions=[-1],
+                                     inplaces=[True],
+                                     reals=[False],
+                                     weak_scaling=True)
 
 
 def unbatched_1d():

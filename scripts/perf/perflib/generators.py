@@ -1,4 +1,4 @@
-# Copyright (C) 2021 - 2022 Advanced Micro Devices, Inc. All rights reserved.
+# Copyright (C) 2021 - 2024 Advanced Micro Devices, Inc. All rights reserved.
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -62,6 +62,7 @@ class Problem:
     istride: List[int] = None
     ostride: List[int] = None
     nbatch: int = 1
+    ngpus: int = 1
     idist: int = 0
     odist: int = 0
     direction: int = -1
@@ -72,6 +73,8 @@ class Problem:
     min_wgs: int = 64
     max_wgs: int = 512
     full_token: bool = False
+    strong_scaling: bool = False
+    weak_scaling: bool = False
     meta: Dict[str, str] = field(default_factory=dict)
 
     def toJSON(self):
