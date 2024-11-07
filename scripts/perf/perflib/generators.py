@@ -62,6 +62,10 @@ class Problem:
     istride: List[int] = None
     ostride: List[int] = None
     nbatch: int = 1
+    mp_size: int = 1
+    mp_exec: str = ""
+    ingrid: List[int] = None
+    outgrid: List[int] = None
     ngpus: int = 1
     idist: int = 0
     odist: int = 0

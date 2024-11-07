@@ -41,6 +41,10 @@ class Timer:
     out: List[str] = field(default_factory=list)
     device: int = 0
     ntrial: int = 10
+    mp_size: int = 1
+    mp_exec: str = ""
+    ingrid: List[int] = field(default_factory=list)
+    outgrid: List[int] = field(default_factory=list)
     ngpus: int = 1
     verbose: bool = False
     timeout: float = 0
@@ -52,6 +56,9 @@ class Timer:
         bench = path(self.bench)
         if not bench.is_file():
             raise RuntimeError(f"Unable to find (dyna-)bench: {self.bench}")
+
+        if self.mp_size > 1 and self.mp_exec == None:
+            raise RuntimeError(f"Unable to find mpi executable {self.bench}")
 
         failed_tokens = []
         scaling_flag = False
@@ -67,11 +74,22 @@ class Timer:
         for prob in generator.generate_problems():
             total_prob_count += 1
 
+            n_resources = 1
+            # scalability for single-proc multi-GPU:
+            if self.ngpus > 1 and self.mp_size == 1:
+                n_resources = self.ngpus
+            # scalability for single-proc using 1-GPU per MPI:
+            elif self.mp_size > 1 and self.ngpus == 1:
+                n_resources = self.mp_size
+
             if (prob.strong_scaling or prob.weak_scaling):
-                list_of_gpus = gpu_list_pow2(self.ngpus)
+                list_of_gpus = gpu_list_pow2(n_resources)
                 scaling_flag = True
+                # scaling for MPI starts when n_resources >= 2:
+                if self.mp_size > 1:
+                    list_of_gpus.remove(1)
             else:
-                list_of_gpus = [self.ngpus]
+                list_of_gpus = [n_resources]
 
             ws_factor = 1
 
@@ -84,7 +102,11 @@ class Timer:
                     inplace=prob.inplace,
                     precision=prob.precision,
                     nbatch=prob.nbatch,
-                    ngpus=g,
+                    mp_size=g if self.mp_size > 1 else 1,
+                    mp_exec=self.mp_exec,
+                    ingrid=self.ingrid,
+                    outgrid=self.outgrid,
+                    ngpus=g if self.ngpus > 1 else 1,
                     ntrial=self.ntrial,
                     device=self.device,
                     libraries=self.lib,
@@ -132,6 +154,8 @@ class GroupedTimer:
     out: List[str] = field(default_factory=list)
     device: int = 0
     ntrial: int = 10
+    mp_size: int = 1
+    mp_exec: str = ""
     ngpus: int = 1
     verbose: bool = False
     timeout: float = 0

@@ -500,7 +500,7 @@ def command_run(arguments):
         ]:
             update(attr, generator, arguments)
 
-    for attr in ['nbatch', 'ngpus']:
+    for attr in ['nbatch', 'mp_size', 'mp_exec', 'ingrid', 'outgrid', 'ngpus']:
         update(attr, generator, arguments)
 
     # build filter
@@ -519,6 +519,14 @@ def command_run(arguments):
         filtered.precision = arguments.precision
     if arguments.dimension:
         filtered.dimension = arguments.dimension
+    if arguments.mp_size:
+        filtered.mp_size = arguments.mp_size
+    if arguments.mp_exec:
+        filtered.mp_exec = arguments.mp_exec
+    if arguments.ingrid:
+        filtered.ingrid = arguments.ingrid
+    if arguments.outgrid:
+        filtered.outgrid = arguments.outgrid
     if arguments.ngpus:
         filtered.ngpus = arguments.ngpus
 
@@ -545,7 +553,8 @@ def command_run(arguments):
     timer = perflib.timer.GroupedTimer()
     for attr in [
             'device', 'bench', 'accutest', 'lib', 'out', 'device', 'ntrial',
-            'verbose', 'timeout', 'sequence', 'ngpus'
+            'verbose', 'timeout', 'sequence', 'mp_size', 'mp_exec', 'ingrid',
+            'outgrid', 'ngpus'
     ]:
         update(attr, timer, arguments)
 
@@ -719,6 +728,10 @@ def command_bweff(arguments):
                                       precision=prob.precision,
                                       nbatch=nbatch,
                                       ntrial=arguments.ntrial,
+                                      mp_size=prob.mp_size,
+                                      mp_exec=prob.mp_exec,
+                                      ingrid=prob.ingrid,
+                                      outgrid=prob.outgrid,
                                       ngpus=prob.ngpus)[0]
 
             fp.seek(0)
@@ -978,6 +991,18 @@ def main():
                             type=int,
                             help='number of trials',
                             default=20)
+    run_parser.add_argument('-mp_size',
+                            '--mp_size',
+                            type=int,
+                            help='number of MPI processors',
+                            default=1)
+
+    run_parser.add_argument('-mp_exec',
+                            '--mp_exec',
+                            type=str,
+                            help="path to mpi executable",
+                            default="/usr/bin/mpirun")
+
     run_parser.add_argument('-ngpus',
                             '--ngpus',
                             type=int,
@@ -993,6 +1018,19 @@ def main():
                             type=int,
                             help='dyna-bench test sequence',
                             default=0)
+
+    run_parser.add_argument('--ingrid',
+                            type=int,
+                            required=False,
+                            nargs='+',
+                            help='input processors grid')
+
+    run_parser.add_argument('--outgrid',
+                            type=int,
+                            required=False,
+                            nargs='+',
+                            help='output processors grid')
+
     run_parser.add_argument('-f',
                             '--precision',
                             type=str,
@@ -1089,11 +1127,25 @@ def main():
                               type=int,
                               help='number of trials',
                               default=10)
+
+    bweff_parser.add_argument('-mp_size',
+                              '--mp_size',
+                              type=int,
+                              help='number of MPI processors',
+                              default=1)
+
+    bweff_parser.add_argument('-mp_exec',
+                              '--mp_exec',
+                              type=str,
+                              help="path to mpi executable",
+                              default="/usr/bin/mpirun")
+
     bweff_parser.add_argument('-ngpus',
                               '--ngpus',
                               type=int,
                               help='number of GPUs',
                               default=1)
+
     # target transform size
     bweff_parser.add_argument('--target_size',
                               type=int,

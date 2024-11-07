@@ -35,6 +35,10 @@ def run(bench,
         precision='single',
         nbatch=1,
         ntrial=1,
+        mp_exec='/usr/bin/mpirun',
+        mp_size=1,
+        ingrid=None,
+        outgrid=None,
         ngpus=1,
         device=None,
         libraries=None,
@@ -54,15 +58,40 @@ def run(bench,
             if sequence is not None:
                 cmd += ['--sequence', str(sequence)]
 
-    if skiphip:
-        cmd += ['--ignore_runtime_failures']
-    else:
-        cmd += ['--no_ignore_runtime_failures']
+    if mp_size == 1:
+        if skiphip:
+            cmd += ['--ignore_runtime_failures']
+        else:
+            cmd += ['--no-ignore_runtime_failures']
 
     if isinstance(length, int):
         cmd += ['--length', length]
     else:
         cmd += ['--length'] + list(length)
+
+    if len(ingrid) > 0:
+        if isinstance(ingrid, int):
+            if (mp_size == 1):
+                cmd += ['--ingrid', ingrid]
+            else:
+                cmd += ['--imgrid', ingrid]
+        else:
+            if (mp_size == 1):
+                cmd += ['--ingrid'] + list(ingrid)
+            else:
+                cmd += ['--imgrid'] + list(ingrid)
+
+    if len(outgrid) > 0:
+        if isinstance(outgrid, int):
+            if (mp_size == 1):
+                cmd += ['--outgrid', outgrid]
+            else:
+                cmd += ['--omgrid', outgrid]
+        else:
+            if (mp_size == 1):
+                cmd += ['--outgrid'] + list(outgrid)
+            else:
+                cmd += ['--omgrid'] + list(outgrid)
 
     if (ngpus > 1):
         cmd += ['--ngpus', ngpus]
@@ -77,18 +106,27 @@ def run(bench,
         cmd += ['--precision', 'single']
     elif precision == 'double':
         cmd += ['--precision', 'double']
-    if device is not None:
+    if mp_size == 1 and (device is not None):
         cmd += ['--device', device]
 
     # default to slab decomposition for scalability experiments,
     # which grants the least number of transpositions
-    if (scalability and (ngpus > 1 or mp_size > 1)):
-        if (len(length) == 3):
-            cmd += ['--ingrid'] + list([1, 1, ngpus])
-            cmd += ['--outgrid'] + list([ngpus, 1, 1])
-        elif (len(length) == 2):
-            cmd += ['--ingrid'] + list([1, ngpus])
-            cmd += ['--outgrid'] + list([ngpus, 1])
+    if (scalability):
+        if (ngpus > 1):
+            if (len(length) == 3):
+                cmd += ['--ingrid'] + list([1, 1, ngpus])
+                cmd += ['--outgrid'] + list([ngpus, 1, 1])
+            elif (len(length) == 2):
+                cmd += ['--ingrid'] + list([1, ngpus])
+                cmd += ['--outgrid'] + list([ngpus, 1])
+
+        if (mp_size > 1):
+            if (len(length) == 3):
+                cmd += ['--imgrid'] + list([1, 1, mp_size])
+                cmd += ['--omgrid'] + list([mp_size, 1, 1])
+            elif (len(length) == 2):
+                cmd += ['--imgrid'] + list([1, mp_size])
+                cmd += ['--omgrid'] + list([mp_size, 1])
 
     itype, otype = 0, 0
     if real:
@@ -102,7 +140,19 @@ def run(bench,
         if direction == 1:
             cmd += ['-t', 1]
 
+    if verbose:
+        cmd += ['--verbose']
+
+    if (mp_size > 1):
+        cmd.insert(0, str(mp_size))
+        cmd.insert(
+            0, "-n"
+        )  # flag to set the number of MPI processes for mpirun or equivalent
+        cmd.insert(0, mp_exec)
+        cmd += ['--benchmark']
+
     cmd = [str(x) for x in cmd]
+
     logging.info('running: ' + ' '.join(cmd))
     if verbose:
         print('running: ' + ' '.join(cmd))
