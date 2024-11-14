@@ -80,9 +80,9 @@ inline void execute_fft(Tparams&              params,
             std::stringstream msg;
             msg << "hipMemcpy failure";
             if(skip_runtime_fails)
-                throw ROCFFT_GTEST_SKIP{std::move(msg)};
+                throw ROCFFT_SKIP{std::move(msg)};
             else
-                throw ROCFFT_GTEST_FAIL{std::move(msg)};
+                throw ROCFFT_FAIL{std::move(msg)};
         }
     }
     if(verbose > 2)
@@ -130,9 +130,9 @@ void compute_fft_data(Tparams&              params,
         std::stringstream msg;
         msg << "Work buffer allocation failed with size: " << params.workbuffersize;
         if(skip_runtime_fails)
-            throw ROCFFT_GTEST_SKIP{std::move(msg)};
+            throw ROCFFT_SKIP{std::move(msg)};
         else
-            throw ROCFFT_GTEST_FAIL{std::move(msg)};
+            throw ROCFFT_FAIL{std::move(msg)};
     }
     ASSERT_EQ(plan_status, fft_status_success) << "plan creation failed";
 
@@ -149,9 +149,9 @@ void compute_fft_data(Tparams&              params,
                 << " with code " << hipError_to_string(hip_status);
             ++n_hip_failures;
             if(skip_runtime_fails)
-                throw ROCFFT_GTEST_SKIP{std::move(msg)};
+                throw ROCFFT_SKIP{std::move(msg)};
             else
-                throw ROCFFT_GTEST_FAIL{std::move(msg)};
+                throw ROCFFT_FAIL{std::move(msg)};
         }
         pibuffer[i] = ibuffer[i].data();
     }
@@ -182,9 +182,9 @@ void compute_fft_data(Tparams&              params,
 
             ++n_hip_failures;
             if(skip_runtime_fails)
-                throw ROCFFT_GTEST_SKIP{std::move(msg)};
+                throw ROCFFT_SKIP{std::move(msg)};
             else
-                throw ROCFFT_GTEST_FAIL{std::move(msg)};
+                throw ROCFFT_FAIL{std::move(msg)};
         }
     }
 #else
@@ -206,11 +206,11 @@ void compute_fft_data(Tparams&              params,
             ss << "hipMemcpy failure with error " << hip_status;
             if(skip_runtime_fails)
             {
-                throw ROCFFT_GTEST_SKIP{std::move(ss)};
+                throw ROCFFT_SKIP{std::move(ss)};
             }
             else
             {
-                throw ROCFFT_GTEST_FAIL{std::move(ss)};
+                throw ROCFFT_FAIL{std::move(ss)};
             }
         }
     }
@@ -240,9 +240,9 @@ void compute_fft_data(Tparams&              params,
                     << "(" << bytes_to_GiB(obuffer_sizes[i]) << " GiB)"
                     << " with code " << hipError_to_string(hip_status);
                 if(skip_runtime_fails)
-                    throw ROCFFT_GTEST_SKIP{std::move(msg)};
+                    throw ROCFFT_SKIP{std::move(msg)};
                 else
-                    throw ROCFFT_GTEST_FAIL{std::move(msg)};
+                    throw ROCFFT_FAIL{std::move(msg)};
             }
         }
     }
@@ -287,7 +287,7 @@ inline void bitwise_repro_impl(Tparams& params, Tparams& params_comp)
     {
         std::stringstream msg;
         msg << "FFT input tokens are identical";
-        throw ROCFFT_GTEST_SKIP{std::move(msg)};
+        throw ROCFFT_SKIP{std::move(msg)};
     }
 
     std::vector<hostbuf> fft_input_comp, fft_output_comp;
@@ -357,7 +357,7 @@ inline void bitwise_repro_impl(Tparams& params)
         std::stringstream msg;
         msg << "FFT result entry added to the repro-db file. Previously stored reference entry not "
                "found. \n";
-        throw ROCFFT_GTEST_SKIP{std::move(msg)};
+        throw ROCFFT_SKIP{std::move(msg)};
     }
 }
 

@@ -28,9 +28,9 @@
 
 #include "../../shared/rocfft_accuracy_test.h"
 
+#include "../../shared/client_except.h"
 #include "../../shared/fftw_transform.h"
 #include "../../shared/gpubuf.h"
-#include "../../shared/gtest_except.h"
 #include "../../shared/rocfft_against_fftw.h"
 #include "../../shared/subprocess.h"
 #include "rocfft/rocfft.h"
@@ -88,11 +88,11 @@ TEST_P(accuracy_test, vs_fftw)
         {
             GTEST_SKIP() << "host memory allocation failure";
         }
-        catch(ROCFFT_GTEST_SKIP& e)
+        catch(ROCFFT_SKIP& e)
         {
             GTEST_SKIP() << e.msg.str();
         }
-        catch(ROCFFT_GTEST_FAIL& e)
+        catch(ROCFFT_FAIL& e)
         {
             GTEST_FAIL() << e.msg.str();
         }

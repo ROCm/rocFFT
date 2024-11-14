@@ -862,11 +862,11 @@ TEST(manual, vs_fftw) // MANUAL TESTS HERE
     {
         GTEST_SKIP() << "host memory allocation failure";
     }
-    catch(ROCFFT_GTEST_SKIP& e)
+    catch(ROCFFT_SKIP& e)
     {
         GTEST_SKIP() << e.msg.str();
     }
-    catch(ROCFFT_GTEST_FAIL& e)
+    catch(ROCFFT_FAIL& e)
     {
         GTEST_FAIL() << e.msg.str();
     }
@@ -900,11 +900,11 @@ TEST(manual, bitwise_reproducibility) // MANUAL TESTS HERE
     {
         GTEST_SKIP() << "host memory allocation failure";
     }
-    catch(ROCFFT_GTEST_SKIP& e)
+    catch(ROCFFT_SKIP& e)
     {
         GTEST_SKIP() << e.msg.str();
     }
-    catch(ROCFFT_GTEST_FAIL& e)
+    catch(ROCFFT_FAIL& e)
     {
         GTEST_FAIL() << e.msg.str();
     }

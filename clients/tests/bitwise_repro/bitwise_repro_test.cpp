@@ -61,11 +61,11 @@ TEST(bitwise_repro_test, compare_precisions)
     {
         GTEST_SKIP() << "host memory allocation failure";
     }
-    catch(ROCFFT_GTEST_SKIP& e)
+    catch(ROCFFT_SKIP& e)
     {
         GTEST_SKIP() << e.msg.str();
     }
-    catch(ROCFFT_GTEST_FAIL& e)
+    catch(ROCFFT_FAIL& e)
     {
         GTEST_FAIL() << e.msg.str();
     }
@@ -102,11 +102,11 @@ TEST(bitwise_repro_test, compare_lengths)
     {
         GTEST_SKIP() << "host memory allocation failure";
     }
-    catch(ROCFFT_GTEST_SKIP& e)
+    catch(ROCFFT_SKIP& e)
     {
         GTEST_SKIP() << e.msg.str();
     }
-    catch(ROCFFT_GTEST_FAIL& e)
+    catch(ROCFFT_FAIL& e)
     {
         GTEST_FAIL() << e.msg.str();
     }
@@ -143,11 +143,11 @@ TEST(bitwise_repro_test, compare_transform_types)
     {
         GTEST_SKIP() << "host memory allocation failure";
     }
-    catch(ROCFFT_GTEST_SKIP& e)
+    catch(ROCFFT_SKIP& e)
     {
         GTEST_SKIP() << e.msg.str();
     }
-    catch(ROCFFT_GTEST_FAIL& e)
+    catch(ROCFFT_FAIL& e)
     {
         GTEST_FAIL() << e.msg.str();
     }
@@ -187,11 +187,11 @@ TEST_P(bitwise_repro_test, compare_to_reference)
     {
         GTEST_SKIP() << "host memory allocation failure";
     }
-    catch(ROCFFT_GTEST_SKIP& e)
+    catch(ROCFFT_SKIP& e)
     {
         GTEST_SKIP() << e.msg.str();
     }
-    catch(ROCFFT_GTEST_FAIL& e)
+    catch(ROCFFT_FAIL& e)
     {
         GTEST_FAIL() << e.msg.str();
     }
