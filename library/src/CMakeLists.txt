@@ -62,7 +62,7 @@ endif()
 
 if( ROCFFT_MPI_ENABLE )
   set( ROCFFT_HOST_LINK_LIBS "${ROCFFT_HOST_LINK_LIBS}" "MPI::MPI_CXX" )
-  if ( MPI_CXX_LIB_NAMES STREQUAL "mpi_cray")
+  if ( ROCFFT_CRAY_MPI_ENABLE)
     set( ROCFFT_HOST_LINK_LIBS "${ROCFFT_HOST_LINK_LIBS}" "mpi_gtl_hsa" )
     get_filename_component(MPI_LIBDIR ${MPI_LIBRARY} DIRECTORY)
     set( ROCFFT_HOST_LINK_DIRS ${MPI_LIBDIR}/../../../../gtl/lib)
@@ -431,6 +431,14 @@ foreach( target rocfft rocfft_offline_tuner rocfft_solmap_convert rocfft_aot_hel
   rocfft_link_internal_lib( ${target} rocfft-rtc-common )
 
   target_link_std_experimental_filesystem(${target})
+
+  
+  if ( ROCFFT_CRAY_MPI_ENABLE )
+      get_filename_component( MPI_LIBDIR ${MPI_LIBRARY} DIRECTORY )
+      target_link_directories( ${target}
+	PRIVATE
+	${MPI_LIBDIR}/../../../../gtl/lib )
+    endif()
 
   target_compile_options( ${target} PRIVATE ${WARNING_FLAGS} )
   if( ${CMAKE_BUILD_TYPE} STREQUAL Debug )

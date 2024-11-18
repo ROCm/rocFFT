@@ -124,7 +124,7 @@ foreach( bench ${bench_list})
     PRIVATE
     MPI::MPI_CXX
     )
-  if ( MPI_CXX_LIB_NAMES STREQUAL "mpi_cray")
+  if ( ROCFFT_CRAY_MPI_ENABLE)
     target_link_libraries( ${bench}
       PRIVATE
       "mpi_gtl_hsa"

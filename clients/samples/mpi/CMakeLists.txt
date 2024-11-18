@@ -78,7 +78,9 @@ foreach( sample ${sample_list} )
     PRIVATE roc::rocfft
     MPI::MPI_CXX
     )
-  if ( MPI_CXX_LIB_NAMES STREQUAL "mpi_cray")
+
+  message( "MPI_CXX_LIB_NAMES: ${MPI_CXX_LIB_NAMES}")
+  if ( ROCFFT_CRAY_MPI_ENABLE )
     target_link_libraries( ${sample}
       PRIVATE
       "mpi_gtl_hsa"

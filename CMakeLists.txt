@@ -215,6 +215,7 @@ endif()
 
 # Enable MPI support in rocFFT:
 option(ROCFFT_MPI_ENABLE "Enable MPI" OFF)
+option(ROCFFT_CRAY_MPI_ENABLE "Cray MPI" OFF)
 if( ROCFFT_MPI_ENABLE )
   find_package( MPI REQUIRED )
   include_directories(SYSTEM ${MPI_INCLUDE_PATH})

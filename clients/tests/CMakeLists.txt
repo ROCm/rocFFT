@@ -232,7 +232,7 @@ if( ROCFFT_MPI_ENABLE )
     )
   add_compile_definitions( ROCFFT_MPI_ENABLE )
 
-  if ( MPI_CXX_LIB_NAMES STREQUAL "mpi_cray")
+  if ( ROCFFT_CRAY_MPI_ENABLE )
     target_link_libraries( rocfft-test
       PRIVATE
       "mpi_gtl_hsa"
@@ -339,7 +339,7 @@ if( ROCFFT_MPI_ENABLE )
     )
     target_compile_options( ${worker} PRIVATE ${WARNING_FLAGS} )
 
-  if ( MPI_CXX_LIB_NAMES STREQUAL "mpi_cray")
+  if ( ROCFFT_CRAY_MPI_ENABLE )
       target_link_libraries( ${worker}
       -fopenmp
       hip::hiprand
