@@ -2472,15 +2472,15 @@ inline MPI_Datatype type_to_mpi_type()
     {
         return MPI_UINT64_T;
     }
-    else if(std::is_same<Tval, std::complex<float>>::value)
+    else if(std::is_same<Tval, rocfft_complex<float>>::value)
     {
         return MPI_C_FLOAT_COMPLEX;
     }
-    else if(std::is_same<Tval, std::complex<double>>::value)
+    else if(std::is_same<Tval, rocfft_complex<double>>::value)
     {
         return MPI_C_DOUBLE_COMPLEX;
     }
-    else if(std::is_same<Tval, std::complex<long double>>::value)
+    else if(std::is_same<Tval, rocfft_complex<long double>>::value)
     {
         return MPI_C_LONG_DOUBLE_COMPLEX;
     }
@@ -2489,7 +2489,7 @@ inline MPI_Datatype type_to_mpi_type()
         static MPI_Datatype_vector_wrapper_t ROCFFT_MPI_HALF{sizeof(Tval)};
         return ROCFFT_MPI_HALF;
     }
-    else if(std::is_same<Tval, std::complex<half>>::value)
+    else if(std::is_same<Tval, rocfft_complex<half>>::value)
     {
         static MPI_Datatype_vector_wrapper_t ROCFFT_MPI_COMPLEX_HALF{sizeof(Tval)};
         return ROCFFT_MPI_COMPLEX_HALF;

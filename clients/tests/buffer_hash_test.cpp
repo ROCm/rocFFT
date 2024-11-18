@@ -105,7 +105,7 @@ static unsigned int gen_seed()
 template <typename Tfloat>
 static void shuffle_buffer(const size_t N, const size_t seed, std::vector<hostbuf>& buffer)
 {
-    auto idata = (std::complex<Tfloat>*)buffer[0].data();
+    auto idata = (rocfft_complex<Tfloat>*)buffer[0].data();
 
     std::random_device rd;
     std::mt19937       g(rd());
@@ -138,7 +138,7 @@ static void shuffle_buffer(const fft_params& param, const size_t seed, std::vect
 template <typename Tfloat>
 static void corrupt_buffer_single(const size_t N, const size_t seed, std::vector<hostbuf>& buffer)
 {
-    auto idata = (std::complex<Tfloat>*)buffer[0].data();
+    auto idata = (rocfft_complex<Tfloat>*)buffer[0].data();
 
     std::minstd_rand                       gen(seed);
     std::uniform_real_distribution<double> dist1(0.0f, 1.0f);
@@ -179,7 +179,7 @@ static void
 template <typename Tfloat>
 static void corrupt_buffer_full(const size_t N, const size_t seed, std::vector<hostbuf>& buffer)
 {
-    auto idata = (std::complex<Tfloat>*)buffer[0].data();
+    auto idata = (rocfft_complex<Tfloat>*)buffer[0].data();
 
     std::minstd_rand                       gen(seed);
     std::uniform_real_distribution<double> dist(-1.0f, 1.0f);
@@ -220,7 +220,7 @@ static void
 template <typename Tfloat>
 static void init_buffer(const size_t N, const size_t seed, std::vector<hostbuf>& buffer)
 {
-    auto idata = (std::complex<Tfloat>*)buffer[0].data();
+    auto idata = (rocfft_complex<Tfloat>*)buffer[0].data();
 
     std::minstd_rand                       gen(seed);
     std::uniform_real_distribution<double> dist(-1.0f, 1.0f);
