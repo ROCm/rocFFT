@@ -94,6 +94,8 @@ information such as the work buffer and compute stream for the transform.
 
 .. comment doxygenfunction:: rocfft_execution_info_get_events
 
+.. _hip-graph-support-for-rocfft:
+
 HIP graph Support for rocFFT
 ============================
 
