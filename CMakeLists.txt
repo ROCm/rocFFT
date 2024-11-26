@@ -186,7 +186,7 @@ set(AMDGPU_TARGETS "${DEFAULT_GPUS}" CACHE STRING "Target default GPUs if AMDGPU
 rocm_check_target_ids(AMDGPU_TARGETS TARGETS "${AMDGPU_TARGETS}")
   
 # HIP is required - library and clients use HIP to access the device
-find_package( HIP REQUIRED )
+find_package( HIP REQUIRED CONFIG )
 
 # The nvidia backend can be used to compile for CUDA devices.
 # Specify the CUDA prefix in the CUDA_PREFIX variable.
