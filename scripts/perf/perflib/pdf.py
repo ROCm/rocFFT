@@ -63,11 +63,18 @@ class PDFFigure(BaseFigure):
 
         if ndata > 1 and self.figtype == "linegraph":
             asycmd.append(str(top / "datagraphs.asy"))
+            scaling = self.metadata.get('scaling')
         elif ndata == 1 or self.figtype == "bargraph":
             asycmd.append(str(top / "bargraph.asy"))
-            ivariable = self.metadata.get('ivariable')
-            if ivariable != None:
-                asycmd.extend(['-u', f'ivariable="{ivariable}"'])
+
+        ivariable = self.metadata.get('ivariable')
+        if ivariable == None:
+            scaling = self.metadata.get('scaling')
+            if scaling != None:
+                ivariable = 'ndev'
+                asycmd.extend(['-u', f'scaling="{scaling}"'])
+        if ivariable != None:
+            asycmd.extend(['-u', f'ivariable="{ivariable}"'])
 
         primary = [x.resolve() for x in self.primary]
         asycmd.extend(['-u', f'filenames="{cjoin(primary)}"'])

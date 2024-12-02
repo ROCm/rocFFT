@@ -77,17 +77,25 @@ struct datapoint
     string label;
   real[] length;
   string placeness;
+    int ndev;
     real x;
     real y;
     real batch;
     real ylow;
     real yhigh;
 
-  void operator init(real[] length, real batch, string placeness, real y, real ylow, real yhigh) {
+    void operator init(real[] length,
+                       real batch,
+                       string placeness,
+                       int ndev,
+                       real y,
+                       real ylow,
+                       real yhigh) {
     this.length = length;
         this.x = length[0];
 	this.batch = batch;
 	this.placeness = placeness;
+        this.ndev = ndev;
         this.y = y;
 	this.ylow = ylow;
         this.yhigh = yhigh;
@@ -108,12 +116,21 @@ struct datapoint
       this.label = "$";
       this.label += (string)this.batch;
       this.label += "$";
+      this.x = this.batch;
     }
 
     if(ivariable == "placeness") {
-      this.label += this.placeness;
+      this.label = this.placeness;
     }
 
+    if(ivariable == "ndev") {
+      this.label = "$";
+      this.label += (string)this.ndev;
+      this.label += "$";
+      this.x = this.ndev;
+    }
+
+    
   }
 }
 
@@ -195,6 +212,25 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
 	    }
 	  }
 	  
+          int ndev = 1;
+          int devlist[] = {};
+          for(int idx = 0; idx < words.length; ++idx) {
+              if( words[idx] == 'dev') {
+                  int devnum = (int)words[idx + 1];
+                  bool newdev = true;
+                  for(int jdx = 0; jdx < devlist.length; ++jdx) {
+                      if(devnum == devlist[jdx]) {
+                          newdev = false;
+                          break;
+                      }
+                  }
+                  if(newdev) {
+                      devlist.push(devnum);
+                  }
+              }
+          }
+          ndev = max(ndev, devlist.length);
+          //write(ndev, devlist.length);
 
 	  //write("length: ", length);
 
@@ -218,7 +254,13 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
           lastpos = pos > 0 ? pos + 1 : -1;
 
                     
-          datapoint d = datapoint(length, batch, placeness, (real)smedian, (real)slow, (real)shigh);
+          datapoint d = datapoint(length,
+                                  batch,
+                                  placeness,
+                                  ndev,
+                                  (real)smedian,
+                                  (real)slow,
+                                  (real)shigh);
 
           pos = find(vals, '\t', lastpos);
           string spval = substr(vals, lastpos, pos - lastpos);
@@ -239,7 +281,9 @@ void readfiles(string[] filelist, datapoint[][] datapoints, bool pval = false)
     }
 }
 
-void datapoints_to_xyvallowhigh(datapoint[] d, pair[] xyval, pair[] ylowhigh) {
+void datapoints_to_xyvallowhigh(datapoint[] d,
+                                pair[] xyval,
+                                pair[] ylowhigh) {
     for(int i = 0; i < d.length; ++i) {
         xyval.push((d[i].x, d[i].y));
         ylowhigh.push((d[i].ylow, d[i].yhigh));

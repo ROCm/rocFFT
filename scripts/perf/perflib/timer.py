@@ -61,7 +61,6 @@ class Timer:
             raise RuntimeError(f"Unable to find mpi executable {self.bench}")
 
         failed_tokens = []
-        scaling_flag = False
 
         # get a list of powers of two less or equal than the number of requested resources,
         # to be used for scalability experiments
@@ -82,12 +81,9 @@ class Timer:
             elif self.mp_size > 1 and self.ngpus == 1:
                 n_resources = self.mp_size
 
-            if (prob.strong_scaling or prob.weak_scaling):
+            scaling = prob.meta.get('scaling')
+            if scaling != None:
                 list_of_gpus = gpu_list_pow2(n_resources)
-                scaling_flag = True
-                # scaling for MPI starts when n_resources >= 2:
-                if self.mp_size > 1:
-                    list_of_gpus.remove(1)
             else:
                 list_of_gpus = [n_resources]
 
@@ -114,9 +110,9 @@ class Timer:
                     timeout=self.timeout,
                     sequence=self.sequence,
                     skiphip=self.hipskip,
-                    scalability=scaling_flag)
+                    scalability=(scaling != None))
 
-                if (prob.weak_scaling):
+                if scaling == 'weak':
                     ws_factor *= 2
 
                 if success:

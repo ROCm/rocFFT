@@ -280,6 +280,9 @@ int main(int argc, char* argv[])
     // Control output verbosity:
     int verbose{};
 
+    // number of GPUs to use:
+    int ngpus{};
+
     // hip Device number for running tests:
     int deviceId{};
 
@@ -301,6 +304,10 @@ int main(int argc, char* argv[])
 
     // FFT parameters:
     fft_params params;
+
+    // input/output FFT grids
+    std::vector<unsigned int> ingrid;
+    std::vector<unsigned int> outgrid;
 
     // Token string to fully specify fft params.
     std::string token;
@@ -351,6 +358,21 @@ int main(int argc, char* argv[])
         ->default_val(fft_array_type_unset);
     CLI::Option* opt_length
         = non_token->add_option("--length", params.length, "Lengths")->required()->expected(1, 3);
+
+    non_token->add_option("--ngpus", ngpus, "Number of GPUs to use")
+        ->default_val(1)
+        ->check(CLI::NonNegativeNumber);
+
+    // define multi-GPU grids for FFT computation,
+    CLI::Option* opt_ingrid
+        = non_token->add_option("--ingrid", ingrid, "Single-process grid of GPUs at input")
+              ->expected(1, 3)
+              ->needs("--ngpus");
+
+    CLI::Option* opt_outgrid
+        = non_token->add_option("--outgrid", outgrid, "Single-process grid of GPUs at output")
+              ->expected(1, 3)
+              ->needs("--ngpus");
 
     non_token
         ->add_option("-b, --batchSize",
@@ -426,6 +448,30 @@ int main(int argc, char* argv[])
     }
     else
     {
+
+        if(ngpus > 1)
+        {
+            // set default GPU grids in case none were given
+            params.set_default_grid(ngpus, ingrid, outgrid);
+
+            // split the problem among ngpus
+            params.mp_lib = fft_params::fft_mp_lib_none;
+
+            int localDeviceCount = 0;
+            (void)hipGetDeviceCount(&localDeviceCount);
+
+            // start with all-ones in grids
+            std::vector<unsigned int> input_grid(params.length.size() + 1, 1);
+            std::vector<unsigned int> output_grid(params.length.size() + 1, 1);
+
+            // create input and output grids and distribute it according to user requirements
+            std::copy(ingrid.begin(), ingrid.end(), input_grid.begin() + 1);
+            std::copy(outgrid.begin(), outgrid.end(), output_grid.begin() + 1);
+
+            params.distribute_input(localDeviceCount, input_grid);
+            params.distribute_output(localDeviceCount, output_grid);
+        }
+
         if(*opt_not_in_place)
         {
             std::cout << "out-of-place\n";
@@ -469,6 +515,21 @@ int main(int argc, char* argv[])
         {
             std::cout << "ooffset:";
             for(auto& i : params.ooffset)
+                std::cout << " " << i;
+            std::cout << "\n";
+        }
+        if(*opt_ingrid || !ingrid.empty())
+        {
+            std::cout << "input  grid:";
+            for(auto& i : ingrid)
+                std::cout << " " << i;
+            std::cout << "\n";
+        }
+
+        if(*opt_outgrid || !outgrid.empty())
+        {
+            std::cout << "output grid:";
+            for(auto& i : outgrid)
                 std::cout << " " << i;
             std::cout << "\n";
         }

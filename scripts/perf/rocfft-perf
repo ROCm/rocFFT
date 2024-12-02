@@ -366,52 +366,65 @@ def command_post(arguments):
         docdir.mkdir(parents=True, exist_ok=True)
 
         import scipy.stats, numpy
-
+        
         runs = perflib.utils.by_dat(all_runs)
-        refdir, *otherdirs = outdirs
-        for dat_name, dat_runs in runs.items():
-            refdat = dat_runs[refdir]
-            for otherdat in [
-                    dat_runs[otherdir] for otherdir in otherdirs
-                    if otherdir in dat_runs
-            ]:
-                speedups = [[
-                    'token', 'speedup', 'speedup_low', 'speedup_high',
-                    'speedup_pval'
-                ]]
-                for token, sample in refdat.get_samples():
-                    if token not in otherdat.samples:
-                        continue
-                    sample = refdat.samples[token]
-                    Avals = refdat.samples[token].times
-                    Bvals = otherdat.samples[token].times
-                    if arguments.measure == "median":
-                        speedup = statistics.median(Avals) / statistics.median(
-                            Bvals)
-                    elif arguments.measure == "mean":
-                        speedup = numpy.mean(Avals) / numpy.mean(Bvals)
-                    low, high = perflib.analysis.ratio_confidence_interval(
-                        Avals, Bvals)
-                    pval = -1
-                    if arguments.method == 'moods':
-                        _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
-                    elif arguments.method == 'ttest':
-                        _, pval = scipy.stats.ttest_ind(Avals, Bvals)
-                    elif arguments.method == 'mwu':
-                        _, pval = scipy.stats.mannwhitneyu(Avals, Bvals)
-                    else:
-                        print("unsupported statistical method")
-                        sys.exit(1)
+        
+        group_outdirs = []
+        if arguments.ngroup == None:
+            group_outdirs.append(outdirs)
+        else:
+            totalgroups = (len(outdirs) + arguments.ngroup - 1) // arguments.ngroup
+            for gidx in range(totalgroups):
+                group_outdirs.append(outdirs[gidx * arguments.ngroup :
+                                             (gidx + 1) * arguments.ngroup])
+        #print(group_runs)
+        #sys.exit(1)
 
-                    speedups.append([sample.token, speedup, low, high, pval])
+        for gidx, group in enumerate(group_outdirs):
+        
+            refdir, *otherdirs = group
 
-                path = docdir / (str(otherdat.path.parent.name) + '-over-' +
-                                 str(refdat.path.parent.name) + '-' +
-                                 dat_name + '.sdat')
-                perflib.utils.write_tsv(path,
-                                        speedups,
-                                        meta=refdat.meta,
-                                        overwrite=True)
+            for dat_name, dat_runs in runs.items():
+                refdat = dat_runs[refdir]
+                for otherdat in [
+                        dat_runs[otherdir] for otherdir in otherdirs
+                        if otherdir in dat_runs
+                ]:
+                    speedups = [[
+                        'token', 'speedup', 'speedup_low', 'speedup_high',
+                        'speedup_pval'
+                    ]]
+                    for token, sample in refdat.get_samples():
+                        if token not in otherdat.samples:
+                            continue
+                        sample = refdat.samples[token]
+                        Avals = refdat.samples[token].times
+                        Bvals = otherdat.samples[token].times
+                        if arguments.measure == "median":
+                            speedup = statistics.median(Avals) / statistics.median(
+                                Bvals)
+                        elif arguments.measure == "mean":
+                            speedup = numpy.mean(Avals) / numpy.mean(Bvals)
+                        low, high = perflib.analysis.ratio_confidence_interval(
+                            Avals, Bvals)
+                        pval = -1
+                        if arguments.method == 'moods':
+                            _, pval, _, _ = scipy.stats.median_test(Avals, Bvals)
+                        elif arguments.method == 'ttest':
+                            _, pval = scipy.stats.ttest_ind(Avals, Bvals)
+                        elif arguments.method == 'mwu':
+                            _, pval = scipy.stats.mannwhitneyu(Avals, Bvals)
+                        else:
+                            print("unsupported statistical method")
+                            sys.exit(1)
+
+                        speedups.append([sample.token, speedup, low, high, pval])
+
+                    path = docdir / ('group_' + str(gidx) + '-' + dat_name + '.sdat')
+                    perflib.utils.write_tsv(path,
+                                            speedups,
+                                            meta=refdat.meta,
+                                            overwrite=True)
 
 
 def command_generate(arguments):
@@ -453,7 +466,7 @@ def command_generate(arguments):
                                                             '_', ' ')
         figtype = reference.dats[datname.stem].meta.get('figtype', 'linegraph')
         primary, secondary = perflib.utils.get_post_processed(
-            tag, docdir, outdirs)
+            tag, docdir, outdirs, arguments.ngroup)
         figure = Figure(tag, title, caption, docdir, label, primary, secondary,
                         figtype, reference.dats[datname.stem].meta)
         figures.append(figure)
@@ -862,7 +875,11 @@ def main():
                        choices=["bootstrap", "stdev"],
                        help="method for generating confidence interval",
                        default="bootstrap")
-
+    for p in [post_parser, pdf_parser]:
+        p.add_argument('--ngroup',
+                       type=int,
+                       help="size of comparison subgroup")
+        
     for p in [
             post_parser, pdf_parser, test_parser, autoperf_parser, html_parser
     ]:

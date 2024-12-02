@@ -34,7 +34,6 @@ all_reals = [True, False]
 def_tuning_min_wgs = 64
 def_tuning_max_wgs = 512
 def_export_full_token = False
-def_scaling = False
 default_ngpus = 1
 def_mp_size = 1
 def_mp_exec = '/usr/bin/mpirun'
@@ -348,15 +347,22 @@ lengths = {
         (630, 310, 630),
     ],
 
-    'strongScaling': [
+    'scaling2D': [
+        (128, 128),
         (512, 512),
-        (512, 512, 512),
+        (1024, 1024),
+        (2048, 2048),
+        (8192, 8192),
     ],
 
-    'weakScaling': [
-        (128, 128),
+    'scaling3D': [
+        (64, 64, 64),
         (128, 128, 128),
+        (512, 512, 512),
+        (1024, 1024, 1024),
+        (2048, 2048, 2048),
     ],
+
 }
 # yapf: enable
 
@@ -379,27 +385,17 @@ def mktag(tag, dimension, precision, direction, inplace, real):
 
 
 # yield problem sizes with default precision, direction, etc
-def default_length_params(tag, lengths, nbatch, ngpus=default_ngpus, mp_size=def_mp_size, mp_exec=def_mp_exec, precisions=all_precisions, \
-    directions=all_directions, inplaces=all_inplaces, reals=all_reals, min_wgs=def_tuning_min_wgs, \
-    max_wgs=def_tuning_max_wgs,  ingrid=def_ingrid, outgrid=def_outgrid, full_token=def_export_full_token, strong_scaling=def_scaling, \
-    weak_scaling=def_scaling):
-
-    # workaround: disable failing token on gfx906
-    if perflib.specs.get_machine_specs(0).gpuid == '0x66a1':
-        gfx906 = True
-    else:
-        gfx906 = False
+def default_length_params(tag, lengths, nbatch, ngpus=default_ngpus, mp_size=def_mp_size, \
+                          mp_exec=def_mp_exec, precisions=all_precisions, \
+                          directions=all_directions, inplaces=all_inplaces, \
+                          reals=all_reals, min_wgs=def_tuning_min_wgs, \
+                          max_wgs=def_tuning_max_wgs,  ingrid=def_ingrid, outgrid=def_outgrid, \
+                          full_token=def_export_full_token, meta = {}):
 
     for precision, direction, inplace, real in product(precisions, directions,
                                                        inplaces, reals):
         for length in lengths:
             length = (length, ) if isinstance(length, int) else length
-
-            # workaround: disable failing token on gfx906
-            if gfx906 and (length == [32768, 32768] and nbatch == 1
-                           and direction == -1 and not inplace and real
-                           and precision == 'single'):
-                continue
 
             yield Problem(length,
                           tag=mktag(tag, len(length), precision, direction,
@@ -416,9 +412,8 @@ def default_length_params(tag, lengths, nbatch, ngpus=default_ngpus, mp_size=def
                           precision=precision,
                           min_wgs=min_wgs,
                           max_wgs=max_wgs,
-                          strong_scaling=strong_scaling,
-                          weak_scaling=weak_scaling,
-                          full_token=full_token)
+                          full_token=full_token,
+                          meta=meta)
 
 
 def md():
@@ -659,27 +654,69 @@ def mgpu():
 def strongScaling():
     """Strong scalability test sizes."""
 
-    yield from default_length_params("strongScaling",
-                                     lengths['strongScaling'],
-                                     nbatch=1,
-                                     precisions=['single'],
-                                     directions=[-1],
-                                     inplaces=[True],
-                                     reals=[False],
-                                     strong_scaling=True)
+    for length in lengths['scaling2D']:
+        direction = -1
+        precision = 'double'
+        nbatch = 1
+        yield Problem(length,
+                      tag=mktag(
+                          'strongScaling' + "x".join([str(x) for x in length]),
+                          nbatch, precision, direction, False, False),
+                      nbatch=nbatch,
+                      direction=direction,
+                      inplace=False,
+                      real=False,
+                      precision='double',
+                      meta={'scaling': 'strong'})
+
+    for length in lengths['scaling3D']:
+        direction = -1
+        precision = 'double'
+        nbatch = 1
+        yield Problem(length,
+                      tag=mktag(
+                          'strongScaling' + "x".join([str(x) for x in length]),
+                          nbatch, precision, direction, False, False),
+                      nbatch=nbatch,
+                      direction=direction,
+                      inplace=False,
+                      real=False,
+                      precision='double',
+                      meta={'scaling': 'strong'})
 
 
 def weakScaling():
     """Weak scalability test sizes."""
 
-    yield from default_length_params("weakScaling",
-                                     lengths['weakScaling'],
-                                     nbatch=1,
-                                     precisions=['single'],
-                                     directions=[-1],
-                                     inplaces=[True],
-                                     reals=[False],
-                                     weak_scaling=True)
+    for length in lengths['scaling2D']:
+        direction = -1
+        precision = 'double'
+        nbatch = 1
+        yield Problem(length,
+                      tag=mktag(
+                          'weakScaling' + "x".join([str(x) for x in length]),
+                          nbatch, precision, direction, False, False),
+                      nbatch=nbatch,
+                      direction=direction,
+                      inplace=False,
+                      real=False,
+                      precision='double',
+                      meta={'scaling': 'weak'})
+
+    for length in lengths['scaling3D']:
+        direction = -1
+        precision = 'double'
+        nbatch = 1
+        yield Problem(length,
+                      tag=mktag(
+                          'weakScaling' + "x".join([str(x) for x in length]),
+                          nbatch, precision, direction, False, False),
+                      nbatch=nbatch,
+                      direction=direction,
+                      inplace=False,
+                      real=False,
+                      precision='double',
+                      meta={'scaling': 'weak'})
 
 
 def unbatched_1d():

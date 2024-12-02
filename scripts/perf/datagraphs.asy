@@ -41,7 +41,22 @@ bool dobars = true;
 bool dolegend = true;
 real Ncut = inf;
 
+int ngroup = 2;
+
+string ivariable = "lengths";
+//ivariable = "ndev";
+string scaling = "";
+//scaling = "strong";
+
 usersetting();
+
+if(ivariable == "ndev") {
+    xlabel = "Number of devices";
+}
+
+if(ivariable == "batch") {
+    xlabel = "Batch size";
+}
 
 if(primaryaxis == "gflops") {
     ylabel = "GFLOP/s";
@@ -77,6 +92,13 @@ bool datapointless(datapoint a, datapoint b)
 
 pair[][] xyval = new real[testlist.length][];
 pair[][] ylowhigh = new real[testlist.length][];
+
+for(int ridx = 0; ridx < datapoints.length; ++ridx) {
+  for(int idx = 0; idx < datapoints[ridx].length; ++idx) {
+    datapoints[ridx][idx].mklabel(ivariable);
+  }
+}
+
 for(int n = 0; n < datapoints.length; ++n) {
     datapoints[n] = sort(datapoints[n], datapointless);
     datapoints_to_xyvallowhigh(datapoints[n], xyval[n], ylowhigh[n]);
@@ -108,6 +130,10 @@ if(bounds[3] / bounds[2] < 10) {
 }
 scale(xlog ? Log : Linear, ylog ? Log : Linear);
 
+// if(scaling == "strong") {
+//     scale(Log , Log);
+// }
+
 // Plot the primary graph:
 for(int n = 0; n < xyval.length; ++n)
 {
@@ -118,6 +144,7 @@ for(int n = 0; n < xyval.length; ++n)
     string legend = myleg ? legends[n] : texify(testlist[n]);
     marker mark = marker(scale(0.5mm) * unitcircle, Draw(graphpen + solid));
 
+    
     if(dobars) {
         // Compute the error bars:
         pair[] dp; // high
@@ -134,6 +161,25 @@ for(int n = 0; n < xyval.length; ++n)
     // Actualy plot things:
     draw(graph(xyval[n]), graphpen, legend, mark);
     
+    if(scaling == "strong") {
+        real[] ndevs = new real[];
+        real[] tscale = new real[];
+        for(int idx = 0; idx < xyval[n].length; ++idx) {
+            ndevs.push( xyval[n][idx].x );
+            tscale.push( xyval[n][0].y / ndevs[idx] );
+        }
+        
+        draw(graph(ndevs, tscale), graphpen+dashed);
+    }
+    if(scaling == "weak") {
+        real[] ndevs = new real[];
+        real[] tscale = new real[];
+        for(int idx = 0; idx < xyval[n].length; ++idx) {
+            ndevs.push( xyval[n][idx].x );
+            tscale.push( xyval[n][0].y );
+        }
+	draw(graph(ndevs, tscale), graphpen+dashed);
+    }
 }
 
 
@@ -151,13 +197,26 @@ if(dolegend) {
     
 if(secondary_filenames != "")
 {
+  
   write("secondary_filenames: ", secondary_filenames);
   string[] second_list = listfromcsv(secondary_filenames);
-    
+  for(int idx = 0; idx < second_list.length; ++idx) {
+    write(second_list[idx]);
+  }
+
+  
     datapoint[][] datapoints = new datapoint[second_list.length][];
     
     readfiles(second_list, datapoints);
 
+
+    for(int ridx = 0; ridx < datapoints.length; ++ridx) {
+      for(int idx = 0; idx < datapoints[ridx].length; ++idx) {
+	datapoints[ridx][idx].mklabel(ivariable);
+      }
+    }
+
+    
     pair[][] xyval = new real[second_list.length][];
     pair[][] ylowhigh = new real[second_list.length][];
     for(int n = 0; n < datapoints.length; ++n) {
@@ -200,7 +259,10 @@ if(secondary_filenames != "")
                     errorbars(pic, xyval[n], dp, dm, graphpen);
 		    
                 }
-                draw(pic,graph(pic, xyval[n]), graphpen, legends[n] + " vs " + legends[n+1],mark);
+                int nbase = ngroup * (n # (ngroup - 1));
+                int ncomp = nbase + (n % (ngroup - 1)) + 1;
+                draw(pic,graph(pic, xyval[n]), graphpen,
+                     legends[ncomp] + " over " + legends[nbase],mark);
 		//write(xyval[n]);
 		
 		yequals(pic, 1.0, lightgrey);
@@ -209,9 +271,10 @@ if(secondary_filenames != "")
 
 	    
             yaxis(pic, secondaryaxis, Right, black, LeftTicks);
-            if(dolegend)
-                attach(legend(pic), point(plain.E), 60*plain.E - 40 *plain.N  );
-            //attach(legend(pic), point(plain.S), 120*S);
+            if(dolegend) {
+	      attach(legend(pic), point(plain.E), 60*plain.E - 40 *plain.N  );
+              //attach(legend(pic), point(plain.S), 120*S);
+            }
         });
     add(secondarypic);
 }

@@ -415,7 +415,7 @@ def read_runs(dnames, verbose=False):
     return [read_run(dname, verbose) for dname in dnames]
 
 
-def get_post_processed(dname, docdir, outdirs):
+def get_post_processed(dname, docdir, outdirs, ngroup):
     """Return file names of post-processed performance data.
 
     The 'primary' files contain median confidence intervals for each
@@ -432,9 +432,14 @@ def get_post_processed(dname, docdir, outdirs):
     import os
 
     secondary = []
-    for outdir in outdirs[1:]:
-        sdatname = str(outdir.name) + "-over-" + str(
-            outdirs[0].name) + "-" + dname + ".sdat"
+    if ngroup == None:
+        totalgroups = 1
+    else:
+        totalgroups = (len(outdirs) + ngroup - 1) // ngroup
+
+    # FIXME: ngroup needs to be here as well.
+    for gidx in range(totalgroups):
+        sdatname = 'group_' + str(gidx) + "-" + dname + ".sdat"
         path = os.path.join(docdir, sdatname)
         if os.path.isfile(path):
             secondary.append(path)

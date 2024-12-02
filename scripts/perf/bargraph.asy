@@ -21,7 +21,9 @@
 import graph;
 import utils;
 
-void drawbargraph(datapoint[][] data, string[] legs, string[] otherlegs) {
+void drawbargraph(datapoint[][] data,
+                  string[] legs,
+                  string[] otherlegs) {
   // Let's go to the bar, eh?
 
   // Assumption: same number of data points.
@@ -118,6 +120,8 @@ string secondaryaxis = "speedup";
 string ivariable = "lengths";
 //ivariable = "batch";
 //ivariable = "placeness";
+
+string scaling = "";
 
 usersetting();
 

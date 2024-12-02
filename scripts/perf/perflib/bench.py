@@ -111,6 +111,7 @@ def run(bench,
 
     # default to slab decomposition for scalability experiments,
     # which grants the least number of transpositions
+    # TODO: extend to further decompositions
     if (scalability):
         if (ngpus > 1):
             if (len(length) == 3):
