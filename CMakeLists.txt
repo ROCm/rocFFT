@@ -123,6 +123,9 @@ if( USE_HIPRAND )
   add_compile_definitions(USE_HIPRAND)
 endif( )
 
+# Split up function pool compilation across N files to parallelize its build
+set(ROCFFT_FUNCTION_POOL_N 8 CACHE STRING "Number of files to split function_pool into for compilation")
+
 # FOR HANDLING ENABLE/DISABLE OPTIONAL BACKWARD COMPATIBILITY for FILE/FOLDER REORG
 option(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY "Build with file/folder reorg with backward compatibility enabled" OFF)
 if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY AND NOT WIN32)

@@ -43,7 +43,7 @@ from operator import mul
 
 from generator import (ArgumentList, BaseNode, Call, CommentBlock, Function,
                        Include, LineBreak, Map, StatementList, Variable,
-                       Assign, name_args, write)
+                       Assign, name_args, write, ForwardDeclaration)
 
 from collections import namedtuple
 
@@ -145,17 +145,37 @@ class FFTKernel(BaseNode):
         if direct_to_from_reg is not None:
             f += ', ' + str(direct_to_from_reg).lower()
         f += ', '
-        if aot_rtc:
-            f += 'true'
-        else:
-            f += 'false'
+
+        f += 'true' if aot_rtc else 'false'
         f += ')'
         return f
 
 
-def generate_cpu_function_pool(functions):
-    """Generate function to populate the kernel function pool."""
+def generate_cpu_function_pool_main(num_files):
+    """Generate main function_pool.cpp file which calls each function_pool_init function"""
+    fwd_declarations = StatementList()
+    for i in range(num_files):
+        fwd_declarations += ForwardDeclaration(
+            type='void',
+            name=f'function_pool_init_{i}',
+            value=
+            'std::unordered_map<FMKey, FMKey, SimpleHash>& def_key_pool, std::unordered_map<FMKey, FFTKernel, SimpleHash>& function_map'
+        )
 
+    call_list = StatementList()
+    call_args = ArgumentList('def_key_pool', 'function_map')
+    for i in range(num_files):
+        call_list += Call(name=f'function_pool_init_{i}', arguments=call_args)
+    return StatementList(
+        Include('"../include/function_pool.h"'), fwd_declarations,
+        Function(name='function_pool::function_pool',
+                 value=False,
+                 arguments=ArgumentList(),
+                 body=call_list))
+
+
+def generate_cpu_function_pool_pieces(functions, num_files):
+    """Generate function(s) to populate the kernel function pool."""
     function_map = Map('function_map')
     precisions = {
         'sp': 'rocfft_precision_single',
@@ -163,27 +183,45 @@ def generate_cpu_function_pool(functions):
         'half': 'rocfft_precision_half',
     }
     var_kernel = Variable('kernel', 'FFTKernel')
+    initial_statement = StatementList()
+    initial_statement += var_kernel.declaration()
 
-    populate = StatementList()
-    populate += var_kernel.declaration()
-    for f in functions:
+    # Init list to store contents of function_pool_init function per file being generated
+    piece_contents = [
+        StatementList() + var_kernel.declaration() for _ in range(num_files)
+    ]
+
+    # Cycles through each file per loop execution to distribute work amongst N files
+    curr_file = 0
+
+    for i, f in enumerate(functions):
         length, precision, scheme, transpose = f.meta.length, f.meta.precision, f.meta.scheme, f.meta.transpose
         if isinstance(length, (int, str)):
             length = [length, 0]
-        populate += Assign(var_kernel, FFTKernel(f))
+        piece_contents[curr_file] += Assign(var_kernel, FFTKernel(f))
         key = Call(
             name='FMKey',
             arguments=ArgumentList(length[0], length[1], precisions[precision],
                                    scheme, transpose or 'NONE',
                                    'kernel.get_kernel_config()')).inline()
-        populate += function_map.assert_insert(key, var_kernel)
+        piece_contents[curr_file] += function_map.assert_insert(
+            key, var_kernel, 'def_key_pool', 'function_map')
+        curr_file = (curr_file + 1) % num_files
 
-    return StatementList(
-        Include('"../include/function_pool.h"'),
-        Function(name='function_pool::function_pool',
-                 value=False,
-                 arguments=ArgumentList(),
-                 body=populate))
+    # Assemble contents of each file to return in a list
+    pieces = [None] * num_files
+    piece_args = ArgumentList(
+        'std::unordered_map<FMKey, FMKey, SimpleHash>& def_key_pool',
+        'std::unordered_map<FMKey, FFTKernel, SimpleHash>& function_map')
+    for i in range(num_files):
+        pieces[i] = StatementList(
+            Include('"../include/function_pool.h"'),
+            Function(name=f'void function_pool_init_{i}',
+                     value=False,
+                     arguments=piece_args,
+                     body=piece_contents[i]))
+
+    return pieces
 
 
 def list_generated_kernels(kernels):
@@ -1149,6 +1187,10 @@ def cli():
     parser.add_argument('--runtime-compile-default',
                         type=str,
                         help='Compile kernels at runtime by default.')
+    parser.add_argument(
+        '--num-files',
+        type=int,
+        help='Number of files to generate for parallel compilation.')
 
     list_parser = subparsers.add_parser(
         'list', help='List kernel files that will be generated.')
@@ -1160,6 +1202,9 @@ def cli():
                                  help='Stockham AOT executable.')
 
     args = parser.parse_args()
+    if args.num_files:
+        assert (args.num_files >
+                0), 'Number of files for function_pool should be positive'
 
     patterns = args.pattern.split(',')
     precisions = args.precision.split(',')
@@ -1245,9 +1290,13 @@ def cli():
     if args.command == 'generate':
         cpu_functions = generate_kernels(kernels, precisions,
                                          args.stockham_aot)
+        func_files = generate_cpu_function_pool_pieces(cpu_functions,
+                                                       args.num_files)
+        for i in range(args.num_files):
+            write(f'function_pool_init_{i}.cpp', func_files[i], format=False)
         write('function_pool.cpp',
-              generate_cpu_function_pool(cpu_functions),
-              format=True)
+              generate_cpu_function_pool_main(args.num_files),
+              format=False)
 
 
 if __name__ == '__main__':

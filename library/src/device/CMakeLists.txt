@@ -111,15 +111,29 @@ if( STATUS AND NOT STATUS EQUAL 0 )
   message( FATAL_ERROR "Kernel generator failed (list): ${STATUS}")
 endif()
 
+# create list of all N files that will initialize function pool
+if( ROCFFT_FUNCTION_POOL_N LESS 1 )
+  message( FATAL_ERROR "ROCFFT_FUNCTION_POOL_N must be positive (value passed is ${ROCFFT_FUNCTION_POOL_N})")
+endif()
+
+# RANGE includes end number, so subtract 1
+math(EXPR LOOP_END "${ROCFFT_FUNCTION_POOL_N} - 1")
+set(FUNCTION_POOLS)
+foreach(i RANGE ${LOOP_END})
+  list(APPEND FUNCTION_POOLS "function_pool_init_${i}.cpp")
+endforeach()
+
 # stockham_aot will be having relative RUNPATH with respect to package install directory
 # Set LD_LIBRARY_PATH for running the executable from build directory
 add_custom_command(OUTPUT ${gen_headers}
+  OUTPUT ${FUNCTION_POOLS}
   COMMAND ${CMAKE_COMMAND} -E env "LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH}:${ROCM_PATH}/${CMAKE_INSTALL_LIBDIR}" ${PYTHON3_EXE} ${kgen}
   --pattern=${GENERATOR_PATTERN}
   --precision=${GENERATOR_PRECISION}
   --manual-small=${GENERATOR_MANUAL_SMALL_SIZE}
   --manual-large=${GENERATOR_MANUAL_LARGE_SIZE}
   --runtime-compile-default=${ROCFFT_RUNTIME_COMPILE_DEFAULT}
+  --num-files=${ROCFFT_FUNCTION_POOL_N}
   generate $<TARGET_FILE:stockham_aot>
   DEPENDS stockham_aot ${kgendeps}
   COMMENT "Generator producing device kernels for rocfft-device"
@@ -138,6 +152,7 @@ option(ROCFFT_CALLBACKS_ENABLED "Enable user-defined callbacks for load/stores f
 
 # function pool is a generated file, but put it in its own library so it's easier to link to.
 add_library( rocfft-function-pool OBJECT
+  ${FUNCTION_POOLS}
   function_pool.cpp
 )
 target_include_directories( rocfft-function-pool

@@ -362,6 +362,16 @@ class StatementList(BaseNode):
 
 
 @name_args(['name', 'type', 'value'])
+class ForwardDeclaration(BaseNode):
+
+    def __str__(self):
+        s = f'{self.type} {self.name}'
+        if self.value is not None:
+            s += f'({self.value});'
+        return s
+
+
+@name_args(['name', 'type', 'value'])
 class InlineDeclaration(BaseNode):
 
     def __str__(self):
@@ -801,9 +811,10 @@ class Map(BaseNodeOps):
             Throw('std::runtime_error("' + str(what_error) + '")'))
         return If(Equal(status, "false"), throw)
 
-    def assert_insert(self, key, value):
+    def assert_insert(self, key, value, def_key_pool, function_map):
         insert = Call('insert_default_entry',
-                      arguments=ArgumentList(key, value)).inline()
+                      arguments=ArgumentList(key, value, def_key_pool,
+                                             function_map)).inline()
         throw = StatementList(Throw('std::runtime_error("' + str(key) + '")'))
         return If(Equal(insert, "false"), throw)
 
@@ -929,7 +940,7 @@ class Call(BaseNode):
         if self.launch_params:
             f += '<<<' + self.launch_params.callexpr() + '>>>'
         f += '(' + self.arguments.callexpr() + ');'
-        f += self.provenance() + os.linesep
+        f += self.provenance()
         return f
 
     def inline(self):
