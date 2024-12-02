@@ -1015,22 +1015,22 @@ def tuning_suite():
 def partial_pass():
     for direction in [-1, 1]:
         for precision in ['single', 'double']:
-            for batch in [
-                    1, 2, 5, 10, 15, 20, 25, 50, 75, 100, 200, 250, 500, 750,
-                    1000, 2000, 5000, 10000
-            ]:
-                for place in all_inplaces:
+            for place in all_inplaces:
+                for batch in [
+                        1, 2, 5, 10, 15, 20, 25, 50, 75, 100, 150, 200, 250,
+                        500, 750, 1000, 1250, 1500, 1575, 2000, 2500, 3000,
+                        3500, 4000, 4500, 5000, 7500, 10000
+                ]:
+
                     length = (64, 64, 64)
+                    placestr = "ip" if place else "op"
                     yield Problem(length,
-                                  tag=mktag("partial_pass_batch_" + str(batch),
-                                            3, precision, direction, False,
+                                  tag=mktag("partial_pass_" + placestr, 3,
+                                            precision, direction, False,
                                             False),
                                   nbatch=batch,
                                   direction=direction,
                                   inplace=place,
                                   real=False,
-                                  meta={
-                                      'figtype': 'bargraph',
-                                      'ivariable': 'placeness'
-                                  },
+                                  meta={'ivariable': 'batch'},
                                   precision=precision)
