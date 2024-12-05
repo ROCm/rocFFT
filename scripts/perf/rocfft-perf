@@ -875,7 +875,7 @@ def main():
                        choices=["bootstrap", "stdev"],
                        help="method for generating confidence interval",
                        default="bootstrap")
-    for p in [post_parser, pdf_parser]:
+    for p in [post_parser, pdf_parser, html_parser]:
         p.add_argument('--ngroup',
                        type=int,
                        help="size of comparison subgroup")
