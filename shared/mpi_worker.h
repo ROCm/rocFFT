@@ -978,7 +978,8 @@ int mpi_worker_main(const char*                                               de
             std::sort(times.begin(), times.end());
             // print median
             double median;
-            if(ntrial % 2)
+            // average the two times around the middle
+            if(ntrial % 2 && ntrial > 1)
                 median = (times[ntrial / 2] + times[(ntrial + 1) / 2]) / 2;
             else
                 median = times[ntrial / 2];
