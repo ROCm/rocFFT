@@ -336,6 +336,7 @@ if( ROCFFT_MPI_ENABLE )
       ${CMAKE_BINARY_DIR}/include
       ${CMAKE_CURRENT_SOURCE_DIR}/../../library/include/
       ${MPI_C_INCLUDE_PATH}
+      $<BUILD_INTERFACE:${FFTW_INCLUDES}>
     )
     target_compile_options( ${worker} PRIVATE ${WARNING_FLAGS} )
 
