@@ -90,11 +90,7 @@ inline size_t needed_ram_buffers(const fft_params& params, const int verbose)
     // are assumed to require a close enough amount of space for the purposes
     // of this estimate.
 
-    size_t needed_ram = 6
-                        * std::accumulate(params.length.begin(),
-                                          params.length.end(),
-                                          static_cast<size_t>(1),
-                                          std::multiplies<size_t>());
+    size_t needed_ram = 6 * product(params.length.begin(), params.length.end());
 
     // Account for precision and data type:
     if(params.transform_type != fft_transform_type_real_forward
@@ -232,10 +228,7 @@ inline size_t needed_ram_fftw(const fft_params&                                 
                               const typename fftw_trait<Tfloat>::fftw_plan_type& cpu_plan,
                               const int                                          verbose)
 {
-    size_t total_length = std::accumulate(contiguous_params.length.begin(),
-                                          contiguous_params.length.end(),
-                                          static_cast<size_t>(1),
-                                          std::multiplies<size_t>());
+    size_t total_length = product(contiguous_params.length.begin(), contiguous_params.length.end());
     size_t needed_ram   = 0;
     // Detect Bluestein in plan
     if(fftw_plan_uses_bluestein<Tfloat>(cpu_plan))
@@ -1487,10 +1480,7 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     // Compute the l-infinity and l-2 distance between the CPU and GPU output:
     // wait for cpu FFT so we can compute cutoff
 
-    const auto total_length = std::accumulate(params.length.begin(),
-                                              params.length.end(),
-                                              static_cast<size_t>(1),
-                                              std::multiplies<size_t>());
+    const auto total_length = product(params.length.begin(), params.length.end());
 
     std::unique_ptr<std::vector<std::pair<size_t, size_t>>> linf_failures;
     if(verbose > 1)

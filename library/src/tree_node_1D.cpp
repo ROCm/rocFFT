@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "tree_node_1D.h"
+#include "../../shared/arithmetic.h"
 #include "../../shared/precision_type.h"
 #include "../device/kernels/bank_shift.h"
 #include "function_pool.h"
@@ -1149,7 +1150,7 @@ void SBCCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
     lds = length[0] * bwd;
 
     gp.b_x = ((length[1]) - 1) / bwd + 1;
-    gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
+    gp.b_x *= product(length.begin() + 2, length.end()) * batch;
     gp.wgs_x = wgs;
 
     if(applyPartialPass)
@@ -1275,7 +1276,7 @@ void SBRCNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
     wgs         = kernel.workgroup_size;
     lds         = length[0] * bwd;
     gp.b_x      = (length[1] - 1) / bwd + 1;
-    gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
+    gp.b_x *= product(length.begin() + 2, length.end()) * batch;
     gp.wgs_x = wgs;
 }
 
@@ -1392,7 +1393,7 @@ void SBCRNode::SetupGPAndFnPtr_internal(DevFnCall& fnPtr, GridParam& gp)
     bwd         = kernel.transforms_per_block;
     lds         = length[0] * bwd;
     gp.b_x      = ((length[1]) - 1) / bwd + 1;
-    gp.b_x *= std::accumulate(length.begin() + 2, length.end(), batch, std::multiplies<size_t>());
+    gp.b_x *= product(length.begin() + 2, length.end()) * batch;
     gp.wgs_x = wgs;
 
     if(ebtype != EmbeddedType::NONE)

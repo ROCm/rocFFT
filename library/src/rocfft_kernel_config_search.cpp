@@ -113,8 +113,7 @@ std::set<unsigned int>
     {
         if(tpt.empty())
             continue;
-        auto product = std::accumulate(tpt.begin(), tpt.end(), 1U, std::multiplies<unsigned int>());
-        tpts.insert(product);
+        tpts.insert(product(tpt.begin(), tpt.end()));
     }
     return tpts;
 }

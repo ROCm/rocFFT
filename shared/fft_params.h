@@ -679,9 +679,8 @@ public:
         }
 
         // sanity checks
-        int ingrid_size = std::accumulate(ingrid.begin(), ingrid.end(), 1, std::multiplies<int>());
-        int outgrid_size
-            = std::accumulate(outgrid.begin(), outgrid.end(), 1, std::multiplies<int>());
+        int ingrid_size  = product(ingrid.begin(), ingrid.end());
+        int outgrid_size = product(outgrid.begin(), outgrid.end());
 
         if((ingrid.size() != length.size()) || (outgrid.size() != length.size()))
         {
@@ -2181,11 +2180,11 @@ public:
     virtual size_t vram_footprint()
     {
         const auto ibuf_size = ibuffer_sizes();
-        size_t     val       = std::accumulate(ibuf_size.begin(), ibuf_size.end(), (size_t)1);
+        size_t val = std::accumulate(ibuf_size.begin(), ibuf_size.end(), static_cast<size_t>(1));
         if(placement == fft_placement_notinplace)
         {
             const auto obuf_size = obuffer_sizes();
-            val += std::accumulate(obuf_size.begin(), obuf_size.end(), (size_t)1);
+            val += std::accumulate(obuf_size.begin(), obuf_size.end(), static_cast<size_t>(1));
         }
         return val;
     }

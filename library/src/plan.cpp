@@ -2543,8 +2543,8 @@ rocfft_status allgather_brick_params_lus_mpi(rocfft_plan&    plan,
     }
 
     // Total number of bricks on all ranks for this field:
-    const auto num_global_bricks
-        = std::accumulate(global_brick_count.begin(), global_brick_count.end(), 0);
+    const auto num_global_bricks = std::accumulate(
+        global_brick_count.begin(), global_brick_count.end(), static_cast<size_t>(0));
 
     std::vector<typeof(decltype(rocfft_brick_t::lower)::value_type)> global_lowers(
         num_global_bricks * global_brick_length);
@@ -4493,10 +4493,8 @@ void PrintNode(rocfft_ostream& os, const ExecPlan& execPlan, const int indent)
           "*********"
        << std::endl;
 
-    const size_t N = std::accumulate(execPlan.rootPlan->length.begin(),
-                                     execPlan.rootPlan->length.end(),
-                                     execPlan.rootPlan->batch,
-                                     std::multiplies<size_t>());
+    const size_t N = product(execPlan.rootPlan->length.begin(), execPlan.rootPlan->length.end())
+                     * execPlan.rootPlan->batch;
     os << indentStr << "Work buffer size: " << execPlan.workBufSize << std::endl;
     os << indentStr << "Work buffer ratio: " << (double)execPlan.workBufSize / (double)N
        << std::endl;

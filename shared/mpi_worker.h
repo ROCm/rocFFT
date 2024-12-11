@@ -188,7 +188,8 @@ static void gather_field(MPI_Comm                                  mpi_comm,
     // allocate buffer for rank 0 to run fftw
     if(mpi_rank == 0)
     {
-        size_t field_elems = std::accumulate(bricks.begin(), bricks.end(), 0UL, add_brick_elems);
+        size_t field_elems = std::accumulate(
+            bricks.begin(), bricks.end(), static_cast<size_t>(0), add_brick_elems);
         recvbuf.alloc(field_elems * elem_size);
     }
 
@@ -202,7 +203,8 @@ static void gather_field(MPI_Comm                                  mpi_comm,
         range.first != range.second;
         range = std::equal_range(range.second, bricks.end(), range.second->rank, match_rank()))
     {
-        size_t rank_elems = std::accumulate(range.first, range.second, 0UL, add_brick_elems);
+        size_t rank_elems
+            = std::accumulate(range.first, range.second, static_cast<size_t>(0), add_brick_elems);
         recvcounts.push_back(rank_elems);
         displs.push_back(elem_total);
         elem_total += rank_elems;
@@ -296,8 +298,8 @@ static void alloc_local_bricks(MPI_Comm                                  mpi_com
     for(auto b = range.first; b != range.second; ++b)
         brick_ptrdiffs_bytes.push_back(compute_ptrdiff(b->length(), b->stride, 0, 0) * elem_size);
 
-    size_t alloc_length_bytes
-        = std::accumulate(brick_ptrdiffs_bytes.begin(), brick_ptrdiffs_bytes.end(), 0);
+    size_t alloc_length_bytes = std::accumulate(
+        brick_ptrdiffs_bytes.begin(), brick_ptrdiffs_bytes.end(), static_cast<size_t>(0));
 
     if(buffer.alloc(alloc_length_bytes) != hipSuccess)
         throw std::runtime_error("failed to alloc brick");
@@ -822,8 +824,8 @@ int mpi_worker_main(const char*                                               de
         std::vector<unsigned int> output_grid(params.length.size() + 1, 1);
 
         // sanity checks
-        int imgrid_size = std::accumulate(imgrid.begin(), imgrid.end(), 1, std::multiplies<int>());
-        int omgrid_size = std::accumulate(omgrid.begin(), omgrid.end(), 1, std::multiplies<int>());
+        int imgrid_size = product(imgrid.begin(), imgrid.end());
+        int omgrid_size = product(omgrid.begin(), omgrid.end());
 
         if((imgrid.size() != params.length.size()) || (omgrid.size() != params.length.size()))
         {

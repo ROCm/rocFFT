@@ -187,8 +187,7 @@ static size_t data_size_bytes(const std::vector<size_t>& lengths,
                               rocfft_array_type          type)
 {
     // first compute the raw number of elements
-    const size_t elems = std::accumulate(
-        lengths.begin(), lengths.end(), static_cast<size_t>(1), std::multiplies<size_t>());
+    const size_t elems = product(lengths.begin(), lengths.end());
     // size of each element
     const size_t elemsize = real_type_size(precision);
     switch(type)

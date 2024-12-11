@@ -44,10 +44,7 @@ RTCKernel::RTCGenerator RTCKernelRealComplex::generate_from_node(const LeafNode&
     if(node.scheme == CS_KERNEL_COPY_HERM_TO_CMPLX)
         input_size = node.outputLength[0] / 2 + 1;
 
-    size_t elems = std::accumulate(node.length.begin() + 1,
-                                   node.length.end(),
-                                   input_size * node.batch,
-                                   std::multiplies<size_t>());
+    size_t elems = product(node.length.begin() + 1, node.length.end()) * input_size * node.batch;
     generator.gridDim
         = {static_cast<unsigned int>(DivRoundingUp<size_t>(elems, LAUNCH_BOUNDS_R2C_C2R_KERNEL)),
            1,

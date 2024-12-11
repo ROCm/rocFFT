@@ -24,6 +24,7 @@
 #include <sstream>
 
 #include "../../shared/CLI11.hpp"
+#include "../../shared/arithmetic.h"
 #include "../../shared/gpubuf.h"
 #include "../../shared/hip_object_wrapper.h"
 #include "../../shared/rocfft_params.h"
@@ -534,8 +535,7 @@ int main(int argc, char* argv[])
     std::cout << " ms" << std::endl;
 
     std::cout << "Execution gflops:  ";
-    const double totsize
-        = std::accumulate(params.length.begin(), params.length.end(), 1, std::multiplies<size_t>());
+    const double totsize = product(params.length.begin(), params.length.end());
     const double k
         = ((params.itype == fft_array_type_real) || (params.otype == fft_array_type_real)) ? 2.5
                                                                                            : 5.0;

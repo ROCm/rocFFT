@@ -278,14 +278,7 @@ bool AssignmentPolicy::ValidOutBuffer(ExecPlan&           execPlan,
         if(BufferIsUnitStride(execPlan, buffer))
         {
             // just check if there's enough space
-            return std::accumulate(nodeLen.begin(),
-                                   nodeLen.end(),
-                                   static_cast<size_t>(1),
-                                   std::multiplies<size_t>())
-                   <= std::accumulate(bufLen.begin(),
-                                      bufLen.end(),
-                                      static_cast<size_t>(1),
-                                      std::multiplies<size_t>());
+            return product(nodeLen.begin(), nodeLen.end()) <= product(bufLen.begin(), bufLen.end());
         }
 
         // ensure that the node's dimensions fit exactly into the

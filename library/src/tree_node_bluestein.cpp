@@ -19,6 +19,7 @@
 // THE SOFTWARE.
 
 #include "tree_node_bluestein.h"
+#include "../../shared/arithmetic.h"
 #include "function_pool.h"
 #include "kernel_launch.h"
 #include "node_factory.h"
@@ -229,8 +230,7 @@ void BluesteinNode::BuildTree_internal(SchemeTreeVec& child_scheme_trees)
         NodeMetaData ffticPlanData(this);
         ffticPlanData.dimension = 1;
         ffticPlanData.length.push_back(lengthBlue);
-        ffticPlanData.batch
-            *= std::accumulate(length.begin() + 1, length.end(), 1, std::multiplies<size_t>());
+        ffticPlanData.batch *= product(length.begin() + 1, length.end());
         ffticPlanData.batch++;
         ffticPlanData.iOffset = lengthBlue;
         ffticPlanData.oOffset = lengthBlue;

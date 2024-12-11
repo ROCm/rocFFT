@@ -1,4 +1,5 @@
 #include "rtc_partial_pass_sbcc_64_64_64.h"
+#include "../../shared/arithmetic.h"
 #include "device/kernel-generator-embed.h"
 #include "include/kernel_launch.h"
 #include "rtc_kernel.h"
@@ -1092,8 +1093,7 @@ RTCKernel::RTCGenerator RTCKernelPartialPassSBCC64Cubed::generate_from_node(
     auto bwd = transforms_per_block;
 
     auto b_x = ((node.length[1]) - 1) / bwd + 1;
-    b_x *= std::accumulate(
-        node.length.begin() + 2, node.length.end(), node.batch, std::multiplies<size_t>());
+    b_x *= product(node.length.begin() + 2, node.length.end()) * node.batch;
     auto wgs_x = workgroup_size;
 
     b_x /= 4;

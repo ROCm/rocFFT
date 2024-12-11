@@ -44,8 +44,7 @@ RTCKernel::RTCGenerator RTCKernelTranspose::generate_from_node(const LeafNode&  
     // grid Z counts any dims beyond Y+Z, plus batch
     unsigned int gridYrows = length[1] * (length.size() > 2 ? length[2] : 1);
     auto         highdim   = std::min<size_t>(length.size(), 3);
-    unsigned int gridZ     = std::accumulate(
-        length.begin() + highdim, length.end(), node.batch, std::multiplies<unsigned int>());
+    unsigned int gridZ     = product(length.begin() + highdim, length.end()) * node.batch;
 
     generator.gridDim  = {DivRoundingUp<unsigned int>(length[0], tileX),
                          DivRoundingUp<unsigned int>(gridYrows, tileX),

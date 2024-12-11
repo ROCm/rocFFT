@@ -180,8 +180,7 @@ std::set<size_t> SupportedThreadsPerTransform(const std::vector<size_t>& factori
     {
         if(tpt.empty())
             continue;
-        size_t product = std::accumulate(tpt.begin(), tpt.end(), 1, std::multiplies<size_t>());
-        tpts.insert(product);
+        tpts.insert(product(tpt.begin(), tpt.end()));
     }
     return tpts;
 }

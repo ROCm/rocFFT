@@ -226,8 +226,7 @@ int offline_tune_problems(rocfft_params& params, int verbose, int ntrial)
     std::vector<double>      node_best_times   = std::vector<double>(num_nodes, max_double);
 
     // calculate this once only
-    const double totsize
-        = std::accumulate(params.length.begin(), params.length.end(), 1, std::multiplies<size_t>());
+    const double totsize = product(params.length.begin(), params.length.end());
     const double k
         = ((params.itype == fft_array_type_real) || (params.otype == fft_array_type_real)) ? 2.5
                                                                                            : 5.0;

@@ -613,7 +613,7 @@ bool RC3DNode::CheckPartialPassSupport()
     // the Stockham generators, revisit these restrictions.
     bool batchCondition = (batch >= 5);
 
-    size_t checkDist = std::accumulate(length.begin(), length.end(), 1, std::multiplies<size_t>());
+    size_t checkDist     = product(length.begin(), length.end());
     bool   distCondition = (iDist == checkDist && oDist == checkDist);
 
     bool strideCondition = (inStride[0] == 1 && outStride[0] == 1);
