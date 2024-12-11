@@ -911,17 +911,24 @@ void TransformPowX(const ExecPlan&       execPlan,
     {
         // offsets have only been applied to pointers given to kernels,
         // so apply them here for printing too
-        void* out_buffer_offset[2] = {out_buffer[0], out_buffer[1]};
+        void* out_buffer_offset[2] = {out_buffer[0], nullptr};
         if(execPlan.rootPlan->oOffset)
         {
             out_buffer_offset[0] = ptr_offset(out_buffer_offset[0],
                                               execPlan.rootPlan->oOffset,
                                               execPlan.rootPlan->precision,
                                               execPlan.rootPlan->outArrayType);
-            out_buffer_offset[1] = ptr_offset(out_buffer_offset[1],
-                                              execPlan.rootPlan->oOffset,
-                                              execPlan.rootPlan->precision,
-                                              execPlan.rootPlan->outArrayType);
+        }
+
+        if(array_type_is_planar(execPlan.rootPlan->outArrayType))
+        {
+            out_buffer_offset[1] = out_buffer[1];
+
+            if(execPlan.rootPlan->oOffset)
+                out_buffer_offset[1] = ptr_offset(out_buffer_offset[1],
+                                                  execPlan.rootPlan->oOffset,
+                                                  execPlan.rootPlan->precision,
+                                                  execPlan.rootPlan->outArrayType);
         }
 
         std::vector<hostbuf> bufOutHost;
