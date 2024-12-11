@@ -308,15 +308,24 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
                 gp.lds_bytes /= 2;
         }
     }
-    // SBCC support half-lds conditionally
-    if((scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-       && (dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT) && (ebtype == EmbeddedType::NONE))
+    if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
     {
-        if(function_pool::has_function(key))
+        // SBCC support half-lds conditionally
+        if((dir2regMode == DirectRegType::TRY_ENABLE_IF_SUPPORT) && (ebtype == EmbeddedType::NONE)
+           && function_pool::has_function(key))
         {
             auto kernel = function_pool::get_kernel(key);
             if(kernel.half_lds)
                 gp.lds_bytes /= 2;
+        }
+
+        auto apply_large_twd = (largeTwdBase > 0 && ltwdSteps > 0);
+        if(apply_large_twd && largeTwdBase < 8)
+        {
+            // append twiddle table to dynamic lds
+            auto kernel = function_pool::get_kernel(key);
+            gp.lds_bytes
+                += (kernel.transforms_per_block * length[0]) * complex_type_size(precision);
         }
     }
     // NB:

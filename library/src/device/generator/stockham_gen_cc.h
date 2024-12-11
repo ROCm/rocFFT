@@ -66,11 +66,7 @@ struct StockhamKernelCC : public StockhamKernel
     // large twiddle support
     Multiply ltwd_entries{Parens{ShiftLeft{1, large_twiddle_base}}, 3};
     And      ltwd_in_lds{apply_large_twiddle, Less{large_twiddle_base, 8}};
-    Variable large_twd_lds{"large_twd_lds",
-                           "__shared__ scalar_type",
-                           false,
-                           false,
-                           Ternary{Parens{ltwd_in_lds}, Parens{ltwd_entries}, Parens{0}}};
+    Variable large_twd_lds{"large_twd_lds", "scalar_type", true, true};
 
     std::string tiling_name() override
     {
@@ -546,7 +542,7 @@ struct StockhamKernelCC : public StockhamKernel
         Variable ltwd_id{"ltwd_id", "size_t"};
 
         StatementList stmts;
-        stmts += Declaration{large_twd_lds};
+        stmts += Declaration{large_twd_lds, lds_complex + transforms_per_block * lengths[0]};
         stmts += If{ltwd_in_lds,
                     {Declaration{ltwd_id, thread_id},
                      While{Less{ltwd_id, ltwd_entries},

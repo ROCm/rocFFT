@@ -679,20 +679,6 @@ static std::string partial_pass_sbcc_64_64_64_rtc_body(const std::string& kernel
     auto load_cb = get_load_cb<scalar_type, cbtype>(load_cb_fn);
     auto store_cb = get_store_cb<scalar_type, cbtype>(store_cb_fn);
 
-    // large twiddles
-    __shared__ scalar_type large_twd_lds[(apply_large_twiddle && large_twiddle_base < 8)
-                                             ? ((1 << large_twiddle_base) * 3)
-                                             : (0)];
-    if (apply_large_twiddle && large_twiddle_base < 8)
-    {
-        size_t ltwd_id = threadIdx.x;
-        while (ltwd_id < (1 << large_twiddle_base) * 3)
-        {
-            large_twd_lds[ltwd_id] = large_twiddles[ltwd_id];
-            ltwd_id += 64;
-        }
-    }
-
     // offsets
     const size_t dim = 3;
     const size_t stride0 = (sb == SB_UNIT) ? (1) : (stride[0]);
@@ -893,7 +879,7 @@ static std::string partial_pass_sbcc_64_64_64_rtc_body(const std::string& kernel
         thread_in_device_twd,
         thread_in_device,
         true,
-        (apply_large_twiddle && large_twiddle_base < 8) ? (large_twd_lds) : (large_twiddles),
+        large_twiddles,
         transform);        
     )_SRC";
     }
@@ -918,7 +904,7 @@ static std::string partial_pass_sbcc_64_64_64_rtc_body(const std::string& kernel
         thread_in_device_twd,
         thread_in_device,
         true,
-        (apply_large_twiddle && large_twiddle_base < 8) ? (large_twd_lds) : (large_twiddles),
+        large_twiddles,
         transform);
     )_SRC";
     }
