@@ -237,43 +237,51 @@ RTCKernel::RTCGenerator RTCKernelRealComplexEvenTranspose::generate_from_node(
     unsigned int n     = node.length[0];
     unsigned int dim   = node.length.size();
 
+    size_t elems;
+
+    unsigned int gridX;
+    unsigned int gridY;
+
     if(node.scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE)
     {
-        // grid X dimension handles 2 tiles at a time, so allocate enough
-        // blocks to go halfway across 'n'
-        //
-        // grid Y dimension needs enough blocks to handle the second
-        // dimension - multiply by the third dimension to get enough
-        // blocks, if we're doing 3D
-        //
-        // grid Z counts number of batches
-        generator.gridDim
-            = {(n - 1) / tileX / 2 + 1,
-               ((m - 1) / tileY + 1) * (dim > 2 ? static_cast<unsigned int>(node.length[2]) : 1),
-               count};
-        // one thread per element in a tile
-        generator.blockDim = {tileX, tileY, 1};
+        // If allocating a 3-D grid, grid X would handle 2 tiles at a time, grid Y, the second
+        // dimension - multiply by the third dimension, and grid Z, the number of batches:
+        // generator.gridDim
+        //     = {(n - 1) / tileX / 2 + 1,
+        //        ((m - 1) / tileY + 1) * (dim > 2 ? static_cast<unsigned int>(node.length[2]) : 1),
+        //        count};
+
+        // Since grid size has to be given as {gridX, 1, 1}, then
+        // allocation is done as a 1-D grid by combining all dimensions:
+        gridX = (tileX * tileY) * ((n - 1) / tileX / 2 + 1);
+        gridY = ((m - 1) / tileY + 1) * (dim > 2 ? static_cast<unsigned int>(node.length[2]) : 1);
+        elems = gridX * gridY * count;
     }
     else
     {
-        // grid X dimension needs enough blocks to handle the first
-        // dimension - multiply by the second dimension to get enough
-        // blocks, if we're doing 3D
+        // In a 3-D grid, grid X handles the first dimension - multiplied by the second dimension
+        // to get enough blocks, gridY dimension handles 2 tiles at a time, and grid Z handles the number
+        // of batches:
+
         if(dim > 2)
         {
             n *= node.length[1];
             m = node.length[2];
         }
+        gridX = (tileX * tileY) * (n - 1) / tileX + 1;
+        gridY = std::max<unsigned int>((((m - 1) / 2) + (tileY - 1)) / tileY, 1);
 
-        // grid Y dimension handles 2 tiles at a time, so allocate enough
-        // blocks to go halfway across 'm'
-        auto gridY = std::max<unsigned int>((((m - 1) / 2) + (tileY - 1)) / tileY, 1);
-
-        // grid Z counts number of batches
-        generator.gridDim = {(n - 1) / tileX + 1, gridY, count};
-        // one thread per element in a tile
-        generator.blockDim = {tileX, tileY, 1};
+        // Since grid size has to be given as {gridX, 1, 1}, then
+        // allocation is done as a 1-D grid by combining all dimensions:
+        elems = gridX * gridY * count;
     }
+
+    generator.gridDim
+        = {static_cast<unsigned int>(DivRoundingUp<size_t>(elems, LAUNCH_BOUNDS_R2C_C2R_KERNEL)),
+           1,
+           1};
+
+    generator.blockDim = {tileX, tileY, 1};
 
     RealComplexEvenTransposeSpecs specs{{node.scheme,
                                          node.length.size(),
@@ -323,6 +331,33 @@ RTCKernelArgs RTCKernelRealComplexEvenTranspose::get_launch_args(DeviceCallIn& d
     kargs.append_unsigned_int(data.callbacks.load_cb_lds_bytes);
     kargs.append_ptr(data.callbacks.store_cb_fn);
     kargs.append_ptr(data.callbacks.store_cb_data);
+
+    // pass gridY to restore a 3-D GPU grid
+    unsigned int gridY;
+    if(data.node->scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE)
+    {
+        const unsigned int tileY = RealComplexEvenTransposeSpecs::TileY();
+        unsigned int       m     = data.node->length[1];
+        unsigned int       dim   = data.node->length.size();
+
+        gridY = ((m - 1) / tileY + 1)
+                * (dim > 2 ? static_cast<unsigned int>(data.node->length[2]) : 1);
+    }
+    else
+    {
+        unsigned int       m     = data.node->length[1];
+        const unsigned int tileY = RealComplexEvenTransposeSpecs::TileY();
+
+        if(data.node->length.size() > 2)
+        {
+            m = data.node->length[2];
+        }
+
+        gridY = std::max<unsigned int>((((m - 1) / 2) + (tileY - 1)) / tileY, 1);
+    }
+
+    kargs.append_unsigned_int(gridY);
+    kargs.append_unsigned_int(data.node->batch);
 
     append_load_store_args(kargs, *data.node);
 

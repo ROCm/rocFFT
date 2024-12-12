@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -44,11 +44,13 @@ RTCKernel::RTCGenerator RTCKernelTranspose::generate_from_node(const LeafNode&  
     // grid Z counts any dims beyond Y+Z, plus batch
     unsigned int gridYrows = length[1] * (length.size() > 2 ? length[2] : 1);
     auto         highdim   = std::min<size_t>(length.size(), 3);
-    unsigned int gridZ     = product(length.begin() + highdim, length.end()) * node.batch;
 
-    generator.gridDim  = {DivRoundingUp<unsigned int>(length[0], tileX),
-                         DivRoundingUp<unsigned int>(gridYrows, tileX),
-                         gridZ};
+    unsigned int gridX = DivRoundingUp<unsigned int>(length[0], tileX);
+    unsigned int gridY = DivRoundingUp<unsigned int>(gridYrows, tileX);
+    unsigned int gridZ = std::accumulate(
+        length.begin() + highdim, length.end(), node.batch, std::multiplies<unsigned int>());
+
+    generator.gridDim  = {gridX * gridY * gridZ, 1, 1};
     generator.blockDim = {tileX, tileY};
 
     size_t largeTwdSteps = 0;
@@ -131,6 +133,24 @@ RTCKernelArgs RTCKernelTranspose::get_launch_args(DeviceCallIn& data)
     kargs.append_unsigned_int(num_lengths > 2 ? data.node->outStride[2] : 0);
     kargs.append_ptr(kargs_stride_out(data.node->devKernArg));
     kargs.append_unsigned_int(data.node->oDist);
+
+    // pass gridX, gridY, and gridZ to restore a 3-D GPU grid
+
+    unsigned int tileX = data.node->precision == rocfft_precision_single ? 64 : 32;
+    unsigned int gridYrows
+        = data.node->length[1] * (data.node->length.size() > 2 ? data.node->length[2] : 1);
+    auto highdim = std::min<size_t>(data.node->length.size(), 3);
+
+    unsigned int gridX = DivRoundingUp<unsigned int>(data.node->length[0], tileX);
+    unsigned int gridY = DivRoundingUp<unsigned int>(gridYrows, tileX);
+    unsigned int gridZ = std::accumulate(data.node->length.begin() + highdim,
+                                         data.node->length.end(),
+                                         data.node->batch,
+                                         std::multiplies<unsigned int>());
+
+    kargs.append_unsigned_int(gridX);
+    kargs.append_unsigned_int(gridY);
+    kargs.append_unsigned_int(gridZ);
 
     // callback params
     kargs.append_ptr(data.callbacks.load_cb_fn);

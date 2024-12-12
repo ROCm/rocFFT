@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -109,6 +109,9 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     Variable stride_out2_var{"stride_out2", "unsigned int"};
     Variable stride_out_var{"stride_out", "const size_t", true, true};
     Variable odist_var{"odist", "unsigned int"};
+    Variable gridX{"gridX", "const unsigned int"};
+    Variable gridY{"gridY", "const unsigned int"};
+    Variable gridZ{"gridZ", "const unsigned int"};
 
     Function func(kernel_name);
     func.launch_bounds = specs.tileX * specs.tileY;
@@ -132,6 +135,10 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     func.arguments.append(stride_out2_var);
     func.arguments.append(stride_out_var);
     func.arguments.append(odist_var);
+    func.arguments.append(gridX);
+    func.arguments.append(gridY);
+    func.arguments.append(gridZ);
+
     for(const auto& arg : get_callback_args().arguments)
         func.arguments.append(arg);
 
@@ -148,19 +155,34 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     lds.size2D = Literal{specs.tileX};
     func.body += Declaration{lds};
 
+    // recover a 3D GPU grid layout
+    func.body += CommentLines{"since gridDim is passed as {gridX, 1, 1}, use the",
+                              "following variables to recover block indices in a 3-D fashion:"};
+
+    Variable old_blockIdx_x{"old_blockIdx_x", "unsigned int"};
+    Variable old_blockIdx_y{"old_blockIdx_y", "unsigned int"};
+    Variable old_blockIdx_z{"old_blockIdx_z", "unsigned int"};
+    Variable remaining{"remaining", "unsigned int"};
+
+    func.body += Declaration{old_blockIdx_x, Literal{"blockIdx.x"} / (gridY * gridZ)};
+    func.body += Declaration{remaining, Literal{"blockIdx.x"} % (gridY * gridZ)};
+    func.body += Declaration{old_blockIdx_y, (remaining / gridZ)};
+    func.body += Declaration{old_blockIdx_z, Literal{"blockIdx.x"} % gridZ};
+
+    func.body += LineBreak{};
+
     Variable tileBlockIdx_y{"tileBlockIdx_y", "unsigned int"};
     Variable tileBlockIdx_x{"tileBlockIdx_x", "unsigned int"};
-    func.body += Declaration{tileBlockIdx_y, "blockIdx.y"};
-    func.body += Declaration{tileBlockIdx_x, "blockIdx.x"};
+    func.body += Declaration{tileBlockIdx_y, "old_blockIdx_y"};
+    func.body += Declaration{tileBlockIdx_x, "old_blockIdx_x"};
 
     if(specs.diagonal)
     {
         Variable bid{"bid", "auto"};
-        func.body += Declaration{bid, "blockIdx.x + gridDim.x * blockIdx.y"};
-        func.body += Assign{tileBlockIdx_y, bid % Variable{"gridDim.y", ""}};
+        func.body += Declaration{bid, "old_blockIdx_x + gridX * old_blockIdx_y"};
+        func.body += Assign{tileBlockIdx_y, bid % Variable{"gridY", ""}};
         func.body += Assign{tileBlockIdx_x,
-                            (bid / Variable{"gridDim.y", ""} + tileBlockIdx_y)
-                                % Variable{"gridDim.x", ""}};
+                            (bid / Variable{"gridY", ""} + tileBlockIdx_y) % Variable{"gridX", ""}};
     }
 
     if(specs.dim == 2)
@@ -176,10 +198,9 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     func.body += Declaration{tile_y_index, "threadIdx.y"};
 
     func.body += CommentLines{"work out offset for dimensions after the first 3"};
-    Variable remaining{"remaining", "unsigned int"};
     Variable offset_in{"offset_in", "unsigned int"};
     Variable offset_out{"offset_out", "unsigned int"};
-    func.body += Declaration{remaining, "blockIdx.z"};
+    func.body += Assign{remaining, "old_blockIdx_z"};
     func.body += Declaration{offset_in, 0};
     func.body += Declaration{offset_out, 0};
 
