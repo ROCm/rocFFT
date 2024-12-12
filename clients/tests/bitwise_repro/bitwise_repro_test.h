@@ -109,9 +109,7 @@ void compute_fft_data(Tparams&              params,
     // Make sure that the parameters make sense:
     ASSERT_TRUE(params.valid(verbose));
 
-    // Make sure FFT buffers fit in host/device memory
-    size_t needed_ram;
-    check_problem_fits_host_memory(params, verbose, needed_ram);
+    // Make sure FFT buffers fit in device memory
     check_problem_fits_device_memory(params, verbose);
 
     auto ibuffer_sizes = params.ibuffer_sizes();

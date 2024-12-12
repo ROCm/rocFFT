@@ -360,7 +360,14 @@ TEST(rocfft_UnitTest, buffer_hashing_half)
     rocfft_params params;
     set_params(fft_precision_half, params);
 
-    run_test(params);
+    try
+    {
+        run_test(params);
+    }
+    catch(HOSTBUF_MEM_USAGE& e)
+    {
+        GTEST_SKIP() << e.msg.str();
+    }
 }
 
 TEST(rocfft_UnitTest, buffer_hashing_single)
@@ -368,7 +375,14 @@ TEST(rocfft_UnitTest, buffer_hashing_single)
     rocfft_params params;
     set_params(fft_precision_single, params);
 
-    run_test(params);
+    try
+    {
+        run_test(params);
+    }
+    catch(HOSTBUF_MEM_USAGE& e)
+    {
+        GTEST_SKIP() << e.msg.str();
+    }
 }
 
 TEST(rocfft_UnitTest, buffer_hashing_double)
@@ -376,5 +390,12 @@ TEST(rocfft_UnitTest, buffer_hashing_double)
     rocfft_params params;
     set_params(fft_precision_double, params);
 
-    run_test(params);
+    try
+    {
+        run_test(params);
+    }
+    catch(HOSTBUF_MEM_USAGE& e)
+    {
+        GTEST_SKIP() << e.msg.str();
+    }
 }

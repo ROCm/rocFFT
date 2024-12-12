@@ -37,6 +37,8 @@
 
 extern std::string mp_launch;
 
+extern last_cpu_fft_cache last_cpu_fft_data;
+
 void fft_vs_reference(rocfft_params& params, bool round_trip)
 {
     switch(params.precision)
@@ -87,6 +89,12 @@ TEST_P(accuracy_test, vs_fftw)
         catch(std::bad_alloc&)
         {
             GTEST_SKIP() << "host memory allocation failure";
+        }
+        catch(HOSTBUF_MEM_USAGE& e)
+        {
+            // explicitly clear cache
+            last_cpu_fft_data = last_cpu_fft_cache();
+            GTEST_SKIP() << e.msg.str();
         }
         catch(ROCFFT_SKIP& e)
         {

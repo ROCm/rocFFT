@@ -105,110 +105,125 @@ TEST_P(change_type, short_to_float)
     gpubuf               gpu_output;
     std::vector<hostbuf> cpu_input(1);
     std::vector<hostbuf> cpu_output(1);
-    // gpu input is actually shorts, everything else is float
-    ASSERT_EQ(gpu_input.alloc(params.isize[0] * sizeof(short) * input_complex), hipSuccess);
-    ASSERT_EQ(gpu_output.alloc(params.osize[0] * sizeof(float) * 2), hipSuccess);
-    cpu_input[0].alloc(params.isize[0] * sizeof(float) * input_complex);
-    cpu_output[0].alloc(params.osize[0] * sizeof(float) * 2);
 
-    // generate short (16-bit) and float (32-bit) input
-    std::mt19937                         gen;
-    std::uniform_int_distribution<short> dis(-3, 3);
-    std::vector<short>                   cpu_input_short(params.isize[0] * input_complex);
-    for(auto& i : cpu_input_short)
-        i = dis(gen);
-
-    // copy short input to gpubuf
-    ASSERT_EQ(hipMemcpy(gpu_input.data(),
-                        cpu_input_short.data(),
-                        sizeof(short) * cpu_input_short.size(),
-                        hipMemcpyHostToDevice),
-              hipSuccess);
-
-    // convert shorts to floats for FFTW input
-    std::copy(
-        cpu_input_short.begin(), cpu_input_short.end(), static_cast<float*>(cpu_input[0].data()));
-
-    // get callback function so we can pass it to rocfft
-    void* callback_host;
-    if(input_complex == 1)
+    try
     {
-        ASSERT_EQ(
-            hipMemcpyFromSymbol(&callback_host, HIP_SYMBOL(load_callback_short_dev), sizeof(void*)),
-            hipSuccess);
-    }
-    else
-    {
-        ASSERT_EQ(hipMemcpyFromSymbol(
-                      &callback_host, HIP_SYMBOL(load_callback_short2_dev), sizeof(void*)),
+        // gpu input is actually shorts, everything else is float
+        ASSERT_EQ(gpu_input.alloc(params.isize[0] * sizeof(short) * input_complex), hipSuccess);
+        ASSERT_EQ(gpu_output.alloc(params.osize[0] * sizeof(float) * 2), hipSuccess);
+        cpu_input[0].alloc(params.isize[0] * sizeof(float) * input_complex);
+        cpu_output[0].alloc(params.osize[0] * sizeof(float) * 2);
+
+        // generate short (16-bit) and float (32-bit) input
+        std::mt19937                         gen;
+        std::uniform_int_distribution<short> dis(-3, 3);
+        std::vector<short>                   cpu_input_short(params.isize[0] * input_complex);
+        for(auto& i : cpu_input_short)
+            i = dis(gen);
+
+        // copy short input to gpubuf
+        ASSERT_EQ(hipMemcpy(gpu_input.data(),
+                            cpu_input_short.data(),
+                            sizeof(short) * cpu_input_short.size(),
+                            hipMemcpyHostToDevice),
                   hipSuccess);
+
+        // convert shorts to floats for FFTW input
+        std::copy(cpu_input_short.begin(),
+                  cpu_input_short.end(),
+                  static_cast<float*>(cpu_input[0].data()));
+
+        // get callback function so we can pass it to rocfft
+        void* callback_host;
+        if(input_complex == 1)
+        {
+            ASSERT_EQ(hipMemcpyFromSymbol(
+                          &callback_host, HIP_SYMBOL(load_callback_short_dev), sizeof(void*)),
+                      hipSuccess);
+        }
+        else
+        {
+            ASSERT_EQ(hipMemcpyFromSymbol(
+                          &callback_host, HIP_SYMBOL(load_callback_short2_dev), sizeof(void*)),
+                      hipSuccess);
+        }
+        ASSERT_EQ(params.set_callbacks(callback_host, nullptr, nullptr, nullptr),
+                  fft_status_success);
+
+        // run rocFFT
+        void* gpu_input_ptr  = gpu_input.data();
+        void* gpu_output_ptr = gpu_output.data();
+        ASSERT_EQ(params.execute(&gpu_input_ptr, &gpu_output_ptr), fft_status_success);
+
+        // construct + run FFTW plan
+        auto cpu_plan = fftw_plan_via_rocfft<float>(params.length,
+                                                    params.istride,
+                                                    params.ostride,
+                                                    params.nbatch,
+                                                    params.idist,
+                                                    params.odist,
+                                                    params.transform_type,
+                                                    cpu_input,
+                                                    cpu_output);
+        fftw_run<float>(params.transform_type, cpu_plan, cpu_input, cpu_output);
+
+        // copy rocFFT output back to CPU
+        std::vector<hostbuf> gpu_output_copy(1);
+        gpu_output_copy[0].alloc(gpu_output.size());
+        ASSERT_EQ(hipMemcpy(gpu_output_copy[0].data(),
+                            gpu_output.data(),
+                            gpu_output.size(),
+                            hipMemcpyDeviceToHost),
+                  hipSuccess);
+
+        auto cpu_output_norm = norm(cpu_output,
+                                    params.olength(),
+                                    params.nbatch,
+                                    params.precision,
+                                    params.otype,
+                                    params.ostride,
+                                    params.odist,
+                                    params.ooffset);
+        ASSERT_TRUE(std::isfinite(cpu_output_norm.l_2));
+        ASSERT_TRUE(std::isfinite(cpu_output_norm.l_inf));
+
+        auto gpu_output_norm = norm(gpu_output_copy,
+                                    params.olength(),
+                                    params.nbatch,
+                                    params.precision,
+                                    params.otype,
+                                    params.ostride,
+                                    params.odist,
+                                    params.ooffset);
+        ASSERT_TRUE(std::isfinite(gpu_output_norm.l_2));
+        ASSERT_TRUE(std::isfinite(gpu_output_norm.l_inf));
+
+        double linf_cutoff
+            = type_epsilon(params.precision) * cpu_output_norm.l_inf * log(params.length.front());
+        auto diff = distance(cpu_output,
+                             gpu_output_copy,
+                             params.olength(),
+                             params.nbatch,
+                             params.precision,
+                             params.otype,
+                             params.ostride,
+                             params.odist,
+                             params.otype,
+                             params.ostride,
+                             params.odist,
+                             nullptr,
+                             linf_cutoff,
+                             params.ioffset,
+                             params.ooffset);
+
+        ASSERT_TRUE(diff.l_inf <= linf_cutoff);
     }
-    ASSERT_EQ(params.set_callbacks(callback_host, nullptr, nullptr, nullptr), fft_status_success);
-
-    // run rocFFT
-    void* gpu_input_ptr  = gpu_input.data();
-    void* gpu_output_ptr = gpu_output.data();
-    ASSERT_EQ(params.execute(&gpu_input_ptr, &gpu_output_ptr), fft_status_success);
-
-    // construct + run FFTW plan
-    auto cpu_plan = fftw_plan_via_rocfft<float>(params.length,
-                                                params.istride,
-                                                params.ostride,
-                                                params.nbatch,
-                                                params.idist,
-                                                params.odist,
-                                                params.transform_type,
-                                                cpu_input,
-                                                cpu_output);
-    fftw_run<float>(params.transform_type, cpu_plan, cpu_input, cpu_output);
-
-    // copy rocFFT output back to CPU
-    std::vector<hostbuf> gpu_output_copy(1);
-    gpu_output_copy[0].alloc(gpu_output.size());
-    ASSERT_EQ(
-        hipMemcpy(
-            gpu_output_copy[0].data(), gpu_output.data(), gpu_output.size(), hipMemcpyDeviceToHost),
-        hipSuccess);
-
-    auto cpu_output_norm = norm(cpu_output,
-                                params.olength(),
-                                params.nbatch,
-                                params.precision,
-                                params.otype,
-                                params.ostride,
-                                params.odist,
-                                params.ooffset);
-    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_2));
-    ASSERT_TRUE(std::isfinite(cpu_output_norm.l_inf));
-
-    auto gpu_output_norm = norm(gpu_output_copy,
-                                params.olength(),
-                                params.nbatch,
-                                params.precision,
-                                params.otype,
-                                params.ostride,
-                                params.odist,
-                                params.ooffset);
-    ASSERT_TRUE(std::isfinite(gpu_output_norm.l_2));
-    ASSERT_TRUE(std::isfinite(gpu_output_norm.l_inf));
-
-    double linf_cutoff
-        = type_epsilon(params.precision) * cpu_output_norm.l_inf * log(params.length.front());
-    auto diff = distance(cpu_output,
-                         gpu_output_copy,
-                         params.olength(),
-                         params.nbatch,
-                         params.precision,
-                         params.otype,
-                         params.ostride,
-                         params.odist,
-                         params.otype,
-                         params.ostride,
-                         params.odist,
-                         nullptr,
-                         linf_cutoff,
-                         params.ioffset,
-                         params.ooffset);
-
-    ASSERT_TRUE(diff.l_inf <= linf_cutoff);
+    catch(std::bad_alloc&)
+    {
+        GTEST_SKIP() << "host memory allocation failure";
+    }
+    catch(HOSTBUF_MEM_USAGE& e)
+    {
+        GTEST_SKIP() << e.msg.str();
+    }
 }
