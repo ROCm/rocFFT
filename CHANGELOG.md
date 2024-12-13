@@ -31,6 +31,7 @@ Documentation for rocFFT is available at
 * Fixed incorrect results from 2-kernel 3D FFT plans that used non-default output strides. For more information, see the [rocFFT GitHub issue](https://github.com/ROCm/rocFFT/issues/507).
 * Plan descriptions can be reused with different strides for different plans. For more information, see the [rocFFT GitHub issue](https://github.com/ROCm/rocFFT/issues/504).
 * Fixed client packages to depend on hipRAND instead of rocRAND.
+* Fixed potential integer overflows during large MPI transforms.
 
 ## rocFFT 1.0.31 for ROCm 6.3.0
 

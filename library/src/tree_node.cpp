@@ -532,7 +532,6 @@ void CommPointToPoint::ExecuteAsync(const rocfft_plan     plan,
 
     auto local_comm_rank = plan->get_local_comm_rank();
 
-    auto memSize       = numElems * element_size(precision, arrayType);
     auto srcWithOffset = ptr_offset(
         srcPtr.get(in_buffer, out_buffer, local_comm_rank), srcOffset, precision, arrayType);
     auto destWithOffset = ptr_offset(
@@ -540,7 +539,8 @@ void CommPointToPoint::ExecuteAsync(const rocfft_plan     plan,
 
     if(srcLocation.comm_rank == destLocation.comm_rank)
     {
-        auto hiprt = hipSuccess;
+        const auto memSize = numElems * element_size(precision, arrayType);
+        auto       hiprt   = hipSuccess;
         if(srcLocation.device == destLocation.device)
         {
             hiprt = hipMemcpyAsync(
@@ -573,8 +573,8 @@ void CommPointToPoint::ExecuteAsync(const rocfft_plan     plan,
         {
             MPI_Request request;
             const auto  mpiret = MPI_Isend(srcWithOffset,
-                                          memSize,
-                                          MPI_BYTE,
+                                          numElems,
+                                          rocfft_type_to_mpi_type(precision, arrayType),
                                           destLocation.comm_rank,
                                           multiPlanIdx,
                                           plan->desc.mpi_comm,
@@ -590,8 +590,8 @@ void CommPointToPoint::ExecuteAsync(const rocfft_plan     plan,
         {
             MPI_Request request;
             const auto  mpiret = MPI_Irecv(destWithOffset,
-                                          memSize,
-                                          MPI_BYTE,
+                                          numElems,
+                                          rocfft_type_to_mpi_type(precision, arrayType),
                                           srcLocation.comm_rank,
                                           multiPlanIdx,
                                           plan->desc.mpi_comm,
@@ -646,8 +646,7 @@ void CommScatter::ExecuteAsync(const rocfft_plan     plan,
 
     for(unsigned int opIdx = 0; opIdx < ops.size(); ++opIdx)
     {
-        const auto& op      = ops[opIdx];
-        auto        memSize = op.numElems * element_size(precision, arrayType);
+        const auto& op = ops[opIdx];
 
         auto srcWithOffset = ptr_offset(
             srcPtr.get(in_buffer, out_buffer, local_comm_rank), op.srcOffset, precision, arrayType);
@@ -659,6 +658,7 @@ void CommScatter::ExecuteAsync(const rocfft_plan     plan,
         hipError_t err = hipSuccess;
         if(op.destLocation.comm_rank == srcLocation.comm_rank)
         {
+            const auto memSize = op.numElems * element_size(precision, arrayType);
             if(local_comm_rank == op.destLocation.comm_rank)
             {
                 if(srcLocation.device == op.destLocation.device)
@@ -686,8 +686,8 @@ void CommScatter::ExecuteAsync(const rocfft_plan     plan,
             {
                 MPI_Request request;
                 const auto  mpiret = MPI_Isend(srcWithOffset,
-                                              memSize,
-                                              MPI_BYTE,
+                                              op.numElems,
+                                              rocfft_type_to_mpi_type(precision, arrayType),
                                               op.destLocation.comm_rank,
                                               GetOperationCommTag(multiPlanIdx, opIdx),
                                               plan->desc.mpi_comm,
@@ -703,8 +703,8 @@ void CommScatter::ExecuteAsync(const rocfft_plan     plan,
             {
                 MPI_Request request;
                 const auto  mpiret = MPI_Irecv(destWithOffset,
-                                              memSize,
-                                              MPI_BYTE,
+                                              op.numElems,
+                                              rocfft_type_to_mpi_type(precision, arrayType),
                                               srcLocation.comm_rank,
                                               GetOperationCommTag(multiPlanIdx, opIdx),
                                               plan->desc.mpi_comm,
@@ -779,8 +779,6 @@ void CommGather::ExecuteAsync(const rocfft_plan     plan,
         stream.alloc();
         event.alloc();
 
-        auto memSize = op.numElems * element_size(precision, arrayType);
-
         auto srcWithOffset  = ptr_offset(op.srcPtr.get(in_buffer, out_buffer, local_comm_rank),
                                         op.srcOffset,
                                         precision,
@@ -793,6 +791,8 @@ void CommGather::ExecuteAsync(const rocfft_plan     plan,
         hipError_t err = hipSuccess;
         if(destLocation.comm_rank == op.srcLocation.comm_rank)
         {
+            const auto memSize = op.numElems * element_size(precision, arrayType);
+
             if(local_comm_rank == destLocation.comm_rank)
             {
                 if(op.srcLocation.device == destLocation.device)
@@ -824,8 +824,8 @@ void CommGather::ExecuteAsync(const rocfft_plan     plan,
             {
                 MPI_Request request;
                 auto        rcmpi = MPI_Isend(srcWithOffset,
-                                       memSize,
-                                       MPI_BYTE,
+                                       op.numElems,
+                                       rocfft_type_to_mpi_type(precision, arrayType),
                                        destLocation.comm_rank,
                                        GetOperationCommTag(multiPlanIdx, opIdx),
                                        plan->desc.mpi_comm,
@@ -838,8 +838,8 @@ void CommGather::ExecuteAsync(const rocfft_plan     plan,
             {
                 MPI_Request request;
                 auto        rcmpi = MPI_Irecv(destWithOffset,
-                                       memSize,
-                                       MPI_BYTE,
+                                       op.numElems,
+                                       rocfft_type_to_mpi_type(precision, arrayType),
                                        op.srcLocation.comm_rank,
                                        GetOperationCommTag(multiPlanIdx, opIdx),
                                        plan->desc.mpi_comm,
@@ -911,14 +911,13 @@ void CommAllToAllv::ExecuteAsync(const rocfft_plan     plan,
     auto local_comm_rank = plan->get_local_comm_rank();
 
     // MPI takes ints for everything, convert our size_t elements to int bytes
-    auto convertToInt = [this](const std::vector<size_t>& src, std::vector<int>& dest) {
+    auto convertToInt = [](const std::vector<size_t>& src, std::vector<int>& dest) {
         dest.reserve(src.size());
         for(auto i : src)
         {
-            auto memSize = i * element_size(precision, arrayType);
-            if(memSize > std::numeric_limits<int>::max())
+            if(i > std::numeric_limits<int>::max())
                 throw std::runtime_error("MPI integer limit exceeded");
-            dest.push_back(memSize);
+            dest.push_back(i);
         }
     };
 
@@ -935,11 +934,11 @@ void CommAllToAllv::ExecuteAsync(const rocfft_plan     plan,
     const auto  mpiret = MPI_Ialltoallv(sendBuf.get(in_buffer, out_buffer, local_comm_rank),
                                        intSendCounts.data(),
                                        intSendOffsets.data(),
-                                       MPI_BYTE,
+                                       rocfft_type_to_mpi_type(precision, arrayType),
                                        recvBuf.get(in_buffer, out_buffer, local_comm_rank),
                                        intRecvCounts.data(),
                                        intRecvOffsets.data(),
-                                       MPI_BYTE,
+                                       rocfft_type_to_mpi_type(precision, arrayType),
                                        plan->desc.mpi_comm,
                                        &request);
     if(mpiret != MPI_SUCCESS)
