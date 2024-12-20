@@ -58,6 +58,11 @@ std::vector<fft_params> param_generator_multi_gpu(const SplitType type)
     if(localDeviceCount < 2 && mp_lib == fft_params::fft_mp_lib_none)
         return {};
 
+    // limit local device testing to 16 GPUs, as we have some
+    // bottlenecks with larger device counts that unreasonably slow
+    // down plan creation
+    localDeviceCount = std::min<int>(16, localDeviceCount);
+
     auto params_complex = param_generator_complex(test_prob,
                                                   multi_gpu_sizes,
                                                   precision_range_sp_dp,
