@@ -269,7 +269,7 @@ static void compare_data(const std::vector<rocfft_complex<float>>& original_host
     EXPECT_LT(diff.l_inf / input_norm.l_inf, log2(original_host_data.size()) * MAX_TRANSFORM_ERROR);
 }
 
-TEST(rocfft_UnitTest, DISABLED_hipGraph_execution)
+TEST(rocfft_UnitTest, hipGraph_execution)
 {
     hipGraph_t     graph      = nullptr;
     hipGraphExec_t graph_exec = nullptr;
