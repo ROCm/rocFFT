@@ -542,7 +542,12 @@ struct StockhamKernelCC : public StockhamKernel
         Variable ltwd_id{"ltwd_id", "size_t"};
 
         StatementList stmts;
-        stmts += Declaration{large_twd_lds, lds_complex + transforms_per_block * lengths[0]};
+        stmts += CommentLines{
+            "large_twd_lds starts after the row FFT data in LDS (transforms_per_block * length)"};
+        if(half_lds)
+            stmts += CommentLines{"data is halved for half_lds"};
+        stmts += Declaration{large_twd_lds,
+                             lds_complex + transforms_per_block * length / (half_lds ? 2 : 1)};
         stmts += If{ltwd_in_lds,
                     {Declaration{ltwd_id, thread_id},
                      While{Less{ltwd_id, ltwd_entries},

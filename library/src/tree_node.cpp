@@ -324,8 +324,7 @@ void LeafNode::SetupGridParamAndFuncPtr(DevFnCall& fnPtr, GridParam& gp)
         {
             // append twiddle table to dynamic lds
             auto kernel = function_pool::get_kernel(key);
-            gp.lds_bytes
-                += (kernel.transforms_per_block * length[0]) * complex_type_size(precision);
+            gp.lds_bytes += twiddles_large_size;
         }
     }
     // NB:
