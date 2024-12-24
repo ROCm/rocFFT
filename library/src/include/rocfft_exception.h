@@ -1,4 +1,4 @@
-// Copyright (C) 2022 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,50 +18,23 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#include "rocfft_exception.h"
-#include "rtc_cache.h"
+#ifndef ROCFFT_CATCH_H
+#define ROCFFT_CATCH_H
 
-rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)
+#include "rocfft/rocfft.h"
+
+static inline rocfft_status rocfft_handle_exception() noexcept
 try
 {
-    if(!buffer || !buffer_len_bytes)
-        return rocfft_status_invalid_arg_value;
-
-    if(!RTCCache::single)
-        return rocfft_status_failure;
-
-    return RTCCache::single->serialize(buffer, buffer_len_bytes);
+    throw;
+}
+catch(rocfft_status e)
+{
+    return e;
 }
 catch(...)
 {
-    return rocfft_handle_exception();
+    return rocfft_status_failure;
 }
 
-rocfft_status rocfft_cache_buffer_free(void* buffer)
-try
-{
-    if(!RTCCache::single)
-        return rocfft_status_failure;
-    RTCCache::single->serialize_free(buffer);
-    return rocfft_status_success;
-}
-catch(...)
-{
-    return rocfft_handle_exception();
-}
-
-rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_bytes)
-try
-{
-    if(!buffer || !buffer_len_bytes)
-        return rocfft_status_invalid_arg_value;
-
-    if(!RTCCache::single)
-        return rocfft_status_failure;
-
-    return RTCCache::single->deserialize(buffer, buffer_len_bytes);
-}
-catch(...)
-{
-    return rocfft_handle_exception();
-}
+#endif

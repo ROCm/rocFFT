@@ -26,6 +26,7 @@
 #include "logging.h"
 #include "repo.h"
 #include "rocfft/rocfft.h"
+#include "rocfft_exception.h"
 #include "rocfft_ostream.hpp"
 #include "rtc_cache.h"
 #include "solution_map.h"
@@ -81,6 +82,7 @@ static void open_log_stream(const char* environment_variable_name, int& log_fd)
 
 // library setup function, called once in program at the start of library use
 rocfft_status rocfft_setup()
+try
 {
     rocfft_ostream::setup();
     RTCCache::single = std::make_unique<RTCCache>();
@@ -144,9 +146,14 @@ rocfft_status rocfft_setup()
     log_trace(__func__);
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 // library cleanup function, called once in program after end of library use
 rocfft_status rocfft_cleanup()
+try
 {
     // Logging is potentially unsafe if we're in the middle of static
     // deinitialization, as log structures might have already been
@@ -208,12 +215,21 @@ rocfft_status rocfft_cleanup()
 
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 #ifdef ROCFFT_BUILD_OFFLINE_TUNER
 rocfft_status rocfft_get_offline_tuner_handle(void** offline_tuner)
+try
 {
     TuningBenchmarker::GetSingleton().SetBindingSolutionMap(&solution_map::get_solution_map());
     *offline_tuner = &(TuningBenchmarker::GetSingleton());
     return rocfft_status_success;
+}
+catch(...)
+{
+    return rocfft_handle_exception();
 }
 #endif

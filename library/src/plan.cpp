@@ -33,6 +33,7 @@
 #include "node_factory.h"
 #include "rocfft/rocfft-version.h"
 #include "rocfft/rocfft.h"
+#include "rocfft_exception.h"
 #include "rocfft_mpi.h"
 #include "rocfft_ostream.hpp"
 #include "rtc_kernel.h"
@@ -68,12 +69,17 @@
 
 rocfft_status rocfft_plan_description_set_scale_factor(rocfft_plan_description description,
                                                        const double            scale_factor)
+try
 {
     log_trace(__func__, "description", description, "scale", scale_factor);
     if(!std::isfinite(scale_factor))
         return rocfft_status_invalid_arg_value;
     description->storeOps.scale_factor = scale_factor;
     return rocfft_status_success;
+}
+catch(...)
+{
+    return rocfft_handle_exception();
 }
 
 static size_t offset_count(rocfft_array_type type)
@@ -352,6 +358,7 @@ size_t rocfft_plan_t::WorkBufBytes() const
 rocfft_status rocfft_plan_description_set_comm(rocfft_plan_description description,
                                                rocfft_comm_type        comm_type,
                                                void*                   comm_handle)
+try
 {
     log_trace(
         __func__, "description", description, "comm_type", comm_type, "comm_handle", comm_handle);
@@ -389,6 +396,10 @@ rocfft_status rocfft_plan_description_set_comm(rocfft_plan_description descripti
     }
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description description,
                                                       const rocfft_array_type in_array_type,
@@ -401,6 +412,7 @@ rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description de
                                                       const size_t            out_strides_size,
                                                       const size_t*           out_strides,
                                                       const size_t            out_distance)
+try
 {
     log_trace(__func__,
               "description",
@@ -464,16 +476,26 @@ rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description de
 
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_plan_description_create(rocfft_plan_description* description)
+try
 {
     rocfft_plan_description desc = new rocfft_plan_description_t;
     *description                 = desc;
     log_trace(__func__, "description", *description);
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_plan_description_destroy(rocfft_plan_description description)
+try
 {
     log_trace(__func__, "description", description);
     if(description != nullptr)
@@ -482,19 +504,33 @@ rocfft_status rocfft_plan_description_destroy(rocfft_plan_description descriptio
     }
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_field_create(rocfft_field* field)
+try
 {
     *field = new rocfft_field_t;
     log_trace(__func__, "field", *field);
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_field_destroy(rocfft_field field)
+try
 {
     log_trace(__func__, "field", field);
     delete field;
     return rocfft_status_success;
+}
+catch(...)
+{
+    return rocfft_handle_exception();
 }
 
 bool rocfft_brick_t::empty() const
@@ -623,12 +659,17 @@ std::string rocfft_brick_t::str() const
 }
 
 rocfft_status rocfft_field_add_brick(rocfft_field field, rocfft_brick brick)
+try
 {
     log_trace(__func__, "field", field, "brick", brick);
     if(!field || !brick)
         return rocfft_status_invalid_arg_value;
     field->bricks.emplace_back(*brick);
     return rocfft_status_success;
+}
+catch(...)
+{
+    return rocfft_handle_exception();
 }
 
 rocfft_status rocfft_brick_create(rocfft_brick* brick,
@@ -637,6 +678,7 @@ rocfft_status rocfft_brick_create(rocfft_brick* brick,
                                   const size_t* brick_stride,
                                   size_t        dim,
                                   int           deviceID)
+try
 {
     log_trace(__func__,
               "brick",
@@ -663,16 +705,26 @@ rocfft_status rocfft_brick_create(rocfft_brick* brick,
     *brick                     = brick_ptr.release();
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_brick_destroy(rocfft_brick brick)
+try
 {
     log_trace(__func__, "brick", brick);
     delete brick;
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_plan_description_add_infield(rocfft_plan_description description,
                                                   rocfft_field            field)
+try
 {
     log_trace(__func__, "description", description, "field", field);
     if(!description || !field || field->bricks.empty())
@@ -680,15 +732,24 @@ rocfft_status rocfft_plan_description_add_infield(rocfft_plan_description descri
     description->inFields.push_back(*field);
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_plan_description_add_outfield(rocfft_plan_description description,
                                                    rocfft_field            field)
+try
 {
     log_trace(__func__, "description", description, "field", field);
     if(!description || !field || field->bricks.empty())
         return rocfft_status_invalid_arg_value;
     description->outFields.push_back(*field);
     return rocfft_status_success;
+}
+catch(...)
+{
+    return rocfft_handle_exception();
 }
 
 std::string rocfft_bench_command(rocfft_plan plan)
@@ -2937,6 +2998,7 @@ rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
                                  const size_t*                 lengths,
                                  const size_t                  number_of_transforms,
                                  const rocfft_plan_description description)
+try
 {
     rocfft_plan_allocate(plan);
 
@@ -2975,15 +3037,25 @@ rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
                                        number_of_transforms,
                                        description);
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_plan_destroy(rocfft_plan plan)
+try
 {
     log_trace(__func__, "plan", plan);
     delete plan;
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_plan_get_work_buffer_size(const rocfft_plan plan, size_t* size_in_bytes)
+try
 {
     if(!plan)
         return rocfft_status_failure;
@@ -2992,8 +3064,13 @@ rocfft_status rocfft_plan_get_work_buffer_size(const rocfft_plan plan, size_t* s
     log_trace(__func__, "plan", plan, "size_in_bytes ptr", size_in_bytes, "val", *size_in_bytes);
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
+try
 {
     log_trace(__func__, "plan", plan);
     rocfft_cout << std::endl;
@@ -3124,8 +3201,13 @@ rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
 
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t len)
+try
 {
     log_trace(__func__, "buf", static_cast<void*>(buf), "len", len);
     static constexpr char v[] = ROCFFT_VERSION_STRING;
@@ -3135,6 +3217,10 @@ ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t le
         return rocfft_status_invalid_arg_value;
     memcpy(buf, v, sizeof(v));
     return rocfft_status_success;
+}
+catch(...)
+{
+    return rocfft_handle_exception();
 }
 
 // Compute the large twd decomposition base
