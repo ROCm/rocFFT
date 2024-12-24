@@ -33,7 +33,6 @@
 #include "node_factory.h"
 #include "rocfft/rocfft-version.h"
 #include "rocfft/rocfft.h"
-#include "rocfft_exception.h"
 #include "rocfft_mpi.h"
 #include "rocfft_ostream.hpp"
 #include "rtc_kernel.h"
@@ -69,17 +68,12 @@
 
 rocfft_status rocfft_plan_description_set_scale_factor(rocfft_plan_description description,
                                                        const double            scale_factor)
-try
 {
     log_trace(__func__, "description", description, "scale", scale_factor);
     if(!std::isfinite(scale_factor))
         return rocfft_status_invalid_arg_value;
     description->storeOps.scale_factor = scale_factor;
     return rocfft_status_success;
-}
-catch(...)
-{
-    return rocfft_handle_exception();
 }
 
 static size_t offset_count(rocfft_array_type type)
@@ -358,7 +352,6 @@ size_t rocfft_plan_t::WorkBufBytes() const
 rocfft_status rocfft_plan_description_set_comm(rocfft_plan_description description,
                                                rocfft_comm_type        comm_type,
                                                void*                   comm_handle)
-try
 {
     log_trace(
         __func__, "description", description, "comm_type", comm_type, "comm_handle", comm_handle);
@@ -396,10 +389,6 @@ try
     }
     return rocfft_status_success;
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description description,
                                                       const rocfft_array_type in_array_type,
@@ -412,7 +401,6 @@ rocfft_status rocfft_plan_description_set_data_layout(rocfft_plan_description de
                                                       const size_t            out_strides_size,
                                                       const size_t*           out_strides,
                                                       const size_t            out_distance)
-try
 {
     log_trace(__func__,
               "description",
@@ -476,26 +464,16 @@ try
 
     return rocfft_status_success;
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 rocfft_status rocfft_plan_description_create(rocfft_plan_description* description)
-try
 {
     rocfft_plan_description desc = new rocfft_plan_description_t;
     *description                 = desc;
     log_trace(__func__, "description", *description);
     return rocfft_status_success;
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 rocfft_status rocfft_plan_description_destroy(rocfft_plan_description description)
-try
 {
     log_trace(__func__, "description", description);
     if(description != nullptr)
@@ -504,33 +482,19 @@ try
     }
     return rocfft_status_success;
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 rocfft_status rocfft_field_create(rocfft_field* field)
-try
 {
     *field = new rocfft_field_t;
     log_trace(__func__, "field", *field);
     return rocfft_status_success;
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 rocfft_status rocfft_field_destroy(rocfft_field field)
-try
 {
     log_trace(__func__, "field", field);
     delete field;
     return rocfft_status_success;
-}
-catch(...)
-{
-    return rocfft_handle_exception();
 }
 
 bool rocfft_brick_t::empty() const
@@ -659,17 +623,12 @@ std::string rocfft_brick_t::str() const
 }
 
 rocfft_status rocfft_field_add_brick(rocfft_field field, rocfft_brick brick)
-try
 {
     log_trace(__func__, "field", field, "brick", brick);
     if(!field || !brick)
         return rocfft_status_invalid_arg_value;
     field->bricks.emplace_back(*brick);
     return rocfft_status_success;
-}
-catch(...)
-{
-    return rocfft_handle_exception();
 }
 
 rocfft_status rocfft_brick_create(rocfft_brick* brick,
@@ -678,7 +637,6 @@ rocfft_status rocfft_brick_create(rocfft_brick* brick,
                                   const size_t* brick_stride,
                                   size_t        dim,
                                   int           deviceID)
-try
 {
     log_trace(__func__,
               "brick",
@@ -705,26 +663,16 @@ try
     *brick                     = brick_ptr.release();
     return rocfft_status_success;
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 rocfft_status rocfft_brick_destroy(rocfft_brick brick)
-try
 {
     log_trace(__func__, "brick", brick);
     delete brick;
     return rocfft_status_success;
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 rocfft_status rocfft_plan_description_add_infield(rocfft_plan_description description,
                                                   rocfft_field            field)
-try
 {
     log_trace(__func__, "description", description, "field", field);
     if(!description || !field || field->bricks.empty())
@@ -732,24 +680,15 @@ try
     description->inFields.push_back(*field);
     return rocfft_status_success;
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 rocfft_status rocfft_plan_description_add_outfield(rocfft_plan_description description,
                                                    rocfft_field            field)
-try
 {
     log_trace(__func__, "description", description, "field", field);
     if(!description || !field || field->bricks.empty())
         return rocfft_status_invalid_arg_value;
     description->outFields.push_back(*field);
     return rocfft_status_success;
-}
-catch(...)
-{
-    return rocfft_handle_exception();
 }
 
 std::string rocfft_bench_command(rocfft_plan plan)
@@ -2414,6 +2353,153 @@ bool rocfft_plan_t::BuildOptMultiDevicePlan()
     return true;
 }
 
+#ifdef ROCFFT_MPI_ENABLE
+
+// RAII wrapper around MPI_Datatypes
+class MPI_Datatype_vector_wrapper_t
+{
+public:
+    MPI_Datatype_vector_wrapper_t(size_t size_bytes)
+        : type(MPI_DATATYPE_NULL)
+    {
+        auto rcmpi = MPI_Type_contiguous(size_bytes, MPI_BYTE, &type);
+        if(rcmpi != MPI_SUCCESS)
+            throw std::runtime_error("MPI_Type_contiguous failed: " + std::to_string(rcmpi));
+        rcmpi = MPI_Type_commit(&type);
+        if(rcmpi != MPI_SUCCESS)
+            throw std::runtime_error("MPI_Type_commit failed: " + std::to_string(rcmpi));
+    }
+    ~MPI_Datatype_vector_wrapper_t()
+    {
+        MPI_Type_free(&type);
+    }
+
+    // Convert to unwrapped type
+    operator MPI_Datatype() const
+    {
+        return type;
+    }
+
+private:
+    MPI_Datatype type;
+};
+
+// Helper function to get the MPI data type from the underlying type of the variable.
+template <class Tval>
+inline MPI_Datatype type_to_mpi_type()
+{
+    if(std::is_same<Tval, char>::value)
+    {
+        return MPI_CHAR;
+    }
+    else if(std::is_same<Tval, signed char>::value)
+    {
+        return MPI_SIGNED_CHAR;
+    }
+    else if(std::is_same<Tval, unsigned char>::value)
+    {
+        return MPI_UNSIGNED_CHAR;
+    }
+    else if(std::is_same<Tval, short>::value)
+    {
+        return MPI_SHORT;
+    }
+    else if(std::is_same<Tval, int>::value)
+    {
+        return MPI_INT;
+    }
+    else if(std::is_same<Tval, unsigned int>::value)
+    {
+        return MPI_UNSIGNED;
+    }
+    else if(std::is_same<Tval, long int>::value)
+    {
+        return MPI_LONG;
+    }
+    else if(std::is_same<Tval, unsigned long int>::value)
+    {
+        return MPI_UNSIGNED_LONG;
+    }
+    else if(std::is_same<Tval, long long int>::value)
+    {
+        return MPI_LONG_LONG;
+    }
+    else if(std::is_same<Tval, unsigned long long int>::value)
+    {
+        return MPI_UNSIGNED_LONG_LONG;
+    }
+    else if(std::is_same<Tval, float>::value)
+    {
+        return MPI_FLOAT;
+    }
+    else if(std::is_same<Tval, double>::value)
+    {
+        return MPI_DOUBLE;
+    }
+    else if(std::is_same<Tval, long double>::value)
+    {
+        return MPI_LONG_DOUBLE;
+    }
+    else if(std::is_same<Tval, int8_t>::value)
+    {
+        return MPI_INT8_T;
+    }
+    else if(std::is_same<Tval, int16_t>::value)
+    {
+        return MPI_INT16_T;
+    }
+    else if(std::is_same<Tval, int32_t>::value)
+    {
+        return MPI_INT32_T;
+    }
+    else if(std::is_same<Tval, int64_t>::value)
+    {
+        return MPI_INT64_T;
+    }
+    else if(std::is_same<Tval, uint8_t>::value)
+    {
+        return MPI_UINT8_T;
+    }
+    else if(std::is_same<Tval, uint16_t>::value)
+    {
+        return MPI_UINT16_T;
+    }
+    else if(std::is_same<Tval, uint32_t>::value)
+    {
+        return MPI_UINT32_T;
+    }
+    else if(std::is_same<Tval, uint64_t>::value)
+    {
+        return MPI_UINT64_T;
+    }
+    else if(std::is_same<Tval, rocfft_complex<float>>::value)
+    {
+        return MPI_C_FLOAT_COMPLEX;
+    }
+    else if(std::is_same<Tval, rocfft_complex<double>>::value)
+    {
+        return MPI_C_DOUBLE_COMPLEX;
+    }
+    else if(std::is_same<Tval, rocfft_complex<long double>>::value)
+    {
+        return MPI_C_LONG_DOUBLE_COMPLEX;
+    }
+    else if(std::is_same<Tval, half>::value)
+    {
+        static MPI_Datatype_vector_wrapper_t ROCFFT_MPI_HALF{sizeof(Tval)};
+        return ROCFFT_MPI_HALF;
+    }
+    else if(std::is_same<Tval, rocfft_complex<half>>::value)
+    {
+        static MPI_Datatype_vector_wrapper_t ROCFFT_MPI_COMPLEX_HALF{sizeof(Tval)};
+        return ROCFFT_MPI_COMPLEX_HALF;
+    }
+
+    // We did not find the data type: return a null data type.
+    return MPI_DATATYPE_NULL;
+}
+#endif
+
 // All-gather all of the brick parameters for a given field.
 rocfft_status allgather_brick_params_lus_mpi(rocfft_plan&    plan,
                                              rocfft_field_t& field,
@@ -2998,7 +3084,6 @@ rocfft_status rocfft_plan_create(rocfft_plan*                  plan,
                                  const size_t*                 lengths,
                                  const size_t                  number_of_transforms,
                                  const rocfft_plan_description description)
-try
 {
     rocfft_plan_allocate(plan);
 
@@ -3037,25 +3122,15 @@ try
                                        number_of_transforms,
                                        description);
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 rocfft_status rocfft_plan_destroy(rocfft_plan plan)
-try
 {
     log_trace(__func__, "plan", plan);
     delete plan;
     return rocfft_status_success;
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 rocfft_status rocfft_plan_get_work_buffer_size(const rocfft_plan plan, size_t* size_in_bytes)
-try
 {
     if(!plan)
         return rocfft_status_failure;
@@ -3064,13 +3139,8 @@ try
     log_trace(__func__, "plan", plan, "size_in_bytes ptr", size_in_bytes, "val", *size_in_bytes);
     return rocfft_status_success;
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 rocfft_status rocfft_plan_get_print(const rocfft_plan plan)
-try
 {
     log_trace(__func__, "plan", plan);
     rocfft_cout << std::endl;
@@ -3201,13 +3271,8 @@ try
 
     return rocfft_status_success;
 }
-catch(...)
-{
-    return rocfft_handle_exception();
-}
 
 ROCFFT_EXPORT rocfft_status rocfft_get_version_string(char* buf, const size_t len)
-try
 {
     log_trace(__func__, "buf", static_cast<void*>(buf), "len", len);
     static constexpr char v[] = ROCFFT_VERSION_STRING;
@@ -3217,10 +3282,6 @@ try
         return rocfft_status_invalid_arg_value;
     memcpy(buf, v, sizeof(v));
     return rocfft_status_success;
-}
-catch(...)
-{
-    return rocfft_handle_exception();
 }
 
 // Compute the large twd decomposition base
