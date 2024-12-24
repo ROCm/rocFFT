@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -597,6 +597,9 @@ std::string realcomplex_even_transpose_rtc_kernel_name(const RealComplexEvenTran
     kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
     kernel_name += rtc_cbtype_name(specs.cbtype);
 
+    if(!specs.grid3D)
+        kernel_name += "_grid1D";
+
     return kernel_name;
 }
 
@@ -629,7 +632,7 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
     Variable inStride{"inStride", "size_t", true, true};
     Variable outStride{"outStride", "size_t", true, true};
     Variable gridY{"gridY", "const unsigned int"};
-    Variable nbatch{"nbatch", "unsigned int"};
+    Variable gridZ{"gridZ", "const unsigned int"};
 
     // r2c uses a device function helper to work out which dimension
     // we're transposing to
@@ -670,7 +673,7 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
         func.arguments.append(arg);
 
     func.arguments.append(gridY);
-    func.arguments.append(nbatch);
+    func.arguments.append(gridZ);
 
     func.body += CommentLines{"since gridDim is passed as {gridX, 1, 1}, use the",
                               "following variables to recover block indices in a 3-D fashion:"};
@@ -680,17 +683,30 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
     Variable old_blockIdx_z{"old_blockIdx_z", "unsigned int"};
     Variable remaining{"remaining", "unsigned int"};
 
-    func.body += Declaration{old_blockIdx_x, Literal{"blockIdx.x"} / (gridY * nbatch)};
-    func.body += Declaration{remaining, Literal{"blockIdx.x"} % (gridY * nbatch)};
-    func.body += Declaration{old_blockIdx_y, (remaining / nbatch)};
-    func.body += Declaration{old_blockIdx_z, Literal{"blockIdx.x"} % nbatch};
+    // if a 1-D grid was provided because creating a natural 3-D grid exceeded allowed limits, then remap it to a 3-D grid.
+    if(!specs.grid3D)
+    {
+        func.body += Declaration{old_blockIdx_x, Literal{"blockIdx.x"} / (gridY * gridZ)};
+        func.body += Declaration{remaining, Literal{"blockIdx.x"} % (gridY * gridZ)};
+        func.body += Declaration{old_blockIdx_y, (remaining / gridZ)};
+        func.body += Declaration{old_blockIdx_z, Literal{"blockIdx.x"} % gridZ};
+    }
 
     func.body += LineBreak{};
 
     Variable input_batch_start{"input_batch_start", "size_t"};
     Variable output_batch_start{"output_batch_start", "size_t"};
-    func.body += Declaration{input_batch_start, idist * Literal{"old_blockIdx_z"}};
-    func.body += Declaration{output_batch_start, odist * Literal{"old_blockIdx_z"}};
+
+    if(specs.grid3D)
+    {
+        func.body += Declaration{input_batch_start, idist * Literal{"blockIdx.z"}};
+        func.body += Declaration{output_batch_start, odist * Literal{"blockIdx.z"}};
+    }
+    else
+    {
+        func.body += Declaration{input_batch_start, idist * Literal{"old_blockIdx_z"}};
+        func.body += Declaration{output_batch_start, odist * Literal{"old_blockIdx_z"}};
+    }
 
     Variable leftTile{"leftTile", "__shared__ scalar_type", false, false, tileX};
     leftTile.size2D = tileY;
@@ -732,24 +748,44 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
     {
         func.body += CommentLines{
             "take fastest dimension and partition it into lengths that will go into each tile"};
-        len_row_init        = lengths[0];
-        tile_size_init      = Ternary{(len_row - 1) / 2 < tileX, (len_row - 1) / 2, tileX};
-        left_col_start_init = Literal{"old_blockIdx_x"} * tile_size + 1;
-        row_limit_init      = Ternary{dim == 2, lengths[1], lengths[1] * lengths[2]};
-        row_start_init      = Literal{"old_blockIdx_y"} * tileY;
-        row_end_init        = tileY + row_start;
+        len_row_init   = lengths[0];
+        tile_size_init = Ternary{(len_row - 1) / 2 < tileX, (len_row - 1) / 2, tileX};
+        row_limit_init = Ternary{dim == 2, lengths[1], lengths[1] * lengths[2]};
+
+        if(specs.grid3D)
+        {
+            left_col_start_init = Literal{"blockIdx.x"} * tile_size + 1;
+            row_start_init      = Literal{"blockIdx.y"} * tileY;
+        }
+        else
+        {
+            left_col_start_init = Literal{"old_blockIdx_x"} * tile_size + 1;
+            row_start_init      = Literal{"old_blockIdx_y"} * tileY;
+        }
+
+        row_end_init = tileY + row_start;
     }
     else
     {
         func.body += CommentLines{
             "take middle dimension and partition it into lengths that will go into each tile",
             "note that last row effectively gets thrown away"};
-        len_row_init        = Ternary{dim == 2, lengths[1] - 1, lengths[2] - 1};
-        tile_size_init      = Ternary{(len_row - 1) / 2 < tileY, (len_row - 1) / 2, tileY};
-        left_col_start_init = Literal{"old_blockIdx_y"} * tile_size + 1;
-        row_limit_init      = Ternary{dim == 2, lengths[0], lengths[0] * lengths[1]};
-        row_start_init      = Literal{"old_blockIdx_x"} * tileX;
-        row_end_init        = tileX + row_start;
+        len_row_init   = Ternary{dim == 2, lengths[1] - 1, lengths[2] - 1};
+        tile_size_init = Ternary{(len_row - 1) / 2 < tileY, (len_row - 1) / 2, tileY};
+        row_limit_init = Ternary{dim == 2, lengths[0], lengths[0] * lengths[1]};
+
+        if(specs.grid3D)
+        {
+            left_col_start_init = Literal{"blockIdx.y"} * tile_size + 1;
+            row_start_init      = Literal{"blockIdx.x"} * tileX;
+        }
+        else
+        {
+            left_col_start_init = Literal{"old_blockIdx_y"} * tile_size + 1;
+            row_start_init      = Literal{"old_blockIdx_x"} * tileX;
+        }
+
+        row_end_init = tileX + row_start;
     }
 
     func.body += Declaration{len_row, len_row_init};
@@ -824,13 +860,31 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
         read_left_idx  = input_batch_start + input_row_base + left_col_start + lds_col;
         read_right_idx = input_batch_start + input_row_base
                          + (len_row - (left_col_start + cols_to_read - 1)) + lds_col;
-        read_first_condition = Literal{"old_blockIdx_x"} == 0 && Literal{"threadIdx.x"} == 0
-                               && row_start + lds_row < row_end;
+
+        if(specs.grid3D)
+        {
+            read_first_condition = Literal{"blockIdx.x"} == 0 && Literal{"threadIdx.x"} == 0
+                                   && row_start + lds_row < row_end;
+        }
+        else
+        {
+            read_first_condition = Literal{"old_blockIdx_x"} == 0 && Literal{"threadIdx.x"} == 0
+                                   && row_start + lds_row < row_end;
+        }
+
         read_first_idx  = input_batch_start + input_row_base;
         read_middle_idx = input_batch_start + input_row_base + len_row / 2;
 
-        write_condition = Literal{"old_blockIdx_x"} == 0 && Literal{"threadIdx.x"} == 0
-                          && row_start + lds_row < row_end;
+        if(specs.grid3D)
+        {
+            write_condition = Literal{"blockIdx.x"} == 0 && Literal{"threadIdx.x"} == 0
+                              && row_start + lds_row < row_end;
+        }
+        else
+        {
+            write_condition = Literal{"old_blockIdx_x"} == 0 && Literal{"threadIdx.x"} == 0
+                              && row_start + lds_row < row_end;
+        }
 
         compute_first_val += Assign{val.x(), first_elem.x() - first_elem.y()};
         compute_first_val += Assign{val.y(), Literal{"0.0"}};
@@ -864,14 +918,32 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
             = input_batch_start + input_col_base + (left_col_start + lds_row) * input_col_stride;
         read_right_idx = input_batch_start + input_col_base
                          + (len_row - (left_col_start + lds_row)) * input_col_stride;
-        read_first_condition = Literal{"old_blockIdx_y"} == 0 && Literal{"threadIdx.y"} == 0
-                               && row_start + lds_col < row_end;
+
+        if(specs.grid3D)
+        {
+            read_first_condition = Literal{"blockIdx.y"} == 0 && Literal{"threadIdx.y"} == 0
+                                   && row_start + lds_col < row_end;
+        }
+        else
+        {
+            read_first_condition = Literal{"old_blockIdx_y"} == 0 && Literal{"threadIdx.y"} == 0
+                                   && row_start + lds_col < row_end;
+        }
+
         read_first_idx  = input_batch_start + input_col_base;
         read_middle_idx = input_batch_start + input_col_base + middle * input_col_stride;
         read_last_idx   = input_batch_start + input_col_base + len_row * input_col_stride;
 
-        write_condition = Literal{"old_blockIdx_y"} == 0 && Literal{"threadIdx.y"} == 0
-                          && row_start + lds_col < row_end;
+        if(specs.grid3D)
+        {
+            write_condition = Literal{"blockIdx.y"} == 0 && Literal{"threadIdx.y"} == 0
+                              && row_start + lds_col < row_end;
+        }
+        else
+        {
+            write_condition = Literal{"old_blockIdx_y"} == 0 && Literal{"threadIdx.y"} == 0
+                              && row_start + lds_col < row_end;
+        }
 
         compute_first_val += Assign{val.x(), first_elem.x() + last_elem.x()};
         compute_first_val += Assign{val.y(), first_elem.x() - last_elem.x()};
@@ -943,8 +1015,17 @@ std::string realcomplex_even_transpose_rtc(const std::string&                   
         Variable col{"col", "size_t"};
 
         If butterfly{row_start + lds_row < row_end && lds_col < cols_to_read, {}};
-        butterfly.body
-            += Declaration{col, Literal{"old_blockIdx_x"} * tile_size + 1 + Literal{"threadIdx.x"}};
+
+        if(specs.grid3D)
+        {
+            butterfly.body
+                += Declaration{col, Literal{"blockIdx.x"} * tile_size + 1 + Literal{"threadIdx.x"}};
+        }
+        else
+        {
+            butterfly.body += Declaration{
+                col, Literal{"old_blockIdx_x"} * tile_size + 1 + Literal{"threadIdx.x"}};
+        }
 
         butterfly.body += Declaration{p, leftTile.at(lds_col, lds_row)};
         butterfly.body += Declaration{q, rightTile.at(cols_to_read - lds_col - 1, lds_row)};

@@ -70,6 +70,10 @@ std::string transpose_rtc_kernel_name(const TransposeSpecs& specs)
         kernel_name += "_aligned";
     kernel_name += load_store_name_suffix(specs.loadOps, specs.storeOps);
     kernel_name += rtc_cbtype_name(specs.cbtype);
+
+    if(!specs.grid3D)
+        kernel_name += "_grid1D";
+
     return kernel_name;
 }
 
@@ -162,27 +166,51 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     Variable old_blockIdx_x{"old_blockIdx_x", "unsigned int"};
     Variable old_blockIdx_y{"old_blockIdx_y", "unsigned int"};
     Variable old_blockIdx_z{"old_blockIdx_z", "unsigned int"};
-    Variable remaining{"remaining", "unsigned int"};
-
-    func.body += Declaration{old_blockIdx_x, Literal{"blockIdx.x"} / (gridY * gridZ)};
-    func.body += Declaration{remaining, Literal{"blockIdx.x"} % (gridY * gridZ)};
-    func.body += Declaration{old_blockIdx_y, (remaining / gridZ)};
-    func.body += Declaration{old_blockIdx_z, Literal{"blockIdx.x"} % gridZ};
-
-    func.body += LineBreak{};
 
     Variable tileBlockIdx_y{"tileBlockIdx_y", "unsigned int"};
     Variable tileBlockIdx_x{"tileBlockIdx_x", "unsigned int"};
-    func.body += Declaration{tileBlockIdx_y, "old_blockIdx_y"};
-    func.body += Declaration{tileBlockIdx_x, "old_blockIdx_x"};
+
+    Variable remaining{"remaining", "unsigned int"};
+
+    // if a 1-D grid was provided because creating a natural 3-D grid exceeded allowed limits, then remap it to a 3-D grid.
+    if(!specs.grid3D)
+    {
+        func.body += Declaration{old_blockIdx_x, Literal{"blockIdx.x"} / (gridY * gridZ)};
+        func.body += Declaration{remaining, Literal{"blockIdx.x"} % (gridY * gridZ)};
+        func.body += Declaration{old_blockIdx_y, (remaining / gridZ)};
+        func.body += Declaration{old_blockIdx_z, Literal{"blockIdx.x"} % gridZ};
+
+        func.body += Declaration{tileBlockIdx_y, "old_blockIdx_y"};
+        func.body += Declaration{tileBlockIdx_x, "old_blockIdx_x"};
+    }
+    else
+    {
+        func.body += Declaration{tileBlockIdx_y, "blockIdx.y"};
+        func.body += Declaration{tileBlockIdx_x, "blockIdx.x"};
+    }
+
+    func.body += LineBreak{};
 
     if(specs.diagonal)
     {
         Variable bid{"bid", "auto"};
-        func.body += Declaration{bid, "old_blockIdx_x + gridX * old_blockIdx_y"};
-        func.body += Assign{tileBlockIdx_y, bid % Variable{"gridY", ""}};
-        func.body += Assign{tileBlockIdx_x,
-                            (bid / Variable{"gridY", ""} + tileBlockIdx_y) % Variable{"gridX", ""}};
+
+        if(specs.grid3D)
+        {
+            func.body += Declaration{bid, "blockIdx.x + gridDim.x * blockIdx.y"};
+            func.body += Assign{tileBlockIdx_y, bid % Variable{"gridDim.y", ""}};
+            func.body += Assign{tileBlockIdx_x,
+                                (bid / Variable{"gridDim.y", ""} + tileBlockIdx_y)
+                                    % Variable{"gridDim.x", ""}};
+        }
+        else
+        {
+            func.body += Declaration{bid, "old_blockIdx_x + gridX * old_blockIdx_y"};
+            func.body += Assign{tileBlockIdx_y, bid % Variable{"gridY", ""}};
+            func.body
+                += Assign{tileBlockIdx_x,
+                          (bid / Variable{"gridY", ""} + tileBlockIdx_y) % Variable{"gridX", ""}};
+        }
     }
 
     if(specs.dim == 2)
@@ -200,7 +228,14 @@ std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& 
     func.body += CommentLines{"work out offset for dimensions after the first 3"};
     Variable offset_in{"offset_in", "unsigned int"};
     Variable offset_out{"offset_out", "unsigned int"};
-    func.body += Assign{remaining, "old_blockIdx_z"};
+    if(specs.grid3D)
+    {
+        func.body += Declaration{remaining, "blockIdx.z"};
+    }
+    else
+    {
+        func.body += Assign{remaining, "old_blockIdx_z"};
+    }
     func.body += Declaration{offset_in, 0};
     func.body += Declaration{offset_out, 0};
 

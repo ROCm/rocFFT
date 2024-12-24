@@ -1,4 +1,4 @@
-// Copyright (C) 2024 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -232,54 +232,57 @@ RTCKernel::RTCGenerator RTCKernelRealComplexEvenTranspose::generate_from_node(
     const unsigned int tileX = RealComplexEvenTransposeSpecs::TileX(node.scheme);
     const unsigned int tileY = RealComplexEvenTransposeSpecs::TileY();
 
-    unsigned int count = node.batch;
-    unsigned int m     = node.length[1];
-    unsigned int n     = node.length[0];
-    unsigned int dim   = node.length.size();
-
-    size_t elems;
+    unsigned int m   = node.length[1];
+    unsigned int n   = node.length[0];
+    unsigned int dim = node.length.size();
 
     unsigned int gridX;
+    unsigned int gridX_1d;
     unsigned int gridY;
+    unsigned int gridZ = node.batch;
 
     if(node.scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE)
     {
-        // If allocating a 3-D grid, grid X would handle 2 tiles at a time, grid Y, the second
-        // dimension - multiply by the third dimension, and grid Z, the number of batches:
-        // generator.gridDim
-        //     = {(n - 1) / tileX / 2 + 1,
-        //        ((m - 1) / tileY + 1) * (dim > 2 ? static_cast<unsigned int>(node.length[2]) : 1),
-        //        count};
-
-        // Since grid size has to be given as {gridX, 1, 1}, then
-        // allocation is done as a 1-D grid by combining all dimensions:
-        gridX = (tileX * tileY) * ((n - 1) / tileX / 2 + 1);
+        // In a 3-D grid, gridX handles 2 tiles at a time, gridY, the second
+        // dimension - multiplied by the third dimension, and gridZ, the number of batches
+        gridX    = (n - 1) / tileX / 2 + 1;
+        gridX_1d = (tileX * tileY) * gridX;
         gridY = ((m - 1) / tileY + 1) * (dim > 2 ? static_cast<unsigned int>(node.length[2]) : 1);
-        elems = gridX * gridY * count;
     }
     else
     {
-        // In a 3-D grid, grid X handles the first dimension - multiplied by the second dimension
-        // to get enough blocks, gridY dimension handles 2 tiles at a time, and grid Z handles the number
-        // of batches:
-
+        // In a 3-D grid, gridX handles the first dimension - multiplied by the second dimension
         if(dim > 2)
         {
             n *= node.length[1];
             m = node.length[2];
         }
-        gridX = (tileX * tileY) * (n - 1) / tileX + 1;
-        gridY = std::max<unsigned int>((((m - 1) / 2) + (tileY - 1)) / tileY, 1);
+        gridX    = (n - 1) / tileX + 1;
+        gridX_1d = (tileX * tileY) * (n - 1) / tileX + 1;
 
-        // Since grid size has to be given as {gridX, 1, 1}, then
-        // allocation is done as a 1-D grid by combining all dimensions:
-        elems = gridX * gridY * count;
+        // gridY dimension handles 2 tiles at a time, so allocate enough
+        // blocks to go halfway across 'm'
+        gridY = std::max<unsigned int>((((m - 1) / 2) + (tileY - 1)) / tileY, 1);
     }
 
-    generator.gridDim
-        = {static_cast<unsigned int>(DivRoundingUp<size_t>(elems, LAUNCH_BOUNDS_R2C_C2R_KERNEL)),
-           1,
-           1};
+    // check if it is possible to directly use a 3-D grid of GPUs
+    bool grid3D = false;
+    if(gridY < (1U << 16) && gridZ < (1U << 16))
+    {
+        // grid sizes are within limits to use a 3-D grid of GPUs
+        generator.gridDim = {gridX, gridY, gridZ};
+        grid3D            = true;
+    }
+    else
+    {
+        // grid sizes exceed (1U << 16) - 1 limits, then use a 1-D grid,
+        // a natural remap to a 3-D grid is then performed when creating the kernel source code
+        size_t elems      = gridX_1d * gridY * gridZ;
+        generator.gridDim = {
+            static_cast<unsigned int>(DivRoundingUp<size_t>(elems, LAUNCH_BOUNDS_R2C_C2R_KERNEL)),
+            1,
+            1};
+    }
 
     generator.blockDim = {tileX, tileY, 1};
 
@@ -290,7 +293,8 @@ RTCKernel::RTCGenerator RTCKernelRealComplexEvenTranspose::generate_from_node(
                                          node.outArrayType,
                                          node.GetCallbackType(enable_callbacks),
                                          node.loadOps,
-                                         node.storeOps}};
+                                         node.storeOps,
+                                         grid3D}};
 
     generator.generate_name = [=]() { return realcomplex_even_transpose_rtc_kernel_name(specs); };
 
@@ -305,6 +309,7 @@ RTCKernel::RTCGenerator RTCKernelRealComplexEvenTranspose::generate_from_node(
         return std::unique_ptr<RTCKernel>(
             new RTCKernelRealComplexEvenTranspose(kernel_name, code, gridDim, blockDim));
     };
+
     return generator;
 }
 
@@ -332,8 +337,10 @@ RTCKernelArgs RTCKernelRealComplexEvenTranspose::get_launch_args(DeviceCallIn& d
     kargs.append_ptr(data.callbacks.store_cb_fn);
     kargs.append_ptr(data.callbacks.store_cb_data);
 
-    // pass gridY to restore a 3-D GPU grid
+    // pass gridY and gridZ to restore a 3-D GPU grid, if needed for large grids
     unsigned int gridY;
+    unsigned int gridZ = data.node->batch;
+
     if(data.node->scheme == CS_KERNEL_R_TO_CMPLX_TRANSPOSE)
     {
         const unsigned int tileY = RealComplexEvenTransposeSpecs::TileY();
@@ -357,7 +364,7 @@ RTCKernelArgs RTCKernelRealComplexEvenTranspose::get_launch_args(DeviceCallIn& d
     }
 
     kargs.append_unsigned_int(gridY);
-    kargs.append_unsigned_int(data.node->batch);
+    kargs.append_unsigned_int(gridZ);
 
     append_load_store_args(kargs, *data.node);
 

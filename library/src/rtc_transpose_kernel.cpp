@@ -50,7 +50,21 @@ RTCKernel::RTCGenerator RTCKernelTranspose::generate_from_node(const LeafNode&  
     unsigned int gridZ = std::accumulate(
         length.begin() + highdim, length.end(), node.batch, std::multiplies<unsigned int>());
 
-    generator.gridDim  = {gridX * gridY * gridZ, 1, 1};
+    // check if it is possible to directly use a 3-D grid of GPUs
+    bool grid3D = false;
+    if(gridY < (1U << 16) && gridZ < (1U << 16))
+    {
+        // grid sizes are within limits to use a 3-D grid of GPUs
+        generator.gridDim = {gridX, gridY, gridZ};
+        grid3D            = true;
+    }
+    else
+    {
+        // grid sizes exceed (1U << 16) - 1 limits, then use a 1-D grid,
+        // a natural remap to a 3-D grid is then performed when creating the kernel source code
+        generator.gridDim = {gridX * gridY * gridZ, 1, 1};
+    }
+
     generator.blockDim = {tileX, tileY};
 
     size_t largeTwdSteps = 0;
@@ -87,7 +101,8 @@ RTCKernel::RTCGenerator RTCKernelTranspose::generate_from_node(const LeafNode&  
                          tileAligned,
                          node.GetCallbackType(enable_callbacks),
                          node.loadOps,
-                         node.storeOps};
+                         node.storeOps,
+                         grid3D};
 
     generator.generate_name = [=]() { return transpose_rtc_kernel_name(specs); };
 
@@ -134,8 +149,7 @@ RTCKernelArgs RTCKernelTranspose::get_launch_args(DeviceCallIn& data)
     kargs.append_ptr(kargs_stride_out(data.node->devKernArg));
     kargs.append_unsigned_int(data.node->oDist);
 
-    // pass gridX, gridY, and gridZ to restore a 3-D GPU grid
-
+    // pass gridX, gridY and gridZ to restore a 3-D GPU grid, if needed for large grids
     unsigned int tileX = data.node->precision == rocfft_precision_single ? 64 : 32;
     unsigned int gridYrows
         = data.node->length[1] * (data.node->length.size() > 2 ? data.node->length[2] : 1);
