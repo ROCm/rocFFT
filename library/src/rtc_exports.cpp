@@ -18,9 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
+#include "rocfft_exception.h"
 #include "rtc_cache.h"
 
 rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)
+try
 {
     if(!buffer || !buffer_len_bytes)
         return rocfft_status_invalid_arg_value;
@@ -30,16 +32,26 @@ rocfft_status rocfft_cache_serialize(void** buffer, size_t* buffer_len_bytes)
 
     return RTCCache::single->serialize(buffer, buffer_len_bytes);
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_cache_buffer_free(void* buffer)
+try
 {
     if(!RTCCache::single)
         return rocfft_status_failure;
     RTCCache::single->serialize_free(buffer);
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_bytes)
+try
 {
     if(!buffer || !buffer_len_bytes)
         return rocfft_status_invalid_arg_value;
@@ -48,4 +60,8 @@ rocfft_status rocfft_cache_deserialize(const void* buffer, size_t buffer_len_byt
         return rocfft_status_failure;
 
     return RTCCache::single->deserialize(buffer, buffer_len_bytes);
+}
+catch(...)
+{
+    return rocfft_handle_exception();
 }
