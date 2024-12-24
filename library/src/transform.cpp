@@ -30,9 +30,11 @@
 #include "logging.h"
 #include "plan.h"
 #include "rocfft/rocfft.h"
+#include "rocfft_exception.h"
 #include "transform.h"
 
 rocfft_status rocfft_execution_info_create(rocfft_execution_info* info)
+try
 {
     rocfft_execution_info einfo = new rocfft_execution_info_t;
     *info                       = einfo;
@@ -40,8 +42,13 @@ rocfft_status rocfft_execution_info_create(rocfft_execution_info* info)
 
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_execution_info_destroy(rocfft_execution_info info)
+try
 {
     log_trace(__func__, "info", info);
     if(info != nullptr)
@@ -49,10 +56,15 @@ rocfft_status rocfft_execution_info_destroy(rocfft_execution_info info)
 
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_execution_info_set_work_buffer(rocfft_execution_info info,
                                                     void*                 work_buffer,
                                                     const size_t          size_in_bytes)
+try
 {
     log_trace(__func__, "info", info, "work_buffer", work_buffer, "size_in_bytes", size_in_bytes);
     if(!work_buffer)
@@ -62,18 +74,28 @@ rocfft_status rocfft_execution_info_set_work_buffer(rocfft_execution_info info,
 
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_execution_info_set_stream(rocfft_execution_info info, void* stream)
+try
 {
     log_trace(__func__, "info", info, "stream", stream);
     info->rocfft_stream = (hipStream_t)stream;
     return rocfft_status_success;
+}
+catch(...)
+{
+    return rocfft_handle_exception();
 }
 
 rocfft_status rocfft_execution_info_set_load_callback(rocfft_execution_info info,
                                                       void**                cb_functions,
                                                       void**                cb_data,
                                                       size_t                shared_mem_bytes)
+try
 {
     // currently, we're not allocating LDS for callbacks, so fail
     // if any was requested
@@ -85,11 +107,16 @@ rocfft_status rocfft_execution_info_set_load_callback(rocfft_execution_info info
     info->callbacks.load_cb_lds_bytes = shared_mem_bytes;
     return rocfft_status_success;
 }
+catch(...)
+{
+    return rocfft_handle_exception();
+}
 
 rocfft_status rocfft_execution_info_set_store_callback(rocfft_execution_info info,
                                                        void**                cb_functions,
                                                        void**                cb_data,
                                                        size_t                shared_mem_bytes)
+try
 {
     // currently, we're not allocating LDS for callbacks, so fail
     // if any was requested
@@ -100,6 +127,10 @@ rocfft_status rocfft_execution_info_set_store_callback(rocfft_execution_info inf
     info->callbacks.store_cb_data      = cb_data ? cb_data[0] : nullptr;
     info->callbacks.store_cb_lds_bytes = shared_mem_bytes;
     return rocfft_status_success;
+}
+catch(...)
+{
+    return rocfft_handle_exception();
 }
 
 std::vector<size_t> rocfft_plan_t::MultiPlanTopologicalSort() const
@@ -332,6 +363,7 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
                              void*                 in_buffer[],
                              void*                 out_buffer[],
                              rocfft_execution_info info)
+try
 {
     log_trace(
         __func__, "plan", plan, "in_buffer", in_buffer, "out_buffer", out_buffer, "info", info);
@@ -351,11 +383,11 @@ rocfft_status rocfft_execute(const rocfft_plan     plan,
         }
         return rocfft_status_failure;
     }
-    catch(rocfft_status e)
-    {
-        return e;
-    }
     return rocfft_status_success;
+}
+catch(...)
+{
+    return rocfft_handle_exception();
 }
 
 void ExecPlan::ExecuteAsync(const rocfft_plan     plan,
