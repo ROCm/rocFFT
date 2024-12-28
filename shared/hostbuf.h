@@ -85,7 +85,7 @@ public:
 
         bsize = size;
 
-        auto usable_mem = host_mem_info.get_usable_bytes();
+        auto usable_mem = host_memory::singleton().get_usable_bytes();
         if(total_used_mem + size > usable_mem)
         {
             std::stringstream msg;
