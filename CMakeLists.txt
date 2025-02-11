@@ -194,6 +194,8 @@ set(GPU_TARGETS "${AMDGPU_TARGETS}" CACHE STRING "GPU architectures to build for
   
 # HIP is required - library and clients use HIP to access the device
 find_package( HIP REQUIRED CONFIG )
+find_package( hiprtc REQUIRED CONFIG )
+find_package( Threads REQUIRED )
 
 # The nvidia backend can be used to compile for CUDA devices.
 # Specify the CUDA prefix in the CUDA_PREFIX variable.

@@ -51,13 +51,8 @@ if( USE_CUDA )
   set( ROCFFT_HOST_LINK_LIBS -lcuda )
   set( ROCFFT_RTC_LINK_LIBS -lnvrtc -lnvrtc-builtins -lnvptxcompiler_static )
 else()
-  set( ROCFFT_HOST_LINK_LIBS hip::host )
+  set( ROCFFT_HOST_LINK_LIBS hip::host hiprtc::hiprtc ${CMAKE_DL_LIBS} )
   set( ROCFFT_DEVICE_LINK_LIBS hip::device )
-  if( WIN32 )
-    set( ROCFFT_RTC_LINK_LIBS "${HIP_PATH}/lib/hiprtc.lib" )
-  else()
-    set( ROCFFT_RTC_LINK_LIBS -L${ROCM_PATH}/lib -lhiprtc -ldl )
-  endif()
 endif()
 
 if( ROCFFT_MPI_ENABLE )
@@ -79,7 +74,6 @@ target_include_directories( rocfft_rtc_helper
 set(APPEND_ROCMLIB_RPATH "\$ORIGIN/../../../lib")
 target_link_libraries( rocfft_rtc_helper PRIVATE rocfft-rtc-compile )
 set_target_properties( rocfft_rtc_helper PROPERTIES CXX_STANDARD 17 CXX_STANDARD_REQUIRED ON
-                                         BUILD_WITH_INSTALL_RPATH TRUE
                                          INSTALL_RPATH "${APPEND_ROCMLIB_RPATH}" )
 target_link_directories( rocfft_rtc_helper PRIVATE ${ROCFFT_HOST_LINK_DIRS} )
 
@@ -408,9 +402,7 @@ foreach( target rocfft rocfft_offline_tuner rocfft_solmap_convert rocfft_aot_hel
   endif()
 
   # RTC uses dladdr to find the RTC helper program
-  if( NOT WIN32 )
-    target_link_libraries( ${target} PUBLIC -ldl pthread )
-  endif()
+  target_link_libraries( ${target} PUBLIC ${CMAKE_DL_LIBS} Threads::Threads )
 
   target_include_directories( ${target}
     PRIVATE $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/library/src/include>
@@ -528,11 +520,9 @@ if ( ROCFFT_KERNEL_CACHE_ENABLE )
   list( REMOVE_ITEM GPU_TARGETS_AOT gfx1102 )
   list( REMOVE_ITEM GPU_TARGETS_AOT gfx1151 )
   list( REMOVE_ITEM GPU_TARGETS_AOT gfx1200 )
-  # The binary will be having relative RUNPATH with respect to install directory
-  # Set LD_LIBRARY_PATH for executing the binary from build directory.
   add_custom_command(
     OUTPUT rocfft_kernel_cache.db
-    COMMAND ${CMAKE_COMMAND} -E env "LD_LIBRARY_PATH=$ENV{LD_LIBRARY_PATH}:${ROCM_PATH}/${CMAKE_INSTALL_LIBDIR}" ./rocfft_aot_helper \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${GPU_TARGETS_AOT}
+    COMMAND "${CMAKE_CURRENT_BINARY_DIR}/rocfft_aot_helper" \"${ROCFFT_BUILD_KERNEL_CACHE_PATH}\" ${ROCFFT_KERNEL_CACHE_PATH} $<TARGET_FILE:rocfft_rtc_helper> ${GPU_TARGETS_AOT}
     DEPENDS rocfft_aot_helper rocfft_rtc_helper
     COMMENT "Compile kernels into shipped cache file"
   )
