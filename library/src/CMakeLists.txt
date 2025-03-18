@@ -537,6 +537,8 @@ if ( ROCFFT_KERNEL_CACHE_ENABLE )
     VERBATIM
   )
 endif()
+target_compile_options(rocfft PRIVATE -fgpu-rdc)
+target_link_options(rocfft PRIVATE -fgpu-rdc -Xoffload-linker --lto-partitions=16)
 
 rocm_set_soversion( rocfft ${rocfft_SOVERSION} )
 set_target_properties( rocfft PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_BINARY_DIR}/staging" )
