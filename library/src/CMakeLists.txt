@@ -559,7 +559,7 @@ if( NOT BUILD_SHARED_LIBS )
   set_target_properties( rocfft PROPERTIES PREFIX "lib" )
 endif( )
 target_compile_options(rocfft PRIVATE -fgpu-rdc)
-target_link_options(rocfft PRIVATE -fgpu-rdc)
+target_link_options(rocfft PRIVATE -fgpu-rdc -Xoffload-linker --lto-partitions=1)
 
 ############################################################
 # Installation
