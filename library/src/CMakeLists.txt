@@ -625,4 +625,10 @@ if(BUILD_CODE_COVERAGE)
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
 
+  add_custom_target(
+    code_coverage_report
+    COMMAND /opt/rocm/llvm/bin/llvm-profdata merge -sparse ./coverage-report/profraw/rocfft-coverage_*.profraw -o ./coverage-report/rocfft.profdata
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  )
+
 endif()
