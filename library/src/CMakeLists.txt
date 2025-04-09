@@ -617,4 +617,12 @@ if(BUILD_CODE_COVERAGE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COVERAGE_COMPILE_FLAGS}")
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COVERAGE_COMPILE_FLAGS}")
   set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-instr-generate")
+
+  add_custom_target(
+    code_cov_tests
+    COMMAND echo Coverage GTEST_FILTER=\${GTEST_FILTER}
+    COMMAND mkdir -p ./coverage-report/profraw/ && rm -rf ./coverage-report/profraw/* && LLVM_PROFILE_FILE="./coverage-report/profraw/rocfft-coverage_%p.profraw" ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./clients/staging/rocfft-test --precompile=rocfft-test-precompile.db  --gtest_color=yes --R 80 --nrand 10 --gtest_filter=\"\${GTEST_FILTER}\"
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+  )
+
 endif()
