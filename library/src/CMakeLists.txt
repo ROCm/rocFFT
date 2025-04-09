@@ -609,3 +609,12 @@ if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY AND NOT WIN32)
         DESTINATION "." )
   message( STATUS "Backward Compatible Sym Link Created for include directories" )
 endif()
+
+option(BUILD_CODE_COVERAGE "Build with code coverage flags (clang only)" OFF)
+
+if(BUILD_CODE_COVERAGE)
+  set(COVERAGE_COMPILE_FLAGS "-g -O0 -fprofile-instr-generate -fcoverage-mapping")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COVERAGE_COMPILE_FLAGS}")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COVERAGE_COMPILE_FLAGS}")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-instr-generate")
+endif()
