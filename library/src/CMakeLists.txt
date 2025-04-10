@@ -626,19 +626,21 @@ if(BUILD_CODE_COVERAGE)
   )
 
   add_custom_target(
-    code_coverage_report
+    coverage
     COMMAND /opt/rocm/llvm/bin/llvm-profdata merge -sparse ./coverage-report/profraw/rocfft-coverage_*.profraw -o ./coverage-report/rocfft.profdata
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
 
+  add_dependencies(coverage code_cov_tests)
+
   add_custom_command(
-    TARGET code_coverage_report
+    TARGET coverage
     COMMAND /opt/rocm/llvm/bin/llvm-cov report -object ./library/src/librocfft.so -instr-profile=./coverage-report/rocfft.profdata
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
 
   add_custom_command(
-    TARGET code_coverage_report
+    TARGET coverage
     COMMAND /opt/rocm/llvm/bin/llvm-cov show -object ./library/src/librocfft.so -instr-profile=./coverage-report/rocfft.profdata -format=html -output-dir=coverage_report
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
