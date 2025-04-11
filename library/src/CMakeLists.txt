@@ -641,7 +641,7 @@ if(BUILD_CODE_COVERAGE)
 
   add_custom_command(
     TARGET coverage
-    COMMAND /opt/rocm/llvm/bin/llvm-cov show -object ./library/src/librocfft.so -instr-profile=./coverage-report/rocfft.profdata -format=html -output-dir=coverage_report
+    COMMAND /opt/rocm/llvm/bin/llvm-cov show -object ./library/src/librocfft.so -instr-profile=./coverage-report/rocfft.profdata -format=html -output-dir=coverage-report
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
 
