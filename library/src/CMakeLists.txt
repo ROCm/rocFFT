@@ -621,7 +621,7 @@ if(BUILD_CODE_COVERAGE)
   add_custom_target(
     code_cov_tests
     COMMAND echo Coverage GTEST_FILTER=\${GTEST_FILTER}
-    COMMAND mkdir -p ./coverage-report/profraw/ && rm -rf ./coverage-report/profraw/* && LLVM_PROFILE_FILE="./coverage-report/profraw/rocfft-coverage_%p.profraw" ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./clients/staging/rocfft-test --precompile=rocfft-test-precompile.db  --gtest_color=yes --R 80 --nrand 10 --gtest_filter=\"\${GTEST_FILTER}\"
+    COMMAND mkdir -p ./coverage-report/profraw/ && rm -rf ./coverage-report/profraw/* && LLVM_PROFILE_FILE="./coverage-report/profraw/rocfft-coverage_%p.profraw" ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./clients/staging/rocfft-test --precompile=./clients/staging/rocfft-test-precompile.db  --gtest_color=yes --R 80 --nrand 10 --gtest_filter=\"\${GTEST_FILTER}\"
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
 
