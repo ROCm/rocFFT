@@ -327,11 +327,3 @@ rocm_create_package(
 )
 
 option(BUILD_CODE_COVERAGE "Build with code coverage flags (clang only)" OFF)
-
-if(BUILD_CODE_COVERAGE)
-  add_custom_target(coverage_cleanup
-    COMMAND find ${CMAKE_BINARY_DIR} -name *.profraw -delete
-    COMMAND find ${CMAKE_BINARY_DIR} -name *.profdata -delete
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-  )
-endif()

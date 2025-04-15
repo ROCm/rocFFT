@@ -44,6 +44,14 @@ function( rocfft_link_internal_lib target lib )
   )
 endfunction()
 
+# Add code coverage flags to a library target, if enabled
+function( rocfft_add_coverage_flags target )
+  if( BUILD_CODE_COVERAGE )
+    target_compile_options( ${target} PRIVATE -g -O0 -fprofile-instr-generate -fcoverage-mapping )
+    target_link_options( ${target} INTERFACE -fprofile-instr-generate )
+  endif()
+endfunction()
+
 add_executable( rocfft_rtc_helper rocfft_rtc_helper.cpp )
 
 # each backend requires different libraries for host and device code
@@ -334,6 +342,7 @@ foreach( target
     target_compile_options( ${target} PRIVATE -Og )
   endif()
   target_link_libraries( ${target} PUBLIC ${ROCFFT_HOST_LINK_LIBS} ${ROCFFT_RTC_LINK_LIBS} )
+  rocfft_add_coverage_flags( ${target} )
   target_link_directories( ${target} PRIVATE ${ROCFFT_HOST_LINK_DIRS} )
 
 endforeach()
@@ -372,6 +381,7 @@ add_library( rocfft
   ${rocfft_source}
   ${relative_rocfft_headers_public}
   )
+rocfft_add_coverage_flags( rocfft )
 
 if( ROCFFT_MPI_ENABLE )
   target_compile_definitions(rocfft PRIVATE ROCFFT_MPI_ENABLE)
@@ -608,41 +618,4 @@ if(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY AND NOT WIN32)
        "${PROJECT_BINARY_DIR}/rocfft"
         DESTINATION "." )
   message( STATUS "Backward Compatible Sym Link Created for include directories" )
-endif()
-
-option(BUILD_CODE_COVERAGE "Build with code coverage flags (clang only)" OFF)
-
-if(BUILD_CODE_COVERAGE)
-  set(COVERAGE_COMPILE_FLAGS "-g -O0 -fprofile-instr-generate -fcoverage-mapping")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${COVERAGE_COMPILE_FLAGS}")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COVERAGE_COMPILE_FLAGS}")
-  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fprofile-instr-generate")
-
-  add_custom_target(
-    code_cov_tests
-    COMMAND echo Coverage GTEST_FILTER=\${GTEST_FILTER}
-    COMMAND mkdir -p ./coverage-report/profraw/ && rm -rf ./coverage-report/profraw/* && LLVM_PROFILE_FILE="./coverage-report/profraw/rocfft-coverage_%p.profraw" ROCM_PATH=/opt/rocm GTEST_LISTENER=NO_PASS_LINE_IN_LOG ./clients/staging/rocfft-test --precompile=./clients/staging/rocfft-test-precompile.db  --gtest_color=yes --R 80 --nrand 10 --gtest_filter=\"\${GTEST_FILTER}\"
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-  )
-
-  add_custom_target(
-    coverage
-    COMMAND /opt/rocm/llvm/bin/llvm-profdata merge -sparse ./coverage-report/profraw/rocfft-coverage_*.profraw -o ./coverage-report/rocfft.profdata
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-  )
-
-  add_dependencies(coverage code_cov_tests)
-
-  add_custom_command(
-    TARGET coverage
-    COMMAND /opt/rocm/llvm/bin/llvm-cov report -object ./library/src/librocfft.so -instr-profile=./coverage-report/rocfft.profdata
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-  )
-
-  add_custom_command(
-    TARGET coverage
-    COMMAND /opt/rocm/llvm/bin/llvm-cov show -object ./library/src/librocfft.so -instr-profile=./coverage-report/rocfft.profdata -format=html -output-dir=coverage-report
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-  )
-
 endif()
