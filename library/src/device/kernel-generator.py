@@ -700,6 +700,11 @@ def list_small_kernels():
         NS(length=4000, workgroup_size=256, threads_per_transform=200, factors=(10, 10, 10, 4), runtime_compile=True),
         NS(length=4050, workgroup_size=256, threads_per_transform=135, factors=(10, 5, 3, 3, 3, 3), runtime_compile=True),
         NS(length=4096, workgroup_size=256, threads_per_transform=256, factors=(16, 16, 16), runtime_compile=True),
+        NS(length=4704, workgroup_size=256, threads_per_transform=224, factors=(8, 4, 7, 7, 3), double_precision=False, runtime_compile=True),
+        NS(length=5488, workgroup_size=256, threads_per_transform=196, factors=(7, 4, 7, 4, 7), double_precision=False, runtime_compile=True),
+        NS(length=6144, workgroup_size=256, threads_per_transform=192, factors=(8, 4, 4, 6, 8), double_precision=False, runtime_compile=True),
+        NS(length=6561, workgroup_size=256, threads_per_transform=243, factors=(3, 3, 3, 3, 3, 3, 3, 3), double_precision=False, runtime_compile=True),
+        NS(length=8192, workgroup_size=256, threads_per_transform=256, factors=(8, 8, 8, 4, 4), double_precision=False, runtime_compile=True),
     ]
 
     kernels = [NS(**kernel.__dict__,
