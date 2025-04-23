@@ -61,7 +61,8 @@ public:
     static ComputeScheme
         DecideNodeScheme(const function_pool& pool, NodeMetaData& nodeData, TreeNode* parent);
     static ComputeScheme DecideRealScheme(const function_pool& pool, NodeMetaData& nodeData);
-    static ComputeScheme Decide1DScheme(const function_pool& pool, NodeMetaData& nodeData);
+    static ComputeScheme
+        Decide1DScheme(const function_pool& pool, NodeMetaData& nodeData, TreeNode* parent);
     static ComputeScheme Decide2DScheme(const function_pool& pool, NodeMetaData& nodeData);
     static ComputeScheme Decide3DScheme(const function_pool& pool, NodeMetaData& nodeData);
 

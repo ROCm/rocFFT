@@ -563,7 +563,7 @@ ComputeScheme NodeFactory::DecideNodeScheme(const function_pool& pool,
     switch(nodeData.dimension)
     {
     case 1:
-        return Decide1DScheme(pool, nodeData);
+        return Decide1DScheme(pool, nodeData, parent);
     case 2:
         return Decide2DScheme(pool, nodeData);
     case 3:
@@ -598,7 +598,8 @@ ComputeScheme NodeFactory::DecideRealScheme(const function_pool& pool, NodeMetaD
     return CS_REAL_TRANSFORM_USING_CMPLX;
 }
 
-ComputeScheme NodeFactory::Decide1DScheme(const function_pool& pool, NodeMetaData& nodeData)
+ComputeScheme
+    NodeFactory::Decide1DScheme(const function_pool& pool, NodeMetaData& nodeData, TreeNode* parent)
 {
     ComputeScheme scheme = CS_NONE;
 
@@ -608,7 +609,32 @@ ComputeScheme NodeFactory::Decide1DScheme(const function_pool& pool, NodeMetaDat
 
     if(pool.has_function(FMKey(nodeData.length[0], nodeData.precision)))
     {
-        return CS_KERNEL_STOCKHAM;
+        // 2-kernel plans for lengths > 4k can still do better at
+        // smaller batch size due to using more CUs.  So prefer
+        // single-kernel only if we launch enough workgroups for all
+        // CUs
+        if(nodeData.length[0] > 4096)
+        {
+            auto kernel = pool.get_kernel(FMKey(nodeData.length[0], nodeData.precision));
+
+            // higher dimensions and batch is the effective batch for
+            // the kernel
+            const auto totalBatch
+                = product(nodeData.length.begin() + 1, nodeData.length.end()) * nodeData.batch;
+
+            // Bluestein would have chosen this kernel for
+            // single-kernel Bluestein, so continue using it for
+            // chirp setup
+            if((parent && parent->scheme == CS_BLUESTEIN)
+               || totalBatch / kernel.transforms_per_block
+                      >= static_cast<size_t>(pool.deviceProp->multiProcessorCount))
+                return CS_KERNEL_STOCKHAM;
+            // otherwise, fall through to multi-kernel plan
+        }
+        else
+        {
+            return CS_KERNEL_STOCKHAM;
+        }
     }
 
     size_t divLength1 = 1;
