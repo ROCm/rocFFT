@@ -704,7 +704,7 @@ def list_small_kernels():
 
     kernels = [NS(**kernel.__dict__,
                   scheme='CS_KERNEL_STOCKHAM',
-                  precision=['sp', 'dp']) for kernel in kernels1d]
+                  precision=['sp','dp'] if not hasattr(kernel, 'double_precision') or kernel.double_precision else ['sp']) for kernel in kernels1d]
 
     return kernels
 
@@ -1119,6 +1119,9 @@ def generate_kernels(kernels, precisions, stockham_gen):
         # Send input if any remaining
         if kernel_idx < num_kernels:
             k = kernels[kernel_idx]
+
+            kernel_precisions = k.precision if hasattr(k, 'precision') else precisions
+
             # 2D single kernels always specify threads per transform
             if isinstance(k.length, list):
                 proc.stdin.write(','.join([str(f)
@@ -1126,13 +1129,13 @@ def generate_kernels(kernels, precisions, stockham_gen):
                 proc.stdin.write(','.join([str(f)
                                            for f in k.factors[1]]) + " ")
                 proc.stdin.write(
-                    ','.join([str(pre_enum[pre]) for pre in precisions]) + " ")
+                    ','.join([str(pre_enum[pre]) for pre in kernel_precisions]) + " ")
                 proc.stdin.write(','.join(
                     [str(f) for f in k.threads_per_transform]))
             else:
                 proc.stdin.write(','.join([str(f) for f in k.factors]) + " ")
                 proc.stdin.write(','.join(
-                    [str(pre_enum[pre]) for pre in precisions]))
+                    [str(pre_enum[pre]) for pre in kernel_precisions]))
                 # 1D kernels might not, and need to default to 'uwide'
                 threads_per_transform = getattr(
                     k, 'threads_per_transform', {
