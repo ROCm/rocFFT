@@ -1125,7 +1125,8 @@ def generate_kernels(kernels, precisions, stockham_gen):
         if kernel_idx < num_kernels:
             k = kernels[kernel_idx]
 
-            kernel_precisions = k.precision if hasattr(k, 'precision') else precisions
+            kernel_precisions = k.precision if hasattr(
+                k, 'precision') else precisions
 
             # 2D single kernels always specify threads per transform
             if isinstance(k.length, list):
@@ -1134,7 +1135,8 @@ def generate_kernels(kernels, precisions, stockham_gen):
                 proc.stdin.write(','.join([str(f)
                                            for f in k.factors[1]]) + " ")
                 proc.stdin.write(
-                    ','.join([str(pre_enum[pre]) for pre in kernel_precisions]) + " ")
+                    ','.join([str(pre_enum[pre])
+                              for pre in kernel_precisions]) + " ")
                 proc.stdin.write(','.join(
                     [str(f) for f in k.threads_per_transform]))
             else:
