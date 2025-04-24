@@ -390,6 +390,8 @@ if( ROCFFT_MPI_ENABLE )
 
 endif()
 
+set(COVERAGE_TEST_OPTIONS "--smoketest" CACHE STRING "Command line arguments for rocfft-test")
+
 if(BUILD_CODE_COVERAGE)
   # Coverage won't work in a standalone build of the tests, as we can't
   # guarantee the library was built with coverage enabled
@@ -402,7 +404,7 @@ if(BUILD_CODE_COVERAGE)
     DEPENDS rocfft-test rocfft_rtc_helper
     COMMAND ${CMAKE_COMMAND} -E rm -rf ./coverage-report
     COMMAND ${CMAKE_COMMAND} -E make_directory ./coverage-report/profraw
-    COMMAND ${CMAKE_COMMAND} -E env LLVM_PROFILE_FILE="./coverage-report/profraw/rocfft-coverage_%p.profraw" GTEST_LISTENER=NO_PASS_LINE_IN_LOG $<TARGET_FILE:rocfft-test> --precompile=rocfft-test-precompile.db --smoketest
+    COMMAND ${CMAKE_COMMAND} -E env LLVM_PROFILE_FILE="./coverage-report/profraw/rocfft-coverage_%p.profraw" GTEST_LISTENER=NO_PASS_LINE_IN_LOG $<TARGET_FILE:rocfft-test> --precompile=rocfft-test-precompile.db ${COVERAGE_TEST_OPTIONS}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
   )
 
