@@ -32,6 +32,12 @@ private:
     static const Map1DLength         map1DLengthSingle;
     static const Map1DLength         map1DLengthDouble;
 
+    // Maps from length[0] to divLength1 for TRTRT decomposition.
+    // Normally we would choose the largest kernel that helps decompose
+    // a 1D length, but this map holds exceptions that are known to be
+    // better
+    static const Map1DLength map1DLengthTRTRT;
+
     static bool Large1DLengthsValid(const function_pool& pool,
                                     const Map1DLength&   map1DLength,
                                     rocfft_precision     precision);

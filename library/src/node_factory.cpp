@@ -206,6 +206,12 @@ NodeFactory::Map1DLength const NodeFactory::map1DLengthDouble = {
     {114688, 224}, //           CC (224cc + 512rc)
 };
 
+NodeFactory::Map1DLength const NodeFactory::map1DLengthTRTRT = {
+    // 3^18 performs better when decomposing with 3^7 kernel even when
+    // 3^8 is available
+    {387420489, 177147},
+};
+
 //
 // Factorisation helpers
 //
@@ -747,20 +753,29 @@ ComputeScheme
         if(failed)
         {
             scheme = CS_L1D_TRTRT;
-            divLength1
-                = get_explicitly_supported_factor(pool, nodeData.precision, nodeData.length[0]);
-            if(divLength1 == 0)
-            {
-                // We need to recurse.  Note, for CS_L1D_TRTRT,
-                // divLength0 has to be explictly supported
-                auto divLength0
-                    = get_largest_supported_factor(pool, nodeData.precision, nodeData.length[0]);
 
-                // should ignore factor 1 or we're going into a infinity decompostion loop,
-                // (an example is to run len-81 when we build only pow2 kernels, we'll be here)
-                divLength1 = (divLength0 <= 1) ? 0 : nodeData.length[0] / divLength0;
+            auto it = map1DLengthTRTRT.find(nodeData.length[0]);
+            if(it != map1DLengthTRTRT.end())
+            {
+                divLength1 = it->second;
             }
-            failed = divLength1 == 0;
+            else
+            {
+                divLength1
+                    = get_explicitly_supported_factor(pool, nodeData.precision, nodeData.length[0]);
+                if(divLength1 == 0)
+                {
+                    // We need to recurse.  Note, for CS_L1D_TRTRT,
+                    // divLength0 has to be explictly supported
+                    auto divLength0 = get_largest_supported_factor(
+                        pool, nodeData.precision, nodeData.length[0]);
+
+                    // should ignore factor 1 or we're going into a infinity decompostion loop,
+                    // (an example is to run len-81 when we build only pow2 kernels, we'll be here)
+                    divLength1 = (divLength0 <= 1) ? 0 : nodeData.length[0] / divLength0;
+                }
+                failed = divLength1 == 0;
+            }
         }
     }
 
