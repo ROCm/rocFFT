@@ -758,6 +758,7 @@ ComputeScheme
             if(it != map1DLengthTRTRT.end())
             {
                 divLength1 = it->second;
+                failed     = false;
             }
             else
             {
