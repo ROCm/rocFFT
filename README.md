@@ -88,7 +88,7 @@ You can install rocFFT using pre-built packages or building from source.
     cmake -DCMAKE_CXX_COMPILER=amdclang++ -DBUILD_CLIENTS_SAMPLES=ON -DBUILD_CLIENTS_TESTS=ON -DBUILD_CODE_COVERAGE=ON <optional: -DCOVERAGE_TEST_OPTIONS="cmdline args to pass to rocfft-test (default: --smoketest)"> ..
     make -j coverage
     ```
-    The above will output the coverage report to the terminal and also save an html coverage report to $PWD/coverage-report.
+    The above will output the coverage report to the terminal and also save an html coverage report to `$PWD/coverage-report`.
 
 ## Examples
 
