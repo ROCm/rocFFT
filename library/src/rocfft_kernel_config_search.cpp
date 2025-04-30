@@ -146,6 +146,7 @@ std::string test_kernel_name(unsigned int                     length,
 }
 
 std::string test_kernel_src(const std::string&               kernel_name,
+                            hipDeviceProp_t                  device_prop,
                             unsigned int&                    transforms_per_block,
                             unsigned int                     length,
                             ComputeScheme                    compute_scheme,
@@ -164,6 +165,8 @@ std::string test_kernel_src(const std::string&               kernel_name,
     specs.threads_per_transform = tpt;
     specs.half_lds              = half_lds;
     specs.direct_to_from_reg    = direct_to_from_reg;
+    // aim for occupancy-2
+    specs.lds_byte_limit = device_prop.sharedMemPerBlock / 2;
 
     return stockham_rtc(specs,
                         specs,
@@ -434,8 +437,12 @@ int main(int argc, char** argv)
         std::vector<unsigned int> best_factorization;
         std::string               best_kernel_src;
 
+        size_t count = 0;
         for(auto factorization : factorizations)
         {
+            ++count;
+            std::cout << "factorization " << count << " of " << factorizations.size() << std::endl;
+
             auto tpts = supported_threads_per_transform(factorization);
 
             // go through all permutations of the factors
@@ -443,10 +450,23 @@ int main(int argc, char** argv)
             {
                 for(auto wgs : supported_wgs)
                 {
+                    // Remember which tpt was the largest we saw for
+                    // this wgs, and aim for same or higher, so fewer
+                    // threads are doing nothing.
+                    unsigned int largest_tpt = 0;
+
                     for(auto tpt : tpts)
                     {
-                        if(tpt < wgs)
+                        // There's no point in testing a half-full
+                        // wgs since so many threads will be doing
+                        // nothing.  And at larger wgs you could just
+                        // drop to a smaller one anyway.
+                        if(tpt <= wgs / 2)
+                            continue;
+
+                        if(tpt <= wgs && tpt >= largest_tpt)
                         {
+                            largest_tpt = tpt;
                             for(bool half_lds : {true, false})
                             {
                                 for(bool direct_to_from_reg : {true, false})
@@ -462,6 +482,7 @@ int main(int argc, char** argv)
                                                                         direct_to_from_reg);
                                     unsigned int transforms_per_block = 0;
                                     auto         kernel_src           = test_kernel_src(kernel_name,
+                                                                      device_prop,
                                                                       transforms_per_block,
                                                                       length,
                                                                       compute_scheme,
@@ -492,7 +513,7 @@ int main(int argc, char** argv)
                                     // database if desired
                                     std::cout << length << ", " << kernel_name << ", "
                                               << std::setprecision(3) << static_cast<double>(time)
-                                              << std::endl;
+                                              << "ms " << std::endl;
 
                                     if(time < best_time)
                                     {
@@ -577,6 +598,7 @@ int main(int argc, char** argv)
             unsigned int transforms_per_block = 0;
 
             auto kernel_src = test_kernel_src(kernel_name,
+                                              device_prop,
                                               transforms_per_block,
                                               length,
                                               compute_scheme,
