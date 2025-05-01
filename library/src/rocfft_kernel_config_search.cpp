@@ -104,11 +104,11 @@ std::set<std::vector<unsigned int>> power_set(std::vector<unsigned int>::const_i
     return ret;
 }
 
-std::set<unsigned int>
+std::set<unsigned int, std::greater<unsigned int>>
     supported_threads_per_transform(const std::vector<unsigned int>& factorization)
 {
-    std::set<unsigned int> tpts;
-    auto                   tpt_candidates = power_set(factorization.begin(), factorization.end());
+    std::set<unsigned int, std::greater<unsigned int>> tpts;
+    auto tpt_candidates = power_set(factorization.begin(), factorization.end());
     for(auto tpt : tpt_candidates)
     {
         if(tpt.empty())
@@ -450,13 +450,12 @@ int main(int argc, char** argv)
             {
                 for(auto wgs : supported_wgs)
                 {
-                    // Remember which tpt was the largest we saw for
-                    // this wgs, and aim for same or higher, so fewer
-                    // threads are doing nothing.
-                    unsigned int largest_tpt = 0;
-
                     for(auto tpt : tpts)
                     {
+                        // tpt must fit into wgs
+                        if(tpt > wgs)
+                            continue;
+
                         // There's no point in testing a half-full
                         // wgs since so many threads will be doing
                         // nothing.  And at larger wgs you could just
@@ -464,70 +463,65 @@ int main(int argc, char** argv)
                         if(tpt <= wgs / 2)
                             continue;
 
-                        if(tpt <= wgs && tpt >= largest_tpt)
+                        for(bool half_lds : {true, false})
                         {
-                            largest_tpt = tpt;
-                            for(bool half_lds : {true, false})
+                            for(bool direct_to_from_reg : {true, false})
                             {
-                                for(bool direct_to_from_reg : {true, false})
+                                // half lds currently requires direct to/from reg
+                                if(half_lds && !direct_to_from_reg)
+                                    continue;
+                                auto kernel_name = test_kernel_name(
+                                    length, factorization, wgs, tpt, half_lds, direct_to_from_reg);
+                                unsigned int transforms_per_block = 0;
+                                auto         kernel_src           = test_kernel_src(kernel_name,
+                                                                  device_prop,
+                                                                  transforms_per_block,
+                                                                  length,
+                                                                  compute_scheme,
+                                                                  precision,
+                                                                  factorization,
+                                                                  wgs,
+                                                                  tpt,
+                                                                  half_lds,
+                                                                  direct_to_from_reg);
+
+                                auto code = compile_inprocess(kernel_src, device_prop.gcnArchName);
+                                RTCKernelStockham kernel(kernel_name, code);
+
+                                float time = launch_kernel(
+                                    kernel,
+                                    DivRoundingUp<unsigned int>(data.batch, transforms_per_block),
+                                    tpt * transforms_per_block,
+                                    get_lds_bytes(length, transforms_per_block, half_lds),
+                                    ntrial,
+                                    device_prop,
+                                    data);
+
+                                // print median time for this length
+                                // in a format that can be easily
+                                // grepped for and shoved into a
+                                // database if desired
+                                std::cout << length << ", " << kernel_name << ", "
+                                          << std::setprecision(3) << static_cast<double>(time)
+                                          << "ms " << std::endl;
+
+                                if(time < best_time)
                                 {
-                                    // half lds currently requires direct to/from reg
-                                    if(half_lds && !direct_to_from_reg)
-                                        continue;
-                                    auto         kernel_name          = test_kernel_name(length,
-                                                                        factorization,
-                                                                        wgs,
-                                                                        tpt,
-                                                                        half_lds,
-                                                                        direct_to_from_reg);
-                                    unsigned int transforms_per_block = 0;
-                                    auto         kernel_src           = test_kernel_src(kernel_name,
-                                                                      device_prop,
-                                                                      transforms_per_block,
-                                                                      length,
-                                                                      compute_scheme,
-                                                                      precision,
-                                                                      factorization,
-                                                                      wgs,
-                                                                      tpt,
-                                                                      half_lds,
-                                                                      direct_to_from_reg);
-
-                                    auto code
-                                        = compile_inprocess(kernel_src, device_prop.gcnArchName);
-                                    RTCKernelStockham kernel(kernel_name, code);
-
-                                    float time = launch_kernel(
-                                        kernel,
-                                        DivRoundingUp<unsigned int>(data.batch,
-                                                                    transforms_per_block),
-                                        tpt * transforms_per_block,
-                                        get_lds_bytes(length, transforms_per_block, half_lds),
-                                        ntrial,
-                                        device_prop,
-                                        data);
-
-                                    // print median time for this length
-                                    // in a format that can be easily
-                                    // grepped for and shoved into a
-                                    // database if desired
-                                    std::cout << length << ", " << kernel_name << ", "
-                                              << std::setprecision(3) << static_cast<double>(time)
-                                              << "ms " << std::endl;
-
-                                    if(time < best_time)
-                                    {
-                                        best_time               = time;
-                                        best_wgs                = wgs;
-                                        best_tpt                = tpt;
-                                        best_half_lds           = half_lds;
-                                        best_direct_to_from_reg = direct_to_from_reg;
-                                        best_factorization      = factorization;
-                                        best_kernel_src         = std::move(kernel_src);
-                                    }
+                                    best_time               = time;
+                                    best_wgs                = wgs;
+                                    best_tpt                = tpt;
+                                    best_half_lds           = half_lds;
+                                    best_direct_to_from_reg = direct_to_from_reg;
+                                    best_factorization      = factorization;
+                                    best_kernel_src         = std::move(kernel_src);
                                 }
                             }
                         }
+                        // found the largest number of threads
+                        // that'll fit into wgs, don't bother
+                        // testing fewer as that's just worse
+                        // utilization of the workgroup
+                        break;
                     }
                 }
             } while(std::next_permutation(factorization.begin(), factorization.end()));
