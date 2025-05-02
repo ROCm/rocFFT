@@ -198,7 +198,8 @@ def generate_cpu_function_pool_pieces(functions, num_files):
                                    scheme, transpose or 'NONE',
                                    'kernel.get_kernel_config()')).inline()
         piece_contents[curr_file] += function_map.assert_insert(
-            key, var_kernel, 'def_key_pool', 'function_map', f.meta.lds_size_bytes)
+            key, var_kernel, 'def_key_pool', 'function_map',
+            f.meta.lds_size_bytes)
         curr_file = (curr_file + 1) % num_files
 
     # Assemble contents of each file to return in a list
