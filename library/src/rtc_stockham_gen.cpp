@@ -313,64 +313,39 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     else
     {
         std::unique_ptr<StockhamKernel> kernel;
-        if(scheme == CS_KERNEL_STOCKHAM)
-        {
-            if(ppType == PartialPassType::PPT_SBRR)
-                kernel = std::make_unique<StockhamPartialPassKernelRR>(specs, ppFactors, ppLength);
-            else
-                kernel = std::make_unique<StockhamKernelRR>(specs);
-        }
-        else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
-        {
-            if(ppType == PartialPassType::PPT_SBCC)
-                kernel = std::make_unique<StockhamPartialPassKernelCC>(
-                    specs, largeTwdBatchIsTransformCount, ppFactors);
-            else
-                kernel = std::make_unique<StockhamKernelCC>(
-                    specs, largeTwdBatchIsTransformCount, fuseBluestein);
-        }
-        else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
-            kernel = std::make_unique<StockhamKernelCR>(specs);
-        else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
-            kernel = std::make_unique<StockhamKernelRC>(specs, fuseBluestein);
-        else if(scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
-            kernel = std::make_unique<StockhamKernelRC>(specs, false);
-        else if(scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)
-            kernel = std::make_unique<StockhamKernelRC>(specs, false);
-        else if(scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
-            kernel = std::make_unique<StockhamKernelRC>(specs, false);
-        else
-            throw std::runtime_error("unhandled scheme");
-        if(transforms_per_block)
-            *transforms_per_block = kernel->transforms_per_block;
-
         switch(ppType)
         {
         case PPT_NONE:
         {
+            if(scheme == CS_KERNEL_STOCKHAM)
+                kernel = std::make_unique<StockhamKernelRR>(specs);
+            else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CC)
+                kernel = std::make_unique<StockhamKernelCC>(
+                    specs, largeTwdBatchIsTransformCount, fuseBluestein);
+            else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_CR)
+                kernel = std::make_unique<StockhamKernelCR>(specs);
+            else if(scheme == CS_KERNEL_STOCKHAM_BLOCK_RC)
+                kernel = std::make_unique<StockhamKernelRC>(specs, fuseBluestein);
+            else if(scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_XY_Z)
+                kernel = std::make_unique<StockhamKernelRC>(specs, false);
+            else if(scheme == CS_KERNEL_STOCKHAM_TRANSPOSE_Z_XY)
+                kernel = std::make_unique<StockhamKernelRC>(specs, false);
+            else if(scheme == CS_KERNEL_STOCKHAM_R_TO_CMPLX_TRANSPOSE_Z_XY)
+                kernel = std::make_unique<StockhamKernelRC>(specs, false);
+            else
+                throw std::runtime_error("unhandled scheme");
+
             lds2reg = std::make_unique<Function>(kernel->generate_lds_to_reg_input_function());
             reg2lds = std::make_unique<Function>(kernel->generate_lds_from_reg_output_function());
             device  = std::make_unique<Function>(kernel->generate_device_function());
-            break;
-        }
-        case PPT_SBRR:
-        {
-            auto kernel_pp = static_cast<StockhamPartialPassKernelRR*>(kernel.get());
 
-            lds2reg = std::make_unique<Function>(kernel_pp->generate_lds_to_reg_input_function());
-            reg2lds
-                = std::make_unique<Function>(kernel_pp->generate_lds_from_reg_output_function());
-            lds2reg_pp_steps = std::make_unique<Function>(
-                kernel_pp->generate_lds_to_reg_input_step_1_2_function());
-            reg2lds_pp_steps = std::make_unique<Function>(
-                kernel_pp->generate_lds_from_reg_output_pp_step_1_2_function());
-            twiddle_multiply_pp = std::make_unique<Function>(
-                kernel_pp->generate_twiddle_multiply_pp_function(direction));
-            device = std::make_unique<Function>(kernel_pp->generate_device_function());
             break;
         }
         case PPT_SBCC:
         {
+            kernel = std::make_unique<StockhamPartialPassKernelCC>(
+                specs, largeTwdBatchIsTransformCount, ppFactors);
+
             auto kernel_pp = static_cast<StockhamPartialPassKernelCC*>(kernel.get());
 
             lds2reg
@@ -384,9 +359,34 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
             local_transpose_pp
                 = std::make_unique<Function>(kernel_pp->generate_local_transpose_pp_function());
             device = std::make_unique<Function>(kernel_pp->generate_device_function());
+
             break;
         }
+        case PPT_SBRR:
+        {
+            kernel = std::make_unique<StockhamPartialPassKernelRR>(specs, ppFactors, ppLength);
+
+            auto kernel_pp = static_cast<StockhamPartialPassKernelRR*>(kernel.get());
+
+            lds2reg = std::make_unique<Function>(kernel_pp->generate_lds_to_reg_input_function());
+            reg2lds
+                = std::make_unique<Function>(kernel_pp->generate_lds_from_reg_output_function());
+            lds2reg_pp_steps = std::make_unique<Function>(
+                kernel_pp->generate_lds_to_reg_input_step_1_2_function());
+            reg2lds_pp_steps = std::make_unique<Function>(
+                kernel_pp->generate_lds_from_reg_output_pp_step_1_2_function());
+            twiddle_multiply_pp = std::make_unique<Function>(
+                kernel_pp->generate_twiddle_multiply_pp_function(direction));
+            device = std::make_unique<Function>(kernel_pp->generate_device_function());
+
+            break;
         }
+        default:
+            throw std::runtime_error("unhandled partial pass type");
+        };
+
+        if(transforms_per_block)
+            *transforms_per_block = kernel->transforms_per_block;
 
         if(fuseBluestein)
         {
