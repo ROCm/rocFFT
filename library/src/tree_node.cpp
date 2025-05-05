@@ -189,7 +189,7 @@ bool LeafNode::KernelCheck(std::vector<FMKey>& kernel_keys)
             // get sbrc_trans_type from assignedKey (for sbrc)
             sbrcTranstype = assignedKey.sbrcTrans;
 
-            pool.update_kernel(assignedKey);
+            pool.add_new_kernel(assignedKey);
             specified_key = std::make_unique<FMKey>(assignedKey);
         }
     }

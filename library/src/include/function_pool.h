@@ -154,7 +154,7 @@ class function_pool
         return best;
     }
 
-    FMKey get_actual_key(const FMKey& key) const
+    const FMKey& get_actual_key(const FMKey& key) const
     {
         // - for keys that we are querying with no/empty kernel-config, actually we are refering to
         //   the default kernel-configs in kernel-generator.py. So get the actual keys to look-up
@@ -190,19 +190,17 @@ public:
 
     ~function_pool() = default;
 
-    // Update a kernel in runtime, whose key must already exist in
-    // the function pool.  Inserting a new key would invalidate
-    // existing iterators to the pool structures.
-    void update_kernel(const FMKey& new_key)
+    // add a new kernel in runtime
+    void add_new_kernel(const FMKey& new_key)
     {
-        auto it = find_key_in_map(function_map, new_key);
-        if(it != function_map.end())
-        {
-            // so we can reuse the find_key_in_map const method, cast
-            // away const of the kernel config
-            auto& config = const_cast<FFTKernel&>(it->second);
-            config       = new_key.kernel_config;
-        }
+        // already has this kernel
+        if(has_function(new_key))
+            return;
+
+        FMKey new_key_with_lds          = new_key;
+        new_key_with_lds.lds_size_bytes = max_lds_bytes;
+
+        function_map.emplace(new_key_with_lds, FFTKernel(new_key_with_lds.kernel_config));
     }
 
     bool has_function(const FMKey& key) const
