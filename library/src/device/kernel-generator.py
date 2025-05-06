@@ -241,7 +241,8 @@ def kernel_name(ns):
     return f'rocfft_len{length}{postfix}'
 
 
-LDS_160k = 160*1024
+LDS_160k = 160 * 1024
+
 
 # yapf: disable
 def list_small_kernels():
