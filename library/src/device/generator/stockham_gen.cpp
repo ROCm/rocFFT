@@ -21,6 +21,7 @@
 #include <functional>
 using namespace std::placeholders;
 
+#include "../../../../shared/precision_type.h"
 #include "generator.h"
 #include "stockham_gen.h"
 #include <array>
@@ -264,6 +265,18 @@ void stockham_variants(const std::string&            kernel_name,
     output << "]";
 }
 
+static size_t max_bytes_per_element(const std::vector<unsigned int>& precisions)
+{
+    // generate for the maximum element size in the available
+    // precisions
+    size_t element_size = 0;
+    for(auto p : precisions)
+    {
+        element_size = std::max(element_size, complex_type_size(static_cast<rocfft_precision>(p)));
+    }
+    return element_size;
+}
+
 int main()
 {
     std::string line;
@@ -273,6 +286,7 @@ int main()
     bool         direct_to_from_reg;
     bool         half_lds;
     unsigned int workgroup_size;
+    unsigned int lds_size_bytes;
 
     const char* DELIM = "";
     std::cout << "{";
@@ -291,6 +305,9 @@ int main()
 
         // work backwards from the end
         auto arg = tokens.rbegin();
+
+        lds_size_bytes = std::stoul(*arg);
+        ++arg;
 
         std::string kernel_name = *arg;
 
@@ -329,12 +346,18 @@ int main()
         specs.half_lds           = half_lds;
         specs.direct_to_from_reg = direct_to_from_reg;
 
+        specs.bytes_per_element = max_bytes_per_element(precisions);
+
         specs.threads_per_transform = threads_per_transform.front();
 
         // second dimension for 2D_SINGLE
         StockhamGeneratorSpecs specs2d(factors2d, factors, precisions, workgroup_size, scheme);
         if(!threads_per_transform.empty())
             specs2d.threads_per_transform = threads_per_transform.back();
+
+        // aim for occupancy-2 by default
+        specs.lds_byte_limit   = lds_size_bytes / 2;
+        specs2d.lds_byte_limit = lds_size_bytes / 2;
 
         // create spec and pass to stockham_variants, writes partial output to stdout
         std::cout << DELIM;
