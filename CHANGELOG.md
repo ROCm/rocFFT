@@ -5,6 +5,15 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.34 (unreleased)
 
+### Added
+
+* Added gfx950 support.
+
+### Removed
+
+* Removed rocfft-rider legacy compatibility from clients
+* Remove support for the gfx940 and gfx941 targets from the client programs.
+
 ### Optimized
 
 * Removed unnecessary HIP event/stream allocation and synchronization during MPI transforms.
@@ -14,15 +23,6 @@ Documentation for rocFFT is available at
   - 6144
   - 6561
   - 8192
-
-### Added
-
-* Added gfx950 support.
-
-### Removed
-
-* Removed rocfft-rider legacy compatibility from clients
-* Remove support for the gfx940 and gfx941 targets from the client programs.
 
 ### Resolved issues
 
