@@ -108,6 +108,7 @@ set( kgen_embed_cpp ${CMAKE_BINARY_DIR}/library/src/device/kernel-generator-embe
 set( kgen_embed_files
      ${CMAKE_SOURCE_DIR}/shared/rocfft_complex.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/common.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/device_enum.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/memory_gfx.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/callback.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/butterfly_constant.h

@@ -905,6 +905,7 @@ std::string partial_pass_sbrr_64_64_64_rtc(const std::string&              kerne
     // start off with includes
     src += rocfft_complex_h;
     src += common_h;
+    src += device_enum_h;
     src += memory_gfx_h;
     src += callback_h;
     src += butterfly_constant_h;

@@ -53,7 +53,6 @@ std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
                                      size_t                        largeTwdBase,
                                      size_t                        largeTwdSteps,
                                      bool                          largeTwdBatchIsTransformCount,
-                                     EmbeddedType                  ebtype,
                                      DirectRegType                 dir2regMode,
                                      IntrinsicAccessType           intrinsicMode,
                                      SBRC_TRANSPOSE_TYPE           transpose_type,
@@ -200,7 +199,7 @@ std::string stockham_rtc_kernel_name(const StockhamGeneratorSpecs& specs,
             kernel_name += "_batchcount";
     }
 
-    switch(ebtype)
+    switch(specs.ebtype)
     {
     case EmbeddedType::NONE:
         break;
@@ -250,7 +249,6 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
                          size_t                        largeTwdBase,
                          size_t                        largeTwdSteps,
                          bool                          largeTwdBatchIsTransformCount,
-                         EmbeddedType                  ebtype,
                          DirectRegType                 dir2regMode,
                          IntrinsicAccessType           intrinsicMode,
                          SBRC_TRANSPOSE_TYPE           transpose_type,
@@ -375,6 +373,7 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
     std::string src;
     src += rocfft_complex_h;
     src += common_h;
+    src += device_enum_h;
     src += memory_gfx_h;
     src += callback_h;
     src += butterfly_constant_h;
@@ -413,19 +412,6 @@ std::string stockham_rtc(const StockhamGeneratorSpecs& specs,
         src += "static const StrideBin sb = SB_UNIT;\n";
     else
         src += "static const StrideBin sb = SB_NONUNIT;\n";
-
-    switch(ebtype)
-    {
-    case EmbeddedType::NONE:
-        src += "static const EmbeddedType ebtype = EmbeddedType::NONE;\n";
-        break;
-    case EmbeddedType::Real2C_POST:
-        src += "static const EmbeddedType ebtype = EmbeddedType::Real2C_POST;\n";
-        break;
-    case EmbeddedType::C2Real_PRE:
-        src += "static const EmbeddedType ebtype = EmbeddedType::C2Real_PRE;\n";
-        break;
-    }
 
     // SBRC-specific template parameters that are ignored for other kernels
     switch(scheme)
