@@ -96,4 +96,11 @@ enum BluesteinFuseType
     BFT_INV_CHIRP_MUL, // fused convolution Hadamard product + inverse fft + chirp Hadamard product
 };
 
+enum PartialPassType
+{
+    PPT_NONE,
+    PPT_SBCC,
+    PPT_SBRR,
+};
+
 #endif
