@@ -95,6 +95,9 @@ BluesteinType BluesteinNode::DecideBlueType()
         return type;
     }
 
+    // Handle lengthBlue with its own non-fused FFT sub-plan.  This
+    // can be a multi-kernel L1D plan, or a 1-kernel Stockham plan if
+    // lengthBlue can be done with a single non-pow2 kernel.
     if(scheme == CS_L1D_CRT || scheme == CS_L1D_TRTRT || scheme == CS_KERNEL_STOCKHAM)
         return BluesteinType::BT_MULTI_KERNEL;
 
