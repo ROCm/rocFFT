@@ -140,7 +140,7 @@ class FFTKernel(BaseNode):
         f += ', '
 
         f += 'true' if aot_rtc else 'false'
-        f += ', ' + str(self.function.meta.pp_child_scheme)        
+        f += ', ' + str(self.function.meta.pp_child_scheme)
         f += ', ' + str(self.function.meta.pp_current_dim)
         f += ', ' + str(self.function.meta.pp_off_dim)
         pp_factors = getattr(self.function.meta, 'pp_factors', None)
@@ -190,8 +190,9 @@ def generate_cpu_function_pool_pieces(functions, pp_functions, num_files):
 
     # Init list to store contents of function_pool_init function per file being generated
     piece_contents = [
-        StatementList() + var_kernel.declaration() + var_pp_kernel_1.declaration() + 
-        var_pp_kernel_2.declaration() for _ in range(num_files)
+        StatementList() + var_kernel.declaration() +
+        var_pp_kernel_1.declaration() + var_pp_kernel_2.declaration()
+        for _ in range(num_files)
     ]
 
     # Cycles through each file per loop execution to distribute work amongst N files
@@ -203,46 +204,45 @@ def generate_cpu_function_pool_pieces(functions, pp_functions, num_files):
         length, precision, scheme, transpose = f.meta.length, f.meta.precision, f.meta.scheme, f.meta.transpose
 
         if scheme == 'CS_3D_PP':
-            piece_contents[curr_file] += Assign(var_pp_kernel_1, FFTKernel(f))            
+            piece_contents[curr_file] += Assign(var_pp_kernel_1, FFTKernel(f))
             f = all_functions[curr_func + curr_func_offset]
             piece_contents[curr_file] += Assign(var_pp_kernel_2, FFTKernel(f))
-            
-            key = Call(
-                name='PPFMKey',
-                arguments=ArgumentList(length[0], length[1], length[2],
-                                       precisions[precision],
-                                       scheme, 'pp_kernel_1.get_kernel_config()',
-                                       'pp_kernel_2.get_kernel_config()')).inline()
+
+            key = Call(name='PPFMKey',
+                       arguments=ArgumentList(
+                           length[0], length[1], length[2],
+                           precisions[precision], scheme,
+                           'pp_kernel_1.get_kernel_config()',
+                           'pp_kernel_2.get_kernel_config()')).inline()
             piece_contents[curr_file] += function_map.insert_pp(
-                key, var_pp_kernel_1, var_pp_kernel_2, 'std::get<1>(def_keys)', 
+                key, var_pp_kernel_1, var_pp_kernel_2, 'std::get<1>(def_keys)',
                 'std::get<1>(function_maps)', f.meta.lds_size_bytes)
-            
+
             curr_pp_func = curr_pp_func + 1
         else:
             if isinstance(length, (int, str)):
                 length = [length, 0]
             piece_contents[curr_file] += Assign(var_kernel, FFTKernel(f))
-            key = Call(
-                name='FMKey',
-                arguments=ArgumentList(length[0], length[1], precisions[precision],
-                                       scheme, transpose or 'NONE',
-                                       'kernel.get_kernel_config()')).inline()
+            key = Call(name='FMKey',
+                       arguments=ArgumentList(
+                           length[0], length[1], precisions[precision], scheme,
+                           transpose or 'NONE',
+                           'kernel.get_kernel_config()')).inline()
             piece_contents[curr_file] += function_map.insert(
-                key, var_kernel, 'std::get<0>(def_keys)', 'std::get<0>(function_maps)',
-                f.meta.lds_size_bytes)
-        
+                key, var_kernel, 'std::get<0>(def_keys)',
+                'std::get<0>(function_maps)', f.meta.lds_size_bytes)
+
         if curr_pp_func == len(precisions):
             curr_func, curr_pp_func = curr_func + len(precisions) + 1, 0
         else:
             curr_func = curr_func + 1
-            
+
         curr_file = (curr_file + 1) % num_files
 
     # Assemble contents of each file to return in a list
     pieces = [None] * num_files
-    piece_args = ArgumentList(
-        'std::tuple<FPKeyMap, PPFPKeyMap>& def_keys',
-        'std::tuple<FPMap, PPFPMap>& function_maps')
+    piece_args = ArgumentList('std::tuple<FPKeyMap, PPFPKeyMap>& def_keys',
+                              'std::tuple<FPMap, PPFPMap>& function_maps')
     for k in range(num_files):
         pieces[k] = StatementList(
             Include('"../include/function_pool.h"'),
@@ -1073,8 +1073,8 @@ def list_large_kernels():
 
 def list_3d_partial_pass_kernels():
     """Return list of partial-pass 3D kernels to generate."""
-    
-    pp_3d_kernels = [                
+
+    pp_3d_kernels = [
         NS(length=[64,64,64], dims=[0, 2], factors=[[8, 8],[4, 4, 4]], factors_pp=[[4],[16]], threads_per_transform=[8, 8], workgroup_size=[64,128], direct_to_from_reg=[False, False]),
     ]
 
@@ -1113,13 +1113,14 @@ def generate_kernel_functions(kernels, precisions, launchers_json):
             launcher = NS(**launcher_dict)
 
             factors = launcher.factors
-            
+
             if len(launcher.lengths) == 1:
                 length = launcher.lengths[0]
             elif len(launcher.lengths) == 2:
                 length = (launcher.lengths[0], launcher.lengths[1])
             elif len(launcher.lengths) == 3:
-                length = (launcher.lengths[0], launcher.lengths[1], launcher.lengths[2])
+                length = (launcher.lengths[0], launcher.lengths[1],
+                          launcher.lengths[2])
 
             transforms_per_block = launcher.transforms_per_block
             workgroup_size = launcher.workgroup_size
@@ -1151,24 +1152,22 @@ def generate_kernel_functions(kernels, precisions, launchers_json):
                 precisions.append('half')
             for p in precisions:
                 f = Function(arguments=ArgumentList(data, back),
-                             meta=NS(
-                                 factors=factors,
-                                 length=length,
-                                 params=params,
-                                 precision=p,
-                                 runtime_compile=runtime_compile,
-                                 scheme=scheme,
-                                 workgroup_size=workgroup_size,
-                                 transforms_per_block=transforms_per_block,
-                                 threads_per_transform=tpt_list,
-                                 transpose=sbrc_transpose_type,
-                                 use_3steps_large_twd=use_3steps_large_twd,
-                                 lds_size_bytes=kernel.lds_size_bytes,
-                                 pp_child_scheme=pp_child_scheme,
-                                 pp_factors = pp_factors,
-                                 pp_current_dim = pp_current_dim,
-                                 pp_off_dim = pp_off_dim
-                             ))
+                             meta=NS(factors=factors,
+                                     length=length,
+                                     params=params,
+                                     precision=p,
+                                     runtime_compile=runtime_compile,
+                                     scheme=scheme,
+                                     workgroup_size=workgroup_size,
+                                     transforms_per_block=transforms_per_block,
+                                     threads_per_transform=tpt_list,
+                                     transpose=sbrc_transpose_type,
+                                     use_3steps_large_twd=use_3steps_large_twd,
+                                     lds_size_bytes=kernel.lds_size_bytes,
+                                     pp_child_scheme=pp_child_scheme,
+                                     pp_factors=pp_factors,
+                                     pp_current_dim=pp_current_dim,
+                                     pp_off_dim=pp_off_dim))
 
                 if (scheme == 'CS_3D_PP'):
                     pp_kernel_functions.append(f)
@@ -1253,32 +1252,36 @@ def generate_kernels(kernels, precisions, stockham_gen):
                 half_lds = False
 
             # Send data over to subprocess
-                   
+
             if isinstance(k.workgroup_size, list):
-                proc.stdin.write(" " + ','.join([str(f) for f in k.workgroup_size]))
-            else: 
+                proc.stdin.write(" " +
+                                 ','.join([str(f) for f in k.workgroup_size]))
+            else:
                 proc.stdin.write(f' {str(k.workgroup_size)}')
-            
+
             proc.stdin.write(' 1' if half_lds else ' 0')
-                        
+
             direct_to_from_reg = getattr(k, 'direct_to_from_reg', True)
-            
+
             if isinstance(direct_to_from_reg, list):
-                proc.stdin.write(" " + ','.join(['1' if f else '0' for f in direct_to_from_reg]))
+                proc.stdin.write(
+                    " " +
+                    ','.join(['1' if f else '0' for f in direct_to_from_reg]))
             else:
                 # for unspecified direct_to_from_reg, default is True only for CS_KERNEL_STOCKHAM and SBCC
                 direct_to_from_reg = getattr(k, 'direct_to_from_reg', True)
                 proc.stdin.write(' 1' if direct_to_from_reg else ' 0')
-            
+
             # check for data specific to partial-pass 3D kernels
             if hasattr(k, 'dims'):
                 proc.stdin.write(" " + ','.join([str(f) for f in k.dims]))
-                proc.stdin.write(" " + ','.join([str(f)
+                proc.stdin.write(" " +
+                                 ','.join([str(f)
                                            for f in k.factors_pp[0]]) + " ")
                 proc.stdin.write(','.join([str(f)
                                            for f in k.factors_pp[1]]) + " ")
                 proc.stdin.write(','.join([str(f) for f in k.length]))
-            
+
             proc.stdin.write(f' {k.scheme}')
             proc.stdin.write(f' {kernel_name(k)}')
             proc.stdin.write(f' {k.lds_size_bytes}')
@@ -1326,8 +1329,8 @@ def cli():
 
     args = parser.parse_args()
     if args.num_files:
-        assert (args.num_files >
-                0), 'Number of files for function_pool should be positive'
+        assert (args.num_files
+                > 0), 'Number of files for function_pool should be positive'
 
     precisions = ['dp', 'sp']
 
@@ -1363,9 +1366,8 @@ def cli():
 
     if args.command == 'generate':
         functions, pp_functions = generate_kernels(kernels, precisions,
-                                         args.stockham_gen)
-        func_files = generate_cpu_function_pool_pieces(functions, 
-                                                       pp_functions,
+                                                   args.stockham_gen)
+        func_files = generate_cpu_function_pool_pieces(functions, pp_functions,
                                                        args.num_files)
         for i in range(args.num_files):
             write(f'function_pool_init_{i}.cpp', func_files[i], format=False)
