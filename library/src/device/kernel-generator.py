@@ -1329,8 +1329,8 @@ def cli():
 
     args = parser.parse_args()
     if args.num_files:
-        assert (args.num_files
-                > 0), 'Number of files for function_pool should be positive'
+        assert (args.num_files >
+                0), 'Number of files for function_pool should be positive'
 
     precisions = ['dp', 'sp']
 
