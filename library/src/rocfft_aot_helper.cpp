@@ -306,14 +306,6 @@ void build_stockham_function_pool(CompileQueue& queue)
                                                             {});
                 std::function<std::string(const std::string&)> generate_src
                     = [=](const std::string& kernel_name) -> std::string {
-                    StockhamGeneratorSpecs specs{factors,
-                                                 {},
-                                                 {static_cast<unsigned int>(precision)},
-                                                 static_cast<unsigned int>(i.second.workgroup_size),
-                                                 PrintScheme(scheme)};
-                    specs.threads_per_transform = i.second.threads_per_transform[0];
-                    specs.half_lds              = i.second.half_lds;
-                    specs.direct_to_from_reg    = i.second.direct_to_from_reg;
                     return stockham_rtc(specs,
                                         specs,
                                         nullptr,
