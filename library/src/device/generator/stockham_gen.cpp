@@ -212,13 +212,12 @@ std::vector<unsigned int> parse_uints_csv(const std::string& arg)
 
 const char* COMMA = ",";
 
+// output json (via stdout) describing the launchers that were generated, so
+// kernel-generator can generate the function pool
 void output_json(const std::vector<GeneratedLauncher>& launchers,
                  const std::string&                    kernel_name,
                  std::ostream&                         output)
 {
-    // output json (via stdout) describing the launchers that were generated, so
-    // kernel-generator can generate the function pool
-
     const char* LIST_DELIM = "";
 
     // store all variants of one kernel in a list, and store with kernel name as key
@@ -233,6 +232,7 @@ void output_json(const std::vector<GeneratedLauncher>& launchers,
     output << "]";
 }
 
+// Render stockham partial-pass kernel generated launchers in JSON format.
 void stockham_partial_pass_variants(const std::string&               kernel_name,
                                     const StockhamGeneratorSpecs&    specs1,
                                     const StockhamGeneratorSpecs&    specs2,
@@ -318,6 +318,7 @@ void stockham_partial_pass_variants(const std::string&               kernel_name
     output_json(launchers, kernel_name, output);
 }
 
+// Render stockham kernel generated launchers in JSON format.
 void stockham_variants(const std::string&            kernel_name,
                        const StockhamGeneratorSpecs& specs,
                        const StockhamGeneratorSpecs& specs2d,
@@ -437,6 +438,25 @@ void stockham_variants(const std::string&            kernel_name,
     output_json(launchers, kernel_name, output);
 }
 
+static size_t max_bytes_per_element(const std::vector<unsigned int>& precisions)
+{
+    // generate for the maximum element size in the available
+    // precisions
+    size_t element_size = 0;
+    for(auto p : precisions)
+    {
+        element_size = std::max(element_size, complex_type_size(static_cast<rocfft_precision>(p)));
+    }
+    return element_size;
+}
+
+// =========================================================
+// Partial pass parameters row-major ordering helpers.
+// Kernel configuration parameters for CS_3D_PP in
+// kernel-generator.py are in column-major ordering.
+// =========================================================
+
+// Gets partial-pass dimension in row-major ordering.
 size_t pp_dim_rm(const size_t dim)
 {
     if(dim == 0)
@@ -447,7 +467,7 @@ size_t pp_dim_rm(const size_t dim)
 
     return dim;
 }
-
+// Gets partial pass parameters in row-major ordering.
 void pp_params_rm(std::vector<unsigned int>& parent_length,
                   std::vector<unsigned int>& dims,
                   std::vector<unsigned int>& factors1,
@@ -473,7 +493,7 @@ void pp_params_rm(std::vector<unsigned int>& parent_length,
         std::reverse(direct_to_from_reg.begin(), direct_to_from_reg.end());
     }
 }
-
+// Gets partial-pass off-dimension in row-major ordering.
 unsigned int get_pp_off_dim(const std::vector<unsigned int>& dims)
 {
     if(dims.size() != 2)
@@ -505,6 +525,12 @@ unsigned int get_pp_off_dim(const std::vector<unsigned int>& dims)
     return off_dim;
 }
 
+// =========================================================
+// CS_3D_PP validation helpers.
+// =========================================================
+
+// Validates that the current_dim is the correct index
+// in parent_length for the given factors.
 void validate_pp_length(const StockhamPartialPassParams& pp_params,
                         const std::vector<unsigned int>& factors)
 
@@ -517,6 +543,8 @@ void validate_pp_length(const StockhamPartialPassParams& pp_params,
         throw std::runtime_error("Invalid partial-pass kernel length configuration");
 }
 
+// Validates that the off-dim factors are valid and match
+// the off-dimension length in parent_length.
 void validate_pp_off_dim_length(const StockhamPartialPassParams& pp_params_1,
                                 const StockhamPartialPassParams& pp_params_2)
 {
@@ -535,7 +563,7 @@ void validate_pp_off_dim_length(const StockhamPartialPassParams& pp_params_1,
     if(length_off_dim != pp_params_1.parent_length[pp_params_1.off_dim])
         throw std::runtime_error("Invalid partial-pass kernel off-dimension length");
 }
-
+// Validate grid parameters for partial pass kernels.
 void validate_pp_grid_params(const StockhamPartialPassParams& params_1,
                              const StockhamPartialPassParams& params_2,
                              const StockhamGeneratorSpecs&    specs_1,
@@ -585,18 +613,6 @@ void validate_pp_grid_params(const StockhamPartialPassParams& params_1,
     {
         throw std::runtime_error("unhandled scheme");
     }
-}
-
-static size_t max_bytes_per_element(const std::vector<unsigned int>& precisions)
-{
-    // generate for the maximum element size in the available
-    // precisions
-    size_t element_size = 0;
-    for(auto p : precisions)
-    {
-        element_size = std::max(element_size, complex_type_size(static_cast<rocfft_precision>(p)));
-    }
-    return element_size;
 }
 
 int main()
