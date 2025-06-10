@@ -463,6 +463,7 @@ struct FromString<FMKey>
     }
 };
 
+// Hash function for FMKey.
 struct SimpleHash
 {
     size_t operator()(const FMKey& p) const noexcept
@@ -549,6 +550,7 @@ struct PPFMKey : public FMKeyBase
     }
 };
 
+// Hash function for PPFMKey.
 struct SimpleHashPP
 {
     size_t operator()(const PPFMKey& p) const noexcept
