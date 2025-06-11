@@ -47,6 +47,7 @@ The rocFFT public repository is located at `<https://github.com/ROCm/rocFFT>`_.
 
     * :doc:`API usage <./reference/api>`
     * :doc:`API reference <./reference/allapi>`
+    * :doc:`Environment variables <./reference/env-variables>`
 
 To contribute to the documentation, see
 `Contributing to ROCm <https://rocm.docs.amd.com/en/latest/contribute/contributing.html>`_.
