@@ -108,6 +108,7 @@ set( kgen_embed_cpp ${CMAKE_BINARY_DIR}/library/src/device/kernel-generator-embe
 set( kgen_embed_files
      ${CMAKE_SOURCE_DIR}/shared/rocfft_complex.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/common.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/kernels/device_enum.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/memory_gfx.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/callback.h
      ${CMAKE_SOURCE_DIR}/library/src/device/kernels/butterfly_constant.h
@@ -161,10 +162,10 @@ set( kgen_logic_files
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_2d.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_base.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_cc.h
-     ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_pp_gen_cc.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_cr.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rc.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_gen_rr.h
+     ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_pp_gen_cc.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/stockham_pp_gen_rr.h
      ${CMAKE_SOURCE_DIR}/library/src/device/generator/bluestein_generator.h
      ${CMAKE_SOURCE_DIR}/library/src/rtc_compile.cpp
