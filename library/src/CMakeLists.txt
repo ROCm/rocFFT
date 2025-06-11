@@ -348,6 +348,16 @@ foreach( target
 
 endforeach()
 
+# Standalone executables that link in the rocFFT shared library need
+# to implement some globals that common code is expecting to exist.
+# But in a static build the executables will get globals from rocFFT,
+# and don't need the stub.
+if( BUILD_SHARED_LIBS )
+  set( ROCFFT_SHARED_STUB rocfft_stub.cpp )
+else()
+  set( ROCFFT_SHARED_STUB "" )
+endif()
+
 add_executable( rocfft_aot_helper
   enum_printer.cpp
   rocfft_aot_helper.cpp
@@ -364,14 +374,14 @@ if( ROCFFT_BUILD_OFFLINE_TUNER )
     ../../shared/array_validator.cpp
     enum_printer.cpp
     rocfft_offline_tuner.cpp
-    rocfft_stub.cpp
+    ${ROCFFT_SHARED_STUB}
   )
   target_compile_options( rocfft_offline_tuner PRIVATE -DROCFFT_BUILD_OFFLINE_TUNER )
 
   add_executable( rocfft_solmap_convert
     enum_printer.cpp
     rocfft_solmap_convert.cpp
-    rocfft_stub.cpp
+    ${ROCFFT_SHARED_STUB}
   )
   target_compile_options( rocfft_solmap_convert PRIVATE -DROCFFT_BUILD_OFFLINE_TUNER )
 endif()
