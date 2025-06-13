@@ -122,7 +122,7 @@ private:
             std::string   proc_line;
             while(std::getline(proc_meminfo, proc_line))
             {
-                // meminfo counts in kiB
+                // meminfo counts in KiB
                 if(proc_line.compare(0, 9, "MemTotal:") == 0)
                     total_bytes = std::stoull(proc_line.substr(9)) * 1024;
                 else if(proc_line.compare(0, 13, "MemAvailable:") == 0)
