@@ -859,6 +859,17 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             cpu_input.swap(last_cpu_fft_data.cpu_input);
             cpu_output.swap(last_cpu_fft_data.cpu_output);
             run_fftw = false;
+            if(params.scale_factor != 1.0)
+            {
+                // cpu_output was stored *unscaled* in cache; scale it as
+                // required before using it for comparison purposes
+                // temporary lower run_callbacks flag
+                bool no_run_callbacks = false;
+                std::swap(params.run_callbacks, no_run_callbacks);
+                apply_store_callback(params, cpu_output);
+                // restore params to what it was
+                std::swap(params.run_callbacks, no_run_callbacks);
+            }
 
             store_to_cache = std::make_unique<StoreCPUDataToCache>(cpu_input, cpu_output);
 
@@ -1394,7 +1405,22 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         compare_output.get();
 
     if(!store_to_cache)
+    {
+        if(params.scale_factor != 1.0)
+        {
+            // keep cpu_output *unscaled* in cache to make it reusable thereafter.
+            // temporarily modify params to revert the effects of scale_factor
+            double reciprocal_scale_factor = 1.0 / params.scale_factor;
+            bool   no_run_callbacks        = false;
+            std::swap(params.scale_factor, reciprocal_scale_factor);
+            std::swap(params.run_callbacks, no_run_callbacks);
+            apply_store_callback(params, cpu_output);
+            // restore params to what it was
+            std::swap(params.scale_factor, reciprocal_scale_factor);
+            std::swap(params.run_callbacks, no_run_callbacks);
+        }
         store_to_cache = std::make_unique<StoreCPUDataToCache>(cpu_input, cpu_output);
+    }
 
     Tparams params_inverse;
 
@@ -1464,13 +1490,14 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         EXPECT_TRUE(diff.l_inf <= linf_cutoff)
             << "Linf test failed.  Linf:" << diff.l_inf
             << "\tnormalized Linf: " << diff.l_inf / cpu_output_norm.l_inf
-            << "\tcutoff: " << linf_cutoff << params.str();
+            << "\tcutoff: " << linf_cutoff << "\n"
+            << params.str();
 
         EXPECT_TRUE(diff.l_2 / cpu_output_norm.l_2
                     <= sqrt(log2(total_length)) * type_epsilon(params.precision))
             << "L2 test failed. L2: " << diff.l_2
             << "\tnormalized L2: " << diff.l_2 / cpu_output_norm.l_2
-            << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(params.precision)
+            << "\tepsilon: " << sqrt(log2(total_length)) * type_epsilon(params.precision) << "\n"
             << params.str();
     }
 
