@@ -863,12 +863,15 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             {
                 // cpu_output was stored *unscaled* in cache; scale it as
                 // required before using it for comparison purposes
-                // temporary lower run_callbacks flag
-                bool no_run_callbacks = false;
-                std::swap(params.run_callbacks, no_run_callbacks);
+                bool tmp_run_callbacks = false;
+                auto tmp_precision     = last_cpu_fft_data.precision;
+                // scale the (cached) results as required
+                std::swap(params.run_callbacks, tmp_run_callbacks);
+                std::swap(params.precision, tmp_precision);
                 apply_store_callback(params, cpu_output);
                 // restore params to what it was
-                std::swap(params.run_callbacks, no_run_callbacks);
+                std::swap(params.run_callbacks, tmp_run_callbacks);
+                std::swap(params.precision, tmp_precision);
             }
 
             store_to_cache = std::make_unique<StoreCPUDataToCache>(cpu_input, cpu_output);
@@ -1404,23 +1407,22 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     if(compare_output.valid())
         compare_output.get();
 
-    if(!store_to_cache)
+    if(params.scale_factor != 1.0)
     {
-        if(params.scale_factor != 1.0)
-        {
-            // keep cpu_output *unscaled* in cache to make it reusable thereafter.
-            // temporarily modify params to revert the effects of scale_factor
-            double reciprocal_scale_factor = 1.0 / params.scale_factor;
-            bool   no_run_callbacks        = false;
-            std::swap(params.scale_factor, reciprocal_scale_factor);
-            std::swap(params.run_callbacks, no_run_callbacks);
-            apply_store_callback(params, cpu_output);
-            // restore params to what it was
-            std::swap(params.scale_factor, reciprocal_scale_factor);
-            std::swap(params.run_callbacks, no_run_callbacks);
-        }
-        store_to_cache = std::make_unique<StoreCPUDataToCache>(cpu_input, cpu_output);
+        // keep cpu_output *unscaled* in cache to make it reusable thereafter.
+        // Revert scaling factor:
+        auto tmp_scale_factor  = 1.0 / params.scale_factor;
+        bool tmp_run_callbacks = false;
+        std::swap(params.scale_factor, tmp_scale_factor);
+        std::swap(params.run_callbacks, tmp_run_callbacks);
+        apply_store_callback(params, cpu_output);
+        // restore params to what it was
+        std::swap(params.scale_factor, tmp_scale_factor);
+        std::swap(params.run_callbacks, tmp_run_callbacks);
     }
+
+    if(!store_to_cache)
+        store_to_cache = std::make_unique<StoreCPUDataToCache>(cpu_input, cpu_output);
 
     Tparams params_inverse;
 
