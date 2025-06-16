@@ -53,6 +53,7 @@ struct last_cpu_fft_cache
     fft_transform_type  transform_type = fft_transform_type_complex_forward;
     bool                run_callbacks  = false;
     fft_precision       precision      = fft_precision_single;
+    double              scale_factor   = 1.0;
 
     // FFTW input/output
     std::vector<hostbuf> cpu_input;
@@ -851,7 +852,8 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     std::unique_ptr<StoreCPUDataToCache> store_to_cache;
     if(fftw_compare && last_cpu_fft_data.length == params.length
        && last_cpu_fft_data.transform_type == params.transform_type
-       && last_cpu_fft_data.run_callbacks == params.run_callbacks)
+       && last_cpu_fft_data.run_callbacks == params.run_callbacks
+       && last_cpu_fft_data.scale_factor == params.scale_factor)
     {
         if(last_cpu_fft_data.nbatch >= params.nbatch)
         {
@@ -859,20 +861,6 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
             cpu_input.swap(last_cpu_fft_data.cpu_input);
             cpu_output.swap(last_cpu_fft_data.cpu_output);
             run_fftw = false;
-            if(params.scale_factor != 1.0)
-            {
-                // cpu_output was stored *unscaled* in cache; scale it as
-                // required before using it for comparison purposes
-                bool tmp_run_callbacks = false;
-                auto tmp_precision     = last_cpu_fft_data.precision;
-                // scale the (cached) results as required
-                std::swap(params.run_callbacks, tmp_run_callbacks);
-                std::swap(params.precision, tmp_precision);
-                apply_store_callback(params, cpu_output);
-                // restore params to what it was
-                std::swap(params.run_callbacks, tmp_run_callbacks);
-                std::swap(params.precision, tmp_precision);
-            }
 
             store_to_cache = std::make_unique<StoreCPUDataToCache>(cpu_input, cpu_output);
 
@@ -1392,6 +1380,7 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
           || last_cpu_fft_data.transform_type != params.transform_type
           || last_cpu_fft_data.run_callbacks != params.run_callbacks
           || last_cpu_fft_data.precision != params.precision
+          || last_cpu_fft_data.scale_factor != params.scale_factor
           || params.nbatch > last_cpu_fft_data.nbatch;
 
     // store cpu output in cache
@@ -1402,24 +1391,11 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
         last_cpu_fft_data.transform_type = params.transform_type;
         last_cpu_fft_data.run_callbacks  = params.run_callbacks;
         last_cpu_fft_data.precision      = params.precision;
+        last_cpu_fft_data.scale_factor   = params.scale_factor;
     }
 
     if(compare_output.valid())
         compare_output.get();
-
-    if(params.scale_factor != 1.0)
-    {
-        // keep cpu_output *unscaled* in cache to make it reusable thereafter.
-        // Revert scaling factor:
-        auto tmp_scale_factor  = 1.0 / params.scale_factor;
-        bool tmp_run_callbacks = false;
-        std::swap(params.scale_factor, tmp_scale_factor);
-        std::swap(params.run_callbacks, tmp_run_callbacks);
-        apply_store_callback(params, cpu_output);
-        // restore params to what it was
-        std::swap(params.scale_factor, tmp_scale_factor);
-        std::swap(params.run_callbacks, tmp_run_callbacks);
-    }
 
     if(!store_to_cache)
         store_to_cache = std::make_unique<StoreCPUDataToCache>(cpu_input, cpu_output);
