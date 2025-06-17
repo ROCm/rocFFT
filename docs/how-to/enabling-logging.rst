@@ -15,7 +15,7 @@ logs that rocFFT supports.
 *  **Trace logging**: Logs the library entry points (for example, ``rocfft_plan_create`` or ``rocfft_execute``) and their parameter
    values when they are called. Error messages during plan creation and execution are also logged here.
 *  **Benchmark logging**: Logs the ``rocfft-bench`` command line when a plan is created.
-   You can use this command to rerun the same transform again later.
+   You can use this command to rerun the same transform later.
 *  **Profile logging**: Logs a message for each kernel launched during plan execution.
    This message contains the following elements:
 
@@ -36,9 +36,7 @@ logs that rocFFT supports.
    *  The kernel maximum occupancy (estimated by HIP)
 
 *  **Kernel I/O logging**: Logs the kernel details during plan execution, including the input to each
-   kernel (the data provided by the user) and the final output of the transform. The data is logged
-   in its logical shape, as specified by the TreeNode length and inStride members,
-   even if the physical shape is different.
+   kernel (the data provided by the user) and the final output of the transform.
 
    .. note::
 
@@ -65,14 +63,14 @@ logs that rocFFT supports.
       All non-code messages (except for compile errors) are written as C++ comments, so 
       you can pass the whole file to clang-format to inspect the source code.
 
-      The source code details for the runtime compilation can be very large, so considering writing
+      The source code details for the runtime compilation can be very large, so consider writing
       this log to a file instead of stderr.
 
 *  **Tuning logging**: Logs details about any kernels that are tried and rejected while tuning is running.
    It also logs messages when tuned solutions are used during plan building.
 *  **Graph logging**: Logs the graph of subplans during multi-GPU or multi-process plan execution.
    Subplans include FFT plans, transpose plans (to reshape data for communication), and communication steps.
-   This is written as GraphViz data. The view of the global graph might be slightly different from
+   This is written as Graphviz data. The view of the global graph might be slightly different from
    different nodes. This is because the current node has more visibility into subplans that run locally
    than those that run on other nodes.
 
@@ -121,11 +119,6 @@ The following table lists the environment variable to redirect logging for each
 log type. Set this variable to a valid file path to redirect the output of the corresponding log type.
 For example, to send the trace logging output to a file, enable the trace log, then set the
 ``ROCFFT_LOG_TRACE_PATH`` variable to the name of the destination file.
-
-.. note::
-
-   On Linux, ``/dev/stdout`` can be specified as the log file name, which sends the
-   messages to stdout instead of stderr.
 
 .. csv-table::
    :header: "Log type","File redirection variable"
