@@ -14,7 +14,7 @@ logs that rocFFT supports.
 
 *  **Trace logging**: Logs the library entry points (for example, ``rocfft_plan_create`` or ``rocfft_execute``) and their parameter
    values when they are called. Error messages during plan creation and execution are also logged here.
-*  **Bench logging**: Logs the ``rocfft-rider`` command line when a plan is created.
+*  **Benchmark logging**: Logs the ``rocfft-bench`` command line when a plan is created.
    You can use this command to rerun the same transform again later.
 *  **Profile logging**: Logs a message for each kernel launched during plan execution.
    This message contains the following elements:
@@ -26,7 +26,7 @@ logs that rocFFT supports.
    .. note::
    
       To provide the kernel duration, rocFFT must use ``hipEvents`` and wait for each kernel to complete.
-      This might interfere with time measurement at higher levels, for example, for ``rocfft-rider``.
+      This might interfere with time measurement at higher levels, for example, for ``rocfft-bench``.
 
 *  **Plan logging**: Logs the plan details when a transform is executed, including the following:
 
@@ -45,7 +45,8 @@ logs that rocFFT supports.
       The amount of data logged can become very large, particularly for 2D and 3D transforms, so
       logging it to a file instead of stderr is usually a good idea. See the next section for more details.
       
-      Writing the data involves extra ``hipMemcpy`` operations, which affects performance.
+      Writing the data involves extra ``hipMemcpy`` operations and serializing the
+      data to the log can also take a significant amount of time. Both of these factors affect performance.
 
 *  **Runtime compilation logging**: Logs details about runtime compilation during plan creation,
    including the following:
@@ -92,7 +93,7 @@ For example, to see the output for trace, profile, and plan logging, set ``ROCFF
    :widths: 20, 20
 
    "Trace logging","1"
-   "Bench logging","2"
+   "Benchmark logging","2"
    "Profile logging","4"
    "Plan logging","8"
    "Kernel I/O logging","16"
@@ -131,7 +132,7 @@ For example, to send the trace logging output to a file, enable the trace log, t
    :widths: 20, 30
 
    "Trace logging","``ROCFFT_LOG_TRACE_PATH``"
-   "Bench logging","``ROCFFT_LOG_BENCH_PATH``"
+   "Benchmark logging","``ROCFFT_LOG_BENCH_PATH``"
    "Profile logging","``ROCFFT_LOG_PROFILE_PATH``"
    "Plan logging","``ROCFFT_LOG_PLAN_PATH``"
    "Kernel I/O logging","``ROCFFT_LOG_KERNELIO_PATH``"
