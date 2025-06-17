@@ -116,7 +116,7 @@ also be enabled in the  ``ROCFFT_LAYER`` bit field.
    Some log types, such as kernel I/O logging and runtime compilation logging, can generate
    a large number of log entries, so redirecting their output to a file is recommended.
 
-The following table lists the logging redirection environmental variable for each
+The following table lists the environment variable to redirect logging for each
 log type. Set this variable to a valid file path to redirect the output of the corresponding log type.
 For example, to send the trace logging output to a file, enable the trace log, then set the
 ``ROCFFT_LOG_TRACE_PATH`` variable to the name of the destination file.
