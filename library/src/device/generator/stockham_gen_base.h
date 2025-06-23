@@ -214,6 +214,16 @@ struct StockhamKernel : public StockhamGeneratorSpecs
     // do syncthreads in lds_reg device functions
     Variable lds_reg_sync{"lds_reg_sync", "bool"};
 
+    virtual unsigned int launcher_workgroup_size()
+    {
+        return workgroup_size;
+    }
+
+    virtual unsigned int launcher_transforms_per_block()
+    {
+        return transforms_per_block;
+    }
+
     virtual std::vector<unsigned int> launcher_lengths()
     {
         return {length};
