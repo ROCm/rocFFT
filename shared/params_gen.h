@@ -432,7 +432,7 @@ inline auto param_generator_real(const double                             base_p
                                  const bool planar,
                                  const bool run_callbacks = false)
 {
-    return param_generator_base(test_prob,
+    return param_generator_base(base_prob,
                                 trans_type_range_real,
                                 v_lengths,
                                 precision_range,
