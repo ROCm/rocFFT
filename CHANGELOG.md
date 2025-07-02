@@ -5,6 +5,10 @@ Documentation for rocFFT is available at
 
 ## rocFFT 1.0.35 (unreleased)
 
+### Optimized
+
+* Implemented single-kernel plans for some 2D problem sizes, on devices with at least 160KiB of LDS.
+
 ## rocFFT 1.0.34 for ROCm 7.0.0
 
 ### Added
