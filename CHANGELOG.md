@@ -29,6 +29,7 @@ Documentation for rocFFT is available at
   - 6144
   - 6561
   - 8192
+* Implemented single-kernel plans for some large 1D problem sizes, on devices with at least 160KiB of LDS.
 
 ### Resolved issues
 
