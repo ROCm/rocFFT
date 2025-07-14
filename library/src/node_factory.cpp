@@ -944,7 +944,7 @@ bool NodeFactory::use_CS_2D_SINGLE(const function_pool& pool,
         if(ldsUsage > ldsSize / 2)
             return false;
     }
-    // For default (64kiB) LDS, just account for 2D data size and
+    // For default (64KiB) LDS, just account for 2D data size and
     // apply a fudge factor to get good-enough occupancy.  Ideally we
     // can use the above heuristic everywhere but some tuned
     // 2D_SINGLE solutions are faster despite being occupancy-1.

@@ -749,7 +749,7 @@ def list_small_kernels():
         NS(length=6561, workgroup_size=256, threads_per_transform=243, factors=(3, 3, 3, 3, 3, 3, 3, 3), double_precision=False, runtime_compile=True),
         NS(length=8192, workgroup_size=512, threads_per_transform=512, factors=(16, 4, 4, 4, 8), double_precision=False, runtime_compile=True),
 
-        # configs for 160kiB LDS
+        # configs for 160KiB LDS
         NS(length=4704, workgroup_size=256, threads_per_transform=224, factors=(8, 4, 7, 7, 3), lds_size_bytes=LDS_160k, runtime_compile=True),
         NS(length=5488, workgroup_size=256, threads_per_transform=196, factors=(7, 4, 7, 4, 7), lds_size_bytes=LDS_160k, runtime_compile=True),
         NS(length=6144, workgroup_size=384, threads_per_transform=256, factors=(4, 8, 8, 8, 3), lds_size_bytes=LDS_160k, runtime_compile=True),
@@ -916,7 +916,7 @@ def list_2d_kernels():
         NS(length=[42,96], factors=[[7,6],[6,16]], threads_per_transform=[6,6], workgroup_size=576),
         NS(length=[96,42], factors=[[6,16],[7,6]], threads_per_transform=[6,6], workgroup_size=576),
 
-        # configs for 160kiB LDS
+        # configs for 160KiB LDS
         NS(length=[40,108], factors=[[8,5],[6,3,6]], threads_per_transform=[8,12], workgroup_size=240, lds_size_bytes=LDS_160k),
         NS(length=[108,40], factors=[[6,3,6],[8,5]], threads_per_transform=[12,8], workgroup_size=240, lds_size_bytes=LDS_160k),
         NS(length=[48,100], factors=[[8,6],[10,10]], threads_per_transform=[8,10], workgroup_size=240, lds_size_bytes=LDS_160k),
