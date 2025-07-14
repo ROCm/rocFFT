@@ -599,17 +599,6 @@ int main(int argc, char* argv[])
         return EXIT_FAILURE;
     }
 
-    // Ensure there are no leftover options used by neither gtest nor CLI11
-    const auto leftover_args = app.remaining();
-    if(!leftover_args.empty())
-    {
-        std::cout << "Unrecognised option(s) found:\n  ";
-        for(auto i : leftover_args)
-            std::cout << i << " ";
-        std::cout << "\nRun with --help for more information.\n";
-        return EXIT_FAILURE;
-    }
-
     std::cout << "half epsilon: " << half_epsilon << "\tsingle epsilon: " << single_epsilon
               << "\tdouble epsilon: " << double_epsilon << std::endl;
     std::cout << "Random seed: " << random_seed << std::endl;
