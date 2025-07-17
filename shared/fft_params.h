@@ -2224,10 +2224,12 @@ public:
         }
     }
 
-    virtual fft_status set_callbacks(void* load_cb_host,
-                                     void* load_cb_data,
-                                     void* store_cb_host,
-                                     void* store_cb_data)
+    virtual fft_status set_callbacks(void*  load_cb_host,
+                                     void*  load_cb_data,
+                                     void*  store_cb_host,
+                                     void*  store_cb_data,
+                                     size_t load_cb_shared_mem_bytes,
+                                     size_t store_cb_shared_mem_bytes)
     {
         return fft_status_success;
     }
