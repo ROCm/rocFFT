@@ -1,5 +1,8 @@
 # rocFFT
 
+> [!CAUTION]
+> The rocFFT repository is retired, please use the [ROCm/rocm-libraries](https://github.com/ROCm/rocm-libraries) repository
+
 rocFFT is a software library for computing fast Fourier transforms (FFTs) written in the HIP
 programming language. It's part of AMD's software ecosystem based on
 [ROCm](https://github.com/ROCm/ROCm). The rocFFT library can be used with AMD and
