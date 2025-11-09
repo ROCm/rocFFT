@@ -1,4 +1,4 @@
-// Copyright (C) 2022-2024 Advanced Micro Devices, Inc. All rights reserved.
+// Copyright (C) 2025 Advanced Micro Devices, Inc. All rights reserved.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -18,37 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-#ifndef RTC_TRANSPOSE_GEN
-#define RTC_TRANSPOSE_GEN
+#ifndef ROCFFT_CALLBACK_MAP_H
+#define ROCFFT_CALLBACK_MAP_H
 
-#include "load_store_ops.h"
-#include "rocfft/rocfft.h"
-#include "rtc_kernel.h"
+#include <map>
 
-#include "../device/kernels/common.h"
-
-struct TransposeSpecs
+// Load/store callbacks for a device, intended to be stored in a
+// std::map, so that we can derive callback info from a device
+// ID.
+struct device_callback_t
 {
-    unsigned int            tileX;
-    unsigned int            tileY;
-    size_t                  dim;
-    rocfft_precision        precision;
-    rocfft_array_type       inArrayType;
-    rocfft_array_type       outArrayType;
-    size_t                  largeTwdSteps;
-    int                     largeTwdDirection;
-    bool                    diagonal;
-    bool                    tileAligned;
-    CallbackType            cbtype;
-    std::optional<LoadOps>  loadOps;
-    std::optional<StoreOps> storeOps;
-    bool                    grid3D;
+    void* load_fn    = nullptr;
+    void* load_data  = nullptr;
+    void* store_fn   = nullptr;
+    void* store_data = nullptr;
 };
 
-// generate name for RTC transpose kernel
-std::string transpose_rtc_kernel_name(const TransposeSpecs& specs);
-
-// generate source for RTC transpose kernel.
-std::string transpose_rtc(const std::string& kernel_name, const TransposeSpecs& specs);
-
+// Build map of callback structs, so we can know which callback
+// functions run on which devices.  Index in the map is HIP device
+// ID.
+//
+// We do this because callbacks need to be specified in the execution
+// info in the order of the bricks specified in the transform, which
+// might not be in any sensible order.
+struct rocfft_execution_info_t;
+struct rocfft_plan_description_t;
+std::map<int, device_callback_t> DeviceCallbackMap(const rocfft_execution_info_t*   info,
+                                                   const rocfft_plan_description_t& desc);
 #endif
